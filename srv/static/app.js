@@ -255,12 +255,46 @@ document.addEventListener('DOMContentLoaded', () => {
     if (addFeedForm) {
         addFeedForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const url = document.getElementById('feed-url').value;
+            let url = document.getElementById('feed-url').value;
             const name = document.getElementById('feed-name').value;
             const feedType = document.getElementById('feed-type').value;
             const scraperModule = document.getElementById('scraper-module')?.value || '';
             const categoryId = parseInt(document.getElementById('feed-category')?.value) || 0;
             const interval = parseInt(document.getElementById('feed-interval').value) || 60;
+            
+            let scraperConfig = '';
+            
+            // Handle HuggingFace feed type
+            if (feedType === 'huggingface') {
+                const hfType = document.getElementById('hf-type').value;
+                const hfIdentifier = document.getElementById('hf-identifier').value;
+                
+                if (!hfIdentifier && hfType !== 'daily_papers') {
+                    alert('Please enter a username, organization, or collection slug');
+                    return;
+                }
+                
+                scraperConfig = JSON.stringify({
+                    type: hfType,
+                    identifier: hfIdentifier,
+                    limit: 30
+                });
+                
+                // Generate a URL for display purposes
+                if (hfType === 'daily_papers') {
+                    url = 'https://huggingface.co/papers';
+                } else if (hfType === 'collection') {
+                    url = `https://huggingface.co/collections/${hfIdentifier}`;
+                } else if (hfType.includes('models')) {
+                    url = `https://huggingface.co/${hfIdentifier}`;
+                } else if (hfType.includes('datasets')) {
+                    url = `https://huggingface.co/datasets?author=${hfIdentifier}`;
+                } else if (hfType.includes('spaces')) {
+                    url = `https://huggingface.co/spaces?author=${hfIdentifier}`;
+                } else if (hfType.includes('posts')) {
+                    url = `https://huggingface.co/${hfIdentifier}`;
+                }
+            }
 
             try {
                 const feed = await api('POST', '/api/feeds', {
@@ -268,6 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     name: name || url,
                     feedType,
                     scraperModule,
+                    scraperConfig,
                     interval
                 });
                 

@@ -62,6 +62,7 @@
                     <select id="feed-type" name="feedType">
                         <option value="rss">RSS/Atom</option>
                         <option value="scraper">Custom Scraper</option>
+                        <option value="huggingface">Hugging Face</option>
                     </select>
                 </div>
                 <div class="form-group" id="scraper-module-group" style="display:none">
@@ -72,6 +73,22 @@
                         <option value="{{.Name}}">{{.Name}}</option>
                         {{end}}
                     </select>
+                </div>
+                <div class="form-group" id="huggingface-group" style="display:none">
+                    <label for="hf-type">HuggingFace Feed Type</label>
+                    <select id="hf-type" name="hfType">
+                        <option value="user_models">User/Org Models</option>
+                        <option value="user_datasets">User/Org Datasets</option>
+                        <option value="user_spaces">User/Org Spaces</option>
+                        <option value="user_posts">User/Org Posts</option>
+                        <option value="collection">Collection</option>
+                        <option value="daily_papers">Daily Papers</option>
+                    </select>
+                    <div class="form-group" style="margin-top: 10px;">
+                        <label for="hf-identifier">Username, Org, or Collection Slug</label>
+                        <input type="text" id="hf-identifier" placeholder="openai, meta-llama, or collection/slug">
+                        <small>For daily papers, leave empty</small>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="feed-category">Folder</label>
@@ -155,6 +172,18 @@
 document.getElementById('feed-type').addEventListener('change', function() {
     document.getElementById('scraper-module-group').style.display = 
         this.value === 'scraper' ? 'block' : 'none';
+    document.getElementById('huggingface-group').style.display = 
+        this.value === 'huggingface' ? 'block' : 'none';
+    
+    // Update URL placeholder based on type
+    const urlInput = document.getElementById('feed-url');
+    if (this.value === 'huggingface') {
+        urlInput.placeholder = 'Auto-generated from HuggingFace config';
+        urlInput.required = false;
+    } else {
+        urlInput.placeholder = 'https://example.com/feed.xml';
+        urlInput.required = true;
+    }
 });
 </script>
 {{end}}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"srv.exe.dev/db/dbgen"
+	"srv.exe.dev/srv/huggingface"
 	"srv.exe.dev/srv/scrapers"
 )
 
@@ -108,6 +110,8 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed dbgen.Feed) error {
 		} else {
 			fetchErr = fmt.Errorf("scraper module not configured")
 		}
+	case "huggingface":
+		items, fetchErr = f.fetchHuggingFace(ctx, feed)
 	default:
 		fetchErr = fmt.Errorf("unknown feed type: %s", feed.FeedType)
 	}
@@ -248,4 +252,35 @@ func strPtr(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+func (f *Fetcher) fetchHuggingFace(ctx context.Context, feed dbgen.Feed) ([]FeedItem, error) {
+	if feed.ScraperConfig == nil || *feed.ScraperConfig == "" {
+		return nil, fmt.Errorf("huggingface config not set")
+	}
+
+	var config huggingface.FeedConfig
+	if err := json.Unmarshal([]byte(*feed.ScraperConfig), &config); err != nil {
+		return nil, fmt.Errorf("parse huggingface config: %w", err)
+	}
+
+	client := huggingface.NewClient("") // No auth token for now
+	hfItems, err := client.Fetch(ctx, config)
+	if err != nil {
+		return nil, fmt.Errorf("fetch from huggingface: %w", err)
+	}
+
+	items := make([]FeedItem, len(hfItems))
+	for i, hfItem := range hfItems {
+		items[i] = FeedItem{
+			GUID:        hfItem.GUID,
+			Title:       hfItem.Title,
+			URL:         hfItem.URL,
+			Author:      hfItem.Author,
+			Summary:     hfItem.Summary,
+			ImageURL:    hfItem.ImageURL,
+			PublishedAt: hfItem.PublishedAt,
+		}
+	}
+	return items, nil
 }
