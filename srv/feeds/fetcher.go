@@ -181,7 +181,7 @@ func (f *Fetcher) fetchRSSFeed(ctx context.Context, url string) ([]FeedItem, err
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("HTTP %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), httpErrorDescription(resp.StatusCode))
 	}
 
 	feed, err := Parse(resp.Body)
@@ -198,7 +198,7 @@ func (f *Fetcher) fetchWithScraper(ctx context.Context, feed dbgen.Feed) ([]Feed
 	}
 
 	q := dbgen.New(f.DB)
-	module, err := q.GetScraperModuleByName(ctx, *feed.ScraperModule)
+	module, err := q.GetScraperModuleInternal(ctx, *feed.ScraperModule)
 	if err != nil {
 		return nil, fmt.Errorf("get scraper module: %w", err)
 	}
@@ -283,4 +283,42 @@ func (f *Fetcher) fetchHuggingFace(ctx context.Context, feed dbgen.Feed) ([]Feed
 		}
 	}
 	return items, nil
+}
+
+// httpErrorDescription returns a human-readable description of HTTP error codes
+func httpErrorDescription(code int) string {
+	switch code {
+	case 400:
+		return "The request was malformed or invalid"
+	case 401:
+		return "Authentication is required to access this feed"
+	case 403:
+		return "The server refused to provide this feed"
+	case 404:
+		return "The feed URL was not found on the server"
+	case 405:
+		return "The request method is not allowed for this feed"
+	case 408:
+		return "The server timed out waiting for the request"
+	case 410:
+		return "The feed has been permanently removed"
+	case 429:
+		return "Too many requests; the server is rate limiting"
+	case 500:
+		return "The server encountered an internal error"
+	case 502:
+		return "The server received an invalid response from upstream"
+	case 503:
+		return "The server is temporarily unavailable"
+	case 504:
+		return "The server timed out waiting for an upstream response"
+	default:
+		if code >= 400 && code < 500 {
+			return "The request could not be completed"
+		}
+		if code >= 500 {
+			return "The server encountered an error"
+		}
+		return "An unexpected error occurred"
+	}
 }
