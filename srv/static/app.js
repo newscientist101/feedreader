@@ -1,3 +1,61 @@
+// Auto-mark-read on scroll feature
+let autoMarkReadObserver = null;
+
+function initAutoMarkRead() {
+    if (localStorage.getItem('autoMarkRead') !== 'true') {
+        return;
+    }
+    
+    // Use IntersectionObserver to detect when articles scroll out of view
+    autoMarkReadObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            // Article has scrolled up and out of view
+            if (!entry.isIntersecting && entry.boundingClientRect.top < 0) {
+                const article = entry.target;
+                const articleId = article.dataset.id;
+                
+                // Only mark unread articles
+                if (articleId && !article.classList.contains('read')) {
+                    markReadSilent(articleId);
+                    article.classList.add('read');
+                    updateUnreadCounts(-1);
+                }
+            }
+        });
+    }, {
+        root: null,
+        rootMargin: '0px',
+        threshold: 0
+    });
+    
+    // Observe all article cards
+    document.querySelectorAll('.article-card').forEach(article => {
+        autoMarkReadObserver.observe(article);
+    });
+}
+
+// Mark as read without page reload (for auto-mark feature)
+async function markReadSilent(id) {
+    try {
+        await api('POST', `/api/articles/${id}/read`);
+    } catch (e) {
+        console.error('Failed to mark article read:', e);
+    }
+}
+
+// Update unread counts in sidebar
+function updateUnreadCounts(delta) {
+    // Update main unread count
+    const unreadBadge = document.querySelector('.nav-item .badge');
+    if (unreadBadge) {
+        const current = parseInt(unreadBadge.textContent) || 0;
+        const newCount = Math.max(0, current + delta);
+        unreadBadge.textContent = newCount;
+    }
+    
+    // Update feed counts would require knowing which feed, so we skip for simplicity
+}
+
 // Format timestamps in user's local timezone
 function formatLocalDate(isoString) {
     const date = new Date(isoString);
@@ -79,6 +137,9 @@ function initView() {
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize timestamp tooltips with local timezone
     initTimestampTooltips();
+    
+    // Initialize auto-mark-read on scroll
+    initAutoMarkRead();
     
     const sidebar = document.querySelector('.sidebar');
     if (sidebar) {

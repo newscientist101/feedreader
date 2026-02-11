@@ -5,6 +5,21 @@
     </header>
 
     <section class="settings-section">
+        <h2>Reading Preferences</h2>
+        
+        <div class="preference-item">
+            <div class="preference-info">
+                <label for="auto-mark-read">Auto-mark as read on scroll</label>
+                <p class="preference-description">Automatically mark articles as read when they scroll out of view</p>
+            </div>
+            <label class="toggle-switch">
+                <input type="checkbox" id="auto-mark-read" onchange="toggleAutoMarkRead(this.checked)">
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+    </section>
+
+    <section class="settings-section">
         <h2>Data Retention</h2>
         <p class="section-description">
             Old articles are automatically deleted to save space. Starred articles are never deleted.
@@ -90,6 +105,18 @@
 </div>
 
 <script>
+// Initialize toggle state from localStorage
+document.addEventListener('DOMContentLoaded', () => {
+    const toggle = document.getElementById('auto-mark-read');
+    if (toggle) {
+        toggle.checked = localStorage.getItem('autoMarkRead') === 'true';
+    }
+});
+
+function toggleAutoMarkRead(enabled) {
+    localStorage.setItem('autoMarkRead', enabled);
+}
+
 async function runCleanup() {
     const status = document.getElementById('cleanup-status');
     status.textContent = 'Cleaning up...';
