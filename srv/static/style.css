@@ -150,6 +150,19 @@ body {
     color: var(--text-primary);
 }
 
+.feed-item.has-error {
+    color: var(--error, #f44336);
+}
+
+.feed-item.has-error:hover {
+    color: var(--error, #f44336);
+}
+
+.feed-error-icon {
+    margin-right: 6px;
+    font-size: 0.85rem;
+}
+
 .feed-name {
     flex: 1;
     overflow: hidden;
@@ -168,6 +181,39 @@ body {
     margin-left: 260px;
     padding: 30px;
     min-width: 0; /* Allow flex shrinking */
+}
+
+/* Feed Error Banner */
+.feed-error-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    background: rgba(244, 67, 54, 0.1);
+    border: 1px solid rgba(244, 67, 54, 0.3);
+    border-radius: 8px;
+    color: var(--error, #f44336);
+    font-size: 0.9rem;
+}
+
+.feed-error-banner svg {
+    flex-shrink: 0;
+    opacity: 0.9;
+}
+
+.feed-error-banner span {
+    flex: 1;
+    word-break: break-word;
+}
+
+.feed-error-banner .btn {
+    flex-shrink: 0;
+}
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 0.8rem;
 }
 
 .view-header {

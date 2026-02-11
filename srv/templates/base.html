@@ -95,7 +95,8 @@
                             {{range $.Feeds}}
                             {{$feedCat := index $.FeedCategories .ID}}
                             {{if eq $feedCat $catID}}
-                            <a href="/feed/{{.ID}}" class="feed-item {{if eq $.ActiveFeed .ID}}active{{end}}"{{if not .LastFetchedAt}} data-never-fetched="true"{{end}}>
+                            <a href="/feed/{{.ID}}" class="feed-item {{if eq $.ActiveFeed .ID}}active{{end}}{{if .LastError}} has-error{{end}}"{{if not .LastFetchedAt}} data-never-fetched="true"{{end}}{{if .LastError}} title="Error: {{deref .LastError}}"{{end}}>
+                                {{if .LastError}}<span class="feed-error-icon" title="Fetch error">⚠</span>{{end}}
                                 <span class="feed-name">{{.Name}}</span>
                                 {{$count := index $.FeedCounts .ID}}
                                 {{if $count}}<span class="badge small">{{$count}}</span>{{else if not .LastFetchedAt}}<span class="badge small pending">•</span>{{end}}
@@ -113,7 +114,8 @@
                 </div>
                 <div class="feeds-list">
                     {{range .Feeds}}
-                    <a href="/feed/{{.ID}}" class="feed-item {{if eq $.ActiveFeed .ID}}active{{end}}"{{if not .LastFetchedAt}} data-never-fetched="true"{{end}}>
+                    <a href="/feed/{{.ID}}" class="feed-item {{if eq $.ActiveFeed .ID}}active{{end}}{{if .LastError}} has-error{{end}}"{{if not .LastFetchedAt}} data-never-fetched="true"{{end}}{{if .LastError}} title="Error: {{deref .LastError}}"{{end}}>
+                        {{if .LastError}}<span class="feed-error-icon" title="Fetch error">⚠</span>{{end}}
                         <span class="feed-name">{{.Name}}</span>
                         {{$count := index $.FeedCounts .ID}}
                         {{if $count}}<span class="badge small">{{$count}}</span>{{else if not .LastFetchedAt}}<span class="badge small pending">•</span>{{end}}
