@@ -34,6 +34,7 @@ body {
 
 /* Sidebar */
 .sidebar {
+    --sidebar-padding: 15px;
     width: 260px;
     background: var(--bg-secondary);
     display: flex;
@@ -113,7 +114,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 15px 10px;
+    padding: 0 var(--sidebar-padding) 10px;
     font-size: 0.8rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -1232,10 +1233,10 @@ th {
 
 .folder-settings {
     position: absolute;
-    right: 15px;
+    right: var(--sidebar-padding);
     top: 50%;
     transform: translateY(-50%);
-    padding: 4px;
+    padding: 5px;
     color: var(--text-secondary);
     opacity: 0;
     transition: all 0.2s;
