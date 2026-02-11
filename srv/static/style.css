@@ -1100,11 +1100,9 @@ th {
     border-radius: 6px;
     font-size: 0.9rem;
     transition: all 0.2s;
-    flex: 1;
-    min-width: 0;
 }
 
-.folder-link span:first-of-type {
+.folder-name {
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1116,21 +1114,21 @@ th {
     color: var(--text-primary);
 }
 
-.folder-row {
-    display: flex;
-    align-items: center;
-}
-
-.folder-row .folder-link {
-    flex: 1;
+.folder-item {
+    position: relative;
 }
 
 .folder-settings {
-    padding: 8px;
+    position: absolute;
+    right: 40px;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 4px;
     color: var(--text-secondary);
     opacity: 0;
     transition: all 0.2s;
     border-radius: 4px;
+    z-index: 1;
 }
 
 .folder-item:hover .folder-settings {
