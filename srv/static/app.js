@@ -7,6 +7,31 @@ function toggleSidebar() {
     document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
 }
 
+// View mode switching
+function setView(view) {
+    const list = document.getElementById('articles-list');
+    if (!list) return;
+    
+    // Remove all view classes
+    list.classList.remove('view-card', 'view-list', 'view-compact', 'view-magazine', 'view-expanded');
+    // Add the selected view class
+    list.classList.add('view-' + view);
+    
+    // Update toggle buttons
+    document.querySelectorAll('.view-toggle button').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === view);
+    });
+    
+    // Save preference
+    localStorage.setItem('feedreader-view', view);
+}
+
+// Initialize view on page load
+function initView() {
+    const savedView = localStorage.getItem('feedreader-view') || 'card';
+    setView(savedView);
+}
+
 // Close sidebar when clicking a link on mobile
 document.addEventListener('DOMContentLoaded', () => {
     const sidebar = document.querySelector('.sidebar');
@@ -19,6 +44,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+    
+    // Initialize view mode
+    initView();
 });
 
 // API helpers

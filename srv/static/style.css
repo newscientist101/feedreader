@@ -208,6 +208,44 @@ body {
     gap: 15px;
 }
 
+/* View Toggle */
+.view-toggle {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-card);
+    padding: 4px;
+    border-radius: 8px;
+}
+
+.view-toggle button {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+
+.view-toggle button:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.view-toggle button.active {
+    background: var(--accent);
+    color: white;
+}
+
+.view-toggle button svg {
+    width: 16px;
+    height: 16px;
+}
+
 .article-card {
     background: var(--bg-card);
     border-radius: 12px;
@@ -226,6 +264,214 @@ body {
 
 .article-card.read:hover {
     opacity: 1;
+}
+
+/* === LIST VIEW === */
+.articles-list.view-list {
+    gap: 2px;
+}
+
+.view-list .article-card {
+    padding: 12px 15px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    border-radius: 8px;
+}
+
+.view-list .article-meta {
+    margin: 0;
+    min-width: 120px;
+    flex-shrink: 0;
+}
+
+.view-list .article-meta .feed-name {
+    display: block;
+}
+
+.view-list .article-meta .article-date {
+    font-size: 0.75rem;
+}
+
+.view-list .article-title {
+    flex: 1;
+    margin: 0;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.view-list .article-summary {
+    display: none;
+}
+
+.view-list .article-actions {
+    flex-shrink: 0;
+}
+
+/* === COMPACT VIEW === */
+.articles-list.view-compact {
+    gap: 1px;
+}
+
+.view-compact .article-card {
+    padding: 8px 15px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-radius: 4px;
+    background: transparent;
+    border-bottom: 1px solid var(--border);
+}
+
+.view-compact .article-card:hover {
+    background: var(--bg-card);
+}
+
+.view-compact .article-meta {
+    margin: 0;
+    display: flex;
+    gap: 8px;
+    min-width: 180px;
+    flex-shrink: 0;
+}
+
+.view-compact .article-meta .feed-name {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.view-compact .article-title {
+    flex: 1;
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.view-compact .article-summary,
+.view-compact .article-actions {
+    display: none;
+}
+
+.view-compact .article-card:hover .article-actions {
+    display: flex;
+}
+
+/* === MAGAZINE VIEW === */
+.articles-list.view-magazine {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+}
+
+.view-magazine .article-card {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+}
+
+.view-magazine .article-image {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    background: var(--bg-secondary);
+}
+
+.view-magazine .article-image-placeholder {
+    width: 100%;
+    height: 180px;
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-hover) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+}
+
+.view-magazine .article-body {
+    padding: 15px;
+}
+
+.view-magazine .article-meta {
+    margin-bottom: 8px;
+}
+
+.view-magazine .article-title {
+    font-size: 1rem;
+    margin-bottom: 8px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.view-magazine .article-summary {
+    font-size: 0.85rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+/* === EXPANDED VIEW === */
+.articles-list.view-expanded {
+    gap: 25px;
+    max-width: 800px;
+}
+
+.view-expanded .article-card {
+    padding: 25px;
+}
+
+.view-expanded .article-title {
+    font-size: 1.3rem;
+    margin-bottom: 12px;
+}
+
+.view-expanded .article-summary {
+    display: none;
+}
+
+.view-expanded .article-content-preview {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.7;
+    margin-bottom: 15px;
+}
+
+.view-expanded .article-content-preview img {
+    max-width: 100%;
+    border-radius: 8px;
+    margin: 10px 0;
+}
+
+/* View-specific visibility */
+.magazine-only,
+.expanded-only {
+    display: none;
+}
+
+.view-magazine .magazine-only {
+    display: flex;
+}
+
+.view-magazine .article-body {
+    padding: 15px;
+}
+
+.view-expanded .expanded-only {
+    display: block;
+}
+
+.view-expanded .article-summary {
+    display: none;
 }
 
 .article-meta {
@@ -775,14 +1021,59 @@ th {
         padding: 40px 50px;
     }
     
-    .articles-list {
+    /* Card view gets grid on large screens */
+    .articles-list.view-card {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
         gap: 20px;
     }
     
-    .article-card {
+    .view-card .article-card {
         margin: 0;
+    }
+    
+    /* Magazine gets larger cards */
+    .articles-list.view-magazine {
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    }
+}
+
+/* Medium screens - no grid for card view */
+@media (max-width: 1399px) {
+    .articles-list.view-card {
+        display: flex;
+        flex-direction: column;
+    }
+}
+
+/* Mobile adjustments for views */
+@media (max-width: 768px) {
+    .view-toggle button span {
+        display: none;
+    }
+    
+    .view-list .article-meta {
+        min-width: auto;
+        flex-direction: column;
+        gap: 2px;
+    }
+    
+    .view-list .article-card {
+        flex-wrap: wrap;
+    }
+    
+    .view-list .article-title {
+        width: 100%;
+        order: -1;
+        margin-bottom: 5px;
+    }
+    
+    .view-compact .article-meta {
+        min-width: auto;
+    }
+    
+    .view-magazine {
+        grid-template-columns: 1fr;
     }
 }
 
