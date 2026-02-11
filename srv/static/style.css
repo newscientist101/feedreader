@@ -1100,6 +1100,15 @@ th {
     border-radius: 6px;
     font-size: 0.9rem;
     transition: all 0.2s;
+    flex: 1;
+    min-width: 0;
+}
+
+.folder-link span:first-of-type {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .folder-link:hover, .folder-link.active {
