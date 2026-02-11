@@ -171,6 +171,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Apply user preferences
     applyUserPreferences();
     
+    // Poll for count updates every 60 seconds (catches new articles from background fetches)
+    setInterval(updateCounts, 60000);
+    
     const sidebar = document.querySelector('.sidebar');
     if (sidebar) {
         sidebar.querySelectorAll('a').forEach(link => {
@@ -242,7 +245,9 @@ async function toggleStar(id) {
 async function refreshFeed(id) {
     try {
         await api('POST', `/api/feeds/${id}/refresh`);
-        alert('Feed refresh started!');
+        // Update counts after a short delay to allow fetch to complete
+        setTimeout(updateCounts, 3000);
+        setTimeout(updateCounts, 10000);
     } catch (e) {
         console.error('Failed to refresh feed:', e);
         alert('Failed to refresh feed');
