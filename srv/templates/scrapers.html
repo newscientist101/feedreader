@@ -1,0 +1,115 @@
+{{define "content"}}
+<div class="scrapers-view">
+    <header class="view-header">
+        <h1>Scraper Modules</h1>
+    </header>
+
+    <div class="info-box">
+        <h3>About Scraper Modules</h3>
+        <p>Scraper modules let you extract content from websites that don't have RSS feeds. Each module is a JSON configuration with regex patterns to extract article data.</p>
+        <details>
+            <summary>Example Configuration</summary>
+            <pre><code>{
+  "itemPattern": "&lt;article[^&gt;]*&gt;.*?&lt;/article&gt;",
+  "titlePattern": "&lt;h2[^&gt;]*&gt;([^&lt;]+)&lt;/h2&gt;",
+  "urlPattern": "href=\"([^\"]+)\"",
+  "summaryPattern": "&lt;p class=\"summary\"&gt;([^&lt;]+)&lt;/p&gt;",
+  "datePattern": "&lt;time[^&gt;]*&gt;([^&lt;]+)&lt;/time&gt;",
+  "baseUrl": "https://example.com"
+}</code></pre>
+        </details>
+    </div>
+
+    <div class="add-scraper-form">
+        <h2>Create Scraper Module</h2>
+        <form id="add-scraper-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="scraper-name">Name</label>
+                    <input type="text" id="scraper-name" name="name" placeholder="my-scraper" required>
+                </div>
+                <div class="form-group">
+                    <label for="scraper-description">Description</label>
+                    <input type="text" id="scraper-description" name="description" placeholder="Scrapes example.com">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="scraper-script">Configuration (JSON)</label>
+                <textarea id="scraper-script" name="script" rows="12" required placeholder='{
+  "itemPattern": "<article[^>]*>.*?</article>",
+  "titlePattern": "<h2[^>]*>([^<]+)</h2>",
+  "urlPattern": "href=\"([^\"]+)\""
+}'></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Create Scraper</button>
+        </form>
+    </div>
+
+    <div class="scrapers-table">
+        <h2>Your Scrapers</h2>
+        {{if not .ScraperModules}}
+        <p class="empty-state">No scraper modules yet. Create one above!</p>
+        {{else}}
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .ScraperModules}}
+                <tr data-id="{{.ID}}">
+                    <td><strong>{{.Name}}</strong></td>
+                    <td>{{if .Description}}{{deref .Description}}{{else}}-{{end}}</td>
+                    <td>{{.CreatedAt.Format "Jan 2, 2006"}}</td>
+                    <td class="actions-cell">
+                        <button onclick="editScraper({{.ID}})" class="btn-icon" title="Edit">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                            </svg>
+                        </button>
+                        <button onclick="deleteScraper({{.ID}}, '{{.Name}}')" class="btn-icon danger" title="Delete">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+        {{end}}
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="edit-modal" class="modal" style="display:none">
+    <div class="modal-content">
+        <h2>Edit Scraper</h2>
+        <form id="edit-scraper-form">
+            <input type="hidden" id="edit-id">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit-name">Name</label>
+                    <input type="text" id="edit-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-description">Description</label>
+                    <input type="text" id="edit-description">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="edit-script">Configuration (JSON)</label>
+                <textarea id="edit-script" rows="12" required></textarea>
+            </div>
+            <div class="modal-actions">
+                <button type="button" onclick="closeModal()" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+{{end}}
