@@ -261,11 +261,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 15px;
-    align-items: stretch;
-}
-
-.articles-list > .empty-state {
-    align-self: center;
+    position: relative;
 }
 
 /* View Toggle */
@@ -949,8 +945,9 @@ th {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 50vh;
+    min-height: calc(100vh - 200px);
     width: 100%;
+    box-sizing: border-box;
 }
 
 .empty-state svg {
