@@ -136,6 +136,12 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed dbgen.Feed) error {
 		if item.GUID == "" {
 			continue
 		}
+		// Normalize time to UTC for consistent storage
+		var pubAt *time.Time
+		if item.PublishedAt != nil {
+			utc := item.PublishedAt.UTC()
+			pubAt = &utc
+		}
 		_, err := q.CreateArticle(ctx, dbgen.CreateArticleParams{
 			FeedID:      feed.ID,
 			Guid:        item.GUID,
@@ -145,7 +151,7 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed dbgen.Feed) error {
 			Content:     strPtr(item.Content),
 			Summary:     strPtr(item.Summary),
 			ImageUrl:    strPtr(item.ImageURL),
-			PublishedAt: item.PublishedAt,
+			PublishedAt: pubAt,
 		})
 		if err != nil {
 			slog.Debug("create article", "error", err, "guid", item.GUID)
