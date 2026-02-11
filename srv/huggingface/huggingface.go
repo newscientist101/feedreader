@@ -295,7 +295,7 @@ func (c *Client) fetchCollection(ctx context.Context, config FeedConfig) ([]Feed
 
 		items = append(items, FeedItem{
 			GUID:        fmt.Sprintf("hf:collection:%s:%s", collection.Slug, item.ID),
-			Title:       fmt.Sprintf("[%s] %s", strings.Title(itemType), item.ID),
+			Title:       item.ID,
 			URL:         itemURL,
 			Author:      item.Author,
 			Summary:     summary,
