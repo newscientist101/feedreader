@@ -90,3 +90,19 @@ UPDATE articles SET is_read = 1
 WHERE feed_id IN (
   SELECT feed_id FROM feed_categories WHERE category_id = ?
 );
+
+-- name: DeleteOldUnstarredArticles :execresult
+DELETE FROM articles
+WHERE is_starred = 0 
+  AND fetched_at < datetime('now', '-' || ? || ' days')
+  AND id NOT IN (
+    SELECT id FROM articles WHERE is_starred = 1
+  );
+
+-- name: CountOldUnstarredArticles :one
+SELECT COUNT(*) FROM articles
+WHERE is_starred = 0 
+  AND fetched_at < datetime('now', '-' || ? || ' days');
+
+-- name: GetOldestArticleDate :one
+SELECT MIN(fetched_at) FROM articles WHERE is_starred = 0;

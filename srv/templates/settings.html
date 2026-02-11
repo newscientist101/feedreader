@@ -1,0 +1,116 @@
+{{define "content"}}
+<div class="settings-view">
+    <header class="view-header">
+        <h1>Settings</h1>
+    </header>
+
+    <section class="settings-section">
+        <h2>Data Retention</h2>
+        <p class="section-description">
+            Old articles are automatically deleted to save space. Starred articles are never deleted.
+        </p>
+
+        <div class="retention-info">
+            <div class="retention-stat">
+                <span class="stat-label">Retention Period</span>
+                <span class="stat-value">{{.RetentionStats.RetentionDays}} days</span>
+            </div>
+            <div class="retention-stat">
+                <span class="stat-label">Articles to Clean Up</span>
+                <span class="stat-value" id="articles-to-delete">{{.RetentionStats.ArticlesToDelete}}</span>
+            </div>
+            {{if .RetentionStats.OldestArticle}}
+            <div class="retention-stat">
+                <span class="stat-label">Oldest Article</span>
+                <span class="stat-value">{{.RetentionStats.OldestArticle | timeAgo}}</span>
+            </div>
+            {{end}}
+        </div>
+
+        <div class="retention-actions">
+            <button onclick="runCleanup()" class="btn btn-secondary">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14"/>
+                </svg>
+                Run Cleanup Now
+            </button>
+            <span class="cleanup-status" id="cleanup-status"></span>
+        </div>
+
+        <div class="retention-note">
+            <strong>Note:</strong> Automatic cleanup runs every 6 hours. Articles that are starred will never be deleted.
+        </div>
+    </section>
+
+    <section class="settings-section">
+        <h2>Data Management</h2>
+        
+        <div class="data-actions">
+            <div class="action-card">
+                <h3>Export Data</h3>
+                <p>Download all your feeds and folders as an OPML file.</p>
+                <a href="/api/opml/export" class="btn btn-secondary" download="feedreader-export.opml">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                    </svg>
+                    Export OPML
+                </a>
+            </div>
+            
+            <div class="action-card">
+                <h3>Import Data</h3>
+                <p>Import feeds from another reader using OPML.</p>
+                <a href="/feeds" class="btn btn-secondary">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                    </svg>
+                    Go to Feeds
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <section class="settings-section">
+        <h2>Statistics</h2>
+        <div class="stats-grid" id="stats-grid">
+            <div class="stat-card">
+                <span class="stat-number" id="total-feeds">{{len .Feeds}}</span>
+                <span class="stat-label">Feeds</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number" id="total-folders">{{len .Categories}}</span>
+                <span class="stat-label">Folders</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number" id="total-unread">{{.UnreadCount}}</span>
+                <span class="stat-label">Unread</span>
+            </div>
+        </div>
+    </section>
+</div>
+
+<script>
+async function runCleanup() {
+    const status = document.getElementById('cleanup-status');
+    status.textContent = 'Cleaning up...';
+    status.className = 'cleanup-status';
+    
+    try {
+        const resp = await fetch('/api/retention/cleanup', { method: 'POST' });
+        const data = await resp.json();
+        
+        if (resp.ok) {
+            status.textContent = `Deleted ${data.deleted} articles`;
+            status.className = 'cleanup-status success';
+            document.getElementById('articles-to-delete').textContent = '0';
+        } else {
+            status.textContent = data.error || 'Cleanup failed';
+            status.className = 'cleanup-status error';
+        }
+    } catch (err) {
+        status.textContent = 'Cleanup failed: ' + err.message;
+        status.className = 'cleanup-status error';
+    }
+}
+</script>
+{{end}}

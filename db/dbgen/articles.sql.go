@@ -7,8 +7,22 @@ package dbgen
 
 import (
 	"context"
+	"database/sql"
 	"time"
 )
+
+const countOldUnstarredArticles = `-- name: CountOldUnstarredArticles :one
+SELECT COUNT(*) FROM articles
+WHERE is_starred = 0 
+  AND fetched_at < datetime('now', '-' || ? || ' days')
+`
+
+func (q *Queries) CountOldUnstarredArticles(ctx context.Context, dollar_1 *string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOldUnstarredArticles, dollar_1)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
 
 const createArticle = `-- name: CreateArticle :one
 INSERT INTO articles (feed_id, guid, title, url, author, content, summary, image_url, published_at)
@@ -67,6 +81,19 @@ func (q *Queries) CreateArticle(ctx context.Context, arg CreateArticleParams) (A
 	return i, err
 }
 
+const deleteOldUnstarredArticles = `-- name: DeleteOldUnstarredArticles :execresult
+DELETE FROM articles
+WHERE is_starred = 0 
+  AND fetched_at < datetime('now', '-' || ? || ' days')
+  AND id NOT IN (
+    SELECT id FROM articles WHERE is_starred = 1
+  )
+`
+
+func (q *Queries) DeleteOldUnstarredArticles(ctx context.Context, dollar_1 *string) (sql.Result, error) {
+	return q.db.ExecContext(ctx, deleteOldUnstarredArticles, dollar_1)
+}
+
 const getArticle = `-- name: GetArticle :one
 SELECT id, feed_id, guid, title, url, author, content, summary, image_url, published_at, fetched_at, is_read, is_starred FROM articles WHERE id = ?
 `
@@ -90,6 +117,17 @@ func (q *Queries) GetArticle(ctx context.Context, id int64) (Article, error) {
 		&i.IsStarred,
 	)
 	return i, err
+}
+
+const getOldestArticleDate = `-- name: GetOldestArticleDate :one
+SELECT MIN(fetched_at) FROM articles WHERE is_starred = 0
+`
+
+func (q *Queries) GetOldestArticleDate(ctx context.Context) (interface{}, error) {
+	row := q.db.QueryRowContext(ctx, getOldestArticleDate)
+	var min interface{}
+	err := row.Scan(&min)
+	return min, err
 }
 
 const getStarredCount = `-- name: GetStarredCount :one

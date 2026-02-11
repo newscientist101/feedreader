@@ -23,12 +23,13 @@ import (
 )
 
 type Server struct {
-	DB            *sql.DB
-	Hostname      string
-	TemplatesDir  string
-	StaticDir     string
-	Fetcher       *feeds.Fetcher
-	ScraperRunner *scrapers.Runner
+	DB               *sql.DB
+	Hostname         string
+	TemplatesDir     string
+	StaticDir        string
+	Fetcher          *feeds.Fetcher
+	ScraperRunner    *scrapers.Runner
+	RetentionManager *RetentionManager
 }
 
 func New(dbPath, hostname string) (*Server, error) {
@@ -64,6 +65,11 @@ func (s *Server) Serve(addr string) error {
 	s.Fetcher.Start(5 * time.Minute)
 	defer s.Fetcher.Stop()
 
+	// Start retention manager (30 day retention)
+	s.RetentionManager = NewRetentionManager(s, 30)
+	s.RetentionManager.Start()
+	defer s.RetentionManager.Stop()
+
 	mux := http.NewServeMux()
 
 	// Pages
@@ -98,6 +104,11 @@ func (s *Server) Serve(addr string) error {
 	// OPML endpoints
 	mux.HandleFunc("GET /api/opml/export", s.apiExportOPML)
 	mux.HandleFunc("POST /api/opml/import", s.apiImportOPML)
+
+	// Retention/cleanup endpoints
+	mux.HandleFunc("GET /api/retention/stats", s.apiRetentionStats)
+	mux.HandleFunc("POST /api/retention/cleanup", s.apiRetentionCleanup)
+	mux.HandleFunc("GET /settings", s.handleSettings)
 
 	// Exclusion rules endpoints
 	mux.HandleFunc("GET /api/categories/{id}/exclusions", s.apiListExclusions)
@@ -1123,6 +1134,48 @@ func (s *Server) handleCategorySettings(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.renderTemplate(w, "category_settings.html", data); err != nil {
+		slog.Warn("render template", "error", err)
+		http.Error(w, "Internal Server Error", 500)
+	}
+}
+
+// Retention API handlers
+func (s *Server) apiRetentionStats(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	
+	stats, err := s.RetentionManager.GetStats(ctx)
+	if err != nil {
+		jsonError(w, err.Error(), 500)
+		return
+	}
+	
+	jsonResponse(w, stats)
+}
+
+func (s *Server) apiRetentionCleanup(w http.ResponseWriter, r *http.Request) {
+	deleted, err := s.RetentionManager.RunCleanupNow()
+	if err != nil {
+		jsonError(w, err.Error(), 500)
+		return
+	}
+	
+	jsonResponse(w, map[string]any{
+		"deleted": deleted,
+		"message": "Cleanup completed",
+	})
+}
+
+func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	
+	stats, _ := s.RetentionManager.GetStats(ctx)
+	
+	data := s.getCommonData(ctx)
+	data["Title"] = "Settings"
+	data["RetentionStats"] = stats
+	
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.renderTemplate(w, "settings.html", data); err != nil {
 		slog.Warn("render template", "error", err)
 		http.Error(w, "Internal Server Error", 500)
 	}
