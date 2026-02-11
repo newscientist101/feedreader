@@ -1,3 +1,26 @@
+// Mobile sidebar toggle
+function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('active');
+    document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
+}
+
+// Close sidebar when clicking a link on mobile
+document.addEventListener('DOMContentLoaded', () => {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        sidebar.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth <= 768) {
+                    toggleSidebar();
+                }
+            });
+        });
+    }
+});
+
 // API helpers
 async function api(method, url, data = null) {
     const options = {
