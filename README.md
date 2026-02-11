@@ -1,57 +1,153 @@
-# Go Shelley Template
+# FeedReader
 
-This is a starter template for building Go web applications on exe.dev. It demonstrates end-to-end usage including HTTP handlers, authentication, database integration, and deployment.
+A modern feed reader with RSS/Atom support and a modular scraper system for non-RSS sources.
 
-Use this as a foundation to build your own service.
+## Features
+
+- **RSS/Atom Feeds**: Subscribe to standard RSS and Atom feeds
+- **Folders/Categories**: Organize feeds into folders with OPML import/export
+- **Custom Scrapers**: Create scrapers for websites without RSS feeds
+- **AI-Powered Config**: Let Claude analyze a page and generate scraper configuration
+- **Exclusion Rules**: Filter out articles by keyword or author per folder
+- **Data Retention**: Automatic cleanup of old articles (starred items preserved)
+- **Multiple Views**: Card, List, Compact, Magazine, and Expanded views
+- **Responsive UI**: Works on desktop, tablet, and mobile
 
 ## Building and Running
 
-Build with `make build`, then run `./srv`. The server listens on port 8000 by default.
+```bash
+# Build
+make build
+
+# Run
+./feedreader
+```
+
+The server listens on port 8000 by default.
+
+## Configuration
+
+Create a `.env` file for environment variables:
+
+```bash
+# For AI-powered scraper generation (optional)
+ANTHROPIC_API_KEY=your-api-key-here
+```
 
 ## Running as a systemd service
 
-To run the server as a systemd service:
-
 ```bash
 # Install the service file
-sudo cp srv.service /etc/systemd/system/srv.service
+sudo cp srv.service /etc/systemd/system/feedreader.service
 
 # Reload systemd and enable the service
 sudo systemctl daemon-reload
-sudo systemctl enable srv.service
+sudo systemctl enable feedreader.service
 
 # Start the service
-sudo systemctl start srv
+sudo systemctl start feedreader
 
 # Check status
-systemctl status srv
+systemctl status feedreader
 
 # View logs
-journalctl -u srv -f
+journalctl -u feedreader -f
 ```
 
 To restart after code changes:
 
 ```bash
 make build
-sudo systemctl restart srv
+sudo systemctl restart feedreader
 ```
 
-## Authorization
+## Scraper System
 
-exe.dev provides authorization headers and login/logout links
-that this template uses.
+### AI-Powered Generation
 
-When proxied through exed, requests will include `X-ExeDev-UserID` and
-`X-ExeDev-Email` if the user is authenticated via exe.dev.
+1. Set `ANTHROPIC_API_KEY` in your `.env` file
+2. Go to Scrapers page
+3. Enter the URL and describe what you want to extract
+4. Click "Generate Scraper Config"
+5. Review and use the generated configuration
+
+### Manual Configuration
+
+Create a JSON config with regex patterns:
+
+```json
+{
+  "itemPattern": "<article[^>]*>.*?</article>",
+  "titlePattern": "<h2[^>]*>([^<]+)</h2>",
+  "urlPattern": "href=\"([^\"]+)\"",
+  "summaryPattern": "<p class=\"summary\">([^<]+)</p>",
+  "baseUrl": "https://example.com"
+}
+```
+
+### Available Patterns
+
+- `itemPattern` - Matches each item container (required)
+- `titlePattern` - Extracts title (capture group)
+- `urlPattern` - Extracts link URL (capture group)
+- `summaryPattern` - Extracts description (optional)
+- `authorPattern` - Extracts author name (optional)
+- `datePattern` - Extracts publication date (optional)
+- `imagePattern` - Extracts image URL (optional)
+- `baseUrl` - Base URL for relative links
+
+## Folder Exclusion Rules
+
+Filter unwanted content per folder:
+
+1. Hover over a folder → click ⚙️ gear icon
+2. Add keyword or author exclusion rules
+3. Supports plain text or regex patterns
+
+## API Endpoints
+
+### Feeds
+- `GET /api/feeds` - List all feeds
+- `POST /api/feeds` - Create feed
+- `DELETE /api/feeds/{id}` - Delete feed
+- `POST /api/feeds/{id}/refresh` - Refresh feed
+
+### Articles
+- `POST /api/articles/{id}/read` - Mark as read
+- `POST /api/articles/{id}/star` - Toggle star
+- `GET /api/search?q=query` - Search articles
+
+### Categories
+- `GET /api/categories` - List categories
+- `POST /api/categories` - Create category
+- `PUT /api/categories/{id}` - Update category
+- `DELETE /api/categories/{id}` - Delete category
+
+### OPML
+- `GET /api/opml/export` - Export as OPML
+- `POST /api/opml/import` - Import OPML file
+
+### Scrapers
+- `GET /api/scrapers/{id}` - Get scraper
+- `POST /api/scrapers` - Create scraper
+- `DELETE /api/scrapers/{id}` - Delete scraper
+- `POST /api/ai/generate-scraper` - Generate config with AI
+
+### Settings
+- `GET /api/retention/stats` - Retention statistics
+- `POST /api/retention/cleanup` - Run cleanup
 
 ## Database
 
-This template uses sqlite (`db.sqlite3`). SQL queries are managed with sqlc.
+SQLite database (`db.sqlite3`) with migrations in `db/migrations/`.
 
-## Code layout
+## Code Layout
 
-- `cmd/srv`: main package (binary entrypoint)
-- `srv`: HTTP server logic (handlers)
-- `srv/templates`: Go HTML templates
-- `db`: SQLite open + migrations (001-base.sql)
+- `cmd/srv/` - Main binary entrypoint
+- `srv/` - HTTP server, handlers, templates
+- `srv/feeds/` - RSS/Atom parser and fetcher
+- `srv/scrapers/` - Custom scraper engine
+- `srv/opml/` - OPML import/export
+- `srv/templates/` - HTML templates
+- `srv/static/` - CSS and JavaScript
+- `db/` - Database, migrations, queries
