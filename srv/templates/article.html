@@ -32,7 +32,7 @@
         <div class="article-meta">
             {{if .Feed}}<span class="feed-name">{{.Feed.Name}}</span>{{end}}
             {{if .Article.Author}}<span class="author">by {{deref .Article.Author}}</span>{{end}}
-            <span class="date" title="{{formatDate .Article.PublishedAt}}">{{timeAgo .Article.PublishedAt}}</span>
+            <span class="date" data-timestamp="{{formatDate .Article.PublishedAt}}">{{timeAgo .Article.PublishedAt}}</span>
         </div>
         
         <h1>{{.Article.Title}}</h1>

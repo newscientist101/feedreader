@@ -1,3 +1,25 @@
+// Format timestamps in user's local timezone
+function formatLocalDate(isoString) {
+    const date = new Date(isoString);
+    return date.toLocaleDateString(undefined, {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+}
+
+function initTimestampTooltips() {
+    document.querySelectorAll('[data-timestamp]').forEach(el => {
+        const timestamp = el.dataset.timestamp;
+        if (timestamp) {
+            el.title = formatLocalDate(timestamp);
+        }
+    });
+}
+
 // Mobile sidebar toggle
 function toggleSidebar() {
     const sidebar = document.querySelector('.sidebar');
@@ -34,6 +56,9 @@ function initView() {
 
 // Close sidebar when clicking a link on mobile
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize timestamp tooltips with local timezone
+    initTimestampTooltips();
+    
     const sidebar = document.querySelector('.sidebar');
     if (sidebar) {
         sidebar.querySelectorAll('a').forEach(link => {

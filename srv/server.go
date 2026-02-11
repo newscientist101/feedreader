@@ -190,7 +190,8 @@ func formatDate(t *time.Time) string {
 	if t == nil {
 		return ""
 	}
-	return t.Format("Monday, January 2, 2006 at 3:04 PM")
+	// Return ISO 8601 format for JavaScript to parse
+	return t.UTC().Format(time.RFC3339)
 }
 
 func truncate(s string, n int) string {
