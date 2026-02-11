@@ -1,12 +1,12 @@
 [Unit]
-Description=Go web server
+Description=FeedReader - RSS/Scraper Feed Reader
 
 [Service]
 Type=simple
 User=exedev
 Group=exedev
-WorkingDirectory=/home/exedev
-ExecStart=/home/exedev/srv
+WorkingDirectory=/home/exedev/feedreader
+ExecStart=/home/exedev/feedreader/feedreader
 Restart=always
 RestartSec=5
 Environment=HOME=/home/exedev
