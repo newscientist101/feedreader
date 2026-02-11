@@ -30,6 +30,7 @@ type Server struct {
 	Fetcher          *feeds.Fetcher
 	ScraperRunner    *scrapers.Runner
 	RetentionManager *RetentionManager
+	AIGenerator      *AIScraperGenerator
 }
 
 func New(dbPath, hostname string) (*Server, error) {
@@ -70,6 +71,9 @@ func (s *Server) Serve(addr string) error {
 	s.RetentionManager.Start()
 	defer s.RetentionManager.Stop()
 
+	// Initialize AI scraper generator
+	s.AIGenerator = NewAIScraperGenerator()
+
 	mux := http.NewServeMux()
 
 	// Pages
@@ -88,6 +92,7 @@ func (s *Server) Serve(addr string) error {
 	mux.HandleFunc("POST /api/articles/{id}/unread", s.apiMarkUnread)
 	mux.HandleFunc("POST /api/articles/{id}/star", s.apiToggleStar)
 	mux.HandleFunc("POST /api/feeds/{id}/read-all", s.apiMarkFeedRead)
+	mux.HandleFunc("GET /api/scrapers/{id}", s.apiGetScraper)
 	mux.HandleFunc("POST /api/scrapers", s.apiCreateScraper)
 	mux.HandleFunc("PUT /api/scrapers/{id}", s.apiUpdateScraper)
 	mux.HandleFunc("DELETE /api/scrapers/{id}", s.apiDeleteScraper)
@@ -109,6 +114,10 @@ func (s *Server) Serve(addr string) error {
 	mux.HandleFunc("GET /api/retention/stats", s.apiRetentionStats)
 	mux.HandleFunc("POST /api/retention/cleanup", s.apiRetentionCleanup)
 	mux.HandleFunc("GET /settings", s.handleSettings)
+
+	// AI scraper generation
+	mux.HandleFunc("GET /api/ai/status", s.apiAIStatus)
+	mux.HandleFunc("POST /api/ai/generate-scraper", s.apiGenerateScraper)
 
 	// Exclusion rules endpoints
 	mux.HandleFunc("GET /api/categories/{id}/exclusions", s.apiListExclusions)
@@ -548,6 +557,25 @@ func (s *Server) apiMarkFeedRead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) apiGetScraper(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid scraper ID", 400)
+		return
+	}
+
+	scraper, err := q.GetScraperModule(ctx, id)
+	if err != nil {
+		jsonError(w, "Scraper not found", 404)
+		return
+	}
+
+	jsonResponse(w, scraper)
 }
 
 func (s *Server) apiCreateScraper(w http.ResponseWriter, r *http.Request) {
@@ -1179,4 +1207,44 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("render template", "error", err)
 		http.Error(w, "Internal Server Error", 500)
 	}
+}
+
+// AI Scraper API handlers
+func (s *Server) apiAIStatus(w http.ResponseWriter, r *http.Request) {
+	jsonResponse(w, map[string]any{
+		"available": s.AIGenerator.IsAvailable(),
+	})
+}
+
+func (s *Server) apiGenerateScraper(w http.ResponseWriter, r *http.Request) {
+	if !s.AIGenerator.IsAvailable() {
+		jsonError(w, "AI generation not available. Set ANTHROPIC_API_KEY environment variable.", 503)
+		return
+	}
+
+	var req GenerateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request body", 400)
+		return
+	}
+
+	if req.URL == "" {
+		jsonError(w, "URL is required", 400)
+		return
+	}
+	if req.Description == "" {
+		jsonError(w, "Description is required", 400)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	defer cancel()
+
+	resp, err := s.AIGenerator.Generate(ctx, req)
+	if err != nil {
+		jsonError(w, err.Error(), 500)
+		return
+	}
+
+	jsonResponse(w, resp)
 }

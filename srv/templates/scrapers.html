@@ -4,112 +4,292 @@
         <h1>Scraper Modules</h1>
     </header>
 
-    <div class="info-box">
-        <h3>About Scraper Modules</h3>
-        <p>Scraper modules let you extract content from websites that don't have RSS feeds. Each module is a JSON configuration with regex patterns to extract article data.</p>
-        <details>
-            <summary>Example Configuration</summary>
-            <pre><code>{
-  "itemPattern": "&lt;article[^&gt;]*&gt;.*?&lt;/article&gt;",
-  "titlePattern": "&lt;h2[^&gt;]*&gt;([^&lt;]+)&lt;/h2&gt;",
-  "urlPattern": "href=\"([^\"]+)\"",
-  "summaryPattern": "&lt;p class=\"summary\"&gt;([^&lt;]+)&lt;/p&gt;",
-  "datePattern": "&lt;time[^&gt;]*&gt;([^&lt;]+)&lt;/time&gt;",
-  "baseUrl": "https://example.com"
-}</code></pre>
-        </details>
-    </div>
+    <section class="ai-scraper-section">
+        <h2>
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+            </svg>
+            AI-Powered Scraper Generator
+        </h2>
+        <p class="section-description">
+            Let Shelley analyze a webpage and automatically create the scraper configuration for you.
+        </p>
 
-    <div class="add-scraper-form">
-        <h2>Create Scraper Module</h2>
-        <form id="add-scraper-form">
+        <div id="ai-status" class="ai-status">
+            <span class="status-indicator"></span>
+            <span class="status-text">Checking AI availability...</span>
+        </div>
+
+        <form id="ai-generate-form" class="ai-form">
+            <div class="form-group">
+                <label for="ai-url">Page URL</label>
+                <input type="url" id="ai-url" placeholder="https://example.com/news" required>
+                <small>The webpage you want to scrape</small>
+            </div>
+            <div class="form-group">
+                <label for="ai-description">What to Extract</label>
+                <textarea id="ai-description" rows="3" placeholder="Extract all article titles, links, and publication dates from the news listing page" required></textarea>
+                <small>Describe what data you want to extract from the page</small>
+            </div>
+            <button type="submit" class="btn btn-primary" id="ai-generate-btn">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M19 9l-7 7-7-7"/>
+                </svg>
+                Generate Scraper Config
+            </button>
+        </form>
+
+        <div id="ai-result" class="ai-result" style="display: none;">
+            <h3>Generated Configuration</h3>
+            <div class="result-name">
+                <label>Suggested Name:</label>
+                <input type="text" id="ai-result-name" readonly>
+            </div>
+            <div class="result-config">
+                <label>Configuration:</label>
+                <pre id="ai-result-config"></pre>
+            </div>
+            <div class="result-actions">
+                <button onclick="useGeneratedConfig()" class="btn btn-primary">Use This Config</button>
+                <button onclick="hideAIResult()" class="btn btn-secondary">Dismiss</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="manual-scraper-section">
+        <h2>Create Scraper Manually</h2>
+        <form id="add-scraper-form" class="scraper-form">
             <div class="form-row">
                 <div class="form-group">
                     <label for="scraper-name">Name</label>
-                    <input type="text" id="scraper-name" name="name" placeholder="my-scraper" required>
+                    <input type="text" id="scraper-name" placeholder="My Custom Scraper" required>
                 </div>
                 <div class="form-group">
-                    <label for="scraper-description">Description</label>
-                    <input type="text" id="scraper-description" name="description" placeholder="Scrapes example.com">
+                    <label for="script-type">Type</label>
+                    <select id="script-type">
+                        <option value="json-config">JSON Config</option>
+                    </select>
                 </div>
             </div>
             <div class="form-group">
+                <label for="scraper-description">Description</label>
+                <input type="text" id="scraper-description" placeholder="Scrapes articles from example.com">
+            </div>
+            <div class="form-group">
                 <label for="scraper-script">Configuration (JSON)</label>
-                <textarea id="scraper-script" name="script" rows="12" required placeholder='{
+                <textarea id="scraper-script" rows="12" placeholder='{
   "itemPattern": "<article[^>]*>.*?</article>",
   "titlePattern": "<h2[^>]*>([^<]+)</h2>",
-  "urlPattern": "href=\"([^\"]+)\""
+  "urlPattern": "href=\"([^\"]+)\"",
+  "summaryPattern": "<p class=\"summary\">([^<]+)</p>",
+  "baseUrl": "https://example.com"
 }'></textarea>
             </div>
             <button type="submit" class="btn btn-primary">Create Scraper</button>
         </form>
-    </div>
 
-    <div class="scrapers-table">
-        <h2>Your Scrapers</h2>
-        {{if not .ScraperModules}}
-        <p class="empty-state">No scraper modules yet. Create one above!</p>
-        {{else}}
-        <table>
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Description</th>
-                    <th>Created</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {{range .ScraperModules}}
-                <tr data-id="{{.ID}}">
-                    <td><strong>{{.Name}}</strong></td>
-                    <td>{{if .Description}}{{deref .Description}}{{else}}-{{end}}</td>
-                    <td>{{.CreatedAt.Format "Jan 2, 2006"}}</td>
-                    <td class="actions-cell">
-                        <button onclick="editScraper({{.ID}})" class="btn-icon" title="Edit">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                            </svg>
-                        </button>
-                        <button onclick="deleteScraper({{.ID}}, '{{.Name}}')" class="btn-icon danger" title="Delete">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                            </svg>
-                        </button>
-                    </td>
-                </tr>
+        <details class="config-help">
+            <summary>Configuration Help</summary>
+            <div class="help-content">
+                <p>The JSON configuration uses regex patterns to extract data:</p>
+                <ul>
+                    <li><code>itemPattern</code> - Matches each item container (required)</li>
+                    <li><code>titlePattern</code> - Extracts the title (capture group)</li>
+                    <li><code>urlPattern</code> - Extracts the link URL (capture group)</li>
+                    <li><code>summaryPattern</code> - Extracts description (optional)</li>
+                    <li><code>authorPattern</code> - Extracts author name (optional)</li>
+                    <li><code>datePattern</code> - Extracts publication date (optional)</li>
+                    <li><code>imagePattern</code> - Extracts image URL (optional)</li>
+                    <li><code>baseUrl</code> - Base URL for relative links</li>
+                </ul>
+            </div>
+        </details>
+    </section>
+
+    <section class="existing-scrapers">
+        <h2>Existing Scrapers</h2>
+        {{if .ScraperModules}}
+        <div class="scrapers-list">
+            {{range .ScraperModules}}
+            <div class="scraper-card" data-id="{{.ID}}">
+                <div class="scraper-header">
+                    <h3>{{.Name}}</h3>
+                    <span class="scraper-type">{{.ScriptType}}</span>
+                </div>
+                {{if .Description}}
+                <p class="scraper-description">{{.Description}}</p>
                 {{end}}
-            </tbody>
-        </table>
+                <div class="scraper-actions">
+                    <button onclick="viewScraperConfig({{.ID}})" class="btn btn-small">View Config</button>
+                    <button onclick="deleteScraper({{.ID}})" class="btn btn-small btn-danger">Delete</button>
+                </div>
+            </div>
+            {{end}}
+        </div>
+        {{else}}
+        <p class="empty-state">No scraper modules yet. Create one above!</p>
         {{end}}
+    </section>
+</div>
+
+<div id="config-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modal-title">Scraper Configuration</h3>
+            <button onclick="closeModal()" class="modal-close">&times;</button>
+        </div>
+        <pre id="modal-config"></pre>
     </div>
 </div>
 
-<!-- Edit Modal -->
-<div id="edit-modal" class="modal" style="display:none">
-    <div class="modal-content">
-        <h2>Edit Scraper</h2>
-        <form id="edit-scraper-form">
-            <input type="hidden" id="edit-id">
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="edit-name">Name</label>
-                    <input type="text" id="edit-name" required>
-                </div>
-                <div class="form-group">
-                    <label for="edit-description">Description</label>
-                    <input type="text" id="edit-description">
-                </div>
-            </div>
-            <div class="form-group">
-                <label for="edit-script">Configuration (JSON)</label>
-                <textarea id="edit-script" rows="12" required></textarea>
-            </div>
-            <div class="modal-actions">
-                <button type="button" onclick="closeModal()" class="btn btn-secondary">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save</button>
-            </div>
-        </form>
-    </div>
-</div>
+<script>
+// Check AI availability on page load
+document.addEventListener('DOMContentLoaded', async () => {
+    const statusEl = document.getElementById('ai-status');
+    try {
+        const resp = await fetch('/api/ai/status');
+        const data = await resp.json();
+        if (data.available) {
+            statusEl.className = 'ai-status available';
+            statusEl.querySelector('.status-text').textContent = 'AI generation available';
+            document.getElementById('ai-generate-form').style.display = 'block';
+        } else {
+            statusEl.className = 'ai-status unavailable';
+            statusEl.querySelector('.status-text').textContent = 'AI not configured (set ANTHROPIC_API_KEY)';
+            document.getElementById('ai-generate-form').style.opacity = '0.5';
+            document.getElementById('ai-generate-btn').disabled = true;
+        }
+    } catch (err) {
+        statusEl.className = 'ai-status error';
+        statusEl.querySelector('.status-text').textContent = 'Could not check AI status';
+    }
+});
+
+// AI Generate form
+document.getElementById('ai-generate-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('ai-generate-btn');
+    const url = document.getElementById('ai-url').value;
+    const description = document.getElementById('ai-description').value;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Analyzing page...';
+    
+    try {
+        const resp = await fetch('/api/ai/generate-scraper', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url, description })
+        });
+        const data = await resp.json();
+        
+        if (data.error) {
+            alert('Error: ' + data.error);
+        } else {
+            document.getElementById('ai-result-name').value = data.name || 'Custom Scraper';
+            document.getElementById('ai-result-config').textContent = data.config;
+            document.getElementById('ai-result').style.display = 'block';
+        }
+    } catch (err) {
+        alert('Failed to generate: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 9l-7 7-7-7"/></svg> Generate Scraper Config`;
+    }
+});
+
+function useGeneratedConfig() {
+    const name = document.getElementById('ai-result-name').value;
+    const config = document.getElementById('ai-result-config').textContent;
+    
+    document.getElementById('scraper-name').value = name;
+    document.getElementById('scraper-script').value = config;
+    document.getElementById('ai-result').style.display = 'none';
+    
+    // Scroll to the form
+    document.querySelector('.manual-scraper-section').scrollIntoView({ behavior: 'smooth' });
+}
+
+function hideAIResult() {
+    document.getElementById('ai-result').style.display = 'none';
+}
+
+async function viewScraperConfig(id) {
+    try {
+        const resp = await fetch(`/api/scrapers/${id}`);
+        const scraper = await resp.json();
+        
+        document.getElementById('modal-title').textContent = scraper.name;
+        try {
+            const config = JSON.parse(scraper.script);
+            document.getElementById('modal-config').textContent = JSON.stringify(config, null, 2);
+        } catch {
+            document.getElementById('modal-config').textContent = scraper.script;
+        }
+        document.getElementById('config-modal').style.display = 'flex';
+    } catch (err) {
+        alert('Failed to load scraper: ' + err.message);
+    }
+}
+
+function closeModal() {
+    document.getElementById('config-modal').style.display = 'none';
+}
+
+async function deleteScraper(id) {
+    if (!confirm('Delete this scraper module?')) return;
+    
+    try {
+        const resp = await fetch(`/api/scrapers/${id}`, { method: 'DELETE' });
+        if (resp.ok) {
+            location.reload();
+        } else {
+            const data = await resp.json();
+            alert(data.error || 'Failed to delete');
+        }
+    } catch (err) {
+        alert('Failed to delete: ' + err.message);
+    }
+}
+
+// Manual scraper form
+document.getElementById('add-scraper-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const name = document.getElementById('scraper-name').value;
+    const description = document.getElementById('scraper-description').value;
+    const script = document.getElementById('scraper-script').value;
+    const scriptType = document.getElementById('script-type').value;
+    
+    // Validate JSON
+    try {
+        JSON.parse(script);
+    } catch (err) {
+        alert('Invalid JSON: ' + err.message);
+        return;
+    }
+    
+    try {
+        const resp = await fetch('/api/scrapers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, description, script, script_type: scriptType })
+        });
+        
+        if (resp.ok) {
+            location.reload();
+        } else {
+            const data = await resp.json();
+            alert(data.error || 'Failed to create scraper');
+        }
+    } catch (err) {
+        alert('Failed to create: ' + err.message);
+    }
+});
+
+// Close modal on outside click
+document.getElementById('config-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'config-modal') closeModal();
+});
+</script>
 {{end}}
