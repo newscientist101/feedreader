@@ -8,7 +8,7 @@ function applyUserPreferences() {
         });
     }
     
-    // Hide empty feeds and folders
+    // Hide empty feeds (but never hide folders - they should always be visible)
     const hideEmpty = localStorage.getItem('hideEmptyFeeds');
     if (hideEmpty === 'hide') {
         // Hide feeds with no unread (but not never-fetched feeds)
@@ -21,16 +21,7 @@ function applyUserPreferences() {
                 item.style.display = 'none';
             }
         });
-        // Hide folders with no unread (but not if they have pending feeds)
-        document.querySelectorAll('.folder-item').forEach(item => {
-            const badge = item.querySelector('.folder-link .badge');
-            const count = badge ? parseInt(badge.textContent) : 0;
-            // Check if folder has any pending feeds
-            const hasPending = item.querySelector('.feed-item[data-never-fetched="true"]');
-            if (count === 0 && !hasPending) {
-                item.style.display = 'none';
-            }
-        });
+        // Folders are always visible, even when empty
     }
 }
 
