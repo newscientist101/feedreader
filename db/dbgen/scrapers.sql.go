@@ -10,9 +10,9 @@ import (
 )
 
 const createScraperModule = `-- name: CreateScraperModule :one
-INSERT INTO scraper_modules (name, description, script, script_type)
-VALUES (?, ?, ?, ?)
-RETURNING id, name, description, script, script_type, enabled, created_at, updated_at
+INSERT INTO scraper_modules (name, description, script, script_type, user_id)
+VALUES (?, ?, ?, ?, ?)
+RETURNING id, name, description, script, script_type, enabled, created_at, updated_at, user_id
 `
 
 type CreateScraperModuleParams struct {
@@ -20,6 +20,7 @@ type CreateScraperModuleParams struct {
 	Description *string `json:"description"`
 	Script      string  `json:"script"`
 	ScriptType  string  `json:"script_type"`
+	UserID      *int64  `json:"user_id"`
 }
 
 func (q *Queries) CreateScraperModule(ctx context.Context, arg CreateScraperModuleParams) (ScraperModule, error) {
@@ -28,6 +29,7 @@ func (q *Queries) CreateScraperModule(ctx context.Context, arg CreateScraperModu
 		arg.Description,
 		arg.Script,
 		arg.ScriptType,
+		arg.UserID,
 	)
 	var i ScraperModule
 	err := row.Scan(
@@ -39,43 +41,64 @@ func (q *Queries) CreateScraperModule(ctx context.Context, arg CreateScraperModu
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const deleteScraperModule = `-- name: DeleteScraperModule :exec
-DELETE FROM scraper_modules WHERE id = ?
+DELETE FROM scraper_modules WHERE id = ? AND user_id = ?
 `
 
-func (q *Queries) DeleteScraperModule(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteScraperModule, id)
+type DeleteScraperModuleParams struct {
+	ID     int64  `json:"id"`
+	UserID *int64 `json:"user_id"`
+}
+
+func (q *Queries) DeleteScraperModule(ctx context.Context, arg DeleteScraperModuleParams) error {
+	_, err := q.db.ExecContext(ctx, deleteScraperModule, arg.ID, arg.UserID)
 	return err
 }
 
 const disableScraperModule = `-- name: DisableScraperModule :exec
-UPDATE scraper_modules SET enabled = 0 WHERE id = ?
+UPDATE scraper_modules SET enabled = 0 WHERE id = ? AND user_id = ?
 `
 
-func (q *Queries) DisableScraperModule(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, disableScraperModule, id)
+type DisableScraperModuleParams struct {
+	ID     int64  `json:"id"`
+	UserID *int64 `json:"user_id"`
+}
+
+func (q *Queries) DisableScraperModule(ctx context.Context, arg DisableScraperModuleParams) error {
+	_, err := q.db.ExecContext(ctx, disableScraperModule, arg.ID, arg.UserID)
 	return err
 }
 
 const enableScraperModule = `-- name: EnableScraperModule :exec
-UPDATE scraper_modules SET enabled = 1 WHERE id = ?
+UPDATE scraper_modules SET enabled = 1 WHERE id = ? AND user_id = ?
 `
 
-func (q *Queries) EnableScraperModule(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, enableScraperModule, id)
+type EnableScraperModuleParams struct {
+	ID     int64  `json:"id"`
+	UserID *int64 `json:"user_id"`
+}
+
+func (q *Queries) EnableScraperModule(ctx context.Context, arg EnableScraperModuleParams) error {
+	_, err := q.db.ExecContext(ctx, enableScraperModule, arg.ID, arg.UserID)
 	return err
 }
 
 const getScraperModule = `-- name: GetScraperModule :one
-SELECT id, name, description, script, script_type, enabled, created_at, updated_at FROM scraper_modules WHERE id = ?
+SELECT id, name, description, script, script_type, enabled, created_at, updated_at, user_id FROM scraper_modules WHERE id = ? AND user_id = ?
 `
 
-func (q *Queries) GetScraperModule(ctx context.Context, id int64) (ScraperModule, error) {
-	row := q.db.QueryRowContext(ctx, getScraperModule, id)
+type GetScraperModuleParams struct {
+	ID     int64  `json:"id"`
+	UserID *int64 `json:"user_id"`
+}
+
+func (q *Queries) GetScraperModule(ctx context.Context, arg GetScraperModuleParams) (ScraperModule, error) {
+	row := q.db.QueryRowContext(ctx, getScraperModule, arg.ID, arg.UserID)
 	var i ScraperModule
 	err := row.Scan(
 		&i.ID,
@@ -86,16 +109,22 @@ func (q *Queries) GetScraperModule(ctx context.Context, id int64) (ScraperModule
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const getScraperModuleByName = `-- name: GetScraperModuleByName :one
-SELECT id, name, description, script, script_type, enabled, created_at, updated_at FROM scraper_modules WHERE name = ?
+SELECT id, name, description, script, script_type, enabled, created_at, updated_at, user_id FROM scraper_modules WHERE name = ? AND user_id = ?
 `
 
-func (q *Queries) GetScraperModuleByName(ctx context.Context, name string) (ScraperModule, error) {
-	row := q.db.QueryRowContext(ctx, getScraperModuleByName, name)
+type GetScraperModuleByNameParams struct {
+	Name   string `json:"name"`
+	UserID *int64 `json:"user_id"`
+}
+
+func (q *Queries) GetScraperModuleByName(ctx context.Context, arg GetScraperModuleByNameParams) (ScraperModule, error) {
+	row := q.db.QueryRowContext(ctx, getScraperModuleByName, arg.Name, arg.UserID)
 	var i ScraperModule
 	err := row.Scan(
 		&i.ID,
@@ -106,16 +135,39 @@ func (q *Queries) GetScraperModuleByName(ctx context.Context, name string) (Scra
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserID,
+	)
+	return i, err
+}
+
+const getScraperModuleInternal = `-- name: GetScraperModuleInternal :one
+SELECT id, name, description, script, script_type, enabled, created_at, updated_at, user_id FROM scraper_modules WHERE name = ?
+`
+
+// Internal use only - gets scraper by name for background fetching
+func (q *Queries) GetScraperModuleInternal(ctx context.Context, name string) (ScraperModule, error) {
+	row := q.db.QueryRowContext(ctx, getScraperModuleInternal, name)
+	var i ScraperModule
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Script,
+		&i.ScriptType,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const listScraperModules = `-- name: ListScraperModules :many
-SELECT id, name, description, script, script_type, enabled, created_at, updated_at FROM scraper_modules ORDER BY name
+SELECT id, name, description, script, script_type, enabled, created_at, updated_at, user_id FROM scraper_modules WHERE user_id = ? ORDER BY name
 `
 
-func (q *Queries) ListScraperModules(ctx context.Context) ([]ScraperModule, error) {
-	rows, err := q.db.QueryContext(ctx, listScraperModules)
+func (q *Queries) ListScraperModules(ctx context.Context, userID *int64) ([]ScraperModule, error) {
+	rows, err := q.db.QueryContext(ctx, listScraperModules, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -132,6 +184,7 @@ func (q *Queries) ListScraperModules(ctx context.Context) ([]ScraperModule, erro
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UserID,
 		); err != nil {
 			return nil, err
 		}
@@ -147,7 +200,7 @@ func (q *Queries) ListScraperModules(ctx context.Context) ([]ScraperModule, erro
 }
 
 const updateScraperModule = `-- name: UpdateScraperModule :exec
-UPDATE scraper_modules SET name = ?, description = ?, script = ?, script_type = ?, updated_at = datetime('now') WHERE id = ?
+UPDATE scraper_modules SET name = ?, description = ?, script = ?, script_type = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?
 `
 
 type UpdateScraperModuleParams struct {
@@ -156,6 +209,7 @@ type UpdateScraperModuleParams struct {
 	Script      string  `json:"script"`
 	ScriptType  string  `json:"script_type"`
 	ID          int64   `json:"id"`
+	UserID      *int64  `json:"user_id"`
 }
 
 func (q *Queries) UpdateScraperModule(ctx context.Context, arg UpdateScraperModuleParams) error {
@@ -165,6 +219,7 @@ func (q *Queries) UpdateScraperModule(ctx context.Context, arg UpdateScraperModu
 		arg.Script,
 		arg.ScriptType,
 		arg.ID,
+		arg.UserID,
 	)
 	return err
 }

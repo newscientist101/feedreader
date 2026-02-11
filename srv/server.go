@@ -130,8 +130,11 @@ func (s *Server) Serve(addr string) error {
 	// Static files
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(s.StaticDir))))
 
+	// Wrap with auth middleware
+	handler := s.AuthMiddleware(mux)
+
 	slog.Info("starting server", "addr", addr)
-	return http.ListenAndServe(addr, mux)
+	return http.ListenAndServe(addr, handler)
 }
 
 // Template helpers
@@ -221,11 +224,16 @@ func stripHTML(s string) string {
 // getCommonData returns data shared across all pages
 func (s *Server) getCommonData(ctx context.Context) map[string]any {
 	q := dbgen.New(s.DB)
+	user := GetUser(ctx)
+	if user == nil {
+		return map[string]any{}
+	}
+	userID := user.ID
 
-	feeds, _ := q.ListFeeds(ctx)
-	unreadCount, _ := q.GetUnreadCount(ctx)
-	starredCount, _ := q.GetStarredCount(ctx)
-	categories, _ := q.ListCategories(ctx)
+	feeds, _ := q.ListFeeds(ctx, &userID)
+	unreadCount, _ := q.GetUnreadCount(ctx, &userID)
+	starredCount, _ := q.GetStarredCount(ctx, &userID)
+	categories, _ := q.ListCategories(ctx, &userID)
 
 	feedCounts := make(map[int64]int64)
 	for _, feed := range feeds {
@@ -256,14 +264,17 @@ func (s *Server) getCommonData(ctx context.Context) map[string]any {
 		"FeedCategories": feedCategories,
 		"UnreadCount":    unreadCount,
 		"StarredCount":   starredCount,
+		"User":           user,
 	}
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	q := dbgen.New(s.DB)
+	user := GetUser(ctx)
 
-	articles, _ := q.ListUnreadArticles(ctx, dbgen.ListUnreadArticlesParams{Limit: 50, Offset: 0})
+	userID := user.ID
+	articles, _ := q.ListUnreadArticles(ctx, dbgen.ListUnreadArticlesParams{UserID: &userID, Limit: 50, Offset: 0})
 
 	data := s.getCommonData(ctx)
 	data["Title"] = "All Unread"
@@ -280,8 +291,9 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleFeeds(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	q := dbgen.New(s.DB)
+	user := GetUser(ctx)
 
-	scraperModules, _ := q.ListScraperModules(ctx)
+	scraperModules, _ := q.ListScraperModules(ctx, &user.ID)
 
 	data := s.getCommonData(ctx)
 	data["Title"] = "Manage Feeds"
@@ -316,6 +328,7 @@ func (s *Server) handleStarred(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleFeedArticles(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	q := dbgen.New(s.DB)
+	user := GetUser(ctx)
 
 	feedID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -323,16 +336,16 @@ func (s *Server) handleFeedArticles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	feed, err := q.GetFeed(ctx, feedID)
+	feed, err := q.GetFeed(ctx, dbgen.GetFeedParams{ID: feedID, UserID: &user.ID})
 	if err != nil {
 		http.Error(w, "Feed not found", 404)
 		return
 	}
 
-	articles, _ := q.ListArticlesByFeed(ctx, dbgen.ListArticlesByFeedParams{FeedID: feedID, Limit: 100, Offset: 0})
+	articles, _ := q.ListArticlesByFeed(ctx, dbgen.ListArticlesByFeedParams{FeedID: feedID, UserID: &user.ID, Limit: 100, Offset: 0})
 
 	// Apply exclusion filters based on feed's category
-	filteredArticles := s.FilterArticlesByFeed(ctx, articles, feedID)
+	filteredArticles := s.FilterArticlesByFeed(ctx, articles, feedID, user.ID)
 
 	data := s.getCommonData(ctx)
 	data["Title"] = feed.Name
@@ -350,6 +363,7 @@ func (s *Server) handleFeedArticles(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	q := dbgen.New(s.DB)
+	user := GetUser(ctx)
 
 	articleID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -357,16 +371,16 @@ func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	article, err := q.GetArticle(ctx, articleID)
+	article, err := q.GetArticle(ctx, dbgen.GetArticleParams{ID: articleID, UserID: &user.ID})
 	if err != nil {
 		http.Error(w, "Article not found", 404)
 		return
 	}
 
 	// Mark as read
-	q.MarkArticleRead(ctx, articleID)
+	q.MarkArticleRead(ctx, dbgen.MarkArticleReadParams{ID: articleID, UserID: &user.ID})
 
-	feed, _ := q.GetFeed(ctx, article.FeedID)
+	feed, _ := q.GetFeed(ctx, dbgen.GetFeedParams{ID: article.FeedID, UserID: &user.ID})
 
 	data := s.getCommonData(ctx)
 	data["Title"] = article.Title
@@ -383,8 +397,9 @@ func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleScrapers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	q := dbgen.New(s.DB)
+	user := GetUser(ctx)
 
-	scraperModules, _ := q.ListScraperModules(ctx)
+	scraperModules, _ := q.ListScraperModules(ctx, &user.ID)
 
 	data := s.getCommonData(ctx)
 	data["Title"] = "Scraper Modules"
@@ -474,6 +489,7 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 func (s *Server) apiDeleteFeed(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	q := dbgen.New(s.DB)
+	user := GetUser(ctx)
 
 	feedID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -481,7 +497,7 @@ func (s *Server) apiDeleteFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := q.DeleteFeed(ctx, feedID); err != nil {
+	if err := q.DeleteFeed(ctx, dbgen.DeleteFeedParams{ID: feedID, UserID: &user.ID}); err != nil {
 		jsonError(w, "Failed to delete feed", 500)
 		return
 	}
@@ -491,6 +507,7 @@ func (s *Server) apiDeleteFeed(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) apiRefreshFeed(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	feedID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -499,7 +516,7 @@ func (s *Server) apiRefreshFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	feed, err := q.GetFeed(ctx, feedID)
+	feed, err := q.GetFeed(ctx, dbgen.GetFeedParams{ID: feedID, UserID: &user.ID})
 	if err != nil {
 		jsonError(w, "Feed not found", 404)
 		return
@@ -512,6 +529,7 @@ func (s *Server) apiRefreshFeed(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) apiMarkRead(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	articleID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -520,7 +538,7 @@ func (s *Server) apiMarkRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := q.MarkArticleRead(ctx, articleID); err != nil {
+	if err := q.MarkArticleRead(ctx, dbgen.MarkArticleReadParams{ID: articleID, UserID: &user.ID}); err != nil {
 		jsonError(w, "Failed to mark read", 500)
 		return
 	}
@@ -530,6 +548,7 @@ func (s *Server) apiMarkRead(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) apiMarkUnread(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	articleID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -538,7 +557,7 @@ func (s *Server) apiMarkUnread(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := q.MarkArticleUnread(ctx, articleID); err != nil {
+	if err := q.MarkArticleUnread(ctx, dbgen.MarkArticleUnreadParams{ID: articleID, UserID: &user.ID}); err != nil {
 		jsonError(w, "Failed to mark unread", 500)
 		return
 	}
@@ -548,6 +567,7 @@ func (s *Server) apiMarkUnread(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) apiToggleStar(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	articleID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -556,7 +576,7 @@ func (s *Server) apiToggleStar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := q.ToggleArticleStar(ctx, articleID); err != nil {
+	if err := q.ToggleArticleStar(ctx, dbgen.ToggleArticleStarParams{ID: articleID, UserID: &user.ID}); err != nil {
 		jsonError(w, "Failed to toggle star", 500)
 		return
 	}
@@ -566,6 +586,7 @@ func (s *Server) apiToggleStar(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) apiMarkAllRead(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	age := r.URL.Query().Get("age")
@@ -574,11 +595,11 @@ func (s *Server) apiMarkAllRead(w http.ResponseWriter, r *http.Request) {
 	var err error
 	switch age {
 	case "day":
-		err = q.MarkAllArticlesReadOlderThan(ctx, &oneDay)
+		err = q.MarkAllArticlesReadOlderThan(ctx, dbgen.MarkAllArticlesReadOlderThanParams{Column1: &oneDay, UserID: &user.ID})
 	case "week":
-		err = q.MarkAllArticlesReadOlderThan(ctx, &oneWeek)
+		err = q.MarkAllArticlesReadOlderThan(ctx, dbgen.MarkAllArticlesReadOlderThanParams{Column1: &oneWeek, UserID: &user.ID})
 	default:
-		err = q.MarkAllArticlesRead(ctx)
+		err = q.MarkAllArticlesRead(ctx, &user.ID)
 	}
 
 	if err != nil {
@@ -591,6 +612,7 @@ func (s *Server) apiMarkAllRead(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) apiMarkFeedRead(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	feedID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -607,14 +629,16 @@ func (s *Server) apiMarkFeedRead(w http.ResponseWriter, r *http.Request) {
 		err = q.MarkFeedArticlesReadOlderThan(ctx, dbgen.MarkFeedArticlesReadOlderThanParams{
 			FeedID:  feedID,
 			Column2: &oneDay,
+			UserID:  &user.ID,
 		})
 	case "week":
 		err = q.MarkFeedArticlesReadOlderThan(ctx, dbgen.MarkFeedArticlesReadOlderThanParams{
 			FeedID:  feedID,
 			Column2: &oneWeek,
+			UserID:  &user.ID,
 		})
 	default:
-		err = q.MarkFeedRead(ctx, feedID)
+		err = q.MarkFeedRead(ctx, dbgen.MarkFeedReadParams{FeedID: feedID, UserID: &user.ID})
 	}
 
 	if err != nil {
@@ -627,6 +651,7 @@ func (s *Server) apiMarkFeedRead(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) apiGetScraper(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -635,7 +660,7 @@ func (s *Server) apiGetScraper(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	scraper, err := q.GetScraperModule(ctx, id)
+	scraper, err := q.GetScraperModule(ctx, dbgen.GetScraperModuleParams{ID: id, UserID: &user.ID})
 	if err != nil {
 		jsonError(w, "Scraper not found", 404)
 		return
@@ -731,6 +756,7 @@ func (s *Server) apiUpdateScraper(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) apiDeleteScraper(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -739,7 +765,7 @@ func (s *Server) apiDeleteScraper(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := q.DeleteScraperModule(ctx, id); err != nil {
+	if err := q.DeleteScraperModule(ctx, dbgen.DeleteScraperModuleParams{ID: id, UserID: &user.ID}); err != nil {
 		jsonError(w, "Failed to delete scraper", 500)
 		return
 	}
@@ -749,6 +775,7 @@ func (s *Server) apiDeleteScraper(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) apiSearch(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	query := r.URL.Query().Get("q")
@@ -758,8 +785,9 @@ func (s *Server) apiSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	articles, err := q.SearchArticles(ctx, dbgen.SearchArticlesParams{
-		Column1: &query,
+		UserID:  &user.ID,
 		Column2: &query,
+		Column3: &query,
 		Limit:   50,
 		Offset:  0,
 	})
@@ -814,6 +842,7 @@ func safeHTML(s string) template.HTML {
 // Category handlers
 func (s *Server) handleCategoryArticles(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	catID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -822,7 +851,7 @@ func (s *Server) handleCategoryArticles(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	categories, _ := q.ListCategories(ctx)
+	categories, _ := q.ListCategories(ctx, &user.ID)
 	var category *dbgen.Category
 	for _, c := range categories {
 		if c.ID == catID {
@@ -838,12 +867,13 @@ func (s *Server) handleCategoryArticles(w http.ResponseWriter, r *http.Request) 
 
 	articles, _ := q.ListUnreadArticlesByCategory(ctx, dbgen.ListUnreadArticlesByCategoryParams{
 		CategoryID: catID,
+		UserID:     &user.ID,
 		Limit:      100, // Fetch more to account for filtering
 		Offset:     0,
 	})
 
 	// Apply exclusion filters
-	filteredArticles := s.FilterArticlesByCategory(ctx, articles, catID)
+	filteredArticles := s.FilterArticlesByCategory(ctx, articles, catID, user.ID)
 
 	data := s.getCommonData(ctx)
 	data["Title"] = category.Name
@@ -860,6 +890,7 @@ func (s *Server) handleCategoryArticles(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) apiCreateCategory(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	var req struct {
@@ -875,7 +906,7 @@ func (s *Server) apiCreateCategory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cat, err := q.CreateCategory(ctx, req.Name)
+	cat, err := q.CreateCategory(ctx, dbgen.CreateCategoryParams{Name: req.Name, UserID: &user.ID})
 	if err != nil {
 		jsonError(w, "Failed to create category: "+err.Error(), 500)
 		return
@@ -886,6 +917,7 @@ func (s *Server) apiCreateCategory(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) apiUpdateCategory(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -902,7 +934,7 @@ func (s *Server) apiUpdateCategory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := q.UpdateCategory(ctx, dbgen.UpdateCategoryParams{Name: req.Name, ID: id}); err != nil {
+	if err := q.UpdateCategory(ctx, dbgen.UpdateCategoryParams{Name: req.Name, ID: id, UserID: &user.ID}); err != nil {
 		jsonError(w, "Failed to update category", 500)
 		return
 	}
@@ -912,6 +944,7 @@ func (s *Server) apiUpdateCategory(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) apiDeleteCategory(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -920,7 +953,7 @@ func (s *Server) apiDeleteCategory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := q.DeleteCategory(ctx, id); err != nil {
+	if err := q.DeleteCategory(ctx, dbgen.DeleteCategoryParams{ID: id, UserID: &user.ID}); err != nil {
 		jsonError(w, "Failed to delete category", 500)
 		return
 	}
@@ -967,6 +1000,7 @@ func (s *Server) apiSetFeedCategory(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) apiMarkCategoryRead(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	catID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -982,15 +1016,17 @@ func (s *Server) apiMarkCategoryRead(w http.ResponseWriter, r *http.Request) {
 	case "day":
 		err = q.MarkCategoryArticlesReadOlderThan(ctx, dbgen.MarkCategoryArticlesReadOlderThanParams{
 			CategoryID: catID,
-			Column2:    &oneDay,
+			UserID:     &user.ID,
+			Column3:    &oneDay,
 		})
 	case "week":
 		err = q.MarkCategoryArticlesReadOlderThan(ctx, dbgen.MarkCategoryArticlesReadOlderThanParams{
 			CategoryID: catID,
-			Column2:    &oneWeek,
+			UserID:     &user.ID,
+			Column3:    &oneWeek,
 		})
 	default:
-		err = q.MarkCategoryRead(ctx, catID)
+		err = q.MarkCategoryRead(ctx, dbgen.MarkCategoryReadParams{CategoryID: catID, UserID: &user.ID})
 	}
 
 	if err != nil {
@@ -1004,9 +1040,10 @@ func (s *Server) apiMarkCategoryRead(w http.ResponseWriter, r *http.Request) {
 // OPML handlers
 func (s *Server) apiExportOPML(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
-	feeds, err := q.ListFeeds(ctx)
+	feeds, err := q.ListFeeds(ctx, &user.ID)
 	if err != nil {
 		jsonError(w, "Failed to list feeds", 500)
 		return
@@ -1039,6 +1076,7 @@ func (s *Server) apiExportOPML(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	// Handle both multipart form and raw body
@@ -1071,10 +1109,10 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 		// Get or create category
 		var catID int64
 		if feed.Category != "" {
-			cat, err := q.GetCategoryByName(ctx, feed.Category)
+			cat, err := q.GetCategoryByName(ctx, dbgen.GetCategoryByNameParams{Name: feed.Category, UserID: &user.ID})
 			if err != nil {
 				// Create category
-				cat, err = q.CreateCategory(ctx, feed.Category)
+				cat, err = q.CreateCategory(ctx, dbgen.CreateCategoryParams{Name: feed.Category, UserID: &user.ID})
 				if err != nil {
 					slog.Warn("create category", "error", err, "name", feed.Category)
 				}
@@ -1085,7 +1123,7 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Check if feed already exists
-		_, err := q.GetFeedByURL(ctx, feed.URL)
+		_, err := q.GetFeedByURL(ctx, dbgen.GetFeedByURLParams{Url: feed.URL, UserID: &user.ID})
 		if err == nil {
 			skipped++
 			continue
@@ -1098,6 +1136,7 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 			Url:                  feed.URL,
 			FeedType:             "rss",
 			FetchIntervalMinutes: &interval,
+			UserID:               &user.ID,
 		})
 		if err != nil {
 			slog.Warn("create feed", "error", err, "url", feed.URL)
@@ -1129,6 +1168,7 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 // Exclusion handlers
 func (s *Server) apiListExclusions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	catID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -1137,7 +1177,7 @@ func (s *Server) apiListExclusions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exclusions, err := q.ListExclusionsByCategory(ctx, catID)
+	exclusions, err := q.ListExclusionsByCategory(ctx, dbgen.ListExclusionsByCategoryParams{CategoryID: catID, UserID: &user.ID})
 	if err != nil {
 		jsonError(w, "Failed to list exclusions", 500)
 		return
@@ -1196,6 +1236,7 @@ func (s *Server) apiCreateExclusion(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) apiDeleteExclusion(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -1204,7 +1245,7 @@ func (s *Server) apiDeleteExclusion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := q.DeleteExclusion(ctx, id); err != nil {
+	if err := q.DeleteExclusion(ctx, dbgen.DeleteExclusionParams{ID: id, UserID: &user.ID}); err != nil {
 		jsonError(w, "Failed to delete exclusion", 500)
 		return
 	}
@@ -1214,6 +1255,7 @@ func (s *Server) apiDeleteExclusion(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCategorySettings(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	catID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -1222,7 +1264,7 @@ func (s *Server) handleCategorySettings(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	categories, _ := q.ListCategories(ctx)
+	categories, _ := q.ListCategories(ctx, &user.ID)
 	var category *dbgen.Category
 	for _, c := range categories {
 		if c.ID == catID {
@@ -1236,7 +1278,7 @@ func (s *Server) handleCategorySettings(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	exclusions, _ := q.ListExclusionsByCategory(ctx, catID)
+	exclusions, _ := q.ListExclusionsByCategory(ctx, dbgen.ListExclusionsByCategoryParams{CategoryID: catID, UserID: &user.ID})
 
 	data := s.getCommonData(ctx)
 	data["Title"] = category.Name + " Settings"

@@ -12,13 +12,33 @@ import (
 )
 
 const countOldUnstarredArticles = `-- name: CountOldUnstarredArticles :one
+SELECT COUNT(*) FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+WHERE a.is_starred = 0 
+  AND a.fetched_at < datetime('now', '-' || ? || ' days')
+  AND f.user_id = ?
+`
+
+type CountOldUnstarredArticlesParams struct {
+	Column1 *string `json:"column_1"`
+	UserID  *int64  `json:"user_id"`
+}
+
+func (q *Queries) CountOldUnstarredArticles(ctx context.Context, arg CountOldUnstarredArticlesParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOldUnstarredArticles, arg.Column1, arg.UserID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countOldUnstarredArticlesGlobal = `-- name: CountOldUnstarredArticlesGlobal :one
 SELECT COUNT(*) FROM articles
 WHERE is_starred = 0 
   AND fetched_at < datetime('now', '-' || ? || ' days')
 `
 
-func (q *Queries) CountOldUnstarredArticles(ctx context.Context, dollar_1 *string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countOldUnstarredArticles, dollar_1)
+func (q *Queries) CountOldUnstarredArticlesGlobal(ctx context.Context, dollar_1 *string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOldUnstarredArticlesGlobal, dollar_1)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -85,21 +105,42 @@ const deleteOldUnstarredArticles = `-- name: DeleteOldUnstarredArticles :execres
 DELETE FROM articles
 WHERE is_starred = 0 
   AND fetched_at < datetime('now', '-' || ? || ' days')
-  AND id NOT IN (
-    SELECT id FROM articles WHERE is_starred = 1
-  )
+  AND feed_id IN (SELECT id FROM feeds WHERE user_id = ?)
 `
 
-func (q *Queries) DeleteOldUnstarredArticles(ctx context.Context, dollar_1 *string) (sql.Result, error) {
-	return q.db.ExecContext(ctx, deleteOldUnstarredArticles, dollar_1)
+type DeleteOldUnstarredArticlesParams struct {
+	Column1 *string `json:"column_1"`
+	UserID  *int64  `json:"user_id"`
+}
+
+func (q *Queries) DeleteOldUnstarredArticles(ctx context.Context, arg DeleteOldUnstarredArticlesParams) (sql.Result, error) {
+	return q.db.ExecContext(ctx, deleteOldUnstarredArticles, arg.Column1, arg.UserID)
+}
+
+const deleteOldUnstarredArticlesGlobal = `-- name: DeleteOldUnstarredArticlesGlobal :execresult
+DELETE FROM articles
+WHERE is_starred = 0 
+  AND fetched_at < datetime('now', '-' || ? || ' days')
+`
+
+// For background cleanup - deletes across all users
+func (q *Queries) DeleteOldUnstarredArticlesGlobal(ctx context.Context, dollar_1 *string) (sql.Result, error) {
+	return q.db.ExecContext(ctx, deleteOldUnstarredArticlesGlobal, dollar_1)
 }
 
 const getArticle = `-- name: GetArticle :one
-SELECT id, feed_id, guid, title, url, author, content, summary, image_url, published_at, fetched_at, is_read, is_starred FROM articles WHERE id = ?
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+WHERE a.id = ? AND f.user_id = ?
 `
 
-func (q *Queries) GetArticle(ctx context.Context, id int64) (Article, error) {
-	row := q.db.QueryRowContext(ctx, getArticle, id)
+type GetArticleParams struct {
+	ID     int64  `json:"id"`
+	UserID *int64 `json:"user_id"`
+}
+
+func (q *Queries) GetArticle(ctx context.Context, arg GetArticleParams) (Article, error) {
+	row := q.db.QueryRowContext(ctx, getArticle, arg.ID, arg.UserID)
 	var i Article
 	err := row.Scan(
 		&i.ID,
@@ -119,34 +160,101 @@ func (q *Queries) GetArticle(ctx context.Context, id int64) (Article, error) {
 	return i, err
 }
 
+const getArticleWithFeed = `-- name: GetArticleWithFeed :one
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+WHERE a.id = ? AND f.user_id = ?
+`
+
+type GetArticleWithFeedParams struct {
+	ID     int64  `json:"id"`
+	UserID *int64 `json:"user_id"`
+}
+
+type GetArticleWithFeedRow struct {
+	ID          int64      `json:"id"`
+	FeedID      int64      `json:"feed_id"`
+	Guid        string     `json:"guid"`
+	Title       string     `json:"title"`
+	Url         *string    `json:"url"`
+	Author      *string    `json:"author"`
+	Content     *string    `json:"content"`
+	Summary     *string    `json:"summary"`
+	ImageUrl    *string    `json:"image_url"`
+	PublishedAt *time.Time `json:"published_at"`
+	FetchedAt   time.Time  `json:"fetched_at"`
+	IsRead      *int64     `json:"is_read"`
+	IsStarred   *int64     `json:"is_starred"`
+	FeedName    string     `json:"feed_name"`
+}
+
+func (q *Queries) GetArticleWithFeed(ctx context.Context, arg GetArticleWithFeedParams) (GetArticleWithFeedRow, error) {
+	row := q.db.QueryRowContext(ctx, getArticleWithFeed, arg.ID, arg.UserID)
+	var i GetArticleWithFeedRow
+	err := row.Scan(
+		&i.ID,
+		&i.FeedID,
+		&i.Guid,
+		&i.Title,
+		&i.Url,
+		&i.Author,
+		&i.Content,
+		&i.Summary,
+		&i.ImageUrl,
+		&i.PublishedAt,
+		&i.FetchedAt,
+		&i.IsRead,
+		&i.IsStarred,
+		&i.FeedName,
+	)
+	return i, err
+}
+
 const getOldestArticleDate = `-- name: GetOldestArticleDate :one
+SELECT MIN(a.fetched_at) FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+WHERE a.is_starred = 0 AND f.user_id = ?
+`
+
+func (q *Queries) GetOldestArticleDate(ctx context.Context, userID *int64) (interface{}, error) {
+	row := q.db.QueryRowContext(ctx, getOldestArticleDate, userID)
+	var min interface{}
+	err := row.Scan(&min)
+	return min, err
+}
+
+const getOldestArticleDateGlobal = `-- name: GetOldestArticleDateGlobal :one
 SELECT MIN(fetched_at) FROM articles WHERE is_starred = 0
 `
 
-func (q *Queries) GetOldestArticleDate(ctx context.Context) (interface{}, error) {
-	row := q.db.QueryRowContext(ctx, getOldestArticleDate)
+func (q *Queries) GetOldestArticleDateGlobal(ctx context.Context) (interface{}, error) {
+	row := q.db.QueryRowContext(ctx, getOldestArticleDateGlobal)
 	var min interface{}
 	err := row.Scan(&min)
 	return min, err
 }
 
 const getStarredCount = `-- name: GetStarredCount :one
-SELECT COUNT(*) as count FROM articles WHERE is_starred = 1
+SELECT COUNT(*) as count FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+WHERE a.is_starred = 1 AND f.user_id = ?
 `
 
-func (q *Queries) GetStarredCount(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getStarredCount)
+func (q *Queries) GetStarredCount(ctx context.Context, userID *int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getStarredCount, userID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
 const getUnreadCount = `-- name: GetUnreadCount :one
-SELECT COUNT(*) as count FROM articles WHERE is_read = 0
+SELECT COUNT(*) as count FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+WHERE a.is_read = 0 AND f.user_id = ?
 `
 
-func (q *Queries) GetUnreadCount(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getUnreadCount)
+func (q *Queries) GetUnreadCount(ctx context.Context, userID *int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getUnreadCount, userID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -155,13 +263,15 @@ func (q *Queries) GetUnreadCount(ctx context.Context) (int64, error) {
 const listArticles = `-- name: ListArticles :many
 SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+WHERE f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?
 `
 
 type ListArticlesParams struct {
-	Limit  int64 `json:"limit"`
-	Offset int64 `json:"offset"`
+	UserID *int64 `json:"user_id"`
+	Limit  int64  `json:"limit"`
+	Offset int64  `json:"offset"`
 }
 
 type ListArticlesRow struct {
@@ -182,7 +292,7 @@ type ListArticlesRow struct {
 }
 
 func (q *Queries) ListArticles(ctx context.Context, arg ListArticlesParams) ([]ListArticlesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listArticles, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listArticles, arg.UserID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -223,15 +333,16 @@ const listArticlesByCategory = `-- name: ListArticlesByCategory :many
 SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
 JOIN feeds f ON a.feed_id = f.id
 JOIN feed_categories fc ON f.id = fc.feed_id
-WHERE fc.category_id = ?
+WHERE fc.category_id = ? AND f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?
 `
 
 type ListArticlesByCategoryParams struct {
-	CategoryID int64 `json:"category_id"`
-	Limit      int64 `json:"limit"`
-	Offset     int64 `json:"offset"`
+	CategoryID int64  `json:"category_id"`
+	UserID     *int64 `json:"user_id"`
+	Limit      int64  `json:"limit"`
+	Offset     int64  `json:"offset"`
 }
 
 type ListArticlesByCategoryRow struct {
@@ -252,7 +363,12 @@ type ListArticlesByCategoryRow struct {
 }
 
 func (q *Queries) ListArticlesByCategory(ctx context.Context, arg ListArticlesByCategoryParams) ([]ListArticlesByCategoryRow, error) {
-	rows, err := q.db.QueryContext(ctx, listArticlesByCategory, arg.CategoryID, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listArticlesByCategory,
+		arg.CategoryID,
+		arg.UserID,
+		arg.Limit,
+		arg.Offset,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -292,15 +408,16 @@ func (q *Queries) ListArticlesByCategory(ctx context.Context, arg ListArticlesBy
 const listArticlesByFeed = `-- name: ListArticlesByFeed :many
 SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
 JOIN feeds f ON a.feed_id = f.id
-WHERE a.feed_id = ?
+WHERE a.feed_id = ? AND f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?
 `
 
 type ListArticlesByFeedParams struct {
-	FeedID int64 `json:"feed_id"`
-	Limit  int64 `json:"limit"`
-	Offset int64 `json:"offset"`
+	FeedID int64  `json:"feed_id"`
+	UserID *int64 `json:"user_id"`
+	Limit  int64  `json:"limit"`
+	Offset int64  `json:"offset"`
 }
 
 type ListArticlesByFeedRow struct {
@@ -321,7 +438,12 @@ type ListArticlesByFeedRow struct {
 }
 
 func (q *Queries) ListArticlesByFeed(ctx context.Context, arg ListArticlesByFeedParams) ([]ListArticlesByFeedRow, error) {
-	rows, err := q.db.QueryContext(ctx, listArticlesByFeed, arg.FeedID, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listArticlesByFeed,
+		arg.FeedID,
+		arg.UserID,
+		arg.Limit,
+		arg.Offset,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -361,14 +483,15 @@ func (q *Queries) ListArticlesByFeed(ctx context.Context, arg ListArticlesByFeed
 const listStarredArticles = `-- name: ListStarredArticles :many
 SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
 JOIN feeds f ON a.feed_id = f.id
-WHERE a.is_starred = 1
+WHERE a.is_starred = 1 AND f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?
 `
 
 type ListStarredArticlesParams struct {
-	Limit  int64 `json:"limit"`
-	Offset int64 `json:"offset"`
+	UserID *int64 `json:"user_id"`
+	Limit  int64  `json:"limit"`
+	Offset int64  `json:"offset"`
 }
 
 type ListStarredArticlesRow struct {
@@ -389,7 +512,7 @@ type ListStarredArticlesRow struct {
 }
 
 func (q *Queries) ListStarredArticles(ctx context.Context, arg ListStarredArticlesParams) ([]ListStarredArticlesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listStarredArticles, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listStarredArticles, arg.UserID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -429,14 +552,15 @@ func (q *Queries) ListStarredArticles(ctx context.Context, arg ListStarredArticl
 const listUnreadArticles = `-- name: ListUnreadArticles :many
 SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
 JOIN feeds f ON a.feed_id = f.id
-WHERE a.is_read = 0
+WHERE a.is_read = 0 AND f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?
 `
 
 type ListUnreadArticlesParams struct {
-	Limit  int64 `json:"limit"`
-	Offset int64 `json:"offset"`
+	UserID *int64 `json:"user_id"`
+	Limit  int64  `json:"limit"`
+	Offset int64  `json:"offset"`
 }
 
 type ListUnreadArticlesRow struct {
@@ -457,7 +581,7 @@ type ListUnreadArticlesRow struct {
 }
 
 func (q *Queries) ListUnreadArticles(ctx context.Context, arg ListUnreadArticlesParams) ([]ListUnreadArticlesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listUnreadArticles, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listUnreadArticles, arg.UserID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -498,15 +622,16 @@ const listUnreadArticlesByCategory = `-- name: ListUnreadArticlesByCategory :man
 SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
 JOIN feeds f ON a.feed_id = f.id
 JOIN feed_categories fc ON f.id = fc.feed_id
-WHERE fc.category_id = ? AND a.is_read = 0
+WHERE fc.category_id = ? AND a.is_read = 0 AND f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?
 `
 
 type ListUnreadArticlesByCategoryParams struct {
-	CategoryID int64 `json:"category_id"`
-	Limit      int64 `json:"limit"`
-	Offset     int64 `json:"offset"`
+	CategoryID int64  `json:"category_id"`
+	UserID     *int64 `json:"user_id"`
+	Limit      int64  `json:"limit"`
+	Offset     int64  `json:"offset"`
 }
 
 type ListUnreadArticlesByCategoryRow struct {
@@ -527,7 +652,12 @@ type ListUnreadArticlesByCategoryRow struct {
 }
 
 func (q *Queries) ListUnreadArticlesByCategory(ctx context.Context, arg ListUnreadArticlesByCategoryParams) ([]ListUnreadArticlesByCategoryRow, error) {
-	rows, err := q.db.QueryContext(ctx, listUnreadArticlesByCategory, arg.CategoryID, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listUnreadArticlesByCategory,
+		arg.CategoryID,
+		arg.UserID,
+		arg.Limit,
+		arg.Offset,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -565,11 +695,12 @@ func (q *Queries) ListUnreadArticlesByCategory(ctx context.Context, arg ListUnre
 }
 
 const markAllArticlesRead = `-- name: MarkAllArticlesRead :exec
-UPDATE articles SET is_read = 1 WHERE is_read = 0
+UPDATE articles SET is_read = 1 
+WHERE is_read = 0 AND feed_id IN (SELECT id FROM feeds WHERE user_id = ?)
 `
 
-func (q *Queries) MarkAllArticlesRead(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, markAllArticlesRead)
+func (q *Queries) MarkAllArticlesRead(ctx context.Context, userID *int64) error {
+	_, err := q.db.ExecContext(ctx, markAllArticlesRead, userID)
 	return err
 }
 
@@ -577,67 +708,96 @@ const markAllArticlesReadOlderThan = `-- name: MarkAllArticlesReadOlderThan :exe
 UPDATE articles SET is_read = 1 
 WHERE is_read = 0 
   AND COALESCE(published_at, fetched_at) < datetime('now', '-' || ? || ' days')
+  AND feed_id IN (SELECT id FROM feeds WHERE user_id = ?)
 `
 
-func (q *Queries) MarkAllArticlesReadOlderThan(ctx context.Context, dollar_1 *string) error {
-	_, err := q.db.ExecContext(ctx, markAllArticlesReadOlderThan, dollar_1)
+type MarkAllArticlesReadOlderThanParams struct {
+	Column1 *string `json:"column_1"`
+	UserID  *int64  `json:"user_id"`
+}
+
+func (q *Queries) MarkAllArticlesReadOlderThan(ctx context.Context, arg MarkAllArticlesReadOlderThanParams) error {
+	_, err := q.db.ExecContext(ctx, markAllArticlesReadOlderThan, arg.Column1, arg.UserID)
 	return err
 }
 
 const markAllRead = `-- name: MarkAllRead :exec
-UPDATE articles SET is_read = 1
+UPDATE articles SET is_read = 1 
+WHERE feed_id IN (SELECT id FROM feeds WHERE user_id = ?)
 `
 
-func (q *Queries) MarkAllRead(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, markAllRead)
+func (q *Queries) MarkAllRead(ctx context.Context, userID *int64) error {
+	_, err := q.db.ExecContext(ctx, markAllRead, userID)
 	return err
 }
 
 const markArticleRead = `-- name: MarkArticleRead :exec
-UPDATE articles SET is_read = 1 WHERE id = ?
+UPDATE articles SET is_read = 1 
+WHERE articles.id = ? AND feed_id IN (SELECT feeds.id FROM feeds WHERE feeds.user_id = ?)
 `
 
-func (q *Queries) MarkArticleRead(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, markArticleRead, id)
+type MarkArticleReadParams struct {
+	ID     int64  `json:"id"`
+	UserID *int64 `json:"user_id"`
+}
+
+func (q *Queries) MarkArticleRead(ctx context.Context, arg MarkArticleReadParams) error {
+	_, err := q.db.ExecContext(ctx, markArticleRead, arg.ID, arg.UserID)
 	return err
 }
 
 const markArticleUnread = `-- name: MarkArticleUnread :exec
-UPDATE articles SET is_read = 0 WHERE id = ?
+UPDATE articles SET is_read = 0 
+WHERE articles.id = ? AND feed_id IN (SELECT feeds.id FROM feeds WHERE feeds.user_id = ?)
 `
 
-func (q *Queries) MarkArticleUnread(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, markArticleUnread, id)
+type MarkArticleUnreadParams struct {
+	ID     int64  `json:"id"`
+	UserID *int64 `json:"user_id"`
+}
+
+func (q *Queries) MarkArticleUnread(ctx context.Context, arg MarkArticleUnreadParams) error {
+	_, err := q.db.ExecContext(ctx, markArticleUnread, arg.ID, arg.UserID)
 	return err
 }
 
 const markCategoryArticlesReadOlderThan = `-- name: MarkCategoryArticlesReadOlderThan :exec
 UPDATE articles SET is_read = 1 
 WHERE feed_id IN (
-    SELECT feed_id FROM feed_categories WHERE category_id = ?
+    SELECT f.id FROM feeds f
+    JOIN feed_categories fc ON f.id = fc.feed_id 
+    WHERE fc.category_id = ? AND f.user_id = ?
 ) AND is_read = 0 
   AND COALESCE(published_at, fetched_at) < datetime('now', '-' || ? || ' days')
 `
 
 type MarkCategoryArticlesReadOlderThanParams struct {
 	CategoryID int64   `json:"category_id"`
-	Column2    *string `json:"column_2"`
+	UserID     *int64  `json:"user_id"`
+	Column3    *string `json:"column_3"`
 }
 
 func (q *Queries) MarkCategoryArticlesReadOlderThan(ctx context.Context, arg MarkCategoryArticlesReadOlderThanParams) error {
-	_, err := q.db.ExecContext(ctx, markCategoryArticlesReadOlderThan, arg.CategoryID, arg.Column2)
+	_, err := q.db.ExecContext(ctx, markCategoryArticlesReadOlderThan, arg.CategoryID, arg.UserID, arg.Column3)
 	return err
 }
 
 const markCategoryRead = `-- name: MarkCategoryRead :exec
 UPDATE articles SET is_read = 1 
 WHERE feed_id IN (
-  SELECT feed_id FROM feed_categories WHERE category_id = ?
+  SELECT f.id FROM feeds f
+  JOIN feed_categories fc ON f.id = fc.feed_id 
+  WHERE fc.category_id = ? AND f.user_id = ?
 )
 `
 
-func (q *Queries) MarkCategoryRead(ctx context.Context, categoryID int64) error {
-	_, err := q.db.ExecContext(ctx, markCategoryRead, categoryID)
+type MarkCategoryReadParams struct {
+	CategoryID int64  `json:"category_id"`
+	UserID     *int64 `json:"user_id"`
+}
+
+func (q *Queries) MarkCategoryRead(ctx context.Context, arg MarkCategoryReadParams) error {
+	_, err := q.db.ExecContext(ctx, markCategoryRead, arg.CategoryID, arg.UserID)
 	return err
 }
 
@@ -645,38 +805,47 @@ const markFeedArticlesReadOlderThan = `-- name: MarkFeedArticlesReadOlderThan :e
 UPDATE articles SET is_read = 1 
 WHERE feed_id = ? AND is_read = 0 
   AND COALESCE(published_at, fetched_at) < datetime('now', '-' || ? || ' days')
+  AND feed_id IN (SELECT id FROM feeds WHERE user_id = ?)
 `
 
 type MarkFeedArticlesReadOlderThanParams struct {
 	FeedID  int64   `json:"feed_id"`
 	Column2 *string `json:"column_2"`
+	UserID  *int64  `json:"user_id"`
 }
 
 func (q *Queries) MarkFeedArticlesReadOlderThan(ctx context.Context, arg MarkFeedArticlesReadOlderThanParams) error {
-	_, err := q.db.ExecContext(ctx, markFeedArticlesReadOlderThan, arg.FeedID, arg.Column2)
+	_, err := q.db.ExecContext(ctx, markFeedArticlesReadOlderThan, arg.FeedID, arg.Column2, arg.UserID)
 	return err
 }
 
 const markFeedRead = `-- name: MarkFeedRead :exec
-UPDATE articles SET is_read = 1 WHERE feed_id = ?
+UPDATE articles SET is_read = 1 
+WHERE feed_id = ? AND feed_id IN (SELECT id FROM feeds WHERE user_id = ?)
 `
 
-func (q *Queries) MarkFeedRead(ctx context.Context, feedID int64) error {
-	_, err := q.db.ExecContext(ctx, markFeedRead, feedID)
+type MarkFeedReadParams struct {
+	FeedID int64  `json:"feed_id"`
+	UserID *int64 `json:"user_id"`
+}
+
+func (q *Queries) MarkFeedRead(ctx context.Context, arg MarkFeedReadParams) error {
+	_, err := q.db.ExecContext(ctx, markFeedRead, arg.FeedID, arg.UserID)
 	return err
 }
 
 const searchArticles = `-- name: SearchArticles :many
 SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
 JOIN feeds f ON a.feed_id = f.id
-WHERE a.title LIKE '%' || ? || '%' OR a.content LIKE '%' || ? || '%'
+WHERE f.user_id = ? AND (a.title LIKE '%' || ? || '%' OR a.content LIKE '%' || ? || '%')
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?
 `
 
 type SearchArticlesParams struct {
-	Column1 *string `json:"column_1"`
+	UserID  *int64  `json:"user_id"`
 	Column2 *string `json:"column_2"`
+	Column3 *string `json:"column_3"`
 	Limit   int64   `json:"limit"`
 	Offset  int64   `json:"offset"`
 }
@@ -700,8 +869,9 @@ type SearchArticlesRow struct {
 
 func (q *Queries) SearchArticles(ctx context.Context, arg SearchArticlesParams) ([]SearchArticlesRow, error) {
 	rows, err := q.db.QueryContext(ctx, searchArticles,
-		arg.Column1,
+		arg.UserID,
 		arg.Column2,
+		arg.Column3,
 		arg.Limit,
 		arg.Offset,
 	)
@@ -742,10 +912,16 @@ func (q *Queries) SearchArticles(ctx context.Context, arg SearchArticlesParams) 
 }
 
 const toggleArticleStar = `-- name: ToggleArticleStar :exec
-UPDATE articles SET is_starred = NOT is_starred WHERE id = ?
+UPDATE articles SET is_starred = NOT is_starred 
+WHERE articles.id = ? AND feed_id IN (SELECT feeds.id FROM feeds WHERE feeds.user_id = ?)
 `
 
-func (q *Queries) ToggleArticleStar(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, toggleArticleStar, id)
+type ToggleArticleStarParams struct {
+	ID     int64  `json:"id"`
+	UserID *int64 `json:"user_id"`
+}
+
+func (q *Queries) ToggleArticleStar(ctx context.Context, arg ToggleArticleStarParams) error {
+	_, err := q.db.ExecContext(ctx, toggleArticleStar, arg.ID, arg.UserID)
 	return err
 }

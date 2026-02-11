@@ -43,25 +43,34 @@ func (q *Queries) CreateExclusion(ctx context.Context, arg CreateExclusionParams
 }
 
 const deleteCategorySetting = `-- name: DeleteCategorySetting :exec
-DELETE FROM category_settings WHERE category_id = ? AND setting_key = ?
+DELETE FROM category_settings 
+WHERE category_settings.category_id = ? AND setting_key = ? 
+  AND category_settings.category_id IN (SELECT categories.id FROM categories WHERE categories.user_id = ?)
 `
 
 type DeleteCategorySettingParams struct {
 	CategoryID int64  `json:"category_id"`
 	SettingKey string `json:"setting_key"`
+	UserID     *int64 `json:"user_id"`
 }
 
 func (q *Queries) DeleteCategorySetting(ctx context.Context, arg DeleteCategorySettingParams) error {
-	_, err := q.db.ExecContext(ctx, deleteCategorySetting, arg.CategoryID, arg.SettingKey)
+	_, err := q.db.ExecContext(ctx, deleteCategorySetting, arg.CategoryID, arg.SettingKey, arg.UserID)
 	return err
 }
 
 const deleteExclusion = `-- name: DeleteExclusion :exec
-DELETE FROM category_exclusions WHERE id = ?
+DELETE FROM category_exclusions 
+WHERE category_exclusions.id = ? AND category_id IN (SELECT categories.id FROM categories WHERE categories.user_id = ?)
 `
 
-func (q *Queries) DeleteExclusion(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteExclusion, id)
+type DeleteExclusionParams struct {
+	ID     int64  `json:"id"`
+	UserID *int64 `json:"user_id"`
+}
+
+func (q *Queries) DeleteExclusion(ctx context.Context, arg DeleteExclusionParams) error {
+	_, err := q.db.ExecContext(ctx, deleteExclusion, arg.ID, arg.UserID)
 	return err
 }
 
@@ -75,16 +84,19 @@ func (q *Queries) DeleteExclusionsByCategory(ctx context.Context, categoryID int
 }
 
 const getCategorySetting = `-- name: GetCategorySetting :one
-SELECT id, category_id, setting_key, setting_value, created_at FROM category_settings WHERE category_id = ? AND setting_key = ?
+SELECT cs.id, cs.category_id, cs.setting_key, cs.setting_value, cs.created_at, cs.user_id FROM category_settings cs
+JOIN categories c ON cs.category_id = c.id
+WHERE cs.category_id = ? AND cs.setting_key = ? AND c.user_id = ?
 `
 
 type GetCategorySettingParams struct {
 	CategoryID int64  `json:"category_id"`
 	SettingKey string `json:"setting_key"`
+	UserID     *int64 `json:"user_id"`
 }
 
 func (q *Queries) GetCategorySetting(ctx context.Context, arg GetCategorySettingParams) (CategorySetting, error) {
-	row := q.db.QueryRowContext(ctx, getCategorySetting, arg.CategoryID, arg.SettingKey)
+	row := q.db.QueryRowContext(ctx, getCategorySetting, arg.CategoryID, arg.SettingKey, arg.UserID)
 	var i CategorySetting
 	err := row.Scan(
 		&i.ID,
@@ -92,16 +104,24 @@ func (q *Queries) GetCategorySetting(ctx context.Context, arg GetCategorySetting
 		&i.SettingKey,
 		&i.SettingValue,
 		&i.CreatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const getExclusion = `-- name: GetExclusion :one
-SELECT id, category_id, exclusion_type, pattern, is_regex, created_at FROM category_exclusions WHERE id = ?
+SELECT e.id, e.category_id, e.exclusion_type, e.pattern, e.is_regex, e.created_at FROM category_exclusions e
+JOIN categories c ON e.category_id = c.id
+WHERE e.id = ? AND c.user_id = ?
 `
 
-func (q *Queries) GetExclusion(ctx context.Context, id int64) (CategoryExclusion, error) {
-	row := q.db.QueryRowContext(ctx, getExclusion, id)
+type GetExclusionParams struct {
+	ID     int64  `json:"id"`
+	UserID *int64 `json:"user_id"`
+}
+
+func (q *Queries) GetExclusion(ctx context.Context, arg GetExclusionParams) (CategoryExclusion, error) {
+	row := q.db.QueryRowContext(ctx, getExclusion, arg.ID, arg.UserID)
 	var i CategoryExclusion
 	err := row.Scan(
 		&i.ID,
@@ -118,6 +138,7 @@ const listAllExclusions = `-- name: ListAllExclusions :many
 SELECT e.id, e.category_id, e.exclusion_type, e.pattern, e.is_regex, e.created_at, c.name as category_name 
 FROM category_exclusions e
 JOIN categories c ON e.category_id = c.id
+WHERE c.user_id = ?
 ORDER BY c.name, e.exclusion_type, e.pattern
 `
 
@@ -131,8 +152,8 @@ type ListAllExclusionsRow struct {
 	CategoryName  string    `json:"category_name"`
 }
 
-func (q *Queries) ListAllExclusions(ctx context.Context) ([]ListAllExclusionsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listAllExclusions)
+func (q *Queries) ListAllExclusions(ctx context.Context, userID *int64) ([]ListAllExclusionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAllExclusions, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -163,11 +184,18 @@ func (q *Queries) ListAllExclusions(ctx context.Context) ([]ListAllExclusionsRow
 }
 
 const listCategorySettings = `-- name: ListCategorySettings :many
-SELECT id, category_id, setting_key, setting_value, created_at FROM category_settings WHERE category_id = ?
+SELECT cs.id, cs.category_id, cs.setting_key, cs.setting_value, cs.created_at, cs.user_id FROM category_settings cs
+JOIN categories c ON cs.category_id = c.id
+WHERE cs.category_id = ? AND c.user_id = ?
 `
 
-func (q *Queries) ListCategorySettings(ctx context.Context, categoryID int64) ([]CategorySetting, error) {
-	rows, err := q.db.QueryContext(ctx, listCategorySettings, categoryID)
+type ListCategorySettingsParams struct {
+	CategoryID int64  `json:"category_id"`
+	UserID     *int64 `json:"user_id"`
+}
+
+func (q *Queries) ListCategorySettings(ctx context.Context, arg ListCategorySettingsParams) ([]CategorySetting, error) {
+	rows, err := q.db.QueryContext(ctx, listCategorySettings, arg.CategoryID, arg.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -181,6 +209,7 @@ func (q *Queries) ListCategorySettings(ctx context.Context, categoryID int64) ([
 			&i.SettingKey,
 			&i.SettingValue,
 			&i.CreatedAt,
+			&i.UserID,
 		); err != nil {
 			return nil, err
 		}
@@ -196,11 +225,19 @@ func (q *Queries) ListCategorySettings(ctx context.Context, categoryID int64) ([
 }
 
 const listExclusionsByCategory = `-- name: ListExclusionsByCategory :many
-SELECT id, category_id, exclusion_type, pattern, is_regex, created_at FROM category_exclusions WHERE category_id = ? ORDER BY exclusion_type, pattern
+SELECT e.id, e.category_id, e.exclusion_type, e.pattern, e.is_regex, e.created_at FROM category_exclusions e
+JOIN categories c ON e.category_id = c.id
+WHERE e.category_id = ? AND c.user_id = ?
+ORDER BY e.exclusion_type, e.pattern
 `
 
-func (q *Queries) ListExclusionsByCategory(ctx context.Context, categoryID int64) ([]CategoryExclusion, error) {
-	rows, err := q.db.QueryContext(ctx, listExclusionsByCategory, categoryID)
+type ListExclusionsByCategoryParams struct {
+	CategoryID int64  `json:"category_id"`
+	UserID     *int64 `json:"user_id"`
+}
+
+func (q *Queries) ListExclusionsByCategory(ctx context.Context, arg ListExclusionsByCategoryParams) ([]CategoryExclusion, error) {
+	rows, err := q.db.QueryContext(ctx, listExclusionsByCategory, arg.CategoryID, arg.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -247,16 +284,23 @@ func (q *Queries) SetCategorySetting(ctx context.Context, arg SetCategorySetting
 }
 
 const updateExclusion = `-- name: UpdateExclusion :exec
-UPDATE category_exclusions SET pattern = ?, is_regex = ? WHERE id = ?
+UPDATE category_exclusions SET pattern = ?, is_regex = ? 
+WHERE category_exclusions.id = ? AND category_id IN (SELECT categories.id FROM categories WHERE categories.user_id = ?)
 `
 
 type UpdateExclusionParams struct {
 	Pattern string `json:"pattern"`
 	IsRegex *int64 `json:"is_regex"`
 	ID      int64  `json:"id"`
+	UserID  *int64 `json:"user_id"`
 }
 
 func (q *Queries) UpdateExclusion(ctx context.Context, arg UpdateExclusionParams) error {
-	_, err := q.db.ExecContext(ctx, updateExclusion, arg.Pattern, arg.IsRegex, arg.ID)
+	_, err := q.db.ExecContext(ctx, updateExclusion,
+		arg.Pattern,
+		arg.IsRegex,
+		arg.ID,
+		arg.UserID,
+	)
 	return err
 }

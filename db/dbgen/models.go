@@ -28,6 +28,7 @@ type Category struct {
 	ID        int64     `json:"id"`
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
+	UserID    *int64    `json:"user_id"`
 }
 
 type CategoryExclusion struct {
@@ -45,6 +46,7 @@ type CategorySetting struct {
 	SettingKey   string    `json:"setting_key"`
 	SettingValue *string   `json:"setting_value"`
 	CreatedAt    time.Time `json:"created_at"`
+	UserID       *int64    `json:"user_id"`
 }
 
 type Feed struct {
@@ -59,6 +61,7 @@ type Feed struct {
 	FetchIntervalMinutes *int64     `json:"fetch_interval_minutes"`
 	CreatedAt            time.Time  `json:"created_at"`
 	UpdatedAt            time.Time  `json:"updated_at"`
+	UserID               *int64     `json:"user_id"`
 }
 
 type FeedCategory struct {
@@ -81,4 +84,13 @@ type ScraperModule struct {
 	Enabled     *int64    `json:"enabled"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	UserID      *int64    `json:"user_id"`
+}
+
+type User struct {
+	ID         int64     `json:"id"`
+	ExternalID string    `json:"external_id"`
+	Email      string    `json:"email"`
+	CreatedAt  time.Time `json:"created_at"`
+	LastSeenAt time.Time `json:"last_seen_at"`
 }

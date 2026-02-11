@@ -9,13 +9,16 @@ import (
 )
 
 // FilterArticles applies exclusion rules to a list of articles
-func (s *Server) FilterArticles(ctx context.Context, articles []dbgen.ListUnreadArticlesRow, categoryID int64) []dbgen.ListUnreadArticlesRow {
+func (s *Server) FilterArticles(ctx context.Context, articles []dbgen.ListUnreadArticlesRow, categoryID int64, userID int64) []dbgen.ListUnreadArticlesRow {
 	if categoryID == 0 {
 		return articles
 	}
 
 	q := dbgen.New(s.DB)
-	exclusions, err := q.ListExclusionsByCategory(ctx, categoryID)
+	exclusions, err := q.ListExclusionsByCategory(ctx, dbgen.ListExclusionsByCategoryParams{
+		CategoryID: categoryID,
+		UserID:     &userID,
+	})
 	if err != nil || len(exclusions) == 0 {
 		return articles
 	}
@@ -30,7 +33,7 @@ func (s *Server) FilterArticles(ctx context.Context, articles []dbgen.ListUnread
 }
 
 // FilterArticlesByFeed applies exclusion rules for feed articles
-func (s *Server) FilterArticlesByFeed(ctx context.Context, articles []dbgen.ListArticlesByFeedRow, feedID int64) []dbgen.ListArticlesByFeedRow {
+func (s *Server) FilterArticlesByFeed(ctx context.Context, articles []dbgen.ListArticlesByFeedRow, feedID int64, userID int64) []dbgen.ListArticlesByFeedRow {
 	q := dbgen.New(s.DB)
 	
 	// Get the category for this feed
@@ -40,7 +43,10 @@ func (s *Server) FilterArticlesByFeed(ctx context.Context, articles []dbgen.List
 	}
 	categoryID := cats[0].ID
 
-	exclusions, err := q.ListExclusionsByCategory(ctx, categoryID)
+	exclusions, err := q.ListExclusionsByCategory(ctx, dbgen.ListExclusionsByCategoryParams{
+		CategoryID: categoryID,
+		UserID:     &userID,
+	})
 	if err != nil || len(exclusions) == 0 {
 		return articles
 	}
@@ -55,9 +61,12 @@ func (s *Server) FilterArticlesByFeed(ctx context.Context, articles []dbgen.List
 }
 
 // FilterArticlesByCategory applies exclusion rules for category articles
-func (s *Server) FilterArticlesByCategory(ctx context.Context, articles []dbgen.ListUnreadArticlesByCategoryRow, categoryID int64) []dbgen.ListUnreadArticlesByCategoryRow {
+func (s *Server) FilterArticlesByCategory(ctx context.Context, articles []dbgen.ListUnreadArticlesByCategoryRow, categoryID int64, userID int64) []dbgen.ListUnreadArticlesByCategoryRow {
 	q := dbgen.New(s.DB)
-	exclusions, err := q.ListExclusionsByCategory(ctx, categoryID)
+	exclusions, err := q.ListExclusionsByCategory(ctx, dbgen.ListExclusionsByCategoryParams{
+		CategoryID: categoryID,
+		UserID:     &userID,
+	})
 	if err != nil || len(exclusions) == 0 {
 		return articles
 	}

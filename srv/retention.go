@@ -67,7 +67,7 @@ func (rm *RetentionManager) cleanup() {
 
 	// First count how many will be deleted
 	daysStr := fmt.Sprintf("%d", rm.retentionDays)
-	count, err := q.CountOldUnstarredArticles(ctx, &daysStr)
+	count, err := q.CountOldUnstarredArticlesGlobal(ctx, &daysStr)
 	if err != nil {
 		slog.Error("retention: count old articles", "error", err)
 		return
@@ -79,7 +79,7 @@ func (rm *RetentionManager) cleanup() {
 	}
 
 	// Delete old unstarred articles
-	result, err := q.DeleteOldUnstarredArticles(ctx, &daysStr)
+	result, err := q.DeleteOldUnstarredArticlesGlobal(ctx, &daysStr)
 	if err != nil {
 		slog.Error("retention: delete old articles", "error", err)
 		return
@@ -95,7 +95,7 @@ func (rm *RetentionManager) RunCleanupNow() (int64, error) {
 	q := dbgen.New(rm.server.DB)
 
 	daysStr := fmt.Sprintf("%d", rm.retentionDays)
-	result, err := q.DeleteOldUnstarredArticles(ctx, &daysStr)
+	result, err := q.DeleteOldUnstarredArticlesGlobal(ctx, &daysStr)
 	if err != nil {
 		return 0, err
 	}
@@ -108,12 +108,12 @@ func (rm *RetentionManager) GetStats(ctx context.Context) (RetentionStats, error
 	q := dbgen.New(rm.server.DB)
 
 	daysStr := fmt.Sprintf("%d", rm.retentionDays)
-	oldCount, err := q.CountOldUnstarredArticles(ctx, &daysStr)
+	oldCount, err := q.CountOldUnstarredArticlesGlobal(ctx, &daysStr)
 	if err != nil {
 		return RetentionStats{}, err
 	}
 
-	oldestDate, _ := q.GetOldestArticleDate(ctx)
+	oldestDate, _ := q.GetOldestArticleDateGlobal(ctx)
 	var oldest *time.Time
 	if oldestDate != nil {
 		if t, ok := oldestDate.(time.Time); ok {
