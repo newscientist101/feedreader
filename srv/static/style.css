@@ -1232,7 +1232,7 @@ th {
 
 .folder-settings {
     position: absolute;
-    right: 40px;
+    right: 15px;
     top: 50%;
     transform: translateY(-50%);
     padding: 4px;
