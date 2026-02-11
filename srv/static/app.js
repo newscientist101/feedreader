@@ -8,6 +8,9 @@ function applyUserPreferences() {
         });
     }
     
+    // Show/hide "all read" message
+    updateAllReadMessage();
+    
     // Hide empty feeds (but never hide folders - they should always be visible)
     const hideEmpty = localStorage.getItem('hideEmptyFeeds');
     if (hideEmpty === 'hide') {
@@ -23,6 +26,47 @@ function applyUserPreferences() {
         });
         // Folders are always visible, even when empty
     }
+}
+
+// Show message when all articles are read and hidden
+function updateAllReadMessage() {
+    const articlesList = document.getElementById('articles-list');
+    if (!articlesList) return;
+    
+    // Remove existing message if any
+    const existingMsg = document.getElementById('all-read-message');
+    if (existingMsg) existingMsg.remove();
+    
+    const hideRead = localStorage.getItem('hideReadArticles') === 'hide';
+    if (!hideRead) return;
+    
+    // Check if there are articles but all are hidden
+    const allCards = articlesList.querySelectorAll('.article-card');
+    const visibleCards = articlesList.querySelectorAll('.article-card:not([style*="display: none"])');
+    
+    if (allCards.length > 0 && visibleCards.length === 0) {
+        const msg = document.createElement('div');
+        msg.id = 'all-read-message';
+        msg.className = 'empty-state';
+        msg.innerHTML = `
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" opacity="0.3">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            <p>All caught up!</p>
+            <p class="hint">All ${allCards.length} article${allCards.length === 1 ? '' : 's'} in this view have been read.</p>
+            <button onclick="showReadArticles()" class="btn btn-secondary" style="margin-top: 10px;">Show read articles</button>
+        `;
+        articlesList.appendChild(msg);
+    }
+}
+
+// Temporarily show read articles
+function showReadArticles() {
+    document.querySelectorAll('.article-card.read').forEach(card => {
+        card.style.display = '';
+    });
+    const msg = document.getElementById('all-read-message');
+    if (msg) msg.remove();
 }
 
 // Auto-mark-read on scroll feature
