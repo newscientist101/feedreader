@@ -288,11 +288,18 @@ func (c *Client) fetchPosts(ctx context.Context, config FeedConfig) ([]FeedItem,
 		}
 
 		pubTime := post.PublishedAt
+		
+		// Post URL format: /posts/{username}/{slug}
+		authorName := post.Author.Name
+		if authorName == "" {
+			authorName = config.Identifier
+		}
+		
 		items = append(items, FeedItem{
 			GUID:        "hf:post:" + post.Slug,
 			Title:       title,
-			URL:         fmt.Sprintf("%s/posts/%s", baseURL, post.Slug),
-			Author:      config.Identifier,
+			URL:         fmt.Sprintf("%s/posts/%s/%s", baseURL, authorName, post.Slug),
+			Author:      authorName,
 			Summary:     truncateString(summary.String(), 300),
 			PublishedAt: &pubTime,
 		})
