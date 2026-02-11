@@ -564,6 +564,26 @@ func (q *Queries) ListUnreadArticlesByCategory(ctx context.Context, arg ListUnre
 	return items, nil
 }
 
+const markAllArticlesRead = `-- name: MarkAllArticlesRead :exec
+UPDATE articles SET is_read = 1 WHERE is_read = 0
+`
+
+func (q *Queries) MarkAllArticlesRead(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, markAllArticlesRead)
+	return err
+}
+
+const markAllArticlesReadOlderThan = `-- name: MarkAllArticlesReadOlderThan :exec
+UPDATE articles SET is_read = 1 
+WHERE is_read = 0 
+  AND COALESCE(published_at, fetched_at) < datetime('now', '-' || ? || ' days')
+`
+
+func (q *Queries) MarkAllArticlesReadOlderThan(ctx context.Context, dollar_1 *string) error {
+	_, err := q.db.ExecContext(ctx, markAllArticlesReadOlderThan, dollar_1)
+	return err
+}
+
 const markAllRead = `-- name: MarkAllRead :exec
 UPDATE articles SET is_read = 1
 `

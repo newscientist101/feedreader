@@ -93,6 +93,7 @@ func (s *Server) Serve(addr string) error {
 	mux.HandleFunc("POST /api/articles/{id}/unread", s.apiMarkUnread)
 	mux.HandleFunc("POST /api/articles/{id}/star", s.apiToggleStar)
 	mux.HandleFunc("POST /api/feeds/{id}/read-all", s.apiMarkFeedRead)
+	mux.HandleFunc("POST /api/articles/read-all", s.apiMarkAllRead)
 	mux.HandleFunc("GET /api/scrapers/{id}", s.apiGetScraper)
 	mux.HandleFunc("POST /api/scrapers", s.apiCreateScraper)
 	mux.HandleFunc("PUT /api/scrapers/{id}", s.apiUpdateScraper)
@@ -557,6 +558,31 @@ func (s *Server) apiToggleStar(w http.ResponseWriter, r *http.Request) {
 
 	if err := q.ToggleArticleStar(ctx, articleID); err != nil {
 		jsonError(w, "Failed to toggle star", 500)
+		return
+	}
+
+	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) apiMarkAllRead(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+
+	age := r.URL.Query().Get("age")
+	oneDay := "1"
+	oneWeek := "7"
+	var err error
+	switch age {
+	case "day":
+		err = q.MarkAllArticlesReadOlderThan(ctx, &oneDay)
+	case "week":
+		err = q.MarkAllArticlesReadOlderThan(ctx, &oneWeek)
+	default:
+		err = q.MarkAllArticlesRead(ctx)
+	}
+
+	if err != nil {
+		jsonError(w, "Failed to mark all read", 500)
 		return
 	}
 

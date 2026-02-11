@@ -171,6 +171,16 @@ async function deleteFeed(id, name) {
     }
 }
 
+async function markAllRead(age = 'all') {
+    try {
+        await api('POST', `/api/articles/read-all?age=${age}`);
+        document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
+        location.reload();
+    } catch (e) {
+        console.error('Failed to mark all read:', e);
+    }
+}
+
 async function markFeedRead(id, age = 'all') {
     try {
         await api('POST', `/api/feeds/${id}/read-all?age=${age}`);
