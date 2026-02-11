@@ -94,6 +94,11 @@ body {
     font-size: 0.7rem;
 }
 
+.badge.pending {
+    background: var(--text-secondary);
+    opacity: 0.6;
+}
+
 .feeds-section {
     flex: 1;
     padding: 15px 10px;

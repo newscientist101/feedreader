@@ -11,19 +11,23 @@ function applyUserPreferences() {
     // Hide empty feeds and folders
     const hideEmpty = localStorage.getItem('hideEmptyFeeds');
     if (hideEmpty === 'hide') {
-        // Hide feeds with no unread
+        // Hide feeds with no unread (but not never-fetched feeds)
         document.querySelectorAll('.feed-item').forEach(item => {
+            // Don't hide feeds that have never been fetched
+            if (item.dataset.neverFetched === 'true') return;
             const badge = item.querySelector('.badge');
             const count = badge ? parseInt(badge.textContent) : 0;
             if (count === 0) {
                 item.style.display = 'none';
             }
         });
-        // Hide folders with no unread
+        // Hide folders with no unread (but not if they have pending feeds)
         document.querySelectorAll('.folder-item').forEach(item => {
-            const badge = item.querySelector('.badge');
+            const badge = item.querySelector('.folder-link .badge');
             const count = badge ? parseInt(badge.textContent) : 0;
-            if (count === 0) {
+            // Check if folder has any pending feeds
+            const hasPending = item.querySelector('.feed-item[data-never-fetched="true"]');
+            if (count === 0 && !hasPending) {
                 item.style.display = 'none';
             }
         });

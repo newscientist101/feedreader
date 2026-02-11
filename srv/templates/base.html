@@ -95,10 +95,10 @@
                             {{range $.Feeds}}
                             {{$feedCat := index $.FeedCategories .ID}}
                             {{if eq $feedCat $catID}}
-                            <a href="/feed/{{.ID}}" class="feed-item {{if eq $.ActiveFeed .ID}}active{{end}}">
+                            <a href="/feed/{{.ID}}" class="feed-item {{if eq $.ActiveFeed .ID}}active{{end}}"{{if not .LastFetchedAt}} data-never-fetched="true"{{end}}>
                                 <span class="feed-name">{{.Name}}</span>
                                 {{$count := index $.FeedCounts .ID}}
-                                {{if $count}}<span class="badge small">{{$count}}</span>{{end}}
+                                {{if $count}}<span class="badge small">{{$count}}</span>{{else if not .LastFetchedAt}}<span class="badge small pending">•</span>{{end}}
                             </a>
                             {{end}}
                             {{end}}
@@ -113,10 +113,10 @@
                 </div>
                 <div class="feeds-list">
                     {{range .Feeds}}
-                    <a href="/feed/{{.ID}}" class="feed-item {{if eq $.ActiveFeed .ID}}active{{end}}">
+                    <a href="/feed/{{.ID}}" class="feed-item {{if eq $.ActiveFeed .ID}}active{{end}}"{{if not .LastFetchedAt}} data-never-fetched="true"{{end}}>
                         <span class="feed-name">{{.Name}}</span>
                         {{$count := index $.FeedCounts .ID}}
-                        {{if $count}}<span class="badge small">{{$count}}</span>{{end}}
+                        {{if $count}}<span class="badge small">{{$count}}</span>{{else if not .LastFetchedAt}}<span class="badge small pending">•</span>{{end}}
                     </a>
                     {{end}}
                 </div>
