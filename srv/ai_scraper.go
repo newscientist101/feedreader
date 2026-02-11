@@ -3,6 +3,7 @@ package srv
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,25 +11,41 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	_ "modernc.org/sqlite"
 )
 
-// AIScraperGenerator generates scraper configs using Claude
-type AIScraperGenerator struct {
-	apiKey     string
+// ShelleyScraperGenerator generates scraper configs using the local Shelley API
+type ShelleyScraperGenerator struct {
+	shelleyURL string
 	httpClient *http.Client
+	dbPath     string
 }
 
-func NewAIScraperGenerator() *AIScraperGenerator {
-	return &AIScraperGenerator{
-		apiKey: os.Getenv("ANTHROPIC_API_KEY"),
+func NewShelleyScraperGenerator() *ShelleyScraperGenerator {
+	return &ShelleyScraperGenerator{
+		shelleyURL: "http://localhost:9999",
 		httpClient: &http.Client{
-			Timeout: 60 * time.Second,
+			Timeout: 120 * time.Second,
 		},
+		dbPath: os.ExpandEnv("$HOME/.config/shelley/shelley.db"),
 	}
 }
 
-func (g *AIScraperGenerator) IsAvailable() bool {
-	return g.apiKey != ""
+func (g *ShelleyScraperGenerator) IsAvailable() bool {
+	// Check if Shelley is running
+	req, err := http.NewRequest("GET", g.shelleyURL+"/api/conversations", nil)
+	if err != nil {
+		return false
+	}
+	req.Header.Set("X-Exedev-Userid", "local")
+	
+	resp, err := g.httpClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == 200
 }
 
 type GenerateRequest struct {
@@ -42,190 +59,230 @@ type GenerateResponse struct {
 	Error  string `json:"error,omitempty"`
 }
 
-func (g *AIScraperGenerator) Generate(ctx context.Context, req GenerateRequest) (*GenerateResponse, error) {
-	if !g.IsAvailable() {
-		return nil, fmt.Errorf("ANTHROPIC_API_KEY not set")
-	}
+func (g *ShelleyScraperGenerator) Generate(ctx context.Context, req GenerateRequest) (*GenerateResponse, error) {
+	// Create a new conversation with Shelley
+	prompt := g.buildPrompt(req.URL, req.Description)
 
-	// Fetch the page HTML
-	htmlContent, err := g.fetchPage(ctx, req.URL)
+	// Start a new conversation
+	convReq := map[string]string{
+		"message": prompt,
+		"cwd":     "/tmp",
+	}
+	jsonBody, _ := json.Marshal(convReq)
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", g.shelleyURL+"/api/conversations/new", bytes.NewReader(jsonBody))
 	if err != nil {
-		return nil, fmt.Errorf("fetch page: %w", err)
+		return nil, err
 	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-Exedev-Userid", "local")
+	httpReq.Header.Set("X-Shelley-Request", "true")
 
-	// Truncate HTML if too long (keep first 50KB)
-	if len(htmlContent) > 50000 {
-		htmlContent = htmlContent[:50000] + "\n<!-- truncated -->"
-	}
-
-	// Build the prompt
-	prompt := g.buildPrompt(req.URL, req.Description, htmlContent)
-
-	// Call Claude API
-	response, err := g.callClaude(ctx, prompt)
+	resp, err := g.httpClient.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("claude API: %w", err)
-	}
-
-	return response, nil
-}
-
-func (g *AIScraperGenerator) fetchPage(ctx context.Context, url string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; FeedReader/1.0)")
-
-	resp, err := g.httpClient.Do(req)
-	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("failed to contact Shelley: %w", err)
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("Shelley returned error: %s", string(body))
 	}
 
-	return string(body), nil
+	var convResp struct {
+		ConversationID string `json:"conversation_id"`
+		Status         string `json:"status"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&convResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	// Poll for completion by checking the database directly
+	result, err := g.waitForResponse(ctx, convResp.ConversationID)
+	if err != nil {
+		return nil, err
+	}
+
+	return g.parseResponse(result)
 }
 
-func (g *AIScraperGenerator) buildPrompt(url, description, html string) string {
-	return fmt.Sprintf(`You are a web scraping expert. Analyze this HTML page and create a scraper configuration to extract the requested data.
+func (g *ShelleyScraperGenerator) buildPrompt(url, description string) string {
+	return fmt.Sprintf(`I need you to create a scraper configuration for the FeedReader application.
 
-## Target URL
-%s
+Target URL: %s
+What to extract: %s
 
-## What to extract
-%s
+Please:
+1. Fetch the webpage at the URL above
+2. Analyze the HTML structure
+3. Create a JSON scraper configuration
 
-## HTML Content
-%s
-
-## Task
-Create a JSON scraper configuration that extracts the requested items. The config uses regex patterns to match content.
-
-The config format is:
+The config format uses regex patterns:
 {
   "itemPattern": "regex to match each item/article container",
-  "titlePattern": "regex with capture group for title",
-  "urlPattern": "regex with capture group for URL/link",
-  "summaryPattern": "regex with capture group for summary/description (optional)",
-  "authorPattern": "regex with capture group for author (optional)",
-  "datePattern": "regex with capture group for date (optional)",
-  "imagePattern": "regex with capture group for image URL (optional)",
+  "titlePattern": "regex with capture group () for title",
+  "urlPattern": "regex with capture group () for URL/link",
+  "summaryPattern": "regex with capture group () for summary (optional)",
+  "authorPattern": "regex with capture group () for author (optional)", 
+  "datePattern": "regex with capture group () for date (optional)",
+  "imagePattern": "regex with capture group () for image URL (optional)",
   "baseUrl": "base URL for resolving relative links"
 }
 
-Important:
-- Use (?s) flag for patterns that span multiple lines
-- Use non-greedy quantifiers (.*?) to avoid over-matching
-- Capture groups () extract the actual content
-- Test patterns should work with Go's regexp package
-- Only include patterns you're confident about
+Important regex tips:
+- Use (?s) at the start of patterns that span multiple lines
+- Use non-greedy quantifiers (.*?) to avoid over-matching  
+- The capture group () extracts the actual content
+- Patterns must work with Go's regexp package
 
-Respond with ONLY a JSON object in this exact format (no markdown, no explanation):
-{
-  "name": "suggested scraper name",
-  "config": { ...the scraper config object... }
-}`, url, description, html)
+Respond with ONLY a JSON object in this exact format (no explanation, no markdown code blocks):
+{"name": "suggested scraper name", "config": { ...the config... }}`, url, description)
 }
 
-type claudeRequest struct {
-	Model     string          `json:"model"`
-	MaxTokens int             `json:"max_tokens"`
-	Messages  []claudeMessage `json:"messages"`
-}
+func (g *ShelleyScraperGenerator) waitForResponse(ctx context.Context, conversationID string) (string, error) {
+	// Poll for the agent response using the API
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
 
-type claudeMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
+	timeout := time.After(120 * time.Second)
 
-type claudeResponse struct {
-	Content []struct {
-		Text string `json:"text"`
-	} `json:"content"`
-	Error *struct {
-		Message string `json:"message"`
-	} `json:"error"`
-}
-
-func (g *AIScraperGenerator) callClaude(ctx context.Context, prompt string) (*GenerateResponse, error) {
-	reqBody := claudeRequest{
-		Model:     "claude-sonnet-4-20250514",
-		MaxTokens: 2000,
-		Messages: []claudeMessage{
-			{Role: "user", Content: prompt},
-		},
-	}
-
-	jsonBody, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(jsonBody))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-api-key", g.apiKey)
-	req.Header.Set("anthropic-version", "2023-06-01")
-
-	resp, err := g.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	var claudeResp claudeResponse
-	if err := json.Unmarshal(body, &claudeResp); err != nil {
-		return nil, fmt.Errorf("parse response: %w", err)
-	}
-
-	if claudeResp.Error != nil {
-		return nil, fmt.Errorf("API error: %s", claudeResp.Error.Message)
-	}
-
-	if len(claudeResp.Content) == 0 {
-		return nil, fmt.Errorf("empty response from Claude")
-	}
-
-	// Parse the response JSON
-	text := strings.TrimSpace(claudeResp.Content[0].Text)
-	
-	// Try to extract JSON if wrapped in markdown code blocks
-	if strings.HasPrefix(text, "```") {
-		lines := strings.Split(text, "\n")
-		var jsonLines []string
-		inBlock := false
-		for _, line := range lines {
-			if strings.HasPrefix(line, "```") {
-				inBlock = !inBlock
+	for {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-timeout:
+			return "", fmt.Errorf("timeout waiting for Shelley response")
+		case <-ticker.C:
+			// Check if conversation is done via API
+			req, _ := http.NewRequestWithContext(ctx, "GET", g.shelleyURL+"/api/conversations", nil)
+			req.Header.Set("X-Exedev-Userid", "local")
+			resp, err := g.httpClient.Do(req)
+			if err != nil {
 				continue
 			}
-			if inBlock {
-				jsonLines = append(jsonLines, line)
+			
+			var convs []struct {
+				ConversationID string `json:"conversation_id"`
+				Working        bool   `json:"working"`
+			}
+			json.NewDecoder(resp.Body).Decode(&convs)
+			resp.Body.Close()
+
+			var working bool = true
+			for _, c := range convs {
+				if c.ConversationID == conversationID {
+					working = c.Working
+					break
+				}
+			}
+
+			if !working {
+				// Get the response from the database
+				return g.getResponseFromDB(ctx, conversationID)
 			}
 		}
-		text = strings.Join(jsonLines, "\n")
 	}
+}
+
+func (g *ShelleyScraperGenerator) getResponseFromDB(ctx context.Context, conversationID string) (string, error) {
+	db, err := sql.Open("sqlite", g.dbPath+"?mode=ro")
+	if err != nil {
+		return "", fmt.Errorf("failed to open Shelley DB: %w", err)
+	}
+	defer db.Close()
+
+	// Get all agent messages and concatenate text
+	rows, err := db.QueryContext(ctx,
+		`SELECT llm_data FROM messages 
+		 WHERE conversation_id = ? AND type = 'agent' 
+		 ORDER BY sequence_id`,
+		conversationID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get response: %w", err)
+	}
+	defer rows.Close()
+
+	var allText strings.Builder
+	for rows.Next() {
+		var llmData string
+		if err := rows.Scan(&llmData); err != nil {
+			continue
+		}
+
+		// Parse the LLM data to extract text
+		var msg struct {
+			Content []struct {
+				Type int    `json:"Type"`
+				Text string `json:"Text"`
+			} `json:"Content"`
+		}
+		if err := json.Unmarshal([]byte(llmData), &msg); err != nil {
+			continue
+		}
+
+		for _, content := range msg.Content {
+			// Type 2 is text content
+			if content.Type == 2 && content.Text != "" {
+				allText.WriteString(content.Text)
+				allText.WriteString("\n")
+			}
+		}
+	}
+
+	result := allText.String()
+	if result == "" {
+		return "", fmt.Errorf("empty response from Shelley")
+	}
+	return result, nil
+}
+
+func (g *ShelleyScraperGenerator) parseResponse(text string) (*GenerateResponse, error) {
+	text = strings.TrimSpace(text)
+
+	// Try to find JSON in the response
+	// Look for the pattern {"name":...}
+	start := strings.Index(text, `{"name"`)
+	if start == -1 {
+		// Try alternate format
+		start = strings.Index(text, `{ "name"`)
+	}
+	if start == -1 {
+		return &GenerateResponse{
+			Error: fmt.Sprintf("Could not find JSON in response. Raw response:\n%s", truncate(text, 500)),
+		}, nil
+	}
+
+	// Find matching closing brace
+	text = text[start:]
+	depth := 0
+	end := -1
+	for i, ch := range text {
+		if ch == '{' {
+			depth++
+		} else if ch == '}' {
+			depth--
+			if depth == 0 {
+				end = i + 1
+				break
+			}
+		}
+	}
+
+	if end == -1 {
+		return &GenerateResponse{
+			Error: "Could not parse JSON from response",
+		}, nil
+	}
+
+	jsonStr := text[:end]
 
 	var result struct {
 		Name   string          `json:"name"`
 		Config json.RawMessage `json:"config"`
 	}
-	if err := json.Unmarshal([]byte(text), &result); err != nil {
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
 		return &GenerateResponse{
-			Error: fmt.Sprintf("Failed to parse AI response: %v\nRaw: %s", err, text),
+			Error: fmt.Sprintf("Failed to parse JSON: %v", err),
 		}, nil
 	}
 

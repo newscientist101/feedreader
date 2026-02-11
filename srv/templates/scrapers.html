@@ -9,15 +9,16 @@
             <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
             </svg>
-            AI-Powered Scraper Generator
+            Shelley-Powered Scraper Generator
         </h2>
         <p class="section-description">
             Let Shelley analyze a webpage and automatically create the scraper configuration for you.
+            Shelley will fetch the page, examine its HTML structure, and generate the appropriate regex patterns.
         </p>
 
         <div id="ai-status" class="ai-status">
             <span class="status-indicator"></span>
-            <span class="status-text">Checking AI availability...</span>
+            <span class="status-text">Checking Shelley availability...</span>
         </div>
 
         <form id="ai-generate-form" class="ai-form">
@@ -151,11 +152,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const data = await resp.json();
         if (data.available) {
             statusEl.className = 'ai-status available';
-            statusEl.querySelector('.status-text').textContent = 'AI generation available';
+            statusEl.querySelector('.status-text').textContent = 'Shelley is available';
             document.getElementById('ai-generate-form').style.display = 'block';
         } else {
             statusEl.className = 'ai-status unavailable';
-            statusEl.querySelector('.status-text').textContent = 'AI not configured (set ANTHROPIC_API_KEY)';
+            statusEl.querySelector('.status-text').textContent = 'Shelley is not running';
             document.getElementById('ai-generate-form').style.opacity = '0.5';
             document.getElementById('ai-generate-btn').disabled = true;
         }
@@ -173,7 +174,7 @@ document.getElementById('ai-generate-form').addEventListener('submit', async (e)
     const description = document.getElementById('ai-description').value;
     
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Analyzing page...';
+    btn.innerHTML = '<span class="spinner"></span> Shelley is analyzing the page...';
     
     try {
         const resp = await fetch('/api/ai/generate-scraper', {

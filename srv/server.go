@@ -30,7 +30,7 @@ type Server struct {
 	Fetcher          *feeds.Fetcher
 	ScraperRunner    *scrapers.Runner
 	RetentionManager *RetentionManager
-	AIGenerator      *AIScraperGenerator
+	ShelleyGenerator *ShelleyScraperGenerator
 }
 
 func New(dbPath, hostname string) (*Server, error) {
@@ -71,8 +71,8 @@ func (s *Server) Serve(addr string) error {
 	s.RetentionManager.Start()
 	defer s.RetentionManager.Stop()
 
-	// Initialize AI scraper generator
-	s.AIGenerator = NewAIScraperGenerator()
+	// Initialize Shelley scraper generator
+	s.ShelleyGenerator = NewShelleyScraperGenerator()
 
 	mux := http.NewServeMux()
 
@@ -1212,13 +1212,13 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 // AI Scraper API handlers
 func (s *Server) apiAIStatus(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, map[string]any{
-		"available": s.AIGenerator.IsAvailable(),
+		"available": s.ShelleyGenerator.IsAvailable(),
 	})
 }
 
 func (s *Server) apiGenerateScraper(w http.ResponseWriter, r *http.Request) {
-	if !s.AIGenerator.IsAvailable() {
-		jsonError(w, "AI generation not available. Set ANTHROPIC_API_KEY environment variable.", 503)
+	if !s.ShelleyGenerator.IsAvailable() {
+		jsonError(w, "Shelley is not available. Make sure the Shelley service is running.", 503)
 		return
 	}
 
@@ -1237,10 +1237,10 @@ func (s *Server) apiGenerateScraper(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
 	defer cancel()
 
-	resp, err := s.AIGenerator.Generate(ctx, req)
+	resp, err := s.ShelleyGenerator.Generate(ctx, req)
 	if err != nil {
 		jsonError(w, err.Error(), 500)
 		return
