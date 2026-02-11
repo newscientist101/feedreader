@@ -17,6 +17,40 @@
                 <span class="toggle-slider"></span>
             </label>
         </div>
+
+        <div class="preference-item">
+            <div class="preference-info">
+                <label>Hide Read Articles</label>
+                <p class="preference-description">Control if articles are hidden after you have had the chance to mark them as read</p>
+            </div>
+            <div class="radio-group">
+                <label class="radio-option">
+                    <input type="radio" name="hide-read" value="hide" onchange="setPreference('hideReadArticles', 'hide')">
+                    <span>Hide</span>
+                </label>
+                <label class="radio-option">
+                    <input type="radio" name="hide-read" value="show" onchange="setPreference('hideReadArticles', 'show')" checked>
+                    <span>Show</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="preference-item">
+            <div class="preference-info">
+                <label>Hide Empty Feeds in Navigation</label>
+                <p class="preference-description">Hide feeds with no unread articles from the sidebar</p>
+            </div>
+            <div class="radio-group">
+                <label class="radio-option">
+                    <input type="radio" name="hide-empty" value="hide" onchange="setPreference('hideEmptyFeeds', 'hide')">
+                    <span>Hide</span>
+                </label>
+                <label class="radio-option">
+                    <input type="radio" name="hide-empty" value="show" onchange="setPreference('hideEmptyFeeds', 'show')" checked>
+                    <span>Show</span>
+                </label>
+            </div>
+        </div>
     </section>
 
     <section class="settings-section">
@@ -107,14 +141,60 @@
 <script>
 // Initialize toggle state from localStorage
 document.addEventListener('DOMContentLoaded', () => {
+    // Auto-mark-read toggle
     const toggle = document.getElementById('auto-mark-read');
     if (toggle) {
         toggle.checked = localStorage.getItem('autoMarkRead') === 'true';
     }
+    
+    // Hide read articles radio
+    const hideReadValue = localStorage.getItem('hideReadArticles') || 'show';
+    const hideReadRadio = document.querySelector(`input[name="hide-read"][value="${hideReadValue}"]`);
+    if (hideReadRadio) hideReadRadio.checked = true;
+    
+    // Hide empty feeds radio
+    const hideEmptyValue = localStorage.getItem('hideEmptyFeeds') || 'show';
+    const hideEmptyRadio = document.querySelector(`input[name="hide-empty"][value="${hideEmptyValue}"]`);
+    if (hideEmptyRadio) hideEmptyRadio.checked = true;
 });
 
 function toggleAutoMarkRead(enabled) {
     localStorage.setItem('autoMarkRead', enabled);
+}
+
+function setPreference(key, value) {
+    localStorage.setItem(key, value);
+    // Apply immediately if on main page
+    if (key === 'hideReadArticles') {
+        applyHideReadArticles(value);
+    } else if (key === 'hideEmptyFeeds') {
+        applyHideEmptyFeeds(value);
+    }
+}
+
+function applyHideReadArticles(value) {
+    document.querySelectorAll('.article-card.read').forEach(card => {
+        card.style.display = value === 'hide' ? 'none' : '';
+    });
+}
+
+function applyHideEmptyFeeds(value) {
+    // Apply to feeds
+    document.querySelectorAll('.feed-item').forEach(item => {
+        const badge = item.querySelector('.badge');
+        const count = badge ? parseInt(badge.textContent) : 0;
+        if (count === 0) {
+            item.style.display = value === 'hide' ? 'none' : '';
+        }
+    });
+    // Apply to folders
+    document.querySelectorAll('.folder-item').forEach(item => {
+        const badge = item.querySelector('.badge');
+        const count = badge ? parseInt(badge.textContent) : 0;
+        if (count === 0) {
+            item.style.display = value === 'hide' ? 'none' : '';
+        }
+    });
 }
 
 async function runCleanup() {

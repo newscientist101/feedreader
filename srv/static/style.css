@@ -1984,3 +1984,32 @@ th {
 .toggle-switch input:focus + .toggle-slider {
     box-shadow: 0 0 0 2px rgba(100, 255, 218, 0.3);
 }
+
+/* Radio Group for Settings */
+.radio-group {
+    display: flex;
+    gap: 20px;
+}
+
+.radio-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+
+.radio-option input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.radio-option span {
+    font-size: 0.9rem;
+}
+
+.radio-option:has(input:checked) span {
+    color: var(--text-primary);
+}

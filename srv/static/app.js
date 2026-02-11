@@ -1,3 +1,35 @@
+// Apply user preferences from localStorage
+function applyUserPreferences() {
+    // Hide read articles
+    const hideRead = localStorage.getItem('hideReadArticles');
+    if (hideRead === 'hide') {
+        document.querySelectorAll('.article-card.read').forEach(card => {
+            card.style.display = 'none';
+        });
+    }
+    
+    // Hide empty feeds and folders
+    const hideEmpty = localStorage.getItem('hideEmptyFeeds');
+    if (hideEmpty === 'hide') {
+        // Hide feeds with no unread
+        document.querySelectorAll('.feed-item').forEach(item => {
+            const badge = item.querySelector('.badge');
+            const count = badge ? parseInt(badge.textContent) : 0;
+            if (count === 0) {
+                item.style.display = 'none';
+            }
+        });
+        // Hide folders with no unread
+        document.querySelectorAll('.folder-item').forEach(item => {
+            const badge = item.querySelector('.badge');
+            const count = badge ? parseInt(badge.textContent) : 0;
+            if (count === 0) {
+                item.style.display = 'none';
+            }
+        });
+    }
+}
+
 // Auto-mark-read on scroll feature
 let autoMarkReadObserver = null;
 
@@ -140,6 +172,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize auto-mark-read on scroll
     initAutoMarkRead();
+    
+    // Apply user preferences
+    applyUserPreferences();
     
     const sidebar = document.querySelector('.sidebar');
     if (sidebar) {
