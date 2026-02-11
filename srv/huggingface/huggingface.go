@@ -66,6 +66,47 @@ type FeedConfig struct {
 }
 
 // Fetch retrieves items based on the feed configuration
+// GetFeedName returns a suggested name for the feed based on the config
+func (c *Client) GetFeedName(ctx context.Context, config FeedConfig) (string, error) {
+	switch config.Type {
+	case FeedTypeCollection:
+		// Fetch collection info to get its title
+		apiURL := fmt.Sprintf("%s/api/collections/%s", baseURL, config.Identifier)
+		data, err := c.doRequest(ctx, apiURL)
+		if err != nil {
+			return "", err
+		}
+		var collection struct {
+			Title string `json:"title"`
+		}
+		if err := json.Unmarshal(data, &collection); err != nil {
+			return "", err
+		}
+		if collection.Title != "" {
+			return collection.Title, nil
+		}
+		return config.Identifier, nil
+
+	case FeedTypeDailyPapers:
+		return "HuggingFace Daily Papers", nil
+
+	case FeedTypeUserModels, FeedTypeOrgModels:
+		return fmt.Sprintf("%s Models", config.Identifier), nil
+
+	case FeedTypeUserDatasets, FeedTypeOrgDatasets:
+		return fmt.Sprintf("%s Datasets", config.Identifier), nil
+
+	case FeedTypeUserSpaces, FeedTypeOrgSpaces:
+		return fmt.Sprintf("%s Spaces", config.Identifier), nil
+
+	case FeedTypeUserPosts, FeedTypeOrgPosts:
+		return fmt.Sprintf("%s Posts", config.Identifier), nil
+
+	default:
+		return config.Identifier, nil
+	}
+}
+
 func (c *Client) Fetch(ctx context.Context, config FeedConfig) ([]FeedItem, error) {
 	if config.Limit == 0 {
 		config.Limit = 50

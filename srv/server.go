@@ -18,6 +18,7 @@ import (
 	"srv.exe.dev/db"
 	"srv.exe.dev/db/dbgen"
 	"srv.exe.dev/srv/feeds"
+	"srv.exe.dev/srv/huggingface"
 	"srv.exe.dev/srv/opml"
 	"srv.exe.dev/srv/scrapers"
 )
@@ -411,11 +412,23 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name == "" {
-		req.Name = req.URL
-	}
 	if req.FeedType == "" {
 		req.FeedType = "rss"
+	}
+
+	// Auto-generate name for HuggingFace feeds
+	if req.Name == "" && req.FeedType == "huggingface" && req.ScraperConfig != "" {
+		var hfConfig huggingface.FeedConfig
+		if err := json.Unmarshal([]byte(req.ScraperConfig), &hfConfig); err == nil {
+			hfClient := huggingface.NewClient("")
+			if name, err := hfClient.GetFeedName(ctx, hfConfig); err == nil && name != "" {
+				req.Name = name
+			}
+		}
+	}
+
+	if req.Name == "" {
+		req.Name = req.URL
 	}
 	if req.Interval == 0 {
 		req.Interval = 60
