@@ -44,6 +44,7 @@
                 </div>
                 <div class="folders-list">
                     {{range .Categories}}
+                    {{$catID := .ID}}
                     <div class="folder-item">
                         <a href="/category/{{.ID}}" class="folder-link {{if eq $.ActiveCategory .ID}}active{{end}}">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
@@ -53,10 +54,11 @@
                             {{$catCount := index $.CategoryCounts .ID}}
                             {{if $catCount}}<span class="badge small">{{$catCount}}</span>{{end}}
                         </a>
+                        {{if eq $.ActiveCategory .ID}}
                         <div class="folder-feeds">
                             {{range $.Feeds}}
                             {{$feedCat := index $.FeedCategories .ID}}
-                            {{if eq $feedCat $.ActiveCategory}}
+                            {{if eq $feedCat $catID}}
                             <a href="/feed/{{.ID}}" class="feed-item {{if eq $.ActiveFeed .ID}}active{{end}}">
                                 <span class="feed-name">{{.Name}}</span>
                                 {{$count := index $.FeedCounts .ID}}
@@ -65,12 +67,13 @@
                             {{end}}
                             {{end}}
                         </div>
+                        {{end}}
                     </div>
                     {{end}}
                 </div>
                 
                 <div class="feeds-header" style="margin-top: 15px;">
-                    <span>Feeds</span>
+                    <span>All Feeds</span>
                 </div>
                 <div class="feeds-list">
                     {{range .Feeds}}

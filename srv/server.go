@@ -712,7 +712,8 @@ func (s *Server) handleCategoryArticles(w http.ResponseWriter, r *http.Request) 
 	var category *dbgen.Category
 	for _, c := range categories {
 		if c.ID == catID {
-			category = &c
+			catCopy := c
+			category = &catCopy
 			break
 		}
 	}
@@ -726,34 +727,12 @@ func (s *Server) handleCategoryArticles(w http.ResponseWriter, r *http.Request) 
 		Limit:      50,
 		Offset:     0,
 	})
-	feeds, _ := q.ListFeeds(ctx)
-	unreadCount, _ := q.GetUnreadCount(ctx)
-	starredCount, _ := q.GetStarredCount(ctx)
 
-	feedCounts := make(map[int64]int64)
-	for _, f := range feeds {
-		count, _ := q.GetFeedUnreadCount(ctx, f.ID)
-		feedCounts[f.ID] = count
-	}
-
-	catCounts := make(map[int64]int64)
-	for _, c := range categories {
-		count, _ := q.GetCategoryUnreadCount(ctx, c.ID)
-		catCounts[c.ID] = count
-	}
-
-	data := map[string]any{
-		"Title":           category.Name,
-		"Articles":        articles,
-		"Feeds":           feeds,
-		"FeedCounts":      feedCounts,
-		"Categories":      categories,
-		"CategoryCounts":  catCounts,
-		"UnreadCount":     unreadCount,
-		"StarredCount":    starredCount,
-		"ActiveCategory":  catID,
-		"CurrentCategory": category,
-	}
+	data := s.getCommonData(ctx)
+	data["Title"] = category.Name
+	data["Articles"] = articles
+	data["ActiveCategory"] = catID
+	data["CurrentCategory"] = category
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.renderTemplate(w, "index.html", data); err != nil {
