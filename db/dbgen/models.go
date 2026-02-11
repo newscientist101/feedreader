@@ -30,6 +30,23 @@ type Category struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type CategoryExclusion struct {
+	ID            int64     `json:"id"`
+	CategoryID    int64     `json:"category_id"`
+	ExclusionType string    `json:"exclusion_type"`
+	Pattern       string    `json:"pattern"`
+	IsRegex       *int64    `json:"is_regex"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type CategorySetting struct {
+	ID           int64     `json:"id"`
+	CategoryID   int64     `json:"category_id"`
+	SettingKey   string    `json:"setting_key"`
+	SettingValue *string   `json:"setting_value"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
 type Feed struct {
 	ID                   int64      `json:"id"`
 	Name                 string     `json:"name"`

@@ -99,6 +99,12 @@ func (s *Server) Serve(addr string) error {
 	mux.HandleFunc("GET /api/opml/export", s.apiExportOPML)
 	mux.HandleFunc("POST /api/opml/import", s.apiImportOPML)
 
+	// Exclusion rules endpoints
+	mux.HandleFunc("GET /api/categories/{id}/exclusions", s.apiListExclusions)
+	mux.HandleFunc("POST /api/categories/{id}/exclusions", s.apiCreateExclusion)
+	mux.HandleFunc("DELETE /api/exclusions/{id}", s.apiDeleteExclusion)
+	mux.HandleFunc("GET /category/{id}/settings", s.handleCategorySettings)
+
 	// Static files
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(s.StaticDir))))
 
@@ -292,11 +298,14 @@ func (s *Server) handleFeedArticles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	articles, _ := q.ListArticlesByFeed(ctx, dbgen.ListArticlesByFeedParams{FeedID: feedID, Limit: 50, Offset: 0})
+	articles, _ := q.ListArticlesByFeed(ctx, dbgen.ListArticlesByFeedParams{FeedID: feedID, Limit: 100, Offset: 0})
+
+	// Apply exclusion filters based on feed's category
+	filteredArticles := s.FilterArticlesByFeed(ctx, articles, feedID)
 
 	data := s.getCommonData(ctx)
 	data["Title"] = feed.Name
-	data["Articles"] = articles
+	data["Articles"] = filteredArticles
 	data["ActiveFeed"] = feedID
 	data["CurrentFeed"] = feed
 
@@ -724,13 +733,16 @@ func (s *Server) handleCategoryArticles(w http.ResponseWriter, r *http.Request) 
 
 	articles, _ := q.ListUnreadArticlesByCategory(ctx, dbgen.ListUnreadArticlesByCategoryParams{
 		CategoryID: catID,
-		Limit:      50,
+		Limit:      100, // Fetch more to account for filtering
 		Offset:     0,
 	})
 
+	// Apply exclusion filters
+	filteredArticles := s.FilterArticlesByCategory(ctx, articles, catID)
+
 	data := s.getCommonData(ctx)
 	data["Title"] = category.Name
-	data["Articles"] = articles
+	data["Articles"] = filteredArticles
 	data["ActiveCategory"] = catID
 	data["CurrentCategory"] = category
 
@@ -989,4 +1001,129 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 		"skipped":  skipped,
 		"total":    len(feeds),
 	})
+}
+
+// Exclusion handlers
+func (s *Server) apiListExclusions(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+
+	catID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid category ID", 400)
+		return
+	}
+
+	exclusions, err := q.ListExclusionsByCategory(ctx, catID)
+	if err != nil {
+		jsonError(w, "Failed to list exclusions", 500)
+		return
+	}
+
+	jsonResponse(w, exclusions)
+}
+
+func (s *Server) apiCreateExclusion(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+
+	catID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid category ID", 400)
+		return
+	}
+
+	var req struct {
+		Type    string `json:"type"`    // "author" or "keyword"
+		Pattern string `json:"pattern"`
+		IsRegex bool   `json:"isRegex"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request", 400)
+		return
+	}
+
+	if req.Type != "author" && req.Type != "keyword" {
+		jsonError(w, "Type must be 'author' or 'keyword'", 400)
+		return
+	}
+	if req.Pattern == "" {
+		jsonError(w, "Pattern is required", 400)
+		return
+	}
+
+	var isRegex int64
+	if req.IsRegex {
+		isRegex = 1
+	}
+
+	exclusion, err := q.CreateExclusion(ctx, dbgen.CreateExclusionParams{
+		CategoryID:    catID,
+		ExclusionType: req.Type,
+		Pattern:       req.Pattern,
+		IsRegex:       &isRegex,
+	})
+	if err != nil {
+		jsonError(w, "Failed to create exclusion: "+err.Error(), 500)
+		return
+	}
+
+	jsonResponse(w, exclusion)
+}
+
+func (s *Server) apiDeleteExclusion(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid ID", 400)
+		return
+	}
+
+	if err := q.DeleteExclusion(ctx, id); err != nil {
+		jsonError(w, "Failed to delete exclusion", 500)
+		return
+	}
+
+	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleCategorySettings(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+
+	catID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid category ID", 400)
+		return
+	}
+
+	categories, _ := q.ListCategories(ctx)
+	var category *dbgen.Category
+	for _, c := range categories {
+		if c.ID == catID {
+			catCopy := c
+			category = &catCopy
+			break
+		}
+	}
+	if category == nil {
+		http.Error(w, "Category not found", 404)
+		return
+	}
+
+	exclusions, _ := q.ListExclusionsByCategory(ctx, catID)
+
+	data := s.getCommonData(ctx)
+	data["Title"] = category.Name + " Settings"
+	data["CurrentCategory"] = category
+	data["Exclusions"] = exclusions
+	data["ActiveView"] = "settings"
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.renderTemplate(w, "category_settings.html", data); err != nil {
+		slog.Warn("render template", "error", err)
+		http.Error(w, "Internal Server Error", 500)
+	}
 }
