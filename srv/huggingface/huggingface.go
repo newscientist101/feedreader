@@ -174,20 +174,31 @@ type Collection struct {
 	Slug        string           `json:"slug"`
 	Title       string           `json:"title"`
 	Description string           `json:"description"`
-	Owner       string           `json:"owner"`
+	Owner       CollectionOwner  `json:"owner"`
 	Items       []CollectionItem `json:"items"`
 	LastUpdated time.Time        `json:"lastUpdated"`
 }
 
+type CollectionOwner struct {
+	Name     string `json:"name"`
+	Fullname string `json:"fullname"`
+	Type     string `json:"type"` // "user" or "org"
+}
+
 type CollectionItem struct {
-	Type     string `json:"type"` // "model", "dataset", "space"
-	ID       string `json:"id"`
-	ItemID   string `json:"itemId"`
-	Position int    `json:"position"`
+	ID           string    `json:"id"`
+	Type         string    `json:"type"`     // "model", "dataset", "space"
+	RepoType     string    `json:"repoType"` // alternate field name
+	Position     int       `json:"position"`
+	Author       string    `json:"author"`
+	Likes        int       `json:"likes"`
+	Downloads    int       `json:"downloads"`
+	PipelineTag  string    `json:"pipeline_tag"`
+	LastModified time.Time `json:"lastModified"`
 }
 
 func (c *Client) fetchCollection(ctx context.Context, config FeedConfig) ([]FeedItem, error) {
-	// Collection slug format: username/collection-name-id
+	// Collection slug format: username/collection-name-id or username/collection-name
 	apiURL := fmt.Sprintf("%s/api/collections/%s", baseURL, config.Identifier)
 
 	data, err := c.doRequest(ctx, apiURL)
@@ -206,8 +217,14 @@ func (c *Client) fetchCollection(ctx context.Context, config FeedConfig) ([]Feed
 			break
 		}
 
+		// Use repoType if type is empty
+		itemType := item.Type
+		if itemType == "" {
+			itemType = item.RepoType
+		}
+
 		var itemURL string
-		switch item.Type {
+		switch itemType {
 		case "model":
 			itemURL = fmt.Sprintf("%s/%s", baseURL, item.ID)
 		case "dataset":
@@ -215,16 +232,33 @@ func (c *Client) fetchCollection(ctx context.Context, config FeedConfig) ([]Feed
 		case "space":
 			itemURL = fmt.Sprintf("%s/spaces/%s", baseURL, item.ID)
 		default:
-			continue
+			// Default to model if type is unknown
+			itemURL = fmt.Sprintf("%s/%s", baseURL, item.ID)
+			itemType = "model"
+		}
+
+		// Build summary with stats
+		summary := fmt.Sprintf("Part of collection: %s", collection.Title)
+		if item.Downloads > 0 || item.Likes > 0 {
+			summary = fmt.Sprintf("%s | Downloads: %d | Likes: %d", summary, item.Downloads, item.Likes)
+		}
+		if item.PipelineTag != "" {
+			summary = fmt.Sprintf("%s | %s", item.PipelineTag, summary)
+		}
+
+		// Use item's lastModified if available, otherwise collection's
+		pubTime := collection.LastUpdated
+		if !item.LastModified.IsZero() {
+			pubTime = item.LastModified
 		}
 
 		items = append(items, FeedItem{
 			GUID:        fmt.Sprintf("hf:collection:%s:%s", collection.Slug, item.ID),
-			Title:       fmt.Sprintf("[%s] %s", strings.Title(item.Type), item.ID),
+			Title:       fmt.Sprintf("[%s] %s", strings.Title(itemType), item.ID),
 			URL:         itemURL,
-			Author:      collection.Owner,
-			Summary:     fmt.Sprintf("Part of collection: %s", collection.Title),
-			PublishedAt: &collection.LastUpdated,
+			Author:      item.Author,
+			Summary:     summary,
+			PublishedAt: &pubTime,
 		})
 	}
 
