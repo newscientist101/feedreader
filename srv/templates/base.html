@@ -2,8 +2,23 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{{.Title}} - FeedReader</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="description" content="A modern feed reader with RSS/Atom support and custom scrapers">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="FeedReader">
+    
+    <!-- Icons -->
+    <link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+    
+    <!-- Manifest -->
+    <link rel="manifest" href="/static/manifest.json">
+    
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -128,5 +143,13 @@
         </main>
     </div>
     <script src="/static/app.js"></script>
+    <script>
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/static/sw.js')
+                .then((reg) => console.log('Service Worker registered', reg.scope))
+                .catch((err) => console.log('Service Worker registration failed', err));
+        }
+    </script>
 </body>
 </html>
