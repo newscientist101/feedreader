@@ -21,7 +21,8 @@ var migrationFS embed.FS
 // Open opens an sqlite database and prepares pragmas suitable for a small web app.
 func Open(path string) (*sql.DB, error) {
 	// Use _time_format=sqlite to handle time scanning properly
-	db, err := sql.Open("sqlite", path+"?_time_format=sqlite")
+	// Use WAL mode for better concurrent write support
+	db, err := sql.Open("sqlite", path+"?_time_format=sqlite&_journal_mode=WAL&_busy_timeout=5000")
 	if err != nil {
 		return nil, err
 	}

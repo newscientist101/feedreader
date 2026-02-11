@@ -1125,6 +1125,7 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 		// Check if feed already exists
 		_, err := q.GetFeedByURL(ctx, dbgen.GetFeedByURLParams{Url: feed.URL, UserID: &user.ID})
 		if err == nil {
+			slog.Debug("import: feed already exists", "url", feed.URL)
 			skipped++
 			continue
 		}
@@ -1139,7 +1140,7 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 			UserID:               &user.ID,
 		})
 		if err != nil {
-			slog.Warn("create feed", "error", err, "url", feed.URL)
+			slog.Warn("import: create feed failed", "error", err, "url", feed.URL, "name", feed.Name)
 			skipped++
 			continue
 		}
@@ -1153,10 +1154,10 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 		}
 
 		imported++
-
-		// Trigger fetch in background
-		go s.Fetcher.FetchFeed(context.Background(), newFeed)
 	}
+
+	// Note: We don't trigger immediate fetch for imported feeds to avoid SQLITE_BUSY errors.
+	// The background fetcher will pick them up within a few minutes.
 
 	jsonResponse(w, map[string]any{
 		"imported": imported,
