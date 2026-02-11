@@ -89,6 +89,10 @@ body {
     margin-left: auto;
 }
 
+.badge:empty {
+    display: none;
+}
+
 .badge.small {
     padding: 1px 6px;
     font-size: 0.7rem;

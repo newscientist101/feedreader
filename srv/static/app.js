@@ -385,9 +385,51 @@ async function importOPML(input) {
     input.value = '';
 }
 
-function updateCounts() {
-    // Reload page to get fresh counts
-    // Could optimize with API call later
+async function updateCounts() {
+    try {
+        const counts = await api('GET', '/api/counts');
+        
+        // Update unread count
+        const unreadBadge = document.querySelector('[data-count="unread"]');
+        if (unreadBadge) {
+            unreadBadge.textContent = counts.unread || '';
+        }
+        
+        // Update starred count
+        const starredBadge = document.querySelector('[data-count="starred"]');
+        if (starredBadge) {
+            starredBadge.textContent = counts.starred || '';
+        }
+        
+        // Update category counts
+        if (counts.categories) {
+            for (const [catId, count] of Object.entries(counts.categories)) {
+                const badge = document.querySelector(`[data-count="category-${catId}"]`);
+                if (badge) {
+                    badge.textContent = count || '';
+                }
+            }
+        }
+        
+        // Update feed counts
+        if (counts.feeds) {
+            for (const [feedId, count] of Object.entries(counts.feeds)) {
+                const badges = document.querySelectorAll(`[data-count="feed-${feedId}"]`);
+                badges.forEach(badge => {
+                    // Don't overwrite pending indicator for never-fetched feeds
+                    if (!badge.classList.contains('pending') || count > 0) {
+                        badge.textContent = count || '';
+                        badge.classList.remove('pending');
+                    }
+                });
+            }
+        }
+        
+        // Re-apply hide empty preference if enabled
+        applyUserPreferences();
+    } catch (e) {
+        console.error('Failed to update counts:', e);
+    }
 }
 
 // Form handlers

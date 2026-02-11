@@ -51,14 +51,14 @@
                         <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>
                     </svg>
                     <span>Unread</span>
-                    {{if .UnreadCount}}<span class="badge">{{.UnreadCount}}</span>{{end}}
+                    <span class="badge" data-count="unread">{{if .UnreadCount}}{{.UnreadCount}}{{end}}</span>
                 </a>
                 <a href="/starred" class="nav-item {{if eq .ActiveView "starred"}}active{{end}}">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                         <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
                     </svg>
                     <span>Starred</span>
-                    {{if .StarredCount}}<span class="badge">{{.StarredCount}}</span>{{end}}
+                    <span class="badge" data-count="starred">{{if .StarredCount}}{{.StarredCount}}{{end}}</span>
                 </a>
             </nav>
 
@@ -82,7 +82,7 @@
                                 </svg>
                                 <span class="folder-name">{{.Name}}</span>
                                 {{$catCount := index $.CategoryCounts .ID}}
-                                {{if $catCount}}<span class="badge small">{{$catCount}}</span>{{end}}
+                                <span class="badge small" data-count="category-{{.ID}}">{{if $catCount}}{{$catCount}}{{end}}</span>
                             </a>
                             <a href="/category/{{.ID}}/settings" class="folder-settings" title="Folder settings">
                                 <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
@@ -99,7 +99,7 @@
                                 {{if .LastError}}<span class="feed-error-icon" title="Fetch error">⚠</span>{{end}}
                                 <span class="feed-name">{{.Name}}</span>
                                 {{$count := index $.FeedCounts .ID}}
-                                {{if $count}}<span class="badge small">{{$count}}</span>{{else if not .LastFetchedAt}}<span class="badge small pending">•</span>{{end}}
+                                <span class="badge small{{if not .LastFetchedAt}} pending{{end}}" data-count="feed-{{.ID}}">{{if $count}}{{$count}}{{else if not .LastFetchedAt}}•{{end}}</span>
                             </a>
                             {{end}}
                             {{end}}
@@ -118,7 +118,7 @@
                         {{if .LastError}}<span class="feed-error-icon" title="Fetch error">⚠</span>{{end}}
                         <span class="feed-name">{{.Name}}</span>
                         {{$count := index $.FeedCounts .ID}}
-                        {{if $count}}<span class="badge small">{{$count}}</span>{{else if not .LastFetchedAt}}<span class="badge small pending">•</span>{{end}}
+                        <span class="badge small{{if not .LastFetchedAt}} pending{{end}}" data-count="feed-{{.ID}}">{{if $count}}{{$count}}{{else if not .LastFetchedAt}}•{{end}}</span>
                     </a>
                     {{end}}
                 </div>

@@ -86,6 +86,7 @@ func (s *Server) Serve(addr string) error {
 	mux.HandleFunc("GET /scrapers", s.handleScrapers)
 
 	// API endpoints
+	mux.HandleFunc("GET /api/counts", s.apiGetCounts)
 	mux.HandleFunc("POST /api/feeds", s.apiCreateFeed)
 	mux.HandleFunc("DELETE /api/feeds/{id}", s.apiDeleteFeed)
 	mux.HandleFunc("POST /api/feeds/{id}/refresh", s.apiRefreshFeed)
@@ -525,6 +526,38 @@ func (s *Server) apiRefreshFeed(w http.ResponseWriter, r *http.Request) {
 	go s.Fetcher.FetchFeed(context.Background(), feed)
 
 	jsonResponse(w, map[string]string{"status": "refreshing"})
+}
+
+func (s *Server) apiGetCounts(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+	userID := user.ID
+
+	feeds, _ := q.ListFeeds(ctx, &userID)
+	categories, _ := q.ListCategories(ctx, &userID)
+
+	unreadCount, _ := q.GetUnreadCount(ctx, &userID)
+	starredCount, _ := q.GetStarredCount(ctx, &userID)
+
+	feedCounts := make(map[int64]int64)
+	for _, feed := range feeds {
+		count, _ := q.GetFeedUnreadCount(ctx, feed.ID)
+		feedCounts[feed.ID] = count
+	}
+
+	catCounts := make(map[int64]int64)
+	for _, cat := range categories {
+		count, _ := q.GetCategoryUnreadCount(ctx, cat.ID)
+		catCounts[cat.ID] = count
+	}
+
+	jsonResponse(w, map[string]any{
+		"unread":     unreadCount,
+		"starred":    starredCount,
+		"feeds":      feedCounts,
+		"categories": catCounts,
+	})
 }
 
 func (s *Server) apiMarkRead(w http.ResponseWriter, r *http.Request) {
