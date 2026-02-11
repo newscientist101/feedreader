@@ -106,6 +106,92 @@ function closeModal() {
     document.getElementById('edit-modal').style.display = 'none';
 }
 
+// Category functions
+async function createCategory() {
+    const name = prompt('Enter folder name:');
+    if (!name) return;
+    
+    try {
+        await api('POST', '/api/categories', { name });
+        location.reload();
+    } catch (e) {
+        alert('Failed to create folder: ' + e.message);
+    }
+}
+
+async function renameCategory(id, currentName) {
+    const name = prompt('Enter new name:', currentName);
+    if (!name || name === currentName) return;
+    
+    try {
+        await api('PUT', `/api/categories/${id}`, { name });
+        location.reload();
+    } catch (e) {
+        alert('Failed to rename folder: ' + e.message);
+    }
+}
+
+async function deleteCategory(id, name) {
+    if (!confirm(`Delete folder "${name}"? Feeds will be moved to uncategorized.`)) {
+        return;
+    }
+    try {
+        await api('DELETE', `/api/categories/${id}`);
+        location.reload();
+    } catch (e) {
+        alert('Failed to delete folder: ' + e.message);
+    }
+}
+
+async function setFeedCategory(feedId, categoryId) {
+    try {
+        await api('POST', `/api/feeds/${feedId}/category`, { categoryId: parseInt(categoryId) });
+    } catch (e) {
+        console.error('Failed to set category:', e);
+        alert('Failed to move feed');
+    }
+}
+
+async function markCategoryRead(id) {
+    try {
+        await api('POST', `/api/categories/${id}/read-all`);
+        location.reload();
+    } catch (e) {
+        console.error('Failed to mark category read:', e);
+    }
+}
+
+// OPML functions
+function exportOPML() {
+    window.location.href = '/api/opml/export';
+}
+
+async function importOPML(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+        const res = await fetch('/api/opml/import', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await res.json();
+        if (!res.ok) {
+            throw new Error(result.error || 'Import failed');
+        }
+        alert(`Imported ${result.imported} feeds (${result.skipped} skipped, already exist)`);
+        location.reload();
+    } catch (e) {
+        alert('Failed to import OPML: ' + e.message);
+    }
+    
+    // Clear the input
+    input.value = '';
+}
+
 function updateCounts() {
     // Reload page to get fresh counts
     // Could optimize with API call later
@@ -122,16 +208,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const name = document.getElementById('feed-name').value;
             const feedType = document.getElementById('feed-type').value;
             const scraperModule = document.getElementById('scraper-module')?.value || '';
+            const categoryId = parseInt(document.getElementById('feed-category')?.value) || 0;
             const interval = parseInt(document.getElementById('feed-interval').value) || 60;
 
             try {
-                await api('POST', '/api/feeds', {
+                const feed = await api('POST', '/api/feeds', {
                     url,
                     name: name || url,
                     feedType,
                     scraperModule,
                     interval
                 });
+                
+                // Set category if specified
+                if (categoryId > 0 && feed.id) {
+                    await api('POST', `/api/feeds/${feed.id}/category`, { categoryId });
+                }
+                
                 location.reload();
             } catch (e) {
                 alert('Failed to add feed: ' + e.message);

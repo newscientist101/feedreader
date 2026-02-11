@@ -24,6 +24,15 @@ func (q *Queries) AddFeedToCategory(ctx context.Context, arg AddFeedToCategoryPa
 	return err
 }
 
+const clearFeedCategories = `-- name: ClearFeedCategories :exec
+DELETE FROM feed_categories WHERE feed_id = ?
+`
+
+func (q *Queries) ClearFeedCategories(ctx context.Context, feedID int64) error {
+	_, err := q.db.ExecContext(ctx, clearFeedCategories, feedID)
+	return err
+}
+
 const createCategory = `-- name: CreateCategory :one
 INSERT INTO categories (name) VALUES (?) RETURNING id, name, created_at
 `
@@ -92,6 +101,31 @@ DELETE FROM feeds WHERE id = ?
 func (q *Queries) DeleteFeed(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteFeed, id)
 	return err
+}
+
+const getCategoryByName = `-- name: GetCategoryByName :one
+SELECT id, name, created_at FROM categories WHERE name = ?
+`
+
+func (q *Queries) GetCategoryByName(ctx context.Context, name string) (Category, error) {
+	row := q.db.QueryRowContext(ctx, getCategoryByName, name)
+	var i Category
+	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
+	return i, err
+}
+
+const getCategoryUnreadCount = `-- name: GetCategoryUnreadCount :one
+SELECT COUNT(*) as count FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+JOIN feed_categories fc ON f.id = fc.feed_id
+WHERE fc.category_id = ? AND a.is_read = 0
+`
+
+func (q *Queries) GetCategoryUnreadCount(ctx context.Context, categoryID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getCategoryUnreadCount, categoryID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const getFeed = `-- name: GetFeed :one
@@ -246,6 +280,48 @@ func (q *Queries) ListFeeds(ctx context.Context) ([]Feed, error) {
 	return items, nil
 }
 
+const listFeedsByCategory = `-- name: ListFeedsByCategory :many
+SELECT f.id, f.name, f.url, f.feed_type, f.scraper_module, f.scraper_config, f.last_fetched_at, f.last_error, f.fetch_interval_minutes, f.created_at, f.updated_at FROM feeds f
+JOIN feed_categories fc ON f.id = fc.feed_id
+WHERE fc.category_id = ?
+ORDER BY f.name
+`
+
+func (q *Queries) ListFeedsByCategory(ctx context.Context, categoryID int64) ([]Feed, error) {
+	rows, err := q.db.QueryContext(ctx, listFeedsByCategory, categoryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Feed{}
+	for rows.Next() {
+		var i Feed
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Url,
+			&i.FeedType,
+			&i.ScraperModule,
+			&i.ScraperConfig,
+			&i.LastFetchedAt,
+			&i.LastError,
+			&i.FetchIntervalMinutes,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listFeedsToFetch = `-- name: ListFeedsToFetch :many
 SELECT id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at FROM feeds 
 WHERE last_fetched_at IS NULL 
@@ -255,6 +331,49 @@ ORDER BY last_fetched_at NULLS FIRST
 
 func (q *Queries) ListFeedsToFetch(ctx context.Context) ([]Feed, error) {
 	rows, err := q.db.QueryContext(ctx, listFeedsToFetch)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Feed{}
+	for rows.Next() {
+		var i Feed
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Url,
+			&i.FeedType,
+			&i.ScraperModule,
+			&i.ScraperConfig,
+			&i.LastFetchedAt,
+			&i.LastError,
+			&i.FetchIntervalMinutes,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUncategorizedFeeds = `-- name: ListUncategorizedFeeds :many
+SELECT f.id, f.name, f.url, f.feed_type, f.scraper_module, f.scraper_config, f.last_fetched_at, f.last_error, f.fetch_interval_minutes, f.created_at, f.updated_at FROM feeds f
+WHERE NOT EXISTS (
+  SELECT 1 FROM feed_categories fc WHERE fc.feed_id = f.id
+)
+ORDER BY f.name
+`
+
+func (q *Queries) ListUncategorizedFeeds(ctx context.Context) ([]Feed, error) {
+	rows, err := q.db.QueryContext(ctx, listUncategorizedFeeds)
 	if err != nil {
 		return nil, err
 	}
@@ -299,6 +418,20 @@ type RemoveFeedFromCategoryParams struct {
 
 func (q *Queries) RemoveFeedFromCategory(ctx context.Context, arg RemoveFeedFromCategoryParams) error {
 	_, err := q.db.ExecContext(ctx, removeFeedFromCategory, arg.FeedID, arg.CategoryID)
+	return err
+}
+
+const updateCategory = `-- name: UpdateCategory :exec
+UPDATE categories SET name = ? WHERE id = ?
+`
+
+type UpdateCategoryParams struct {
+	Name string `json:"name"`
+	ID   int64  `json:"id"`
+}
+
+func (q *Queries) UpdateCategory(ctx context.Context, arg UpdateCategoryParams) error {
+	_, err := q.db.ExecContext(ctx, updateCategory, arg.Name, arg.ID)
 	return err
 }
 

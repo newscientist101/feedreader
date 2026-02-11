@@ -68,3 +68,25 @@ JOIN feeds f ON a.feed_id = f.id
 WHERE a.title LIKE '%' || ? || '%' OR a.content LIKE '%' || ? || '%'
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?;
+
+-- name: ListArticlesByCategory :many
+SELECT a.*, f.name as feed_name FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+JOIN feed_categories fc ON f.id = fc.feed_id
+WHERE fc.category_id = ?
+ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
+LIMIT ? OFFSET ?;
+
+-- name: ListUnreadArticlesByCategory :many
+SELECT a.*, f.name as feed_name FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+JOIN feed_categories fc ON f.id = fc.feed_id
+WHERE fc.category_id = ? AND a.is_read = 0
+ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
+LIMIT ? OFFSET ?;
+
+-- name: MarkCategoryRead :exec
+UPDATE articles SET is_read = 1 
+WHERE feed_id IN (
+  SELECT feed_id FROM feed_categories WHERE category_id = ?
+);

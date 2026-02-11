@@ -65,10 +65,3 @@ type ScraperModule struct {
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
-
-type Visitor struct {
-	ID        string    `json:"id"`
-	ViewCount int64     `json:"view_count"`
-	CreatedAt time.Time `json:"created_at"`
-	LastSeen  time.Time `json:"last_seen"`
-}

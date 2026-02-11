@@ -49,3 +49,31 @@ DELETE FROM feed_categories WHERE feed_id = ? AND category_id = ?;
 SELECT c.* FROM categories c
 JOIN feed_categories fc ON c.id = fc.category_id
 WHERE fc.feed_id = ?;
+
+-- name: GetCategoryByName :one
+SELECT * FROM categories WHERE name = ?;
+
+-- name: ListFeedsByCategory :many
+SELECT f.* FROM feeds f
+JOIN feed_categories fc ON f.id = fc.feed_id
+WHERE fc.category_id = ?
+ORDER BY f.name;
+
+-- name: ListUncategorizedFeeds :many
+SELECT f.* FROM feeds f
+WHERE NOT EXISTS (
+  SELECT 1 FROM feed_categories fc WHERE fc.feed_id = f.id
+)
+ORDER BY f.name;
+
+-- name: GetCategoryUnreadCount :one
+SELECT COUNT(*) as count FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+JOIN feed_categories fc ON f.id = fc.feed_id
+WHERE fc.category_id = ? AND a.is_read = 0;
+
+-- name: UpdateCategory :exec
+UPDATE categories SET name = ? WHERE id = ?;
+
+-- name: ClearFeedCategories :exec
+DELETE FROM feed_categories WHERE feed_id = ?;

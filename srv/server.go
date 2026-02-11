@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"log/slog"
 	"net/http"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"srv.exe.dev/db"
 	"srv.exe.dev/db/dbgen"
 	"srv.exe.dev/srv/feeds"
+	"srv.exe.dev/srv/opml"
 	"srv.exe.dev/srv/scrapers"
 )
 
@@ -84,6 +86,18 @@ func (s *Server) Serve(addr string) error {
 	mux.HandleFunc("PUT /api/scrapers/{id}", s.apiUpdateScraper)
 	mux.HandleFunc("DELETE /api/scrapers/{id}", s.apiDeleteScraper)
 	mux.HandleFunc("GET /api/search", s.apiSearch)
+
+	// Category endpoints
+	mux.HandleFunc("GET /category/{id}", s.handleCategoryArticles)
+	mux.HandleFunc("POST /api/categories", s.apiCreateCategory)
+	mux.HandleFunc("PUT /api/categories/{id}", s.apiUpdateCategory)
+	mux.HandleFunc("DELETE /api/categories/{id}", s.apiDeleteCategory)
+	mux.HandleFunc("POST /api/feeds/{id}/category", s.apiSetFeedCategory)
+	mux.HandleFunc("POST /api/categories/{id}/read-all", s.apiMarkCategoryRead)
+
+	// OPML endpoints
+	mux.HandleFunc("GET /api/opml/export", s.apiExportOPML)
+	mux.HandleFunc("POST /api/opml/import", s.apiImportOPML)
 
 	// Static files
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(s.StaticDir))))
@@ -167,31 +181,57 @@ func stripHTML(s string) string {
 }
 
 // Page Handlers
-func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+// getCommonData returns data shared across all pages
+func (s *Server) getCommonData(ctx context.Context) map[string]any {
 	q := dbgen.New(s.DB)
 
-	articles, _ := q.ListUnreadArticles(ctx, dbgen.ListUnreadArticlesParams{Limit: 50, Offset: 0})
 	feeds, _ := q.ListFeeds(ctx)
 	unreadCount, _ := q.GetUnreadCount(ctx)
 	starredCount, _ := q.GetStarredCount(ctx)
+	categories, _ := q.ListCategories(ctx)
 
-	// Get unread counts per feed
 	feedCounts := make(map[int64]int64)
 	for _, feed := range feeds {
 		count, _ := q.GetFeedUnreadCount(ctx, feed.ID)
 		feedCounts[feed.ID] = count
 	}
 
-	data := map[string]any{
-		"Title":        "All Unread",
-		"Articles":     articles,
-		"Feeds":        feeds,
-		"FeedCounts":   feedCounts,
-		"UnreadCount":  unreadCount,
-		"StarredCount": starredCount,
-		"ActiveView":   "unread",
+	catCounts := make(map[int64]int64)
+	for _, cat := range categories {
+		count, _ := q.GetCategoryUnreadCount(ctx, cat.ID)
+		catCounts[cat.ID] = count
 	}
+
+	// Get feed-to-category mapping
+	feedCategories := make(map[int64]int64)
+	for _, feed := range feeds {
+		cats, _ := q.GetFeedCategories(ctx, feed.ID)
+		if len(cats) > 0 {
+			feedCategories[feed.ID] = cats[0].ID
+		}
+	}
+
+	return map[string]any{
+		"Feeds":          feeds,
+		"FeedCounts":     feedCounts,
+		"Categories":     categories,
+		"CategoryCounts": catCounts,
+		"FeedCategories": feedCategories,
+		"UnreadCount":    unreadCount,
+		"StarredCount":   starredCount,
+	}
+}
+
+func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+
+	articles, _ := q.ListUnreadArticles(ctx, dbgen.ListUnreadArticlesParams{Limit: 50, Offset: 0})
+
+	data := s.getCommonData(ctx)
+	data["Title"] = "All Unread"
+	data["Articles"] = articles
+	data["ActiveView"] = "unread"
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.renderTemplate(w, "index.html", data); err != nil {
@@ -204,26 +244,12 @@ func (s *Server) handleFeeds(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	q := dbgen.New(s.DB)
 
-	feeds, _ := q.ListFeeds(ctx)
-	unreadCount, _ := q.GetUnreadCount(ctx)
-	starredCount, _ := q.GetStarredCount(ctx)
 	scraperModules, _ := q.ListScraperModules(ctx)
 
-	feedCounts := make(map[int64]int64)
-	for _, feed := range feeds {
-		count, _ := q.GetFeedUnreadCount(ctx, feed.ID)
-		feedCounts[feed.ID] = count
-	}
-
-	data := map[string]any{
-		"Title":          "Manage Feeds",
-		"Feeds":          feeds,
-		"FeedCounts":     feedCounts,
-		"UnreadCount":    unreadCount,
-		"StarredCount":   starredCount,
-		"ScraperModules": scraperModules,
-		"ActiveView":     "feeds",
-	}
+	data := s.getCommonData(ctx)
+	data["Title"] = "Manage Feeds"
+	data["ScraperModules"] = scraperModules
+	data["ActiveView"] = "feeds"
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.renderTemplate(w, "feeds.html", data); err != nil {
@@ -237,25 +263,11 @@ func (s *Server) handleStarred(w http.ResponseWriter, r *http.Request) {
 	q := dbgen.New(s.DB)
 
 	articles, _ := q.ListStarredArticles(ctx, dbgen.ListStarredArticlesParams{Limit: 50, Offset: 0})
-	feeds, _ := q.ListFeeds(ctx)
-	unreadCount, _ := q.GetUnreadCount(ctx)
-	starredCount, _ := q.GetStarredCount(ctx)
 
-	feedCounts := make(map[int64]int64)
-	for _, feed := range feeds {
-		count, _ := q.GetFeedUnreadCount(ctx, feed.ID)
-		feedCounts[feed.ID] = count
-	}
-
-	data := map[string]any{
-		"Title":        "Starred",
-		"Articles":     articles,
-		"Feeds":        feeds,
-		"FeedCounts":   feedCounts,
-		"UnreadCount":  unreadCount,
-		"StarredCount": starredCount,
-		"ActiveView":   "starred",
-	}
+	data := s.getCommonData(ctx)
+	data["Title"] = "Starred"
+	data["Articles"] = articles
+	data["ActiveView"] = "starred"
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.renderTemplate(w, "index.html", data); err != nil {
@@ -281,26 +293,12 @@ func (s *Server) handleFeedArticles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	articles, _ := q.ListArticlesByFeed(ctx, dbgen.ListArticlesByFeedParams{FeedID: feedID, Limit: 50, Offset: 0})
-	feeds, _ := q.ListFeeds(ctx)
-	unreadCount, _ := q.GetUnreadCount(ctx)
-	starredCount, _ := q.GetStarredCount(ctx)
 
-	feedCounts := make(map[int64]int64)
-	for _, f := range feeds {
-		count, _ := q.GetFeedUnreadCount(ctx, f.ID)
-		feedCounts[f.ID] = count
-	}
-
-	data := map[string]any{
-		"Title":        feed.Name,
-		"Articles":     articles,
-		"Feeds":        feeds,
-		"FeedCounts":   feedCounts,
-		"UnreadCount":  unreadCount,
-		"StarredCount": starredCount,
-		"ActiveFeed":   feedID,
-		"CurrentFeed":  feed,
-	}
+	data := s.getCommonData(ctx)
+	data["Title"] = feed.Name
+	data["Articles"] = articles
+	data["ActiveFeed"] = feedID
+	data["CurrentFeed"] = feed
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.renderTemplate(w, "index.html", data); err != nil {
@@ -329,25 +327,11 @@ func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 	q.MarkArticleRead(ctx, articleID)
 
 	feed, _ := q.GetFeed(ctx, article.FeedID)
-	feeds, _ := q.ListFeeds(ctx)
-	unreadCount, _ := q.GetUnreadCount(ctx)
-	starredCount, _ := q.GetStarredCount(ctx)
 
-	feedCounts := make(map[int64]int64)
-	for _, f := range feeds {
-		count, _ := q.GetFeedUnreadCount(ctx, f.ID)
-		feedCounts[f.ID] = count
-	}
-
-	data := map[string]any{
-		"Title":        article.Title,
-		"Article":      article,
-		"Feed":         feed,
-		"Feeds":        feeds,
-		"FeedCounts":   feedCounts,
-		"UnreadCount":  unreadCount,
-		"StarredCount": starredCount,
-	}
+	data := s.getCommonData(ctx)
+	data["Title"] = article.Title
+	data["Article"] = article
+	data["Feed"] = feed
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.renderTemplate(w, "article.html", data); err != nil {
@@ -361,25 +345,11 @@ func (s *Server) handleScrapers(w http.ResponseWriter, r *http.Request) {
 	q := dbgen.New(s.DB)
 
 	scraperModules, _ := q.ListScraperModules(ctx)
-	feeds, _ := q.ListFeeds(ctx)
-	unreadCount, _ := q.GetUnreadCount(ctx)
-	starredCount, _ := q.GetStarredCount(ctx)
 
-	feedCounts := make(map[int64]int64)
-	for _, f := range feeds {
-		count, _ := q.GetFeedUnreadCount(ctx, f.ID)
-		feedCounts[f.ID] = count
-	}
-
-	data := map[string]any{
-		"Title":          "Scraper Modules",
-		"ScraperModules": scraperModules,
-		"Feeds":          feeds,
-		"FeedCounts":     feedCounts,
-		"UnreadCount":    unreadCount,
-		"StarredCount":   starredCount,
-		"ActiveView":     "scrapers",
-	}
+	data := s.getCommonData(ctx)
+	data["Title"] = "Scraper Modules"
+	data["ScraperModules"] = scraperModules
+	data["ActiveView"] = "scrapers"
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.renderTemplate(w, "scrapers.html", data); err != nil {
@@ -725,4 +695,319 @@ func deref(p any) any {
 
 func safeHTML(s string) template.HTML {
 	return template.HTML(s)
+}
+
+// Category handlers
+func (s *Server) handleCategoryArticles(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+
+	catID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid category ID", 400)
+		return
+	}
+
+	categories, _ := q.ListCategories(ctx)
+	var category *dbgen.Category
+	for _, c := range categories {
+		if c.ID == catID {
+			category = &c
+			break
+		}
+	}
+	if category == nil {
+		http.Error(w, "Category not found", 404)
+		return
+	}
+
+	articles, _ := q.ListUnreadArticlesByCategory(ctx, dbgen.ListUnreadArticlesByCategoryParams{
+		CategoryID: catID,
+		Limit:      50,
+		Offset:     0,
+	})
+	feeds, _ := q.ListFeeds(ctx)
+	unreadCount, _ := q.GetUnreadCount(ctx)
+	starredCount, _ := q.GetStarredCount(ctx)
+
+	feedCounts := make(map[int64]int64)
+	for _, f := range feeds {
+		count, _ := q.GetFeedUnreadCount(ctx, f.ID)
+		feedCounts[f.ID] = count
+	}
+
+	catCounts := make(map[int64]int64)
+	for _, c := range categories {
+		count, _ := q.GetCategoryUnreadCount(ctx, c.ID)
+		catCounts[c.ID] = count
+	}
+
+	data := map[string]any{
+		"Title":           category.Name,
+		"Articles":        articles,
+		"Feeds":           feeds,
+		"FeedCounts":      feedCounts,
+		"Categories":      categories,
+		"CategoryCounts":  catCounts,
+		"UnreadCount":     unreadCount,
+		"StarredCount":    starredCount,
+		"ActiveCategory":  catID,
+		"CurrentCategory": category,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.renderTemplate(w, "index.html", data); err != nil {
+		slog.Warn("render template", "error", err)
+		http.Error(w, "Internal Server Error", 500)
+	}
+}
+
+func (s *Server) apiCreateCategory(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request", 400)
+		return
+	}
+
+	if req.Name == "" {
+		jsonError(w, "Name is required", 400)
+		return
+	}
+
+	cat, err := q.CreateCategory(ctx, req.Name)
+	if err != nil {
+		jsonError(w, "Failed to create category: "+err.Error(), 500)
+		return
+	}
+
+	jsonResponse(w, cat)
+}
+
+func (s *Server) apiUpdateCategory(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid ID", 400)
+		return
+	}
+
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request", 400)
+		return
+	}
+
+	if err := q.UpdateCategory(ctx, dbgen.UpdateCategoryParams{Name: req.Name, ID: id}); err != nil {
+		jsonError(w, "Failed to update category", 500)
+		return
+	}
+
+	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) apiDeleteCategory(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid ID", 400)
+		return
+	}
+
+	if err := q.DeleteCategory(ctx, id); err != nil {
+		jsonError(w, "Failed to delete category", 500)
+		return
+	}
+
+	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) apiSetFeedCategory(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+
+	feedID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid feed ID", 400)
+		return
+	}
+
+	var req struct {
+		CategoryID int64 `json:"categoryId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request", 400)
+		return
+	}
+
+	// Clear existing categories for this feed
+	if err := q.ClearFeedCategories(ctx, feedID); err != nil {
+		slog.Warn("clear feed categories", "error", err)
+	}
+
+	// Add to new category if specified
+	if req.CategoryID > 0 {
+		if err := q.AddFeedToCategory(ctx, dbgen.AddFeedToCategoryParams{
+			FeedID:     feedID,
+			CategoryID: req.CategoryID,
+		}); err != nil {
+			jsonError(w, "Failed to set category", 500)
+			return
+		}
+	}
+
+	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) apiMarkCategoryRead(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+
+	catID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid category ID", 400)
+		return
+	}
+
+	if err := q.MarkCategoryRead(ctx, catID); err != nil {
+		jsonError(w, "Failed to mark category read", 500)
+		return
+	}
+
+	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+// OPML handlers
+func (s *Server) apiExportOPML(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+
+	feeds, err := q.ListFeeds(ctx)
+	if err != nil {
+		jsonError(w, "Failed to list feeds", 500)
+		return
+	}
+
+	var exportFeeds []opml.ExportFeed
+	for _, feed := range feeds {
+		cats, _ := q.GetFeedCategories(ctx, feed.ID)
+		catName := ""
+		if len(cats) > 0 {
+			catName = cats[0].Name
+		}
+		exportFeeds = append(exportFeeds, opml.ExportFeed{
+			Name:     feed.Name,
+			URL:      feed.Url,
+			Category: catName,
+		})
+	}
+
+	data, err := opml.Export(exportFeeds, "FeedReader Export")
+	if err != nil {
+		jsonError(w, "Failed to generate OPML", 500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/xml")
+	w.Header().Set("Content-Disposition", "attachment; filename=feedreader-export.opml")
+	w.Write(data)
+}
+
+func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+
+	// Handle both multipart form and raw body
+	var reader io.Reader
+	if r.Header.Get("Content-Type") == "application/xml" || r.Header.Get("Content-Type") == "text/xml" {
+		reader = r.Body
+	} else {
+		// Try multipart
+		if err := r.ParseMultipartForm(10 << 20); err != nil {
+			jsonError(w, "Failed to parse form", 400)
+			return
+		}
+		file, _, err := r.FormFile("file")
+		if err != nil {
+			jsonError(w, "No file uploaded", 400)
+			return
+		}
+		defer file.Close()
+		reader = file
+	}
+
+	feeds, err := opml.Parse(reader)
+	if err != nil {
+		jsonError(w, "Failed to parse OPML: "+err.Error(), 400)
+		return
+	}
+
+	var imported, skipped int
+	for _, feed := range feeds {
+		// Get or create category
+		var catID int64
+		if feed.Category != "" {
+			cat, err := q.GetCategoryByName(ctx, feed.Category)
+			if err != nil {
+				// Create category
+				cat, err = q.CreateCategory(ctx, feed.Category)
+				if err != nil {
+					slog.Warn("create category", "error", err, "name", feed.Category)
+				}
+			}
+			if err == nil {
+				catID = cat.ID
+			}
+		}
+
+		// Check if feed already exists
+		_, err := q.GetFeedByURL(ctx, feed.URL)
+		if err == nil {
+			skipped++
+			continue
+		}
+
+		// Create feed
+		interval := int64(60)
+		newFeed, err := q.CreateFeed(ctx, dbgen.CreateFeedParams{
+			Name:                 feed.Name,
+			Url:                  feed.URL,
+			FeedType:             "rss",
+			FetchIntervalMinutes: &interval,
+		})
+		if err != nil {
+			slog.Warn("create feed", "error", err, "url", feed.URL)
+			skipped++
+			continue
+		}
+
+		// Assign to category
+		if catID > 0 {
+			q.AddFeedToCategory(ctx, dbgen.AddFeedToCategoryParams{
+				FeedID:     newFeed.ID,
+				CategoryID: catID,
+			})
+		}
+
+		imported++
+
+		// Trigger fetch in background
+		go s.Fetcher.FetchFeed(context.Background(), newFeed)
+	}
+
+	jsonResponse(w, map[string]any{
+		"imported": imported,
+		"skipped":  skipped,
+		"total":    len(feeds),
+	})
 }
