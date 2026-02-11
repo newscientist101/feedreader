@@ -1105,6 +1105,7 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var imported, skipped int
+	var importedFeeds []dbgen.Feed
 	for _, feed := range feeds {
 		// Get or create category
 		var catID int64
@@ -1154,10 +1155,16 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 		}
 
 		imported++
+		importedFeeds = append(importedFeeds, newFeed)
 	}
 
-	// Note: We don't trigger immediate fetch for imported feeds to avoid SQLITE_BUSY errors.
-	// The background fetcher will pick them up within a few minutes.
+	// Queue fetches for all imported feeds
+	// Run in background so we can return the response immediately
+	go func() {
+		for _, feed := range importedFeeds {
+			s.Fetcher.FetchFeed(context.Background(), feed)
+		}
+	}()
 
 	jsonResponse(w, map[string]any{
 		"imported": imported,
