@@ -573,7 +573,25 @@ func (s *Server) apiMarkFeedRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := q.MarkFeedRead(ctx, feedID); err != nil {
+	age := r.URL.Query().Get("age")
+	oneDay := "1"
+	oneWeek := "7"
+	switch age {
+	case "day":
+		err = q.MarkFeedArticlesReadOlderThan(ctx, dbgen.MarkFeedArticlesReadOlderThanParams{
+			FeedID:  feedID,
+			Column2: &oneDay,
+		})
+	case "week":
+		err = q.MarkFeedArticlesReadOlderThan(ctx, dbgen.MarkFeedArticlesReadOlderThanParams{
+			FeedID:  feedID,
+			Column2: &oneWeek,
+		})
+	default:
+		err = q.MarkFeedRead(ctx, feedID)
+	}
+
+	if err != nil {
 		jsonError(w, "Failed to mark feed read", 500)
 		return
 	}
@@ -931,7 +949,25 @@ func (s *Server) apiMarkCategoryRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := q.MarkCategoryRead(ctx, catID); err != nil {
+	age := r.URL.Query().Get("age")
+	oneDay := "1"
+	oneWeek := "7"
+	switch age {
+	case "day":
+		err = q.MarkCategoryArticlesReadOlderThan(ctx, dbgen.MarkCategoryArticlesReadOlderThanParams{
+			CategoryID: catID,
+			Column2:    &oneDay,
+		})
+	case "week":
+		err = q.MarkCategoryArticlesReadOlderThan(ctx, dbgen.MarkCategoryArticlesReadOlderThanParams{
+			CategoryID: catID,
+			Column2:    &oneWeek,
+		})
+	default:
+		err = q.MarkCategoryRead(ctx, catID)
+	}
+
+	if err != nil {
 		jsonError(w, "Failed to mark category read", 500)
 		return
 	}

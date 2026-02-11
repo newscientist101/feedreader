@@ -20,6 +20,27 @@ function initTimestampTooltips() {
     });
 }
 
+// Dropdown toggle
+function toggleDropdown(btn) {
+    const dropdown = btn.closest('.dropdown');
+    const wasOpen = dropdown.classList.contains('open');
+    
+    // Close all dropdowns
+    document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
+    
+    // Toggle this one
+    if (!wasOpen) {
+        dropdown.classList.add('open');
+    }
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.dropdown')) {
+        document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
+    }
+});
+
 // Mobile sidebar toggle
 function toggleSidebar() {
     const sidebar = document.querySelector('.sidebar');
@@ -150,9 +171,11 @@ async function deleteFeed(id, name) {
     }
 }
 
-async function markFeedRead(id) {
+async function markFeedRead(id, age = 'all') {
     try {
-        await api('POST', `/api/feeds/${id}/read-all`);
+        await api('POST', `/api/feeds/${id}/read-all?age=${age}`);
+        // Close dropdown
+        document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
         location.reload();
     } catch (e) {
         console.error('Failed to mark feed read:', e);
@@ -228,9 +251,11 @@ async function setFeedCategory(feedId, categoryId) {
     }
 }
 
-async function markCategoryRead(id) {
+async function markCategoryRead(id, age = 'all') {
     try {
-        await api('POST', `/api/categories/${id}/read-all`);
+        await api('POST', `/api/categories/${id}/read-all?age=${age}`);
+        // Close dropdown
+        document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
         location.reload();
     } catch (e) {
         console.error('Failed to mark category read:', e);

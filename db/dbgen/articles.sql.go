@@ -591,6 +591,24 @@ func (q *Queries) MarkArticleUnread(ctx context.Context, id int64) error {
 	return err
 }
 
+const markCategoryArticlesReadOlderThan = `-- name: MarkCategoryArticlesReadOlderThan :exec
+UPDATE articles SET is_read = 1 
+WHERE feed_id IN (
+    SELECT feed_id FROM feed_categories WHERE category_id = ?
+) AND is_read = 0 
+  AND COALESCE(published_at, fetched_at) < datetime('now', '-' || ? || ' days')
+`
+
+type MarkCategoryArticlesReadOlderThanParams struct {
+	CategoryID int64   `json:"category_id"`
+	Column2    *string `json:"column_2"`
+}
+
+func (q *Queries) MarkCategoryArticlesReadOlderThan(ctx context.Context, arg MarkCategoryArticlesReadOlderThanParams) error {
+	_, err := q.db.ExecContext(ctx, markCategoryArticlesReadOlderThan, arg.CategoryID, arg.Column2)
+	return err
+}
+
 const markCategoryRead = `-- name: MarkCategoryRead :exec
 UPDATE articles SET is_read = 1 
 WHERE feed_id IN (
@@ -600,6 +618,22 @@ WHERE feed_id IN (
 
 func (q *Queries) MarkCategoryRead(ctx context.Context, categoryID int64) error {
 	_, err := q.db.ExecContext(ctx, markCategoryRead, categoryID)
+	return err
+}
+
+const markFeedArticlesReadOlderThan = `-- name: MarkFeedArticlesReadOlderThan :exec
+UPDATE articles SET is_read = 1 
+WHERE feed_id = ? AND is_read = 0 
+  AND COALESCE(published_at, fetched_at) < datetime('now', '-' || ? || ' days')
+`
+
+type MarkFeedArticlesReadOlderThanParams struct {
+	FeedID  int64   `json:"feed_id"`
+	Column2 *string `json:"column_2"`
+}
+
+func (q *Queries) MarkFeedArticlesReadOlderThan(ctx context.Context, arg MarkFeedArticlesReadOlderThanParams) error {
+	_, err := q.db.ExecContext(ctx, markFeedArticlesReadOlderThan, arg.FeedID, arg.Column2)
 	return err
 }
 

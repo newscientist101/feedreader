@@ -29,11 +29,35 @@
                 <input type="search" id="search" placeholder="Search articles...">
             </div>
             {{if .CurrentFeed}}
-            <button onclick="markFeedRead({{.CurrentFeed.ID}})" class="btn btn-secondary">Mark All Read</button>
+            <div class="dropdown">
+                <button class="btn btn-secondary dropdown-toggle" onclick="toggleDropdown(this)">
+                    Mark as Read
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M7 10l5 5 5-5z"/>
+                    </svg>
+                </button>
+                <div class="dropdown-menu">
+                    <button onclick="markFeedRead({{.CurrentFeed.ID}}, 'all')">All articles</button>
+                    <button onclick="markFeedRead({{.CurrentFeed.ID}}, 'day')">Older than one day</button>
+                    <button onclick="markFeedRead({{.CurrentFeed.ID}}, 'week')">Older than one week</button>
+                </div>
+            </div>
             <button onclick="refreshFeed({{.CurrentFeed.ID}})" class="btn btn-secondary">Refresh</button>
             {{end}}
             {{if .CurrentCategory}}
-            <button onclick="markCategoryRead({{.CurrentCategory.ID}})" class="btn btn-secondary">Mark All Read</button>
+            <div class="dropdown">
+                <button class="btn btn-secondary dropdown-toggle" onclick="toggleDropdown(this)">
+                    Mark as Read
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M7 10l5 5 5-5z"/>
+                    </svg>
+                </button>
+                <div class="dropdown-menu">
+                    <button onclick="markCategoryRead({{.CurrentCategory.ID}}, 'all')">All articles</button>
+                    <button onclick="markCategoryRead({{.CurrentCategory.ID}}, 'day')">Older than one day</button>
+                    <button onclick="markCategoryRead({{.CurrentCategory.ID}}, 'week')">Older than one week</button>
+                </div>
+            </div>
             {{end}}
         </div>
     </header>

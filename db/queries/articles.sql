@@ -106,3 +106,15 @@ WHERE is_starred = 0
 
 -- name: GetOldestArticleDate :one
 SELECT MIN(fetched_at) FROM articles WHERE is_starred = 0;
+
+-- name: MarkFeedArticlesReadOlderThan :exec
+UPDATE articles SET is_read = 1 
+WHERE feed_id = ? AND is_read = 0 
+  AND COALESCE(published_at, fetched_at) < datetime('now', '-' || ? || ' days');
+
+-- name: MarkCategoryArticlesReadOlderThan :exec
+UPDATE articles SET is_read = 1 
+WHERE feed_id IN (
+    SELECT feed_id FROM feed_categories WHERE category_id = ?
+) AND is_read = 0 
+  AND COALESCE(published_at, fetched_at) < datetime('now', '-' || ? || ' days');
