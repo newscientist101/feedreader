@@ -28,49 +28,23 @@
             <div class="search-box">
                 <input type="search" id="search" placeholder="Search articles...">
             </div>
+            {{if or .CurrentFeed .CurrentCategory (eq .Title "All Unread")}}
+            <div class="dropdown" data-feed-id="{{if .CurrentFeed}}{{.CurrentFeed.ID}}{{end}}" data-category-id="{{if .CurrentCategory}}{{.CurrentCategory.ID}}{{end}}">
+                <button class="btn btn-secondary dropdown-toggle" onclick="toggleDropdown(this)">
+                    Mark as Read
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M7 10l5 5 5-5z"/>
+                    </svg>
+                </button>
+                <div class="dropdown-menu">
+                    <button onclick="markAsRead(this, 'all')">All articles</button>
+                    <button onclick="markAsRead(this, 'day')">Older than one day</button>
+                    <button onclick="markAsRead(this, 'week')">Older than one week</button>
+                </div>
+            </div>
             {{if .CurrentFeed}}
-            <div class="dropdown">
-                <button class="btn btn-secondary dropdown-toggle" onclick="toggleDropdown(this)">
-                    Mark as Read
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                        <path d="M7 10l5 5 5-5z"/>
-                    </svg>
-                </button>
-                <div class="dropdown-menu">
-                    <button onclick="markFeedRead({{.CurrentFeed.ID}}, 'all')">All articles</button>
-                    <button onclick="markFeedRead({{.CurrentFeed.ID}}, 'day')">Older than one day</button>
-                    <button onclick="markFeedRead({{.CurrentFeed.ID}}, 'week')">Older than one week</button>
-                </div>
-            </div>
             <button onclick="refreshFeed({{.CurrentFeed.ID}})" class="btn btn-secondary">Refresh</button>
-            {{else if .CurrentCategory}}
-            <div class="dropdown">
-                <button class="btn btn-secondary dropdown-toggle" onclick="toggleDropdown(this)">
-                    Mark as Read
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                        <path d="M7 10l5 5 5-5z"/>
-                    </svg>
-                </button>
-                <div class="dropdown-menu">
-                    <button onclick="markCategoryRead({{.CurrentCategory.ID}}, 'all')">All articles</button>
-                    <button onclick="markCategoryRead({{.CurrentCategory.ID}}, 'day')">Older than one day</button>
-                    <button onclick="markCategoryRead({{.CurrentCategory.ID}}, 'week')">Older than one week</button>
-                </div>
-            </div>
-            {{else if eq .Title "All Unread"}}
-            <div class="dropdown">
-                <button class="btn btn-secondary dropdown-toggle" onclick="toggleDropdown(this)">
-                    Mark as Read
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                        <path d="M7 10l5 5 5-5z"/>
-                    </svg>
-                </button>
-                <div class="dropdown-menu">
-                    <button onclick="markAllRead('all')">All articles</button>
-                    <button onclick="markAllRead('day')">Older than one day</button>
-                    <button onclick="markAllRead('week')">Older than one week</button>
-                </div>
-            </div>
+            {{end}}
             {{end}}
         </div>
     </header>

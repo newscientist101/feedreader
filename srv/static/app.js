@@ -171,24 +171,26 @@ async function deleteFeed(id, name) {
     }
 }
 
-async function markAllRead(age = 'all') {
+async function markAsRead(btn, age = 'all') {
+    const dropdown = btn.closest('.dropdown');
+    const feedId = dropdown.dataset.feedId;
+    const categoryId = dropdown.dataset.categoryId;
+    
     try {
-        await api('POST', `/api/articles/read-all?age=${age}`);
+        let url;
+        if (feedId) {
+            url = `/api/feeds/${feedId}/read-all?age=${age}`;
+        } else if (categoryId) {
+            url = `/api/categories/${categoryId}/read-all?age=${age}`;
+        } else {
+            url = `/api/articles/read-all?age=${age}`;
+        }
+        
+        await api('POST', url);
         document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
         location.reload();
     } catch (e) {
-        console.error('Failed to mark all read:', e);
-    }
-}
-
-async function markFeedRead(id, age = 'all') {
-    try {
-        await api('POST', `/api/feeds/${id}/read-all?age=${age}`);
-        // Close dropdown
-        document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
-        location.reload();
-    } catch (e) {
-        console.error('Failed to mark feed read:', e);
+        console.error('Failed to mark as read:', e);
     }
 }
 
@@ -258,17 +260,6 @@ async function setFeedCategory(feedId, categoryId) {
     } catch (e) {
         console.error('Failed to set category:', e);
         alert('Failed to move feed');
-    }
-}
-
-async function markCategoryRead(id, age = 'all') {
-    try {
-        await api('POST', `/api/categories/${id}/read-all?age=${age}`);
-        // Close dropdown
-        document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
-        location.reload();
-    } catch (e) {
-        console.error('Failed to mark category read:', e);
     }
 }
 
