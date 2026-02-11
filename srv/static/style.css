@@ -261,6 +261,11 @@ body {
     display: flex;
     flex-direction: column;
     gap: 15px;
+    align-items: stretch;
+}
+
+.articles-list > .empty-state {
+    align-self: center;
 }
 
 /* View Toggle */
