@@ -948,6 +948,9 @@ th {
     min-height: calc(100vh - 200px);
     width: 100%;
     box-sizing: border-box;
+    position: absolute;
+    left: 0;
+    right: 0;
 }
 
 .empty-state svg {
