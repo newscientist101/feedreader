@@ -1114,8 +1114,14 @@ th {
     color: var(--text-primary);
 }
 
-.folder-item {
+.folder-row {
     position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.folder-row .folder-link {
+    flex: 1;
 }
 
 .folder-settings {
@@ -1131,7 +1137,7 @@ th {
     z-index: 1;
 }
 
-.folder-item:hover .folder-settings {
+.folder-row:hover .folder-settings {
     opacity: 1;
 }
 
