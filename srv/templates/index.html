@@ -67,7 +67,7 @@
             <div class="article-body" onclick="window.location='/article/{{.ID}}'" style="cursor: pointer;">
                 <div class="article-meta">
                     <span class="feed-name">{{.FeedName}}</span>
-                    <span class="article-date">{{timeAgo .PublishedAt}}</span>
+                    <span class="article-date" title="{{formatDate .PublishedAt}}">{{timeAgo .PublishedAt}}</span>
                 </div>
                 <h2 class="article-title">
                     {{if .Url}}<a href="{{deref .Url}}" target="_blank" onclick="event.stopPropagation();">{{.Title}}</a>{{else}}<a href="/article/{{.ID}}">{{.Title}}</a>{{end}}

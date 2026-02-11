@@ -22,7 +22,7 @@
             {{if .RetentionStats.OldestArticle}}
             <div class="retention-stat">
                 <span class="stat-label">Oldest Article</span>
-                <span class="stat-value">{{.RetentionStats.OldestArticle | timeAgo}}</span>
+                <span class="stat-value" title="{{.RetentionStats.OldestArticle | formatDate}}">{{.RetentionStats.OldestArticle | timeAgo}}</span>
             </div>
             {{end}}
         </div>

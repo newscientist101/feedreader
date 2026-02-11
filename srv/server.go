@@ -136,11 +136,12 @@ func (s *Server) Serve(addr string) error {
 // Template helpers
 func (s *Server) renderTemplate(w http.ResponseWriter, name string, data any) error {
 	funcMap := template.FuncMap{
-		"timeAgo":   timeAgo,
-		"truncate":  truncate,
-		"stripHTML": stripHTML,
-		"deref":     deref,
-		"safeHTML":  safeHTML,
+		"timeAgo":    timeAgo,
+		"formatDate": formatDate,
+		"truncate":   truncate,
+		"stripHTML":  stripHTML,
+		"deref":      deref,
+		"safeHTML":   safeHTML,
 	}
 	path := filepath.Join(s.TemplatesDir, name)
 	basePath := filepath.Join(s.TemplatesDir, "base.html")
@@ -183,6 +184,13 @@ func timeAgo(t *time.Time) string {
 	default:
 		return t.Format("Jan 2, 2006")
 	}
+}
+
+func formatDate(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return t.Format("Monday, January 2, 2006 at 3:04 PM")
 }
 
 func truncate(s string, n int) string {

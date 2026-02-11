@@ -140,7 +140,7 @@
                         </select>
                     </td>
                     <td>{{.FeedType}}</td>
-                    <td>{{if .LastFetchedAt}}{{timeAgo .LastFetchedAt}}{{else}}Never{{end}}</td>
+                    <td title="{{if .LastFetchedAt}}{{formatDate .LastFetchedAt}}{{end}}">{{if .LastFetchedAt}}{{timeAgo .LastFetchedAt}}{{else}}Never{{end}}</td>
                     <td>
                         {{if .LastError}}
                         <span class="status-error" title="{{deref .LastError}}">Error</span>
