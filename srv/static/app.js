@@ -226,6 +226,11 @@ async function loadCategoryArticles(categoryId, categoryName) {
     // Update page title immediately for responsiveness
     document.querySelector('.view-header h1').textContent = categoryName;
     document.title = `${categoryName} - FeedReader`;
+
+    const articlesView = document.querySelector('.articles-view');
+    if (articlesView) {
+        articlesView.dataset.viewScope = 'folder';
+    }
     
     // Update active states in sidebar
     document.querySelectorAll('.feed-item.active').forEach(el => el.classList.remove('active'));
@@ -254,7 +259,8 @@ async function loadCategoryArticles(categoryId, categoryName) {
         // Remove any feed error banner
         const errorBanner = document.querySelector('.feed-error-banner');
         if (errorBanner) errorBanner.remove();
-        
+
+        applyDefaultViewForScope('folder');
     } catch (e) {
         console.error('Failed to load category articles:', e);
     }
@@ -397,19 +403,25 @@ function migrateLegacyViewDefaults() {
     }
 }
 
+function getDefaultViewForScope(scope) {
+    if (scope === 'folder') {
+        return localStorage.getItem('defaultFolderView') || 'card';
+    }
+    if (scope === 'feed') {
+        return localStorage.getItem('defaultFeedView') || 'card';
+    }
+    return localStorage.getItem('feedreader-view') || 'card';
+}
+
+function applyDefaultViewForScope(scope) {
+    const savedView = getDefaultViewForScope(scope);
+    setView(savedView);
+}
+
 // Initialize view on page load
 function initView() {
     migrateLegacyViewDefaults();
-    const scope = getViewScope();
-    let savedView = 'card';
-    if (scope === 'folder') {
-        savedView = localStorage.getItem('defaultFolderView') || 'card';
-    } else if (scope === 'feed') {
-        savedView = localStorage.getItem('defaultFeedView') || 'card';
-    } else {
-        savedView = localStorage.getItem('feedreader-view') || 'card';
-    }
-    setView(savedView);
+    applyDefaultViewForScope(getViewScope());
 }
 
 // Close sidebar when clicking a link on mobile
