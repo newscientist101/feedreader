@@ -152,7 +152,8 @@ func (s *Server) renderTemplate(w http.ResponseWriter, name string, data any) er
 		"truncate":   truncate,
 		"stripHTML":  stripHTML,
 		"deref":      deref,
-		"safeHTML":   safeHTML,
+		"safeHTML":          safeHTML,
+		"stripLeadingImage": stripLeadingImage,
 		"multiply":   func(a, b int) int { return a * b },
 	}
 	path := filepath.Join(s.TemplatesDir, name)
@@ -1040,6 +1041,27 @@ func deref(p any) any {
 
 func safeHTML(s string) template.HTML {
 	return template.HTML(s)
+}
+
+// stripLeadingImage removes the first <img> tag from content if its src matches the given URL
+func stripLeadingImage(content string, imageURL string) string {
+	if imageURL == "" {
+		return content
+	}
+	trimmed := strings.TrimSpace(content)
+	if !strings.HasPrefix(trimmed, "<img") {
+		return content
+	}
+	// Find the end of the first img tag
+	end := strings.Index(trimmed, ">")
+	if end == -1 {
+		return content
+	}
+	imgTag := trimmed[:end+1]
+	if strings.Contains(imgTag, imageURL) {
+		return strings.TrimSpace(trimmed[end+1:])
+	}
+	return content
 }
 
 // Category handlers

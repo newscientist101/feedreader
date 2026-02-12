@@ -43,7 +43,7 @@
 
         <div class="article-body">
             {{if .Article.Content}}
-            {{deref .Article.Content | safeHTML}}
+            {{if .Article.ImageUrl}}{{stripLeadingImage (deref .Article.Content) (deref .Article.ImageUrl) | safeHTML}}{{else}}{{deref .Article.Content | safeHTML}}{{end}}
             {{else if .Article.Summary}}
             {{deref .Article.Summary | safeHTML}}
             {{else}}
