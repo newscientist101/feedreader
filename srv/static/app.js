@@ -179,6 +179,22 @@ function toggleSidebar() {
     document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
 }
 
+// Toggle folder expand/collapse in sidebar
+function toggleFolder(event, categoryId) {
+    const folderItem = document.querySelector(`.folder-item[data-category-id="${categoryId}"]`);
+    if (!folderItem) return true; // Let the link navigate
+    
+    // If already expanded, collapse it and prevent navigation
+    if (folderItem.classList.contains('expanded')) {
+        event.preventDefault();
+        folderItem.classList.remove('expanded');
+        return false;
+    }
+    
+    // Otherwise, let the link navigate normally (which will expand it server-side)
+    return true;
+}
+
 // View mode switching
 function setView(view) {
     const list = document.getElementById('articles-list');
