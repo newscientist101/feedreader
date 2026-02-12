@@ -500,7 +500,7 @@ body {
 }
 
 .view-expanded .article-card {
-    padding: 15px 18px;
+    padding: 12px 15px;
 }
 
 .view-expanded .article-card.has-image {
@@ -509,8 +509,7 @@ body {
     grid-template-rows: 1fr;
     align-items: stretch;
     gap: 15px;
-    padding: 12px;
-    padding-left: 0;
+    padding: 12px 15px 12px 0;
 }
 
 .view-expanded .article-image {
