@@ -758,6 +758,23 @@ body {
     to { transform: rotate(360deg); }
 }
 
+/* Loading state for articles list */
+.loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: var(--text-secondary);
+}
+
+.loading-state .spinner {
+    width: 32px;
+    height: 32px;
+    border-width: 3px;
+    margin-bottom: 15px;
+}
+
 .success-icon {
     color: #22c55e;
     font-weight: bold;

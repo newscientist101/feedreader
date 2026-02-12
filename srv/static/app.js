@@ -209,19 +209,30 @@ function toggleFolder(event, categoryId) {
 }
 
 async function loadCategoryArticles(categoryId, categoryName) {
+    // Show loading state immediately
+    const list = document.getElementById('articles-list');
+    if (list) {
+        list.innerHTML = `
+            <div class="loading-state">
+                <div class="spinner"></div>
+                <p>Loading articles...</p>
+            </div>
+        `;
+    }
+    
+    // Update page title immediately for responsiveness
+    document.querySelector('.view-header h1').textContent = categoryName;
+    document.title = `${categoryName} - FeedReader`;
+    
+    // Update active states in sidebar
+    document.querySelectorAll('.feed-item.active').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.nav-item.active').forEach(el => el.classList.remove('active'));
+    
     try {
         const data = await api('GET', `/api/categories/${categoryId}/articles`);
         
         // Update URL without reload
         history.pushState({ categoryId }, categoryName, `/category/${categoryId}`);
-        
-        // Update page title
-        document.querySelector('.view-header h1').textContent = categoryName;
-        document.title = `${categoryName} - FeedReader`;
-        
-        // Update active states in sidebar
-        document.querySelectorAll('.feed-item.active').forEach(el => el.classList.remove('active'));
-        document.querySelectorAll('.nav-item.active').forEach(el => el.classList.remove('active'));
         
         // Render articles
         renderArticles(data.articles);
@@ -262,7 +273,8 @@ function renderArticles(articles) {
         return;
     }
     
-    list.innerHTML = articles.map(a => `
+    // Build HTML in chunks to avoid UI blocking
+    const html = articles.map(a => `
         <article class="article-card ${a.is_read ? 'read' : ''}${a.image_url ? ' has-image' : ''}" data-id="${a.id}">
             <div class="article-image-placeholder magazine-only">
                 <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
