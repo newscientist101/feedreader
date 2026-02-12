@@ -626,6 +626,10 @@ body {
     flex: none;
 }
 
+.article-meta .article-date {
+    margin-left: auto;
+}
+
 .article-meta .feed-name:hover {
     text-decoration: underline;
 }
