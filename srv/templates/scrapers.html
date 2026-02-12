@@ -78,8 +78,15 @@
                 <input type="text" id="scraper-description" placeholder="Scrapes articles from example.com">
             </div>
             <div class="form-group">
-                <label for="scraper-script">Configuration (JSON)</label>
-                <textarea id="scraper-script" rows="12" placeholder='{
+                <label for="scraper-script">
+                    Configuration (JSON)
+                    <button type="button" class="btn-help" onclick="toggleSchemaPanel()" title="Show schema reference">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>
+                        Schema
+                    </button>
+                </label>
+                <div class="config-editor-wrapper">
+                    <textarea id="scraper-script" rows="12" placeholder='{
   "itemSelector": "article.post",
   "titleSelector": "h2.title",
   "urlSelector": "a.permalink",
@@ -91,47 +98,49 @@
   "dateAttr": "datetime",
   "baseUrl": "https://example.com"
 }'></textarea>
+                    <div id="schema-panel" class="schema-panel" style="display: none;">
+                        <div class="schema-panel-header">
+                            <strong>Schema Reference</strong>
+                            <button type="button" class="schema-close" onclick="toggleSchemaPanel()">&times;</button>
+                        </div>
+                        <div id="schema-html" class="schema-content">
+                            <h4>HTML Scraper (CSS Selectors)</h4>
+                            <dl>
+                                <dt>itemSelector</dt><dd>CSS selector for each item container <em>(required)</em></dd>
+                                <dt>titleSelector</dt><dd>Selector for title element (text content)</dd>
+                                <dt>urlSelector</dt><dd>Selector for link element</dd>
+                                <dt>urlAttr</dt><dd>Attribute for URL <em>(default: href)</em></dd>
+                                <dt>summarySelector</dt><dd>Selector for description text</dd>
+                                <dt>authorSelector</dt><dd>Selector for author name</dd>
+                                <dt>imageSelector</dt><dd>Selector for image element</dd>
+                                <dt>imageAttr</dt><dd>Attribute for image URL <em>(default: src)</em></dd>
+                                <dt>dateSelector</dt><dd>Selector for date element</dd>
+                                <dt>dateAttr</dt><dd>Attribute for date (text content if empty)</dd>
+                                <dt>baseUrl</dt><dd>Base URL for relative links</dd>
+                            </dl>
+                        </div>
+                        <div id="schema-json" class="schema-content" style="display: none;">
+                            <h4>JSON API Scraper</h4>
+                            <dl>
+                                <dt>type</dt><dd>Must be <code>"json"</code> <em>(required)</em></dd>
+                                <dt>itemsPath</dt><dd>Dot path to items array <em>(e.g. "data.items")</em></dd>
+                                <dt>titlePath</dt><dd>Dot path to title</dd>
+                                <dt>urlPath</dt><dd>Dot path to URL</dd>
+                                <dt>summaryPath</dt><dd>Dot path to summary/description</dd>
+                                <dt>contentPath</dt><dd>Dot path to full content</dd>
+                                <dt>authorPath</dt><dd>Dot path to author</dd>
+                                <dt>imagePath</dt><dd>Dot path to image URL</dd>
+                                <dt>datePath</dt><dd>Dot path to date/timestamp</dd>
+                                <dt>guidPath</dt><dd>Dot path to unique ID</dd>
+                                <dt>baseUrl</dt><dd>Base URL for relative links</dd>
+                                <dt>consolidateDuplicates</dt><dd>Merge consecutive same-title items <em>(boolean)</em></dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
             </div>
             <button type="submit" class="btn btn-primary">Create Scraper</button>
         </form>
-
-        <details class="config-help">
-            <summary>Configuration Help</summary>
-            <div class="help-content">
-                <h4>HTML Scraper (CSS Selectors)</h4>
-                <p>For scraping HTML pages using CSS selectors:</p>
-                <ul>
-                    <li><code>itemSelector</code> - CSS selector for each item container (required)</li>
-                    <li><code>titleSelector</code> - Selector for the title element (text content is used)</li>
-                    <li><code>urlSelector</code> - Selector for the link element</li>
-                    <li><code>urlAttr</code> - Attribute to extract URL from (default: <code>href</code>)</li>
-                    <li><code>summarySelector</code> - Selector for description text (optional)</li>
-                    <li><code>authorSelector</code> - Selector for author name (optional)</li>
-                    <li><code>imageSelector</code> - Selector for image element (optional)</li>
-                    <li><code>imageAttr</code> - Attribute to extract image URL from (default: <code>src</code>)</li>
-                    <li><code>dateSelector</code> - Selector for date element (optional)</li>
-                    <li><code>dateAttr</code> - Attribute to extract date from (if empty, uses text content)</li>
-                    <li><code>baseUrl</code> - Base URL for resolving relative links</li>
-                </ul>
-
-                <h4>JSON Scraper</h4>
-                <p>For scraping JSON APIs. Set <code>"type": "json"</code> to enable:</p>
-                <ul>
-                    <li><code>type</code> - Must be <code>"json"</code></li>
-                    <li><code>itemsPath</code> - Dot-separated path to the items array (e.g. <code>"data.items"</code>)</li>
-                    <li><code>titlePath</code> - Dot-separated path to title within each item</li>
-                    <li><code>urlPath</code> - Path to URL</li>
-                    <li><code>summaryPath</code> - Path to summary/description</li>
-                    <li><code>contentPath</code> - Path to full content</li>
-                    <li><code>authorPath</code> - Path to author</li>
-                    <li><code>imagePath</code> - Path to image URL</li>
-                    <li><code>datePath</code> - Path to date/timestamp</li>
-                    <li><code>guidPath</code> - Path to unique ID</li>
-                    <li><code>baseUrl</code> - Base URL for resolving relative links</li>
-                    <li><code>consolidateDuplicates</code> - Merge consecutive items with same title, deduping sentences (boolean)</li>
-                </ul>
-            </div>
-        </details>
     </section>
 
     <section class="existing-scrapers">
@@ -315,7 +324,20 @@ document.getElementById('add-scraper-form').addEventListener('submit', async (e)
     }
 });
 
+function toggleSchemaPanel() {
+    const panel = document.getElementById('schema-panel');
+    panel.style.display = panel.style.display === 'none' ? '' : 'none';
+    updateSchemaContent();
+}
+
+function updateSchemaContent() {
+    const type = document.getElementById('script-type').value;
+    document.getElementById('schema-html').style.display = type === 'json-api' ? 'none' : '';
+    document.getElementById('schema-json').style.display = type === 'json-api' ? '' : 'none';
+}
+
 function updateConfigTemplate() {
+    updateSchemaContent();
     const type = document.getElementById('script-type').value;
     const textarea = document.getElementById('scraper-script');
     if (type === 'json-api') {
