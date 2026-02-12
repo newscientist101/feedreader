@@ -613,7 +613,29 @@ async function saveFeed(event) {
             fetch_interval_minutes: interval
         });
         closeEditModal();
-        location.reload();
+        
+        // Update the row in place instead of reloading
+        const row = document.querySelector(`tr[data-feed-id="${id}"]`);
+        if (row) {
+            const cells = row.querySelectorAll('td');
+            if (cells[0]) {
+                const link = cells[0].querySelector('a');
+                if (link) link.textContent = name;
+            }
+            if (cells[1]) {
+                const link = cells[1].querySelector('a');
+                if (link) {
+                    link.href = url;
+                    link.textContent = url.length > 40 ? url.substring(0, 40) + '...' : url;
+                }
+            }
+        }
+        
+        // Also update sidebar if visible
+        const sidebarItem = document.querySelector(`.feed-item[href="/feed/${id}"] .feed-name`);
+        if (sidebarItem) {
+            sidebarItem.textContent = name;
+        }
     } catch (e) {
         console.error('Failed to save feed:', e);
         alert('Failed to save feed');
