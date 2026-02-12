@@ -294,6 +294,9 @@ async function deleteScraper(id) {
 // Manual scraper form
 document.getElementById('add-scraper-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    if (btn.disabled) return;
+    btn.disabled = true;
     
     const name = document.getElementById('scraper-name').value;
     const description = document.getElementById('scraper-description').value;
@@ -320,9 +323,11 @@ document.getElementById('add-scraper-form').addEventListener('submit', async (e)
         } else {
             const data = await resp.json();
             alert(data.error || 'Failed to create scraper');
+            btn.disabled = false;
         }
     } catch (err) {
         alert('Failed to create: ' + err.message);
+        btn.disabled = false;
     }
 });
 
