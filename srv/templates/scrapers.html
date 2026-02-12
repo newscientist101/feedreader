@@ -159,7 +159,7 @@
                 <p class="scraper-description">{{.Description}}</p>
                 {{end}}
                 <div class="scraper-actions">
-                    <button onclick="viewScraperConfig({{.ID}})" class="btn btn-small">View Config</button>
+                    <button onclick="editScraper({{.ID}})" class="btn btn-small">Edit</button>
                     <button onclick="deleteScraper({{.ID}})" class="btn btn-small btn-danger">Delete</button>
                 </div>
             </div>
@@ -174,10 +174,26 @@
 <div id="config-modal" class="modal" style="display: none;">
     <div class="modal-content">
         <div class="modal-header">
-            <h3 id="modal-title">Scraper Configuration</h3>
+            <h3 id="modal-title">Edit Scraper</h3>
             <button onclick="closeConfigModal()" class="modal-close">&times;</button>
         </div>
-        <pre id="modal-config"></pre>
+        <input type="hidden" id="modal-scraper-id">
+        <div class="form-group">
+            <label for="modal-scraper-name">Name</label>
+            <input type="text" id="modal-scraper-name" required>
+        </div>
+        <div class="form-group">
+            <label for="modal-scraper-description">Description</label>
+            <input type="text" id="modal-scraper-description">
+        </div>
+        <div class="form-group">
+            <label for="modal-scraper-script">Configuration (JSON)</label>
+            <textarea id="modal-scraper-script" rows="12" spellcheck="false"></textarea>
+        </div>
+        <div class="modal-actions">
+            <button onclick="saveScraperConfig()" class="btn btn-primary">Save</button>
+            <button onclick="closeConfigModal()" class="btn btn-secondary">Cancel</button>
+        </div>
     </div>
 </div>
 
@@ -253,21 +269,54 @@ function hideAIResult() {
     document.getElementById('ai-result').style.display = 'none';
 }
 
-async function viewScraperConfig(id) {
+async function editScraper(id) {
     try {
         const resp = await fetch(`/api/scrapers/${id}`);
         const scraper = await resp.json();
         
-        document.getElementById('modal-title').textContent = scraper.name;
+        document.getElementById('modal-scraper-id').value = scraper.id;
+        document.getElementById('modal-scraper-name').value = scraper.name;
+        document.getElementById('modal-scraper-description').value = scraper.description || '';
         try {
             const config = JSON.parse(scraper.script);
-            document.getElementById('modal-config').textContent = JSON.stringify(config, null, 2);
+            document.getElementById('modal-scraper-script').value = JSON.stringify(config, null, 2);
         } catch {
-            document.getElementById('modal-config').textContent = scraper.script;
+            document.getElementById('modal-scraper-script').value = scraper.script;
         }
         document.getElementById('config-modal').style.display = 'flex';
     } catch (err) {
         alert('Failed to load scraper: ' + err.message);
+    }
+}
+
+async function saveScraperConfig() {
+    const id = document.getElementById('modal-scraper-id').value;
+    const name = document.getElementById('modal-scraper-name').value;
+    const description = document.getElementById('modal-scraper-description').value;
+    const script = document.getElementById('modal-scraper-script').value;
+
+    try {
+        JSON.parse(script);
+    } catch (err) {
+        alert('Invalid JSON: ' + err.message);
+        return;
+    }
+
+    try {
+        const resp = await fetch(`/api/scrapers/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, description, script })
+        });
+        if (resp.ok) {
+            window.location.href = '/scrapers';
+        } else {
+            let msg = 'Failed to save';
+            try { const data = await resp.json(); msg = data.error || msg; } catch {}
+            alert(msg);
+        }
+    } catch (err) {
+        alert('Failed to save: ' + err.message);
     }
 }
 

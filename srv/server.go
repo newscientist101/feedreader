@@ -945,6 +945,7 @@ func (s *Server) apiCreateScraper(w http.ResponseWriter, r *http.Request) {
 func (s *Server) apiUpdateScraper(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	q := dbgen.New(s.DB)
+	user := GetUser(ctx)
 
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -969,12 +970,16 @@ func (s *Server) apiUpdateScraper(w http.ResponseWriter, r *http.Request) {
 		desc = &req.Description
 	}
 
+	if req.ScriptType == "" {
+		req.ScriptType = "json"
+	}
 	if err := q.UpdateScraperModule(ctx, dbgen.UpdateScraperModuleParams{
 		ID:          id,
 		Name:        req.Name,
 		Description: desc,
 		Script:      req.Script,
 		ScriptType:  req.ScriptType,
+		UserID:      &user.ID,
 	}); err != nil {
 		jsonError(w, "Failed to update scraper", 500)
 		return
