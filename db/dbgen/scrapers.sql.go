@@ -12,6 +12,11 @@ import (
 const createScraperModule = `-- name: CreateScraperModule :one
 INSERT INTO scraper_modules (name, description, script, script_type, user_id)
 VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(name) DO UPDATE SET
+  description = excluded.description,
+  script = excluded.script,
+  script_type = excluded.script_type,
+  updated_at = datetime('now')
 RETURNING id, name, description, script, script_type, enabled, created_at, updated_at, user_id
 `
 
