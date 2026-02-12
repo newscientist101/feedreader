@@ -287,14 +287,77 @@ async function toggleStar(id) {
 
 // Feed actions
 async function refreshFeed(id) {
+    // Find and update all refresh buttons for this feed
+    const buttons = document.querySelectorAll(`[onclick="refreshFeed(${id})"]`);
+    const originalContents = [];
+    
+    buttons.forEach((btn, i) => {
+        originalContents[i] = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> Fetching...';
+    });
+    
     try {
+        // Get current status to compare later
+        const beforeStatus = await api('GET', `/api/feeds/${id}/status`);
+        const beforeFetched = beforeStatus.lastFetched;
+        
+        // Start the refresh
         await api('POST', `/api/feeds/${id}/refresh`);
-        // Update counts after a short delay to allow fetch to complete
-        setTimeout(updateCounts, 3000);
-        setTimeout(updateCounts, 10000);
+        
+        // Poll for completion
+        let attempts = 0;
+        const maxAttempts = 30; // 30 seconds max
+        
+        const checkStatus = async () => {
+            attempts++;
+            const status = await api('GET', `/api/feeds/${id}/status`);
+            
+            // Check if fetch completed (timestamp changed)
+            if (status.lastFetched !== beforeFetched) {
+                // Fetch completed
+                buttons.forEach((btn, i) => {
+                    btn.disabled = false;
+                    if (status.lastError) {
+                        btn.innerHTML = '<span class="error-icon">✗</span> Error';
+                        btn.title = status.lastError;
+                    } else {
+                        btn.innerHTML = '<span class="success-icon">✓</span> Done';
+                    }
+                    // Restore original after 2 seconds
+                    setTimeout(() => {
+                        btn.innerHTML = originalContents[i];
+                        btn.title = '';
+                    }, 2000);
+                });
+                updateCounts();
+                return;
+            }
+            
+            if (attempts < maxAttempts) {
+                setTimeout(checkStatus, 1000);
+            } else {
+                // Timeout - restore buttons
+                buttons.forEach((btn, i) => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalContents[i];
+                });
+                updateCounts();
+            }
+        };
+        
+        // Start polling after 1 second
+        setTimeout(checkStatus, 1000);
+        
     } catch (e) {
         console.error('Failed to refresh feed:', e);
-        alert('Failed to refresh feed');
+        buttons.forEach((btn, i) => {
+            btn.disabled = false;
+            btn.innerHTML = '<span class="error-icon">✗</span> Failed';
+            setTimeout(() => {
+                btn.innerHTML = originalContents[i];
+            }, 2000);
+        });
     }
 }
 

@@ -87,6 +87,7 @@ func (s *Server) Serve(addr string) error {
 
 	// API endpoints
 	mux.HandleFunc("GET /api/counts", s.apiGetCounts)
+	mux.HandleFunc("GET /api/feeds/{id}/status", s.apiGetFeedStatus)
 	mux.HandleFunc("POST /api/feeds", s.apiCreateFeed)
 	mux.HandleFunc("DELETE /api/feeds/{id}", s.apiDeleteFeed)
 	mux.HandleFunc("POST /api/feeds/{id}/refresh", s.apiRefreshFeed)
@@ -557,6 +558,39 @@ func (s *Server) apiGetCounts(w http.ResponseWriter, r *http.Request) {
 		"starred":    starredCount,
 		"feeds":      feedCounts,
 		"categories": catCounts,
+	})
+}
+
+func (s *Server) apiGetFeedStatus(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	feedID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid feed ID", 400)
+		return
+	}
+
+	feed, err := q.GetFeed(ctx, dbgen.GetFeedParams{ID: feedID, UserID: &user.ID})
+	if err != nil {
+		jsonError(w, "Feed not found", 404)
+		return
+	}
+
+	var lastFetched, lastError string
+	if feed.LastFetchedAt != nil {
+		lastFetched = feed.LastFetchedAt.Format(time.RFC3339)
+	}
+	if feed.LastError != nil {
+		lastError = *feed.LastError
+	}
+
+	jsonResponse(w, map[string]any{
+		"id":           feed.ID,
+		"name":         feed.Name,
+		"lastFetched": lastFetched,
+		"lastError":    lastError,
 	})
 }
 
