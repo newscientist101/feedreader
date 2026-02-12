@@ -181,18 +181,160 @@ function toggleSidebar() {
 
 // Toggle folder expand/collapse in sidebar
 function toggleFolder(event, categoryId) {
+    event.preventDefault();
     const folderItem = document.querySelector(`.folder-item[data-category-id="${categoryId}"]`);
-    if (!folderItem) return true; // Let the link navigate
+    if (!folderItem) return false;
     
-    // If already expanded, collapse it and prevent navigation
+    // If already expanded, collapse it
     if (folderItem.classList.contains('expanded')) {
-        event.preventDefault();
         folderItem.classList.remove('expanded');
+        folderItem.querySelector('.folder-link')?.classList.remove('active');
         return false;
     }
     
-    // Otherwise, let the link navigate normally (which will expand it server-side)
-    return true;
+    // Collapse other folders
+    document.querySelectorAll('.folder-item.expanded').forEach(item => {
+        item.classList.remove('expanded');
+        item.querySelector('.folder-link')?.classList.remove('active');
+    });
+    
+    // Expand this folder
+    folderItem.classList.add('expanded');
+    folderItem.querySelector('.folder-link')?.classList.add('active');
+    
+    // Load category articles via AJAX
+    loadCategoryArticles(categoryId, folderItem.querySelector('.folder-name')?.textContent || 'Category');
+    
+    return false;
+}
+
+async function loadCategoryArticles(categoryId, categoryName) {
+    try {
+        const data = await api('GET', `/api/categories/${categoryId}/articles`);
+        
+        // Update URL without reload
+        history.pushState({ categoryId }, categoryName, `/category/${categoryId}`);
+        
+        // Update page title
+        document.querySelector('.view-header h1').textContent = categoryName;
+        document.title = `${categoryName} - FeedReader`;
+        
+        // Update active states in sidebar
+        document.querySelectorAll('.feed-item.active').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.nav-item.active').forEach(el => el.classList.remove('active'));
+        
+        // Render articles
+        renderArticles(data.articles);
+        
+        // Update the Mark as Read dropdown
+        const dropdown = document.querySelector('.dropdown');
+        if (dropdown) {
+            dropdown.dataset.feedId = '';
+            dropdown.dataset.categoryId = categoryId;
+        }
+        
+        // Hide the Refresh button (it's only for feeds)
+        const refreshBtn = document.querySelector('.btn-warning[data-feed-id]');
+        if (refreshBtn) refreshBtn.style.display = 'none';
+        
+        // Remove any feed error banner
+        const errorBanner = document.querySelector('.feed-error-banner');
+        if (errorBanner) errorBanner.remove();
+        
+    } catch (e) {
+        console.error('Failed to load category articles:', e);
+    }
+}
+
+function renderArticles(articles) {
+    const list = document.getElementById('articles-list');
+    if (!list) return;
+    
+    if (!articles || articles.length === 0) {
+        list.innerHTML = `
+            <div class="empty-state">
+                <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" opacity="0.3">
+                    <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>
+                </svg>
+                <p>No articles to show</p>
+            </div>
+        `;
+        return;
+    }
+    
+    list.innerHTML = articles.map(a => `
+        <article class="article-card ${a.is_read ? 'read' : ''}${a.image_url ? ' has-image' : ''}" data-id="${a.id}">
+            <div class="article-image-placeholder magazine-only">
+                <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
+                    <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                </svg>
+            </div>
+            ${a.image_url ? `<div class="article-image expanded-only"><img src="${a.image_url}" alt="" loading="lazy"></div>` : ''}
+            <div class="article-body" onclick="window.location='/article/${a.id}'" style="cursor: pointer;">
+                <div class="article-meta">
+                    <span class="feed-name">${a.feed_name || ''}</span>
+                    <span class="article-date">${formatTimeAgo(a.published_at)}</span>
+                </div>
+                <h2 class="article-title">
+                    ${a.url ? `<a href="${a.url}" target="_blank" onclick="event.stopPropagation();">${a.title}</a>` : `<a href="/article/${a.id}">${a.title}</a>`}
+                </h2>
+                ${a.summary ? `<p class="article-summary">${truncateText(stripHtml(a.summary), 200)}</p>` : ''}
+                <div class="article-actions">
+                    <button onclick="${a.is_read ? 'markUnread' : 'markRead'}(${a.id})" class="btn-icon" title="${a.is_read ? 'Mark unread' : 'Mark read'}">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                            ${a.is_read 
+                                ? '<path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V8l8 5 8-5v10zm-8-7L4 6h16l-8 5z"/>'
+                                : '<path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>'
+                            }
+                        </svg>
+                    </button>
+                    <button onclick="toggleStar(${a.id})" class="btn-icon ${a.is_starred ? 'starred' : ''}" title="Star">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                            ${a.is_starred
+                                ? '<path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>'
+                                : '<path d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>'
+                            }
+                        </svg>
+                    </button>
+                    ${a.url ? `<a href="${a.url}" target="_blank" class="btn-icon" title="Open original">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                            <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+                        </svg>
+                    </a>` : ''}
+                </div>
+            </div>
+        </article>
+    `).join('');
+    
+    // Re-apply user preferences (hide read, etc.)
+    applyUserPreferences();
+}
+
+function formatTimeAgo(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+}
+
+function stripHtml(html) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    return tmp.textContent || tmp.innerText || '';
+}
+
+function truncateText(text, maxLen) {
+    if (!text || text.length <= maxLen) return text;
+    return text.substring(0, maxLen) + '...';
 }
 
 // View mode switching

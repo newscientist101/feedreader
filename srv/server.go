@@ -106,6 +106,7 @@ func (s *Server) Serve(addr string) error {
 
 	// Category endpoints
 	mux.HandleFunc("GET /category/{id}", s.handleCategoryArticles)
+	mux.HandleFunc("GET /api/categories/{id}/articles", s.apiGetCategoryArticles)
 	mux.HandleFunc("POST /api/categories", s.apiCreateCategory)
 	mux.HandleFunc("PUT /api/categories/{id}", s.apiUpdateCategory)
 	mux.HandleFunc("DELETE /api/categories/{id}", s.apiDeleteCategory)
@@ -1054,6 +1055,47 @@ func (s *Server) handleCategoryArticles(w http.ResponseWriter, r *http.Request) 
 		slog.Warn("render template", "error", err)
 		http.Error(w, "Internal Server Error", 500)
 	}
+}
+
+func (s *Server) apiGetCategoryArticles(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	catID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid category ID", 400)
+		return
+	}
+
+	categories, _ := q.ListCategories(ctx, &user.ID)
+	var category *dbgen.Category
+	for _, c := range categories {
+		if c.ID == catID {
+			catCopy := c
+			category = &catCopy
+			break
+		}
+	}
+	if category == nil {
+		jsonError(w, "Category not found", 404)
+		return
+	}
+
+	articles, _ := q.ListUnreadArticlesByCategory(ctx, dbgen.ListUnreadArticlesByCategoryParams{
+		CategoryID: catID,
+		UserID:     &user.ID,
+		Limit:      100,
+		Offset:     0,
+	})
+
+	// Apply exclusion filters
+	filteredArticles := s.FilterArticlesByCategory(ctx, articles, catID, user.ID)
+
+	jsonResponse(w, map[string]any{
+		"category": category,
+		"articles": filteredArticles,
+	})
 }
 
 func (s *Server) apiCreateCategory(w http.ResponseWriter, r *http.Request) {
