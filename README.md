@@ -52,18 +52,25 @@ mitmdump \
 
 Then browse to `http://localhost:3000/`.
 
-To view as a specific existing user, look up their credentials from the
-database and use those in the headers:
+To view as a specific existing user, look up their credentials:
 
 ```bash
 sqlite3 db.sqlite3 "SELECT external_id, email FROM users;"
+```
 
+Then use the matching `external_id` and `email` in the headers:
+
+```bash
 mitmdump \
   --mode reverse:http://localhost:8000 \
   --listen-port 3000 \
-  --set modify_headers='/~q/X-Exedev-Email/adam.atomboy@gmail.com' \
-  --set modify_headers='/~q/X-Exedev-Userid/usrWLLDRIQELLLW5'
+  --set modify_headers='/~q/X-Exedev-Email/<EMAIL>' \
+  --set modify_headers='/~q/X-Exedev-Userid/<EXTERNAL_ID>'
 ```
+
+**Note:** When viewing the app (e.g. for development or testing), always
+use the real user's credentials from the database so you see their actual
+feeds, folders, and read state.
 
 Alternatively, set the `DEV` environment variable to skip auth entirely
 (the app will use a built-in dev user):
