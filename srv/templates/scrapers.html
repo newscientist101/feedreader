@@ -59,7 +59,7 @@
 
     <section class="manual-scraper-section">
         <h2>Create Scraper Manually</h2>
-        <form id="add-scraper-form" class="scraper-form">
+        <form id="add-scraper-form" class="scraper-form" action="javascript:void(0)">
             <div class="form-row">
                 <div class="form-group">
                     <label for="scraper-name">Name</label>
@@ -314,9 +314,11 @@ document.getElementById('add-scraper-form').addEventListener('submit', async (e)
     }
     
     try {
+        const reqId = crypto.randomUUID();
+        console.log('Submitting scraper, reqId:', reqId);
         const resp = await fetch('/api/scrapers', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-Request-Id': reqId },
             body: JSON.stringify({ name, description, script, script_type: scriptType })
         });
         

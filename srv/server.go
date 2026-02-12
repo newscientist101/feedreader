@@ -921,7 +921,8 @@ func (s *Server) apiCreateScraper(w http.ResponseWriter, r *http.Request) {
 		desc = &req.Description
 	}
 
-	slog.Info("creating scraper module", "name", req.Name, "user_id", user.ID)
+	reqID := r.Header.Get("X-Request-Id")
+	slog.Info("creating scraper module", "name", req.Name, "user_id", user.ID, "request_id", reqID, "remote", r.RemoteAddr, "user_agent", r.UserAgent())
 	module, err := q.CreateScraperModule(ctx, dbgen.CreateScraperModuleParams{
 		Name:        req.Name,
 		Description: desc,
