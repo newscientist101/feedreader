@@ -90,6 +90,8 @@ body {
     font-size: 0.75rem;
     font-weight: 600;
     margin-left: auto;
+    min-width: 24px;
+    text-align: center;
 }
 
 .badge:empty {
@@ -99,6 +101,7 @@ body {
 .badge.small {
     padding: 1px 6px;
     font-size: 0.7rem;
+    min-width: 20px;
 }
 
 .badge.pending {
