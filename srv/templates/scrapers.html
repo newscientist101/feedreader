@@ -107,35 +107,35 @@
                         <div id="schema-html" class="schema-content">
                             <h4>HTML Scraper (CSS Selectors)</h4>
                             <dl>
-                                <dt>type</dt><dd>Must be <code>"html"</code> <em>(required)</em></dd>
-                                <dt>itemSelector</dt><dd>CSS selector for each item container <em>(required)</em></dd>
-                                <dt>titleSelector</dt><dd>Selector for title element (text content)</dd>
-                                <dt>urlSelector</dt><dd>Selector for link element</dd>
-                                <dt>urlAttr</dt><dd>Attribute for URL <em>(default: href)</em></dd>
-                                <dt>summarySelector</dt><dd>Selector for description text</dd>
-                                <dt>authorSelector</dt><dd>Selector for author name</dd>
-                                <dt>imageSelector</dt><dd>Selector for image element</dd>
-                                <dt>imageAttr</dt><dd>Attribute for image URL <em>(default: src)</em></dd>
-                                <dt>dateSelector</dt><dd>Selector for date element</dd>
-                                <dt>dateAttr</dt><dd>Attribute for date (text content if empty)</dd>
-                                <dt>baseUrl</dt><dd>Base URL for relative links</dd>
+                                <dt onclick="insertField('type', 'html')">type</dt><dd>Must be <code>"html"</code> <em>(required)</em></dd>
+                                <dt onclick="insertField('itemSelector')">itemSelector</dt><dd>CSS selector for each item container <em>(required)</em></dd>
+                                <dt onclick="insertField('titleSelector')">titleSelector</dt><dd>Selector for title element (text content)</dd>
+                                <dt onclick="insertField('urlSelector')">urlSelector</dt><dd>Selector for link element</dd>
+                                <dt onclick="insertField('urlAttr', 'href')">urlAttr</dt><dd>Attribute for URL <em>(default: href)</em></dd>
+                                <dt onclick="insertField('summarySelector')">summarySelector</dt><dd>Selector for description text</dd>
+                                <dt onclick="insertField('authorSelector')">authorSelector</dt><dd>Selector for author name</dd>
+                                <dt onclick="insertField('imageSelector')">imageSelector</dt><dd>Selector for image element</dd>
+                                <dt onclick="insertField('imageAttr', 'src')">imageAttr</dt><dd>Attribute for image URL <em>(default: src)</em></dd>
+                                <dt onclick="insertField('dateSelector')">dateSelector</dt><dd>Selector for date element</dd>
+                                <dt onclick="insertField('dateAttr')">dateAttr</dt><dd>Attribute for date (text content if empty)</dd>
+                                <dt onclick="insertField('baseUrl')">baseUrl</dt><dd>Base URL for relative links</dd>
                             </dl>
                         </div>
                         <div id="schema-json" class="schema-content" style="display: none;">
                             <h4>JSON API Scraper</h4>
                             <dl>
-                                <dt>type</dt><dd>Must be <code>"json"</code> <em>(required)</em></dd>
-                                <dt>itemsPath</dt><dd>Dot path to items array <em>(e.g. "data.items")</em></dd>
-                                <dt>titlePath</dt><dd>Dot path to title</dd>
-                                <dt>urlPath</dt><dd>Dot path to URL</dd>
-                                <dt>summaryPath</dt><dd>Dot path to summary/description</dd>
-                                <dt>contentPath</dt><dd>Dot path to full content</dd>
-                                <dt>authorPath</dt><dd>Dot path to author</dd>
-                                <dt>imagePath</dt><dd>Dot path to image URL</dd>
-                                <dt>datePath</dt><dd>Dot path to date/timestamp</dd>
-                                <dt>guidPath</dt><dd>Dot path to unique ID</dd>
-                                <dt>baseUrl</dt><dd>Base URL for relative links</dd>
-                                <dt>consolidateDuplicates</dt><dd>Merge consecutive same-title items <em>(boolean)</em></dd>
+                                <dt onclick="insertField('type', 'json')">type</dt><dd>Must be <code>"json"</code> <em>(required)</em></dd>
+                                <dt onclick="insertField('itemsPath')">itemsPath</dt><dd>Dot path to items array <em>(e.g. "data.items")</em></dd>
+                                <dt onclick="insertField('titlePath')">titlePath</dt><dd>Dot path to title</dd>
+                                <dt onclick="insertField('urlPath')">urlPath</dt><dd>Dot path to URL</dd>
+                                <dt onclick="insertField('summaryPath')">summaryPath</dt><dd>Dot path to summary/description</dd>
+                                <dt onclick="insertField('contentPath')">contentPath</dt><dd>Dot path to full content</dd>
+                                <dt onclick="insertField('authorPath')">authorPath</dt><dd>Dot path to author</dd>
+                                <dt onclick="insertField('imagePath')">imagePath</dt><dd>Dot path to image URL</dd>
+                                <dt onclick="insertField('datePath')">datePath</dt><dd>Dot path to date/timestamp</dd>
+                                <dt onclick="insertField('guidPath')">guidPath</dt><dd>Dot path to unique ID</dd>
+                                <dt onclick="insertField('baseUrl')">baseUrl</dt><dd>Base URL for relative links</dd>
+                                <dt onclick="insertField('consolidateDuplicates', true)">consolidateDuplicates</dt><dd>Merge consecutive same-title items <em>(boolean)</em></dd>
                             </dl>
                         </div>
                     </div>
@@ -325,6 +325,75 @@ document.getElementById('add-scraper-form').addEventListener('submit', async (e)
         alert('Failed to create: ' + err.message);
     }
 });
+
+function insertField(key, defaultValue) {
+    const ta = document.getElementById('scraper-script');
+    const val = ta.value;
+    const pos = ta.selectionStart;
+
+    // Format the value
+    let valueStr;
+    if (typeof defaultValue === 'boolean') {
+        valueStr = String(defaultValue);
+    } else {
+        valueStr = '"' + (defaultValue || '') + '"';
+    }
+    const newLine = '  "' + key + '": ' + valueStr;
+
+    if (val.trim() === '') {
+        // Empty textarea - start a new JSON object
+        ta.value = '{\n' + newLine + '\n}';
+        // Place cursor inside the value
+        const cursorPos = 2 + newLine.length - (typeof defaultValue === 'boolean' ? 0 : 1);
+        ta.selectionStart = ta.selectionEnd = cursorPos;
+        ta.focus();
+        return;
+    }
+
+    // Find where to insert: before the cursor position, or at end before closing brace
+    // Find the last non-whitespace char before the closing brace
+    const trimmed = val.trimEnd();
+    let insertPos;
+    let prefix = '';
+
+    if (trimmed.endsWith('}')) {
+        // Insert before the closing brace
+        const bracePos = val.lastIndexOf('}');
+        const beforeBrace = val.substring(0, bracePos).trimEnd();
+
+        // Add comma to previous line if needed
+        if (beforeBrace.length > 0 && !beforeBrace.endsWith(',') && !beforeBrace.endsWith('{')) {
+            // Find position of last non-whitespace before brace
+            const lastCharPos = val.substring(0, bracePos).search(/\S\s*$/);
+            if (lastCharPos >= 0) {
+                const before = val.substring(0, lastCharPos + 1);
+                const after = val.substring(lastCharPos + 1, bracePos);
+                ta.value = before + ',' + after + newLine + '\n}';
+            } else {
+                ta.value = val.substring(0, bracePos) + newLine + '\n}';
+            }
+        } else {
+            ta.value = val.substring(0, bracePos) + newLine + '\n}';
+        }
+    } else {
+        // No closing brace found, just append
+        ta.value = val + ',\n' + newLine;
+    }
+
+    // Place cursor inside the value quotes
+    const inserted = ta.value.lastIndexOf(newLine);
+    if (inserted >= 0) {
+        let cursorPos;
+        if (typeof defaultValue === 'boolean') {
+            cursorPos = inserted + newLine.length;
+        } else {
+            // Position cursor inside the quotes, after the default value
+            cursorPos = inserted + newLine.length - 1;
+        }
+        ta.selectionStart = ta.selectionEnd = cursorPos;
+    }
+    ta.focus();
+}
 
 function toggleSchemaPanel() {
     const panel = document.getElementById('schema-panel');
