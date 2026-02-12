@@ -10,7 +10,7 @@ A modern feed reader with RSS/Atom support and a modular scraper system for non-
 - **AI-Powered Config**: Let Claude analyze a page and generate scraper configuration
 - **Exclusion Rules**: Filter out articles by keyword or author per folder
 - **Data Retention**: Automatic cleanup of old articles (starred items preserved)
-- **Multiple Views**: Card, List, Compact, Magazine, and Expanded views
+- **Multiple Views**: Card, List, Magazine, and Expanded views
 - **Responsive UI**: Works on desktop, tablet, and mobile
 
 ## Building and Running

@@ -420,59 +420,6 @@ body {
     gap: 4px;
 }
 
-/* === COMPACT VIEW === */
-.articles-list.view-compact {
-    gap: 1px;
-}
-
-.view-compact .article-card {
-    padding: 8px 15px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    border-radius: 4px;
-    background: transparent;
-    border-bottom: 1px solid var(--border);
-}
-
-.view-compact .article-card:hover {
-    background: var(--bg-card);
-}
-
-.view-compact .article-meta {
-    margin: 0;
-    display: flex;
-    gap: 8px;
-    min-width: 180px;
-    flex-shrink: 0;
-}
-
-.view-compact .article-meta .feed-name {
-    max-width: 100px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.view-compact .article-title {
-    flex: 1;
-    margin: 0;
-    font-size: 0.9rem;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.view-compact .article-summary,
-.view-compact .article-actions {
-    display: none;
-}
-
-.view-compact .article-card:hover .article-actions {
-    display: flex;
-}
-
 /* === MAGAZINE VIEW === */
 .articles-list.view-magazine {
     display: grid;
@@ -1455,10 +1402,6 @@ th {
         order: -1;
         margin-bottom: 5px;
         white-space: normal;
-    }
-    
-    .view-compact .article-meta {
-        min-width: auto;
     }
     
     .view-magazine {

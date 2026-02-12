@@ -497,11 +497,14 @@ function getViewScope() {
 }
 
 function setView(view) {
+    // Compact view was removed; fall back to list
+    if (view === 'compact') view = 'list';
+
     const list = document.getElementById('articles-list');
     if (!list) return;
 
     // Remove all view classes
-    list.classList.remove('view-card', 'view-list', 'view-compact', 'view-magazine', 'view-expanded');
+    list.classList.remove('view-card', 'view-list', 'view-magazine', 'view-expanded');
     // Add the selected view class
     list.classList.add('view-' + view);
 
