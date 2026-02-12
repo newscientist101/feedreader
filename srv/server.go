@@ -621,7 +621,14 @@ func (s *Server) apiRefreshFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go s.Fetcher.FetchFeed(context.Background(), feed)
+	go func() {
+		slog.Info("starting manual feed refresh", "feed_id", feed.ID, "name", feed.Name)
+		if err := s.Fetcher.FetchFeed(context.Background(), feed); err != nil {
+			slog.Warn("manual feed refresh failed", "feed_id", feed.ID, "error", err)
+		} else {
+			slog.Info("manual feed refresh completed", "feed_id", feed.ID)
+		}
+	}()
 
 	jsonResponse(w, map[string]string{"status": "refreshing"})
 }

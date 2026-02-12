@@ -2,10 +2,13 @@ package feeds
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
+	"crypto/tls"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -29,10 +32,25 @@ type Fetcher struct {
 
 // NewFetcher creates a new feed fetcher
 func NewFetcher(db *sql.DB, scraperRunner *scrapers.Runner) *Fetcher {
+	// Use a custom transport with TLS config to avoid Cloudflare bot detection
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			CipherSuites: []uint16{
+				tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+				tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+				tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+				tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+			},
+		},
+	}
 	return &Fetcher{
 		DB: db,
 		Client: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout:   30 * time.Second,
+			Transport: transport,
 		},
 		ScraperRunner: scraperRunner,
 	}
@@ -95,6 +113,7 @@ func (f *Fetcher) FetchAll(ctx context.Context) {
 
 // FetchFeed fetches a single feed
 func (f *Fetcher) FetchFeed(ctx context.Context, feed dbgen.Feed) error {
+	slog.Debug("starting feed fetch", "feed_id", feed.ID, "url", feed.Url, "type", feed.FeedType)
 	q := dbgen.New(f.DB)
 	now := time.Now()
 
@@ -136,9 +155,14 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed dbgen.Feed) error {
 	}
 
 	// Store items
-	for _, item := range items {
+	inserted := 0
+	for i, item := range items {
 		if item.GUID == "" {
+			slog.Warn("skipping item with empty GUID", "feed_id", feed.ID, "title", item.Title)
 			continue
+		}
+		if i == 0 {
+			slog.Info("first item", "guid", item.GUID, "title", item.Title, "url", item.URL)
 		}
 		// Normalize time to UTC for consistent storage
 		var pubAt *time.Time
@@ -158,11 +182,13 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed dbgen.Feed) error {
 			PublishedAt: pubAt,
 		})
 		if err != nil {
-			slog.Debug("create article", "error", err, "guid", item.GUID)
+			slog.Warn("create article failed", "error", err, "guid", item.GUID, "feed_id", feed.ID)
+		} else {
+			inserted++
 		}
 	}
 
-	slog.Info("fetched feed", "feed_id", feed.ID, "name", feed.Name, "items", len(items))
+	slog.Info("fetched feed", "feed_id", feed.ID, "name", feed.Name, "items", len(items), "inserted", inserted)
 	return nil
 }
 
@@ -171,8 +197,17 @@ func (f *Fetcher) fetchRSSFeed(ctx context.Context, url string) ([]FeedItem, err
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "FeedReader/1.0")
-	req.Header.Set("Accept", "application/rss+xml, application/atom+xml, application/xml, text/xml")
+	// Use browser-like headers to avoid bot detection (e.g., Cloudflare)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.5")
+	req.Header.Set("Accept-Encoding", "gzip")
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Upgrade-Insecure-Requests", "1")
+	req.Header.Set("Sec-Fetch-Dest", "document")
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+	req.Header.Set("Sec-Fetch-Site", "none")
+	req.Header.Set("Sec-Fetch-User", "?1")
 
 	resp, err := f.Client.Do(req)
 	if err != nil {
@@ -184,7 +219,18 @@ func (f *Fetcher) fetchRSSFeed(ctx context.Context, url string) ([]FeedItem, err
 		return nil, fmt.Errorf("HTTP %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), httpErrorDescription(resp.StatusCode))
 	}
 
-	feed, err := Parse(resp.Body)
+	// Handle gzip-encoded responses
+	var reader io.Reader = resp.Body
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		gzReader, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress gzip response: %w", err)
+		}
+		defer gzReader.Close()
+		reader = gzReader
+	}
+
+	feed, err := Parse(reader)
 	if err != nil {
 		return nil, err
 	}
