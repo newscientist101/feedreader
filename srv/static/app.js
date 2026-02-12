@@ -414,6 +414,7 @@ function renderArticles(articles) {
                     ${a.url ? `<a href="${a.url}" target="_blank" onclick="openArticleExternal(event, ${a.id}, '${a.url.replace(/'/g, "\\'")}'">${a.title}</a>` : `<a href="/article/${a.id}" onclick="markReadSilent(${a.id})">${a.title}</a>`}
                 </h2>
                 ${a.summary ? `<p class="article-summary">${truncateText(stripHtml(a.summary), 200)}</p>` : ''}
+                ${a.content ? `<div class="article-content-preview expanded-only" onclick="event.stopPropagation(); markReadSilent(${a.id})">${a.content}</div>` : ''}
                 <div class="article-actions">
                     <button onclick="${a.is_read ? 'markUnread' : 'markRead'}(${a.id})" class="btn-icon" title="${a.is_read ? 'Mark unread' : 'Mark read'}">
                         <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
