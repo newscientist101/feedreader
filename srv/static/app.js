@@ -547,24 +547,32 @@ async function deleteFeed(id, name) {
 }
 
 // Filter feeds table by search query
-function filterFeeds(query) {
+function filterFeeds() {
     const rows = document.querySelectorAll('.feeds-table tbody tr');
-    const lowerQuery = query.toLowerCase().trim();
+    const searchInput = document.getElementById('feeds-search');
+    const errorsCheckbox = document.getElementById('filter-errors');
+    
+    const query = (searchInput?.value || '').toLowerCase().trim();
+    const showOnlyErrors = errorsCheckbox?.checked || false;
     
     rows.forEach(row => {
-        if (!lowerQuery) {
-            row.style.display = '';
-            return;
+        let show = true;
+        
+        // Filter by errors
+        if (showOnlyErrors && !row.dataset.hasError) {
+            show = false;
         }
         
-        const name = row.querySelector('td:first-child')?.textContent?.toLowerCase() || '';
-        const url = row.querySelector('.url-cell')?.textContent?.toLowerCase() || '';
-        
-        if (name.includes(lowerQuery) || url.includes(lowerQuery)) {
-            row.style.display = '';
-        } else {
-            row.style.display = 'none';
+        // Filter by search query
+        if (show && query) {
+            const name = row.querySelector('td:first-child')?.textContent?.toLowerCase() || '';
+            const url = row.querySelector('.url-cell')?.textContent?.toLowerCase() || '';
+            if (!name.includes(query) && !url.includes(query)) {
+                show = false;
+            }
         }
+        
+        row.style.display = show ? '' : 'none';
     });
 }
 

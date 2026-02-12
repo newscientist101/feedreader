@@ -111,8 +111,14 @@
     <div class="feeds-table">
         <div class="feeds-table-header">
             <h2>Your Feeds</h2>
-            <div class="feeds-search">
-                <input type="search" id="feeds-search" placeholder="Search feeds..." oninput="filterFeeds(this.value)">
+            <div class="feeds-filters">
+                <label class="filter-checkbox">
+                    <input type="checkbox" id="filter-errors" onchange="filterFeeds()">
+                    <span>Show only errors</span>
+                </label>
+                <div class="feeds-search">
+                    <input type="search" id="feeds-search" placeholder="Search feeds..." oninput="filterFeeds()">
+                </div>
             </div>
         </div>
         {{if not .Feeds}}
@@ -132,7 +138,7 @@
             </thead>
             <tbody>
                 {{range .Feeds}}
-                <tr data-feed-id="{{.ID}}">
+                <tr data-feed-id="{{.ID}}"{{if .LastError}} data-has-error="true"{{end}}>
                     <td><a href="/feed/{{.ID}}">{{.Name}}</a></td>
                     <td class="url-cell"><a href="{{.Url}}" target="_blank">{{truncate .Url 40}}</a></td>
                     <td>
