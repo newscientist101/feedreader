@@ -453,6 +453,7 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 		ScraperModule string `json:"scraperModule"`
 		ScraperConfig string `json:"scraperConfig"`
 		Interval      int64  `json:"interval"`
+		CategoryID    int64  `json:"categoryId"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -523,6 +524,17 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		jsonError(w, "Failed to create feed: "+err.Error(), 500)
 		return
+	}
+
+	// Set category if specified
+	if req.CategoryID > 0 {
+		err = q.AddFeedToCategory(ctx, dbgen.AddFeedToCategoryParams{
+			FeedID:     feed.ID,
+			CategoryID: req.CategoryID,
+		})
+		if err != nil {
+			slog.Warn("failed to set feed category", "error", err)
+		}
 	}
 
 	// Trigger immediate fetch

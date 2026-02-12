@@ -121,6 +121,10 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--text-secondary);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg-side-panel);
 }
 
 .feeds-header-sticky {
@@ -247,6 +251,12 @@ body {
     margin-bottom: 25px;
     flex-wrap: wrap;
     gap: 15px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg-page);
+    padding-top: 10px;
+    padding-bottom: 10px;
 }
 
 .view-header h1 {
