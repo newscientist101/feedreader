@@ -52,8 +52,8 @@
                 </div>
             </div>
             {{if .CurrentFeed}}
-            <button onclick="editFeed({{.CurrentFeed.ID}})" class="btn btn-secondary">Edit</button>
-            <button onclick="refreshFeed({{.CurrentFeed.ID}})" class="btn btn-warning" data-feed-id="{{.CurrentFeed.ID}}">Refresh</button>
+            <button onclick="editFeed({{.CurrentFeed.ID}})" class="btn btn-secondary" data-feed-action="edit">Edit</button>
+            <button onclick="refreshFeed({{.CurrentFeed.ID}})" class="btn btn-warning" data-feed-id="{{.CurrentFeed.ID}}" data-feed-action="refresh">Refresh</button>
             {{end}}
             {{end}}
         </div>

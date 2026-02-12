@@ -93,6 +93,7 @@ func (s *Server) Serve(addr string) error {
 	mux.HandleFunc("DELETE /api/feeds/{id}", s.apiDeleteFeed)
 	mux.HandleFunc("PUT /api/feeds/{id}", s.apiUpdateFeed)
 	mux.HandleFunc("GET /api/feeds/{id}", s.apiGetFeed)
+	mux.HandleFunc("GET /api/feeds/{id}/articles", s.apiGetFeedArticles)
 	mux.HandleFunc("POST /api/feeds/{id}/refresh", s.apiRefreshFeed)
 	mux.HandleFunc("POST /api/articles/{id}/read", s.apiMarkRead)
 	mux.HandleFunc("POST /api/articles/{id}/unread", s.apiMarkUnread)
@@ -1212,6 +1213,34 @@ func (s *Server) apiGetCategoryArticles(w http.ResponseWriter, r *http.Request) 
 
 	jsonResponse(w, map[string]any{
 		"category": category,
+		"articles": filteredArticles,
+	})
+}
+
+func (s *Server) apiGetFeedArticles(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+	user := GetUser(ctx)
+
+	feedID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid feed ID", 400)
+		return
+	}
+
+	feed, err := q.GetFeed(ctx, dbgen.GetFeedParams{ID: feedID, UserID: &user.ID})
+	if err != nil {
+		jsonError(w, "Feed not found", 404)
+		return
+	}
+
+	articles, _ := q.ListArticlesByFeed(ctx, dbgen.ListArticlesByFeedParams{FeedID: feedID, UserID: &user.ID, Limit: 100, Offset: 0})
+
+	// Apply exclusion filters based on feed's category
+	filteredArticles := s.FilterArticlesByFeed(ctx, articles, feedID, user.ID)
+
+	jsonResponse(w, map[string]any{
+		"feed":     feed,
 		"articles": filteredArticles,
 	})
 }

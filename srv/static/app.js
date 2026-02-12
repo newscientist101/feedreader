@@ -234,6 +234,7 @@ async function loadCategoryArticles(categoryId, categoryName) {
     
     // Update active states in sidebar
     document.querySelectorAll('.feed-item.active').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.folder-link.active').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.nav-item.active').forEach(el => el.classList.remove('active'));
     
     try {
@@ -252,9 +253,10 @@ async function loadCategoryArticles(categoryId, categoryName) {
             dropdown.dataset.categoryId = categoryId;
         }
         
-        // Hide the Refresh button (it's only for feeds)
-        const refreshBtn = document.querySelector('.btn-warning[data-feed-id]');
-        if (refreshBtn) refreshBtn.style.display = 'none';
+        // Hide the Refresh/Edit buttons (they're only for feeds)
+        document.querySelectorAll('[data-feed-action]').forEach(btn => {
+            btn.style.display = 'none';
+        });
         
         // Remove any feed error banner
         const errorBanner = document.querySelector('.feed-error-banner');
@@ -263,6 +265,104 @@ async function loadCategoryArticles(categoryId, categoryName) {
         applyDefaultViewForScope('folder');
     } catch (e) {
         console.error('Failed to load category articles:', e);
+    }
+}
+
+async function loadFeedArticles(feedId, feedName) {
+    const list = document.getElementById('articles-list');
+    if (list) {
+        list.innerHTML = `
+            <div class="loading-state">
+                <div class="spinner"></div>
+                <p>Loading articles...</p>
+            </div>
+        `;
+    }
+
+    document.querySelector('.view-header h1').textContent = feedName;
+    document.title = `${feedName} - FeedReader`;
+
+    const articlesView = document.querySelector('.articles-view');
+    if (articlesView) {
+        articlesView.dataset.viewScope = 'feed';
+    }
+
+    document.querySelectorAll('.feed-item.active').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.folder-link.active').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.nav-item.active').forEach(el => el.classList.remove('active'));
+
+    const activeFeedItems = document.querySelectorAll(`.feed-item[data-feed-id="${feedId}"]`);
+    activeFeedItems.forEach(item => item.classList.add('active'));
+
+    try {
+        const data = await api('GET', `/api/feeds/${feedId}/articles`);
+        const feed = data.feed;
+
+        history.pushState({ feedId }, feedName, `/feed/${feedId}`);
+
+        renderArticles(data.articles);
+
+        const dropdown = document.querySelector('.dropdown');
+        if (dropdown) {
+            dropdown.dataset.feedId = feedId;
+            dropdown.dataset.categoryId = '';
+        }
+
+        const headerActions = document.querySelector('.header-actions');
+        if (headerActions) {
+            let editBtn = headerActions.querySelector('[data-feed-action="edit"]');
+            if (!editBtn) {
+                editBtn = document.createElement('button');
+                editBtn.className = 'btn btn-secondary';
+                editBtn.dataset.feedAction = 'edit';
+                editBtn.textContent = 'Edit';
+                headerActions.appendChild(editBtn);
+            }
+            editBtn.style.display = '';
+            editBtn.onclick = () => editFeed(feedId);
+
+            let refreshBtn = headerActions.querySelector('[data-feed-action="refresh"]');
+            if (!refreshBtn) {
+                refreshBtn = document.createElement('button');
+                refreshBtn.className = 'btn btn-warning';
+                refreshBtn.dataset.feedAction = 'refresh';
+                headerActions.appendChild(refreshBtn);
+            }
+            refreshBtn.style.display = '';
+            refreshBtn.dataset.feedId = feedId;
+            refreshBtn.textContent = 'Refresh';
+            refreshBtn.onclick = () => refreshFeed(feedId);
+        }
+
+        const errorBanner = document.querySelector('.feed-error-banner');
+        if (feed && feed.last_error) {
+            if (!errorBanner) {
+                const banner = document.createElement('div');
+                banner.className = 'feed-error-banner';
+                banner.innerHTML = `
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
+                    <span>Last fetch failed: ${feed.last_error}</span>
+                    <button class="btn btn-small" data-feed-id="${feedId}">Retry</button>
+                `;
+                const retryBtn = banner.querySelector('button');
+                retryBtn.onclick = () => refreshFeed(feedId);
+                const view = document.querySelector('.articles-view');
+                if (view) {
+                    view.insertBefore(banner, view.firstChild);
+                }
+            } else {
+                const span = errorBanner.querySelector('span');
+                if (span) span.textContent = 'Last fetch failed: ' + feed.last_error;
+            }
+        } else if (errorBanner) {
+            errorBanner.remove();
+        }
+
+        applyDefaultViewForScope('feed');
+    } catch (e) {
+        console.error('Failed to load feed articles:', e);
     }
 }
 
@@ -448,6 +548,18 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+
+    document.querySelectorAll('.feed-item[data-feed-id]').forEach(link => {
+        link.addEventListener('click', (event) => {
+            if (document.querySelector('.settings-view')) {
+                return;
+            }
+            event.preventDefault();
+            const feedId = link.dataset.feedId;
+            const feedName = link.dataset.feedName || link.querySelector('.feed-name')?.textContent || 'Feed';
+            loadFeedArticles(feedId, feedName);
+        });
+    });
     
     // Initialize view mode
     initView();
