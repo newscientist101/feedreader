@@ -869,8 +869,17 @@ th {
 }
 
 .actions-cell {
-    display: flex;
-    gap: 5px;
+    white-space: nowrap;
+    width: 1%;
+}
+
+.actions-cell .btn-icon {
+    display: inline-flex;
+    margin-right: 5px;
+}
+
+.actions-cell .btn-icon:last-child {
+    margin-right: 0;
 }
 
 .status-ok {
