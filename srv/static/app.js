@@ -1206,12 +1206,27 @@ function initDragDrop(container, itemSelector, idAttr) {
     let draggedItem = null;
     let placeholder = null;
     let dropTarget = null; // For nesting
+    let draggedParentId = null; // Track parent of dragged item
+    
+    // Helper to get parent ID from item
+    function getParentId(item) {
+        const parentAttr = item.dataset.parentId;
+        return parentAttr ? parseInt(parentAttr) : null;
+    }
+    
+    // Helper to get siblings (items with same parent)
+    function getSiblings(parentId) {
+        return Array.from(container.querySelectorAll(itemSelector)).filter(item => {
+            return getParentId(item) === parentId;
+        });
+    }
     
     container.addEventListener('dragstart', (e) => {
         const item = e.target.closest(itemSelector);
         if (!item) return;
         
         draggedItem = item;
+        draggedParentId = getParentId(item);
         item.classList.add('dragging');
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', item.getAttribute(idAttr));
@@ -1220,6 +1235,10 @@ function initDragDrop(container, itemSelector, idAttr) {
         placeholder = document.createElement('div');
         placeholder.className = 'drag-placeholder';
         placeholder.style.height = item.offsetHeight + 'px';
+        // Copy indentation from dragged item
+        if (item.style.paddingLeft) {
+            placeholder.style.marginLeft = item.style.paddingLeft;
+        }
     });
     
     container.addEventListener('dragend', (e) => {
@@ -1231,6 +1250,7 @@ function initDragDrop(container, itemSelector, idAttr) {
             placeholder.remove();
         }
         placeholder = null;
+        draggedParentId = null;
         
         // Remove any remaining drag-over classes
         container.querySelectorAll('.drag-over, .nest-target').forEach(el => {
@@ -1259,18 +1279,35 @@ function initDragDrop(container, itemSelector, idAttr) {
             dropTarget = null;
         }
         
-        const afterElement = getDragAfterElement(container, e.clientY, itemSelector);
+        // Get position among siblings only
+        const siblings = getSiblings(draggedParentId);
+        const afterElement = getDragAfterElementAmongSiblings(siblings, e.clientY);
         
         if (placeholder) {
             if (afterElement) {
                 container.insertBefore(placeholder, afterElement);
             } else {
-                // Find the add-category card or append to end
-                const addCard = container.querySelector('.add-category');
-                if (addCard) {
-                    container.insertBefore(placeholder, addCard);
+                // Find where to insert at end of siblings
+                if (siblings.length > 0) {
+                    const lastSibling = siblings[siblings.length - 1];
+                    if (lastSibling.nextSibling) {
+                        container.insertBefore(placeholder, lastSibling.nextSibling);
+                    } else {
+                        // Check for add-category card
+                        const addCard = container.querySelector('.add-category');
+                        if (addCard) {
+                            container.insertBefore(placeholder, addCard);
+                        } else {
+                            container.appendChild(placeholder);
+                        }
+                    }
                 } else {
-                    container.appendChild(placeholder);
+                    const addCard = container.querySelector('.add-category');
+                    if (addCard) {
+                        container.insertBefore(placeholder, addCard);
+                    } else {
+                        container.appendChild(placeholder);
+                    }
                 }
             }
         }
@@ -1306,41 +1343,48 @@ function initDragDrop(container, itemSelector, idAttr) {
         // Insert the dragged item where the placeholder is
         placeholder.replaceWith(draggedItem);
         
-        // Get new order (only top-level items for now)
-        const items = container.querySelectorAll(itemSelector);
-        const order = Array.from(items)
+        // Get new order - only for siblings with the same parent
+        const siblings = getSiblings(draggedParentId);
+        const order = siblings
             .map(item => parseInt(item.getAttribute(idAttr)))
             .filter(id => !isNaN(id));
         
-        // Save new order to server
+        // Save new order to server (include parent_id so server knows context)
         try {
-            await api('POST', '/api/categories/reorder', { order });
+            await api('POST', '/api/categories/reorder', { 
+                order,
+                parent_id: draggedParentId
+            });
             // Sync the other container
-            syncFolderOrder(order, container);
+            syncFolderOrder(order, container, draggedParentId);
         } catch (err) {
             console.error('Failed to save folder order:', err);
         }
     });
 }
 
-function syncFolderOrder(order, sourceContainer) {
+function syncFolderOrder(order, sourceContainer, parentId = null) {
     // Sync sidebar folders
     const sidebarFolders = document.querySelector('.folders-list');
     if (sidebarFolders && sidebarFolders !== sourceContainer) {
-        reorderElements(sidebarFolders, '.folder-item', 'data-category-id', order);
+        reorderElements(sidebarFolders, '.folder-item', 'data-category-id', order, parentId);
     }
     
     // Sync feeds page category cards
     const categoriesGrid = document.querySelector('.categories-grid');
     if (categoriesGrid && categoriesGrid !== sourceContainer) {
-        reorderElements(categoriesGrid, '.category-card[data-id]', 'data-id', order);
+        reorderElements(categoriesGrid, '.category-card[data-id]', 'data-id', order, parentId);
     }
 }
 
-function reorderElements(container, itemSelector, idAttr, order) {
-    const items = container.querySelectorAll(itemSelector);
-    const itemMap = new Map();
+function reorderElements(container, itemSelector, idAttr, order, parentId = null) {
+    // Get only items with the matching parent
+    const items = Array.from(container.querySelectorAll(itemSelector)).filter(item => {
+        const itemParentId = item.dataset.parentId ? parseInt(item.dataset.parentId) : null;
+        return itemParentId === parentId;
+    });
     
+    const itemMap = new Map();
     items.forEach(item => {
         const id = parseInt(item.getAttribute(idAttr));
         if (!isNaN(id)) {
@@ -1348,17 +1392,22 @@ function reorderElements(container, itemSelector, idAttr, order) {
         }
     });
     
-    // Find the add-category card to insert before (if exists)
-    const addCard = container.querySelector('.add-category');
+    if (items.length === 0) return;
     
-    // Reorder by removing and re-adding in order
-    order.forEach(id => {
+    // Find the first sibling's position to know where to insert
+    const firstSibling = items[0];
+    let insertPoint = firstSibling;
+    
+    // Reorder by inserting in order at the insertion point
+    order.forEach((id, index) => {
         const item = itemMap.get(id);
         if (item) {
-            if (addCard) {
-                container.insertBefore(item, addCard);
+            if (index === 0) {
+                // First item stays at the original position
+                insertPoint = item.nextSibling;
             } else {
-                container.appendChild(item);
+                container.insertBefore(item, insertPoint);
+                insertPoint = item.nextSibling;
             }
         }
     });
@@ -1368,6 +1417,22 @@ function getDragAfterElement(container, y, itemSelector) {
     const draggableElements = [...container.querySelectorAll(itemSelector + ':not(.dragging)')];
     
     return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        
+        if (offset < 0 && offset > closest.offset) {
+            return { offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+// Get position among a specific set of sibling elements
+function getDragAfterElementAmongSiblings(siblings, y) {
+    const nonDragging = siblings.filter(el => !el.classList.contains('dragging'));
+    
+    return nonDragging.reduce((closest, child) => {
         const box = child.getBoundingClientRect();
         const offset = y - box.top - box.height / 2;
         

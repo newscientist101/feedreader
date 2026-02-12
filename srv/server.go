@@ -1136,7 +1136,8 @@ func (s *Server) apiReorderCategories(w http.ResponseWriter, r *http.Request) {
 	q := dbgen.New(s.DB)
 
 	var req struct {
-		Order []int64 `json:"order"` // Category IDs in new order
+		Order    []int64 `json:"order"`     // Category IDs in new order
+		ParentID *int64  `json:"parent_id"` // Optional: only reorder within this parent
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonError(w, "Invalid request", 400)
