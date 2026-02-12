@@ -1042,9 +1042,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
+                // For HuggingFace feeds, let the server auto-generate the name
+                const feedName = (feedType === 'huggingface' && !name) ? '' : (name || url);
                 const feed = await api('POST', '/api/feeds', {
                     url,
-                    name: name || url,
+                    name: feedName,
                     feedType,
                     scraperModule,
                     scraperConfig,
