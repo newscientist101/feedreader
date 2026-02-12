@@ -589,6 +589,7 @@ body {
 
 .article-meta .feed-name {
     color: var(--accent);
+    text-decoration: none;
 }
 
 .article-title {
