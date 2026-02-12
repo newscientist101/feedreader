@@ -617,9 +617,9 @@ function createEditFeedModal() {
                     <input type="number" id="edit-feed-interval" min="1" value="60">
                 </div>
                 <div class="form-group">
-                    <label for="edit-feed-filters">Content Filters</label>
-                    <p class="form-hint">Remove patterns from article content. One per line. Prefix with <code>regex:</code> for regex patterns.</p>
-                    <textarea id="edit-feed-filters" rows="4" placeholder="<div class=&quot;ad&quot;></div>&#10;regex:<div class=&quot;ref-ar&quot;>.*?</div>"></textarea>
+                    <label for="edit-feed-filters">Content Filters (CSS Selectors)</label>
+                    <p class="form-hint">Remove elements from article content. One CSS selector per line.</p>
+                    <textarea id="edit-feed-filters" rows="4" placeholder="div.ref-ar&#10;.advertisement&#10;#sidebar"></textarea>
                 </div>
                 <div class="modal-actions">
                     <button type="button" onclick="closeEditModal()" class="btn btn-secondary">Cancel</button>
@@ -641,14 +641,12 @@ async function editFeed(id) {
         document.getElementById('edit-feed-url').value = feed.url;
         document.getElementById('edit-feed-interval').value = feed.fetch_interval_minutes || 60;
         
-        // Load content filters
+        // Load content filters (CSS selectors)
         const filtersTextarea = document.getElementById('edit-feed-filters');
         if (feed.content_filters) {
             try {
                 const filters = JSON.parse(feed.content_filters);
-                filtersTextarea.value = filters.map(f => 
-                    f.is_regex ? `regex:${f.pattern}` : f.pattern
-                ).join('\n');
+                filtersTextarea.value = filters.map(f => f.selector).join('\n');
             } catch (e) {
                 filtersTextarea.value = '';
             }
@@ -675,17 +673,12 @@ async function saveFeed(event) {
     const url = document.getElementById('edit-feed-url').value;
     const interval = parseInt(document.getElementById('edit-feed-interval').value) || 60;
     
-    // Parse content filters from textarea
+    // Parse content filters (CSS selectors) from textarea
     const filtersText = document.getElementById('edit-feed-filters').value.trim();
     let contentFilters = null;
     if (filtersText) {
-        const filters = filtersText.split('\n').filter(line => line.trim()).map(line => {
-            line = line.trim();
-            if (line.startsWith('regex:')) {
-                return { pattern: line.substring(6), is_regex: true };
-            }
-            return { pattern: line, is_regex: false };
-        });
+        const selectors = filtersText.split('\n').map(line => line.trim()).filter(line => line);
+        const filters = selectors.map(selector => ({ selector }));
         contentFilters = JSON.stringify(filters);
     }
     
