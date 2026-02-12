@@ -94,9 +94,9 @@
                 <p class="article-summary">{{truncate (stripHTML (deref .Summary)) 200}}</p>
                 {{end}}
                 {{if .Content}}
-                <div class="article-content-preview expanded-only">{{truncate (stripHTML (deref .Content)) 1000}}</div>
+                <div class="article-content-preview expanded-only">{{truncate (stripHTML (deref .Content)) 800}}</div>
                 {{else if .Summary}}
-                <div class="article-content-preview expanded-only">{{truncate (stripHTML (deref .Summary)) 1000}}</div>
+                <div class="article-content-preview expanded-only">{{truncate (stripHTML (deref .Summary)) 800}}</div>
                 {{end}}
                 <div class="article-actions">
                     {{if and .IsRead (ne (deref .IsRead) 0)}}
