@@ -1557,6 +1557,10 @@ th {
     display: block;
 }
 
+.folder-item.folder-hidden {
+    display: none;
+}
+
 .folder-feeds .feed-item {
     font-size: 0.85rem;
     padding: 6px var(--sidebar-right-padding) 6px 15px;
