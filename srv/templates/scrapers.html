@@ -67,8 +67,9 @@
                 </div>
                 <div class="form-group">
                     <label for="script-type">Type</label>
-                    <select id="script-type">
-                        <option value="json-config">JSON Config</option>
+                    <select id="script-type" onchange="updateConfigTemplate()">
+                        <option value="json-config">HTML Scraper (CSS Selectors)</option>
+                        <option value="json-api">JSON API Scraper</option>
                     </select>
                 </div>
             </div>
@@ -313,6 +314,28 @@ document.getElementById('add-scraper-form').addEventListener('submit', async (e)
         alert('Failed to create: ' + err.message);
     }
 });
+
+function updateConfigTemplate() {
+    const type = document.getElementById('script-type').value;
+    const textarea = document.getElementById('scraper-script');
+    if (textarea.value.trim() !== '' && !confirm('Replace current config with template?')) return;
+    if (type === 'json-api') {
+        textarea.value = JSON.stringify({
+            type: 'json',
+            itemsPath: 'data.items',
+            titlePath: 'title',
+            urlPath: 'url',
+            summaryPath: 'description',
+            datePath: 'timestamp',
+            baseUrl: 'https://example.com',
+            consolidateDuplicates: false
+        }, null, 2);
+        textarea.placeholder = '';
+    } else {
+        textarea.value = '';
+        textarea.placeholder = '{\n  "itemSelector": "article.post",\n  "titleSelector": "h2.title",\n  "urlSelector": "a.permalink",\n  "urlAttr": "href",\n  "summarySelector": "p.summary",\n  "imageSelector": "img.thumb",\n  "imageAttr": "src",\n  "dateSelector": "time",\n  "dateAttr": "datetime",\n  "baseUrl": "https://example.com"\n}';
+    }
+}
 
 // Close modal on outside click
 document.getElementById('config-modal').addEventListener('click', (e) => {
