@@ -318,21 +318,9 @@ document.getElementById('add-scraper-form').addEventListener('submit', async (e)
 function updateConfigTemplate() {
     const type = document.getElementById('script-type').value;
     const textarea = document.getElementById('scraper-script');
-    if (textarea.value.trim() !== '' && !confirm('Replace current config with template?')) return;
     if (type === 'json-api') {
-        textarea.value = JSON.stringify({
-            type: 'json',
-            itemsPath: 'data.items',
-            titlePath: 'title',
-            urlPath: 'url',
-            summaryPath: 'description',
-            datePath: 'timestamp',
-            baseUrl: 'https://example.com',
-            consolidateDuplicates: false
-        }, null, 2);
-        textarea.placeholder = '';
+        textarea.placeholder = '{\n  "type": "json",\n  "itemsPath": "data.items",\n  "titlePath": "title",\n  "urlPath": "url",\n  "summaryPath": "description",\n  "datePath": "timestamp",\n  "baseUrl": "https://example.com",\n  "consolidateDuplicates": false\n}';
     } else {
-        textarea.value = '';
         textarea.placeholder = '{\n  "itemSelector": "article.post",\n  "titleSelector": "h2.title",\n  "urlSelector": "a.permalink",\n  "urlAttr": "href",\n  "summarySelector": "p.summary",\n  "imageSelector": "img.thumb",\n  "imageAttr": "src",\n  "dateSelector": "time",\n  "dateAttr": "datetime",\n  "baseUrl": "https://example.com"\n}';
     }
 }
