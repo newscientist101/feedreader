@@ -181,6 +181,9 @@ function toggleSidebar() {
 
 // Toggle folder expand/collapse in sidebar
 function toggleFolder(event, categoryId) {
+    if (document.querySelector('.settings-view')) {
+        return true;
+    }
     event.preventDefault();
     const folderItem = document.querySelector(`.folder-item[data-category-id="${categoryId}"]`);
     if (!folderItem) return false;
