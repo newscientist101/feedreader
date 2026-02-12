@@ -182,18 +182,16 @@ function applyHideEmptyFeeds(value) {
     // Apply to feeds
     document.querySelectorAll('.feed-item').forEach(item => {
         const badge = item.querySelector('.badge');
-        const count = badge ? parseInt(badge.textContent) : 0;
-        if (count === 0) {
+        const count = badge ? parseInt(badge.textContent || '0', 10) : 0;
+        if (!count) {
             item.style.display = value === 'hide' ? 'none' : '';
+        } else {
+            item.style.display = '';
         }
     });
-    // Apply to folders
+    // Apply to folders (always visible)
     document.querySelectorAll('.folder-item').forEach(item => {
-        const badge = item.querySelector('.badge');
-        const count = badge ? parseInt(badge.textContent) : 0;
-        if (count === 0) {
-            item.style.display = value === 'hide' ? 'none' : '';
-        }
+        // Don't hide folders
     });
 }
 

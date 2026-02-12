@@ -19,8 +19,8 @@ function applyUserPreferences() {
             // Don't hide feeds that have never been fetched
             if (item.dataset.neverFetched === 'true') return;
             const badge = item.querySelector('.badge');
-            const count = badge ? parseInt(badge.textContent) : 0;
-            if (count === 0) {
+            const count = badge ? parseInt(badge.textContent || '0', 10) : 0;
+            if (!count) {
                 item.style.display = 'none';
             }
         });
