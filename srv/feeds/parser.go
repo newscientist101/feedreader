@@ -277,7 +277,7 @@ func parseAtom(data []byte) (*ParsedFeed, error) {
 				} else if strings.Contains(embedURL, "youtube.com/shorts/") {
 					embedURL = strings.Replace(embedURL, "/shorts/", "/embed/", 1)
 				}
-				parts = append(parts, fmt.Sprintf(`<iframe width="560" height="315" src="%s" frameborder="0" allowfullscreen></iframe>`, html.EscapeString(embedURL)))
+				parts = append(parts, fmt.Sprintf(`<iframe src="%s" allowfullscreen></iframe>`, html.EscapeString(embedURL)))
 			}
 			if entry.MediaGroup.Description != "" {
 				// Wrap plain text description in a paragraph, preserving newlines
