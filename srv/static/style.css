@@ -520,7 +520,7 @@ body {
     margin: -12px 0;
     margin-left: 0;
     line-height: 0;
-    height: 200px;
+    min-height: 140px;
 }
 
 .view-expanded .article-image img {
@@ -532,8 +532,6 @@ body {
 
 .view-expanded .article-card.has-image .article-body {
     min-width: 0;
-    max-height: 200px;
-    overflow: hidden;
 }
 
 .view-expanded .article-title {
