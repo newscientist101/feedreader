@@ -754,7 +754,6 @@ async function markAsRead(btn, age = 'all') {
 
 // Scraper actions
 // deleteScraper is defined in scrapers.html template
-}
 
 // editScraper is defined in scrapers.html template
 
