@@ -753,17 +753,7 @@ async function markAsRead(btn, age = 'all') {
 }
 
 // Scraper actions
-async function deleteScraper(id, name) {
-    if (!confirm(`Delete scraper "${name}"?`)) {
-        return;
-    }
-    try {
-        await api('DELETE', `/api/scrapers/${id}`);
-        location.reload();
-    } catch (e) {
-        console.error('Failed to delete scraper:', e);
-        alert('Failed to delete scraper');
-    }
+// deleteScraper is defined in scrapers.html template
 }
 
 // editScraper is defined in scrapers.html template
