@@ -585,7 +585,7 @@ async function updateCounts() {
             }
         }
         
-        // Update feed counts
+        // Update feed counts and errors
         if (counts.feeds) {
             for (const [feedId, count] of Object.entries(counts.feeds)) {
                 const badges = document.querySelectorAll(`[data-count="feed-${feedId}"]`);
@@ -599,10 +599,72 @@ async function updateCounts() {
             }
         }
         
+        // Update feed errors
+        updateFeedErrors(counts.feedErrors || {});
+        
         // Re-apply hide empty preference if enabled
         applyUserPreferences();
     } catch (e) {
         console.error('Failed to update counts:', e);
+    }
+}
+
+// Update feed error indicators in sidebar
+function updateFeedErrors(feedErrors) {
+    // Get all feed items in sidebar
+    const feedItems = document.querySelectorAll('.feed-item[data-feed-id]');
+    
+    feedItems.forEach(item => {
+        const feedId = item.dataset.feedId;
+        const errorIcon = item.querySelector('[data-error]');
+        const hasError = feedErrors[feedId];
+        
+        if (hasError) {
+            item.classList.add('has-error');
+            item.title = 'Error: ' + feedErrors[feedId];
+            if (errorIcon) {
+                errorIcon.textContent = '⚠';
+                errorIcon.title = 'Fetch error';
+            }
+        } else {
+            item.classList.remove('has-error');
+            item.title = '';
+            if (errorIcon) {
+                errorIcon.textContent = '';
+                errorIcon.title = '';
+            }
+        }
+    });
+    
+    // Also update the error banner on the current feed page if present
+    const errorBanner = document.querySelector('.feed-error-banner');
+    const currentFeedId = document.querySelector('button[data-feed-id]')?.dataset.feedId;
+    if (currentFeedId) {
+        if (feedErrors[currentFeedId]) {
+            if (!errorBanner) {
+                // Create error banner if it doesn't exist
+                const banner = document.createElement('div');
+                banner.className = 'feed-error-banner';
+                banner.innerHTML = `
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
+                    <span>Last fetch failed: ${feedErrors[currentFeedId]}</span>
+                    <button onclick="refreshFeed(${currentFeedId})" class="btn btn-small" data-feed-id="${currentFeedId}">Retry</button>
+                `;
+                const articlesView = document.querySelector('.articles-view');
+                if (articlesView) {
+                    articlesView.insertBefore(banner, articlesView.firstChild);
+                }
+            } else {
+                // Update existing banner
+                const span = errorBanner.querySelector('span');
+                if (span) span.textContent = 'Last fetch failed: ' + feedErrors[currentFeedId];
+            }
+        } else if (errorBanner) {
+            // Remove error banner if error is cleared
+            errorBanner.remove();
+        }
     }
 }
 

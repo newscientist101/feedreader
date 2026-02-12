@@ -95,8 +95,8 @@
                             {{range $.Feeds}}
                             {{$feedCat := index $.FeedCategories .ID}}
                             {{if eq $feedCat $catID}}
-                            <a href="/feed/{{.ID}}" class="feed-item {{if eq $.ActiveFeed .ID}}active{{end}}{{if .LastError}} has-error{{end}}"{{if not .LastFetchedAt}} data-never-fetched="true"{{end}}{{if .LastError}} title="Error: {{deref .LastError}}"{{end}}>
-                                {{if .LastError}}<span class="feed-error-icon" title="Fetch error">⚠</span>{{end}}
+                            <a href="/feed/{{.ID}}" class="feed-item {{if eq $.ActiveFeed .ID}}active{{end}}{{if .LastError}} has-error{{end}}" data-feed-id="{{.ID}}"{{if not .LastFetchedAt}} data-never-fetched="true"{{end}}{{if .LastError}} title="Error: {{deref .LastError}}"{{end}}>
+                                <span class="feed-error-icon" data-error="feed-{{.ID}}">{{if .LastError}}⚠{{end}}</span>
                                 <span class="feed-name">{{.Name}}</span>
                                 {{$count := index $.FeedCounts .ID}}
                                 <span class="badge small{{if not .LastFetchedAt}} pending{{end}}" data-count="feed-{{.ID}}">{{if $count}}{{$count}}{{else if not .LastFetchedAt}}•{{end}}</span>
@@ -114,8 +114,8 @@
                 </div>
                 <div class="feeds-list">
                     {{range .Feeds}}
-                    <a href="/feed/{{.ID}}" class="feed-item {{if eq $.ActiveFeed .ID}}active{{end}}{{if .LastError}} has-error{{end}}"{{if not .LastFetchedAt}} data-never-fetched="true"{{end}}{{if .LastError}} title="Error: {{deref .LastError}}"{{end}}>
-                        {{if .LastError}}<span class="feed-error-icon" title="Fetch error">⚠</span>{{end}}
+                    <a href="/feed/{{.ID}}" class="feed-item {{if eq $.ActiveFeed .ID}}active{{end}}{{if .LastError}} has-error{{end}}" data-feed-id="{{.ID}}"{{if not .LastFetchedAt}} data-never-fetched="true"{{end}}{{if .LastError}} title="Error: {{deref .LastError}}"{{end}}>
+                        <span class="feed-error-icon" data-error="feed-{{.ID}}">{{if .LastError}}⚠{{end}}</span>
                         <span class="feed-name">{{.Name}}</span>
                         {{$count := index $.FeedCounts .ID}}
                         <span class="badge small{{if not .LastFetchedAt}} pending{{end}}" data-count="feed-{{.ID}}">{{if $count}}{{$count}}{{else if not .LastFetchedAt}}•{{end}}</span>

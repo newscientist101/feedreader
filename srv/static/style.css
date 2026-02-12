@@ -164,8 +164,15 @@ body {
 }
 
 .feed-error-icon {
-    margin-right: 6px;
     font-size: 0.85rem;
+}
+
+.feed-error-icon:empty {
+    display: none;
+}
+
+.feed-error-icon:not(:empty) {
+    margin-right: 6px;
 }
 
 .feed-name {

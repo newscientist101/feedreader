@@ -638,9 +638,13 @@ func (s *Server) apiGetCounts(w http.ResponseWriter, r *http.Request) {
 	starredCount, _ := q.GetStarredCount(ctx, &userID)
 
 	feedCounts := make(map[int64]int64)
+	feedErrors := make(map[int64]string)
 	for _, feed := range feeds {
 		count, _ := q.GetFeedUnreadCount(ctx, feed.ID)
 		feedCounts[feed.ID] = count
+		if feed.LastError != nil && *feed.LastError != "" {
+			feedErrors[feed.ID] = *feed.LastError
+		}
 	}
 
 	catCounts := make(map[int64]int64)
@@ -654,6 +658,7 @@ func (s *Server) apiGetCounts(w http.ResponseWriter, r *http.Request) {
 		"starred":    starredCount,
 		"feeds":      feedCounts,
 		"categories": catCounts,
+		"feedErrors": feedErrors,
 	})
 }
 
