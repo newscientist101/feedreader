@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -465,6 +466,22 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 
 	if req.FeedType == "" {
 		req.FeedType = "rss"
+	}
+
+	// Auto-convert Steam news URLs to RSS feed URLs
+	// e.g. https://store.steampowered.com/news/app/4115450 -> https://store.steampowered.com/feeds/news/app/4115450
+	if req.FeedType == "rss" {
+		req.URL = convertSteamNewsURL(req.URL)
+	}
+
+	// Auto-generate name for Steam feeds
+	if req.Name == "" && req.FeedType == "rss" {
+		steamAppRe := regexp.MustCompile(`store\.steampowered\.com/feeds/news/app/(\d+)`)
+		if m := steamAppRe.FindStringSubmatch(req.URL); m != nil {
+			if name := fetchSteamAppName(m[1]); name != "" {
+				req.Name = name
+			}
+		}
 	}
 
 	// Auto-generate name for HuggingFace feeds
@@ -1041,6 +1058,38 @@ func deref(p any) any {
 
 func safeHTML(s string) template.HTML {
 	return template.HTML(s)
+}
+
+// fetchSteamAppName gets the game name from the Steam store API
+func fetchSteamAppName(appID string) string {
+	resp, err := http.Get("https://store.steampowered.com/api/appdetails?appids=" + appID)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	var result map[string]struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Name string `json:"name"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return ""
+	}
+	if app, ok := result[appID]; ok && app.Success {
+		return app.Data.Name
+	}
+	return ""
+}
+
+// convertSteamNewsURL converts Steam store news URLs to their RSS feed equivalents
+func convertSteamNewsURL(url string) string {
+	// Match https://store.steampowered.com/news/app/DIGITS with optional trailing slash/params
+	steamNewsRe := regexp.MustCompile(`^(https?://store\.steampowered\.com)/news/(app/\d+)/?.*$`)
+	if m := steamNewsRe.FindStringSubmatch(url); m != nil {
+		return m[1] + "/feeds/news/" + m[2]
+	}
+	return url
 }
 
 // stripLeadingImage removes the first <img> tag from content if its src matches the given URL
