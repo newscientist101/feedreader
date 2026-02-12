@@ -30,7 +30,7 @@
 
     <article class="article-content">
         <div class="article-meta">
-            {{if .Feed}}<span class="feed-name">{{.Feed.Name}}</span>{{end}}
+            {{if .Feed}}<a href="/feed/{{.Feed.ID}}" class="feed-name">{{.Feed.Name}}</a>{{end}}
             {{if .Article.Author}}<span class="author">by {{deref .Article.Author}}</span>{{end}}
             <span class="date" data-timestamp="{{formatDate .Article.PublishedAt}}">{{timeAgo .Article.PublishedAt}}</span>
         </div>
