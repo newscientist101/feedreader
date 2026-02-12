@@ -1065,36 +1065,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Add scraper form
-    const addScraperForm = document.getElementById('add-scraper-form');
-    if (addScraperForm) {
-        addScraperForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const name = document.getElementById('scraper-name').value;
-            const description = document.getElementById('scraper-description').value;
-            const script = document.getElementById('scraper-script').value;
-
-            // Validate JSON
-            try {
-                JSON.parse(script);
-            } catch (e) {
-                alert('Invalid JSON in script field');
-                return;
-            }
-
-            try {
-                await api('POST', '/api/scrapers', {
-                    name,
-                    description,
-                    script,
-                    scriptType: 'json'
-                });
-                location.reload();
-            } catch (e) {
-                alert('Failed to create scraper: ' + e.message);
-            }
-        });
-    }
+    // Scraper form is handled in scrapers.html template
 
     // Search
     const searchInput = document.getElementById('search');

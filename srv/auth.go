@@ -92,6 +92,9 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 
 		// Add user to context
 		ctx = context.WithValue(ctx, userContextKey, user)
+		if r.Method == "POST" {
+			slog.Info("POST request", "path", r.URL.Path, "remote", r.RemoteAddr, "request_id", r.Header.Get("X-Request-Id"), "content_type", r.Header.Get("Content-Type"))
+		}
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
