@@ -1,4 +1,4 @@
-const CACHE_NAME = 'feedreader-v1';
+const CACHE_NAME = 'feedreader-v2';
 const STATIC_ASSETS = [
   '/',
   '/static/style.css',

@@ -511,6 +511,8 @@ body {
     gap: 15px;
     padding: 12px;
     padding-left: 0;
+    max-height: 220px;
+    overflow: hidden;
 }
 
 .view-expanded .article-image {
@@ -531,6 +533,7 @@ body {
 
 .view-expanded .article-card.has-image .article-body {
     min-width: 0;
+    overflow: hidden;
 }
 
 .view-expanded .article-title {
@@ -1252,6 +1255,7 @@ th {
         grid-template-columns: 1fr;
         grid-template-rows: auto 1fr;
         min-height: auto;
+        max-height: none;
     }
     
     .view-expanded .article-image {
