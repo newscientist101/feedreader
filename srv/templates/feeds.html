@@ -109,7 +109,12 @@
     </div>
 
     <div class="feeds-table">
-        <h2>Your Feeds</h2>
+        <div class="feeds-table-header">
+            <h2>Your Feeds</h2>
+            <div class="feeds-search">
+                <input type="search" id="feeds-search" placeholder="Search feeds..." oninput="filterFeeds(this.value)">
+            </div>
+        </div>
         {{if not .Feeds}}
         <p class="empty-state">No feeds yet. Add one above!</p>
         {{else}}

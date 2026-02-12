@@ -374,6 +374,28 @@ async function deleteFeed(id, name) {
     }
 }
 
+// Filter feeds table by search query
+function filterFeeds(query) {
+    const rows = document.querySelectorAll('.feeds-table tbody tr');
+    const lowerQuery = query.toLowerCase().trim();
+    
+    rows.forEach(row => {
+        if (!lowerQuery) {
+            row.style.display = '';
+            return;
+        }
+        
+        const name = row.querySelector('td:first-child')?.textContent?.toLowerCase() || '';
+        const url = row.querySelector('.url-cell')?.textContent?.toLowerCase() || '';
+        
+        if (name.includes(lowerQuery) || url.includes(lowerQuery)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
 async function markAsRead(btn, age = 'all') {
     const dropdown = btn.closest('.dropdown');
     const feedId = dropdown.dataset.feedId;

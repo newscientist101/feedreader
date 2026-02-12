@@ -899,6 +899,32 @@ th {
     margin-bottom: 20px;
 }
 
+.feeds-table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.feeds-table-header h2 {
+    margin-bottom: 0;
+}
+
+.feeds-search input {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    width: 250px;
+}
+
+.feeds-search input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
 .info-box {
     background: var(--bg-card);
     border-radius: 12px;
