@@ -1377,10 +1377,8 @@ th {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 15px;
     color: var(--text-secondary);
     text-decoration: none;
-    border-radius: 6px;
     font-size: 0.9rem;
     transition: all 0.2s;
 }
@@ -1401,19 +1399,33 @@ th {
     position: relative;
     display: flex;
     align-items: center;
+    padding: 8px 15px;
+    gap: 10px;
 }
 
 .folder-row .folder-link {
     flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.folder-row:hover .folder-link,
+.folder-row .folder-link.active {
+    color: var(--text-primary);
 }
 
 .folder-icon-wrapper {
     position: relative;
-    display: inline-flex;
+    display: flex;
     align-items: center;
     justify-content: center;
     width: 18px;
     height: 18px;
+    flex-shrink: 0;
 }
 
 .folder-icon-wrapper .folder-icon {
@@ -1432,11 +1444,11 @@ th {
     justify-content: center;
 }
 
-.folder-link:hover .folder-icon-wrapper .folder-icon {
+.folder-row:hover .folder-icon-wrapper .folder-icon {
     opacity: 0;
 }
 
-.folder-link:hover .folder-icon-wrapper .folder-settings {
+.folder-row:hover .folder-icon-wrapper .folder-settings {
     opacity: 1;
 }
 
