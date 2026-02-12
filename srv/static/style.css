@@ -1041,6 +1041,9 @@ th {
     text-align: center;
     padding: 60px 20px;
     color: var(--text-secondary);
+}
+
+.articles-list .empty-state {
     display: flex;
     flex-direction: column;
     align-items: center;
