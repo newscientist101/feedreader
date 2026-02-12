@@ -117,23 +117,23 @@ Please:
 2. Analyze the HTML structure
 3. Create a JSON scraper configuration
 
-The config format uses regex patterns:
+The config format uses CSS selectors (parsed by goquery/cascadia):
 {
-  "itemPattern": "regex to match each item/article container",
-  "titlePattern": "regex with capture group () for title",
-  "urlPattern": "regex with capture group () for URL/link",
-  "summaryPattern": "regex with capture group () for summary (optional)",
-  "authorPattern": "regex with capture group () for author (optional)", 
-  "datePattern": "regex with capture group () for date (optional)",
-  "imagePattern": "regex with capture group () for image URL (optional)",
+  "itemSelector": "CSS selector for each item container",
+  "titleSelector": "CSS selector for title (uses text content)",
+  "urlSelector": "CSS selector for link element",
+  "urlAttr": "attribute for URL (default: href)",
+  "summarySelector": "CSS selector for summary text (optional)",
+  "authorSelector": "CSS selector for author (optional)",
+  "imageSelector": "CSS selector for image (optional)",
+  "imageAttr": "attribute for image URL (default: src)",
+  "dateSelector": "CSS selector for date element (optional)",
+  "dateAttr": "attribute for date value (optional, uses text if empty)",
   "baseUrl": "base URL for resolving relative links"
 }
 
-Important regex tips:
-- Use (?s) at the start of patterns that span multiple lines
-- Use non-greedy quantifiers (.*?) to avoid over-matching  
-- The capture group () extracts the actual content
-- Patterns must work with Go's regexp package
+All selectors are relative to the matched itemSelector element.
+Example: if itemSelector is "div.post" and titleSelector is "h2 a", it finds h2 a inside each div.post.
 
 Respond with ONLY a JSON object in this exact format (no explanation, no markdown code blocks):
 {"name": "suggested scraper name", "config": { ...the config... }}`, url, description)

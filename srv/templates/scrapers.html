@@ -79,10 +79,15 @@
             <div class="form-group">
                 <label for="scraper-script">Configuration (JSON)</label>
                 <textarea id="scraper-script" rows="12" placeholder='{
-  "itemPattern": "<article[^>]*>.*?</article>",
-  "titlePattern": "<h2[^>]*>([^<]+)</h2>",
-  "urlPattern": "href=\"([^\"]+)\"",
-  "summaryPattern": "<p class=\"summary\">([^<]+)</p>",
+  "itemSelector": "article.post",
+  "titleSelector": "h2.title",
+  "urlSelector": "a.permalink",
+  "urlAttr": "href",
+  "summarySelector": "p.summary",
+  "imageSelector": "img.thumb",
+  "imageAttr": "src",
+  "dateSelector": "time",
+  "dateAttr": "datetime",
   "baseUrl": "https://example.com"
 }'></textarea>
             </div>
@@ -92,16 +97,19 @@
         <details class="config-help">
             <summary>Configuration Help</summary>
             <div class="help-content">
-                <p>The JSON configuration uses regex patterns to extract data:</p>
+                <p>The JSON configuration uses CSS selectors to extract data from the page:</p>
                 <ul>
-                    <li><code>itemPattern</code> - Matches each item container (required)</li>
-                    <li><code>titlePattern</code> - Extracts the title (capture group)</li>
-                    <li><code>urlPattern</code> - Extracts the link URL (capture group)</li>
-                    <li><code>summaryPattern</code> - Extracts description (optional)</li>
-                    <li><code>authorPattern</code> - Extracts author name (optional)</li>
-                    <li><code>datePattern</code> - Extracts publication date (optional)</li>
-                    <li><code>imagePattern</code> - Extracts image URL (optional)</li>
-                    <li><code>baseUrl</code> - Base URL for relative links</li>
+                    <li><code>itemSelector</code> - CSS selector for each item container (required)</li>
+                    <li><code>titleSelector</code> - Selector for the title element (text content is used)</li>
+                    <li><code>urlSelector</code> - Selector for the link element</li>
+                    <li><code>urlAttr</code> - Attribute to extract URL from (default: <code>href</code>)</li>
+                    <li><code>summarySelector</code> - Selector for description text (optional)</li>
+                    <li><code>authorSelector</code> - Selector for author name (optional)</li>
+                    <li><code>imageSelector</code> - Selector for image element (optional)</li>
+                    <li><code>imageAttr</code> - Attribute to extract image URL from (default: <code>src</code>)</li>
+                    <li><code>dateSelector</code> - Selector for date element (optional)</li>
+                    <li><code>dateAttr</code> - Attribute to extract date from (if empty, uses text content)</li>
+                    <li><code>baseUrl</code> - Base URL for resolving relative links</li>
                 </ul>
             </div>
         </details>

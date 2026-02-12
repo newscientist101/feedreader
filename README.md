@@ -73,27 +73,35 @@ sudo systemctl restart feedreader
 
 ### Manual Configuration
 
-Create a JSON config with regex patterns:
+Create a JSON config with CSS selectors:
 
 ```json
 {
-  "itemPattern": "<article[^>]*>.*?</article>",
-  "titlePattern": "<h2[^>]*>([^<]+)</h2>",
-  "urlPattern": "href=\"([^\"]+)\"",
-  "summaryPattern": "<p class=\"summary\">([^<]+)</p>",
+  "itemSelector": "article.post",
+  "titleSelector": "h2.title",
+  "urlSelector": "a.permalink",
+  "urlAttr": "href",
+  "summarySelector": "p.summary",
+  "imageSelector": "img.thumb",
+  "imageAttr": "src",
+  "dateSelector": "time",
+  "dateAttr": "datetime",
   "baseUrl": "https://example.com"
 }
 ```
 
-### Available Patterns
+### Available Selectors
 
-- `itemPattern` - Matches each item container (required)
-- `titlePattern` - Extracts title (capture group)
-- `urlPattern` - Extracts link URL (capture group)
-- `summaryPattern` - Extracts description (optional)
-- `authorPattern` - Extracts author name (optional)
-- `datePattern` - Extracts publication date (optional)
-- `imagePattern` - Extracts image URL (optional)
+- `itemSelector` - CSS selector for each item container (required)
+- `titleSelector` - Selector for title element (uses text content)
+- `urlSelector` - Selector for link element
+- `urlAttr` - Attribute to extract URL from (default: `href`)
+- `summarySelector` - Selector for description (optional)
+- `authorSelector` - Selector for author name (optional)
+- `imageSelector` - Selector for image element (optional)
+- `imageAttr` - Attribute to extract image URL from (default: `src`)
+- `dateSelector` - Selector for date element (optional)
+- `dateAttr` - Attribute to extract date from (uses text content if empty)
 - `baseUrl` - Base URL for relative links
 
 ## Folder Exclusion Rules

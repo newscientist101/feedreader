@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
 // Runner executes scraper scripts
@@ -46,9 +47,7 @@ type FeedItem struct {
 }
 
 // Run executes a scraper script against HTML content
-// Scripts are simple JSON-based selector configs for now
 func (r *Runner) Run(ctx context.Context, script, html, pageURL, config string) ([]FeedItem, error) {
-	// Parse the script as a scraper config
 	var scraperConfig ScraperConfig
 	if err := json.Unmarshal([]byte(script), &scraperConfig); err != nil {
 		return nil, fmt.Errorf("parse scraper config: %w", err)
@@ -57,125 +56,103 @@ func (r *Runner) Run(ctx context.Context, script, html, pageURL, config string) 
 	return r.runConfigScraper(scraperConfig, html, pageURL)
 }
 
-// ScraperConfig defines how to extract items from a page
+// ScraperConfig defines how to extract items from a page using CSS selectors
 type ScraperConfig struct {
-	// ItemSelector is a regex pattern to match item blocks
-	ItemPattern string `json:"itemPattern"`
-	// Field extractors (regex patterns with capture groups)
-	TitlePattern    string `json:"titlePattern"`
-	URLPattern      string `json:"urlPattern"`
-	AuthorPattern   string `json:"authorPattern"`
-	SummaryPattern  string `json:"summaryPattern"`
-	ImagePattern    string `json:"imagePattern"`
-	DatePattern     string `json:"datePattern"`
+	// ItemSelector is a CSS selector to match item containers
+	ItemSelector string `json:"itemSelector"`
+	// Field extractors (CSS selectors)
+	TitleSelector   string `json:"titleSelector"`
+	URLSelector     string `json:"urlSelector"`
+	URLAttr         string `json:"urlAttr"`         // attribute to get URL from (default: "href")
+	AuthorSelector  string `json:"authorSelector"`
+	SummarySelector string `json:"summarySelector"`
+	ImageSelector   string `json:"imageSelector"`
+	ImageAttr       string `json:"imageAttr"`       // attribute to get image from (default: "src")
+	DateSelector    string `json:"dateSelector"`
+	DateAttr        string `json:"dateAttr"`        // attribute to get date from (default: text content)
 	// BaseURL for relative URLs
 	BaseURL string `json:"baseUrl"`
 }
 
 func (r *Runner) runConfigScraper(config ScraperConfig, html, pageURL string) ([]FeedItem, error) {
-	if config.ItemPattern == "" {
-		return nil, fmt.Errorf("itemPattern is required")
+	if config.ItemSelector == "" {
+		return nil, fmt.Errorf("itemSelector is required")
 	}
 
-	itemRe, err := regexp.Compile("(?s)" + config.ItemPattern)
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
-		return nil, fmt.Errorf("invalid itemPattern: %w", err)
+		return nil, fmt.Errorf("parse HTML: %w", err)
 	}
 
-	matches := itemRe.FindAllString(html, -1)
-	if len(matches) == 0 {
-		return nil, nil
+	if config.URLAttr == "" {
+		config.URLAttr = "href"
+	}
+	if config.ImageAttr == "" {
+		config.ImageAttr = "src"
 	}
 
 	var items []FeedItem
-	for i, match := range matches {
+	doc.Find(config.ItemSelector).Each(func(i int, s *goquery.Selection) {
 		item := FeedItem{}
 
 		// Extract title
-		if config.TitlePattern != "" {
-			if re, err := regexp.Compile(config.TitlePattern); err == nil {
-				if m := re.FindStringSubmatch(match); len(m) > 1 {
-					item.Title = cleanHTML(m[1])
-				}
-			}
+		if config.TitleSelector != "" {
+			item.Title = strings.TrimSpace(s.Find(config.TitleSelector).First().Text())
 		}
 
 		// Extract URL
-		if config.URLPattern != "" {
-			if re, err := regexp.Compile(config.URLPattern); err == nil {
-				if m := re.FindStringSubmatch(match); len(m) > 1 {
-					item.URL = resolveURL(config.BaseURL, pageURL, m[1])
-				}
+		if config.URLSelector != "" {
+			if val, exists := s.Find(config.URLSelector).First().Attr(config.URLAttr); exists {
+				item.URL = resolveURL(config.BaseURL, pageURL, strings.TrimSpace(val))
 			}
 		}
 
 		// Extract author
-		if config.AuthorPattern != "" {
-			if re, err := regexp.Compile(config.AuthorPattern); err == nil {
-				if m := re.FindStringSubmatch(match); len(m) > 1 {
-					item.Author = cleanHTML(m[1])
-				}
-			}
+		if config.AuthorSelector != "" {
+			item.Author = strings.TrimSpace(s.Find(config.AuthorSelector).First().Text())
 		}
 
 		// Extract summary
-		if config.SummaryPattern != "" {
-			if re, err := regexp.Compile(config.SummaryPattern); err == nil {
-				if m := re.FindStringSubmatch(match); len(m) > 1 {
-					item.Summary = cleanHTML(m[1])
-				}
-			}
+		if config.SummarySelector != "" {
+			item.Summary = strings.TrimSpace(s.Find(config.SummarySelector).First().Text())
 		}
 
 		// Extract image
-		if config.ImagePattern != "" {
-			if re, err := regexp.Compile(config.ImagePattern); err == nil {
-				if m := re.FindStringSubmatch(match); len(m) > 1 {
-					item.ImageURL = resolveURL(config.BaseURL, pageURL, m[1])
-				}
+		if config.ImageSelector != "" {
+			if val, exists := s.Find(config.ImageSelector).First().Attr(config.ImageAttr); exists {
+				item.ImageURL = resolveURL(config.BaseURL, pageURL, strings.TrimSpace(val))
 			}
 		}
 
 		// Extract date
-		if config.DatePattern != "" {
-			if re, err := regexp.Compile(config.DatePattern); err == nil {
-				if m := re.FindStringSubmatch(match); len(m) > 1 {
-					if t, err := parseFlexibleDate(m[1]); err == nil {
-						item.PublishedAt = &t
-					}
-				}
+		if config.DateSelector != "" {
+			var dateStr string
+			sel := s.Find(config.DateSelector).First()
+			if config.DateAttr != "" {
+				dateStr, _ = sel.Attr(config.DateAttr)
+			} else {
+				dateStr = sel.Text()
+			}
+			if t, err := parseFlexibleDate(strings.TrimSpace(dateStr)); err == nil {
+				item.PublishedAt = &t
 			}
 		}
 
-		// Generate GUID if not found
+		// Generate GUID
 		if item.URL != "" {
 			item.GUID = item.URL
 		} else if item.Title != "" {
 			item.GUID = fmt.Sprintf("%s-%d", item.Title, i)
 		} else {
-			continue // Skip items without identifiable content
+			return // Skip items without identifiable content
 		}
 
 		if item.Title != "" || item.Summary != "" {
 			items = append(items, item)
 		}
-	}
+	})
 
 	return items, nil
-}
-
-func cleanHTML(s string) string {
-	// Remove HTML tags
-	re := regexp.MustCompile(`<[^>]*>`)
-	s = re.ReplaceAllString(s, "")
-	// Decode common entities
-	s = strings.ReplaceAll(s, "&amp;", "&")
-	s = strings.ReplaceAll(s, "&lt;", "<")
-	s = strings.ReplaceAll(s, "&gt;", ">")
-	s = strings.ReplaceAll(s, "&quot;", "\"")
-	s = strings.ReplaceAll(s, "&#39;", "'")
-	s = strings.ReplaceAll(s, "&nbsp;", " ")
-	return strings.TrimSpace(s)
 }
 
 func resolveURL(baseURL, pageURL, href string) string {
@@ -190,7 +167,6 @@ func resolveURL(baseURL, pageURL, href string) string {
 	if base == "" {
 		return href
 	}
-	// Simple URL resolution
 	if strings.HasPrefix(href, "//") {
 		if strings.HasPrefix(base, "https:") {
 			return "https:" + href
@@ -198,7 +174,6 @@ func resolveURL(baseURL, pageURL, href string) string {
 		return "http:" + href
 	}
 	if strings.HasPrefix(href, "/") {
-		// Extract origin from base
 		parts := strings.SplitN(base, "://", 2)
 		if len(parts) == 2 {
 			host := strings.SplitN(parts[1], "/", 2)[0]
