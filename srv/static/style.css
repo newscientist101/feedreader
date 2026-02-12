@@ -1497,6 +1497,10 @@ th {
     transition: transform 0.2s, color 0.2s, background 0.15s;
 }
 
+.folder-chevron svg {
+    pointer-events: none;
+}
+
 .folder-chevron:hover {
     color: var(--text-primary);
     background: rgba(255, 255, 255, 0.1);
