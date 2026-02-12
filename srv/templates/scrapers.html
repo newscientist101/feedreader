@@ -175,7 +175,7 @@
     <div class="modal-content">
         <div class="modal-header">
             <h3 id="modal-title">Scraper Configuration</h3>
-            <button onclick="closeModal()" class="modal-close">&times;</button>
+            <button onclick="closeConfigModal()" class="modal-close">&times;</button>
         </div>
         <pre id="modal-config"></pre>
     </div>
@@ -271,7 +271,7 @@ async function viewScraperConfig(id) {
     }
 }
 
-function closeModal() {
+function closeConfigModal() {
     document.getElementById('config-modal').style.display = 'none';
 }
 
@@ -435,7 +435,7 @@ function updateConfigTemplate() {
 
 // Close modal on outside click
 document.getElementById('config-modal').addEventListener('click', (e) => {
-    if (e.target.id === 'config-modal') closeModal();
+    if (e.target.id === 'config-modal') closeConfigModal();
 });
 </script>
 {{end}}
