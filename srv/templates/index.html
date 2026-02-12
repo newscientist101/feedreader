@@ -69,16 +69,17 @@
         {{else}}
         {{range .Articles}}
         <article class="article-card {{if and .IsRead (ne (deref .IsRead) 0)}}read{{end}}{{if .ImageUrl}} has-image{{end}}" data-id="{{.ID}}">
-            {{/* Magazine view image placeholder */}}
+            {{if .ImageUrl}}
+            {{/* Image for magazine and expanded views */}}
+            <div class="article-image magazine-expanded-only">
+                <img src="{{deref .ImageUrl}}" alt="" loading="lazy">
+            </div>
+            {{else}}
+            {{/* Placeholder when no image available (magazine view only) */}}
             <div class="article-image-placeholder magazine-only">
                 <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
                     <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
                 </svg>
-            </div>
-            {{/* Expanded view image */}}
-            {{if .ImageUrl}}
-            <div class="article-image expanded-only">
-                <img src="{{deref .ImageUrl}}" alt="" loading="lazy">
             </div>
             {{end}}
             <div class="article-body" onclick="window.location='/article/{{.ID}}'" style="cursor: pointer;">

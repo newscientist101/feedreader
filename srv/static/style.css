@@ -437,8 +437,15 @@ body {
 .view-magazine .article-image {
     width: 100%;
     height: 180px;
-    object-fit: cover;
+    overflow: hidden;
     background: var(--bg-secondary);
+}
+
+.view-magazine .article-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
 }
 
 .view-magazine .article-image-placeholder {
@@ -572,11 +579,13 @@ body {
 
 /* View-specific visibility */
 .magazine-only,
-.expanded-only {
+.expanded-only,
+.magazine-expanded-only {
     display: none;
 }
 
-.view-magazine .magazine-only {
+.view-magazine .magazine-only,
+.view-magazine .magazine-expanded-only {
     display: flex;
 }
 
@@ -584,7 +593,8 @@ body {
     padding: 15px;
 }
 
-.view-expanded .expanded-only {
+.view-expanded .expanded-only,
+.view-expanded .magazine-expanded-only {
     display: block;
 }
 
