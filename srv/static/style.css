@@ -623,6 +623,7 @@ body {
 .article-meta .feed-name {
     color: var(--accent);
     text-decoration: none;
+    flex: none;
 }
 
 .article-meta .feed-name:hover {
