@@ -87,6 +87,7 @@
                 </label>
                 <div class="config-editor-wrapper">
                     <textarea id="scraper-script" rows="12" placeholder='{
+  "type": "html",
   "itemSelector": "article.post",
   "titleSelector": "h2.title",
   "urlSelector": "a.permalink",
@@ -106,6 +107,7 @@
                         <div id="schema-html" class="schema-content">
                             <h4>HTML Scraper (CSS Selectors)</h4>
                             <dl>
+                                <dt>type</dt><dd>Must be <code>"html"</code> <em>(required)</em></dd>
                                 <dt>itemSelector</dt><dd>CSS selector for each item container <em>(required)</em></dd>
                                 <dt>titleSelector</dt><dd>Selector for title element (text content)</dd>
                                 <dt>urlSelector</dt><dd>Selector for link element</dd>
@@ -343,7 +345,7 @@ function updateConfigTemplate() {
     if (type === 'json-api') {
         textarea.placeholder = '{\n  "type": "json",\n  "itemsPath": "data.items",\n  "titlePath": "title",\n  "urlPath": "url",\n  "summaryPath": "description",\n  "datePath": "timestamp",\n  "baseUrl": "https://example.com",\n  "consolidateDuplicates": false\n}';
     } else {
-        textarea.placeholder = '{\n  "itemSelector": "article.post",\n  "titleSelector": "h2.title",\n  "urlSelector": "a.permalink",\n  "urlAttr": "href",\n  "summarySelector": "p.summary",\n  "imageSelector": "img.thumb",\n  "imageAttr": "src",\n  "dateSelector": "time",\n  "dateAttr": "datetime",\n  "baseUrl": "https://example.com"\n}';
+        textarea.placeholder = '{\n  "type": "html",\n  "itemSelector": "article.post",\n  "titleSelector": "h2.title",\n  "urlSelector": "a.permalink",\n  "urlAttr": "href",\n  "summarySelector": "p.summary",\n  "imageSelector": "img.thumb",\n  "imageAttr": "src",\n  "dateSelector": "time",\n  "dateAttr": "datetime",\n  "baseUrl": "https://example.com"\n}';
     }
 }
 

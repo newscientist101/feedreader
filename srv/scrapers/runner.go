@@ -54,24 +54,27 @@ func (r *Runner) Run(ctx context.Context, script, content, pageURL, config strin
 	}
 	json.Unmarshal([]byte(script), &probe)
 
-	if probe.Type == "json" {
+	switch probe.Type {
+	case "json":
 		var jsonConfig JSONScraperConfig
 		if err := json.Unmarshal([]byte(script), &jsonConfig); err != nil {
 			return nil, fmt.Errorf("parse json scraper config: %w", err)
 		}
 		return r.runJSONScraper(jsonConfig, content, pageURL)
+	case "html":
+		var scraperConfig ScraperConfig
+		if err := json.Unmarshal([]byte(script), &scraperConfig); err != nil {
+			return nil, fmt.Errorf("parse scraper config: %w", err)
+		}
+		return r.runConfigScraper(scraperConfig, content, pageURL)
+	default:
+		return nil, fmt.Errorf("missing or unknown type: %q (must be \"html\" or \"json\")", probe.Type)
 	}
-
-	// Default: CSS selector scraper
-	var scraperConfig ScraperConfig
-	if err := json.Unmarshal([]byte(script), &scraperConfig); err != nil {
-		return nil, fmt.Errorf("parse scraper config: %w", err)
-	}
-	return r.runConfigScraper(scraperConfig, content, pageURL)
 }
 
 // ScraperConfig defines how to extract items from a page using CSS selectors
 type ScraperConfig struct {
+	Type string `json:"type"` // must be "html"
 	// ItemSelector is a CSS selector to match item containers
 	ItemSelector string `json:"itemSelector"`
 	// Field extractors (CSS selectors)

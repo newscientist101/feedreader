@@ -119,6 +119,7 @@ Please:
 
 The config format uses CSS selectors (parsed by goquery/cascadia):
 {
+  "type": "html",
   "itemSelector": "CSS selector for each item container",
   "titleSelector": "CSS selector for title (uses text content)",
   "urlSelector": "CSS selector for link element",
