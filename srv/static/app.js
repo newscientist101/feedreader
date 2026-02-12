@@ -202,21 +202,20 @@ function toggleFolder(event, categoryId) {
     const folderItem = document.querySelector(`.folder-item[data-category-id="${categoryId}"]`);
     if (!folderItem) return false;
     
-    // If already expanded, collapse it
-    if (folderItem.classList.contains('expanded')) {
-        collapseFolder(folderItem);
-        return false;
+    // If already expanded, clicking again collapses children but still navigates
+    const wasExpanded = folderItem.classList.contains('expanded');
+    
+    if (!wasExpanded) {
+        // Collapse sibling folders (same level under same parent)
+        const parent = folderItem.parentElement;
+        if (parent) {
+            parent.querySelectorAll(':scope > .folder-item.expanded').forEach(item => {
+                collapseFolder(item);
+            });
+        }
     }
     
-    // Collapse sibling folders (same level under same parent)
-    const parent = folderItem.parentElement;
-    if (parent) {
-        parent.querySelectorAll(':scope > .folder-item.expanded').forEach(item => {
-            collapseFolder(item);
-        });
-    }
-    
-    // Expand this folder
+    // Always expand and navigate
     folderItem.classList.add('expanded');
     folderItem.querySelector('.folder-link')?.classList.add('active');
     
@@ -224,6 +223,16 @@ function toggleFolder(event, categoryId) {
     loadCategoryArticles(categoryId, folderItem.querySelector('.folder-name')?.textContent || 'Category');
     
     return false;
+}
+
+function toggleFolderCollapse(categoryId) {
+    const folderItem = document.querySelector(`.folder-item[data-category-id="${categoryId}"]`);
+    if (!folderItem) return;
+    if (folderItem.classList.contains('expanded')) {
+        collapseFolder(folderItem);
+    } else {
+        folderItem.classList.add('expanded');
+    }
 }
 
 function collapseFolder(folderItem) {

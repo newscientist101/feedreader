@@ -1482,12 +1482,36 @@ th {
     color: var(--text-primary);
 }
 
+.folder-chevron {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    transition: transform 0.2s, color 0.2s;
+}
+
+.folder-chevron:hover {
+    color: var(--text-primary);
+}
+
+.folder-item.expanded > .folder-row > .folder-chevron {
+    transform: rotate(90deg);
+}
+
 .folder-row {
     position: relative;
     display: flex;
     align-items: center;
-    padding: 8px var(--sidebar-right-padding) 8px 15px;
-    gap: 10px;
+    padding: 8px var(--sidebar-right-padding) 8px 10px;
+    gap: 6px;
 }
 
 .folder-row .folder-link {
