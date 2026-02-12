@@ -444,6 +444,9 @@ function renderArticles(articles) {
     
     list.innerHTML = html;
     
+    // Process embeds in expanded view content previews
+    list.querySelectorAll('.article-content-preview').forEach(el => processEmbeds(el));
+    
     // Re-apply user preferences (hide read, etc.)
     applyUserPreferences();
 }
@@ -543,6 +546,9 @@ function initView() {
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize timestamp tooltips with local timezone
     initTimestampTooltips();
+    
+    // Process embeds in article page content
+    processEmbeds(document.querySelector('.article-body'));
     
     // Initialize auto-mark-read on scroll
     initAutoMarkRead();
@@ -1579,4 +1585,63 @@ function getDragAfterElementAmongSiblings(siblings, y) {
             return closest;
         }
     }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+// Process custom embed tags in article content
+function processEmbeds(container) {
+    if (!container) return;
+
+    // Process video embeds: <video data-embed-type="video" data-src="...">
+    container.querySelectorAll('video[data-embed-type="video"]').forEach(el => {
+        const src = el.getAttribute('data-src') || '';
+        const videoId = extractYouTubeId(src);
+        if (videoId) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'embed-video';
+            wrapper.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+            el.replaceWith(wrapper);
+        }
+    });
+
+    // Process tweet embeds: <div data-embed-type="tweet">
+    const tweetEls = container.querySelectorAll('[data-embed-type="tweet"]');
+    if (tweetEls.length > 0) {
+        tweetEls.forEach(el => {
+            // The blockquote is already inside; Twitter's widget JS will pick it up
+            const blockquote = el.querySelector('blockquote.twitter-tweet');
+            if (blockquote) {
+                el.replaceWith(blockquote);
+            }
+        });
+        // Load Twitter widget JS if not already loaded
+        if (!document.querySelector('script[src*="platform.twitter.com"]')) {
+            const s = document.createElement('script');
+            s.src = 'https://platform.twitter.com/widgets.js';
+            s.async = true;
+            document.body.appendChild(s);
+        } else if (window.twttr && window.twttr.widgets) {
+            window.twttr.widgets.load(container);
+        }
+    }
+
+    // Process existing iframes (e.g. YouTube) - ensure they're responsive
+    container.querySelectorAll('iframe').forEach(el => {
+        if (el.closest('.embed-video')) return; // already wrapped
+        const src = el.getAttribute('src') || '';
+        if (src.includes('youtube.com') || src.includes('youtu.be')) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'embed-video';
+            el.parentNode.insertBefore(wrapper, el);
+            wrapper.appendChild(el);
+            el.removeAttribute('width');
+            el.removeAttribute('height');
+        }
+    });
+}
+
+function extractYouTubeId(url) {
+    if (!url) return null;
+    // youtube.com/watch?v=ID, youtube.com/shorts/ID, youtube.com/embed/ID, youtu.be/ID
+    const m = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/);
+    return m ? m[1] : null;
 }
