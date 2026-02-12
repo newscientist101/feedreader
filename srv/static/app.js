@@ -502,6 +502,10 @@ async function refreshFeed(id) {
                         btn.title = '';
                     }, 2000);
                 });
+                
+                // Update status cell in the feeds table if present
+                updateFeedStatusCell(id, status.lastError);
+                
                 updateCounts();
                 return;
             }
@@ -790,6 +794,25 @@ async function updateCounts() {
 }
 
 // Update feed error indicators in sidebar
+// Update status cell in the Manage Feeds table
+function updateFeedStatusCell(feedId, lastError) {
+    const row = document.querySelector(`tr[data-feed-id="${feedId}"]`);
+    if (!row) return;
+    
+    // Find the status cell (second to last column)
+    const cells = row.querySelectorAll('td');
+    const statusCell = cells[cells.length - 2]; // Status is before Actions
+    if (!statusCell) return;
+    
+    if (lastError) {
+        statusCell.innerHTML = `<span class="status-error" title="${lastError}">Error</span>`;
+        row.dataset.hasError = 'true';
+    } else {
+        statusCell.innerHTML = '<span class="status-ok">OK</span>';
+        delete row.dataset.hasError;
+    }
+}
+
 function updateFeedErrors(feedErrors) {
     // Get all feed items in sidebar
     const feedItems = document.querySelectorAll('.feed-item[data-feed-id]');
