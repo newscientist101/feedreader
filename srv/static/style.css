@@ -1555,11 +1555,11 @@ th {
     justify-content: center;
 }
 
-.folder-row:hover .folder-icon-wrapper .folder-icon {
+.folder-row .folder-link:hover .folder-icon-wrapper .folder-icon {
     opacity: 0;
 }
 
-.folder-row:hover .folder-icon-wrapper .folder-settings {
+.folder-row .folder-link:hover .folder-icon-wrapper .folder-settings {
     opacity: 1;
 }
 
