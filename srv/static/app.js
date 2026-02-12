@@ -766,10 +766,7 @@ async function deleteScraper(id, name) {
     }
 }
 
-function editScraper(id) {
-    // For now, just alert - could load data via API
-    alert('Edit functionality coming soon. Delete and recreate for now.');
-}
+// editScraper is defined in scrapers.html template
 
 function closeModal() {
     document.getElementById('edit-modal').style.display = 'none';
