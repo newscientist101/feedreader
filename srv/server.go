@@ -893,6 +893,7 @@ func (s *Server) apiGetScraper(w http.ResponseWriter, r *http.Request) {
 func (s *Server) apiCreateScraper(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	q := dbgen.New(s.DB)
+	user := GetUser(ctx)
 
 	var req struct {
 		Name        string `json:"name"`
@@ -920,11 +921,13 @@ func (s *Server) apiCreateScraper(w http.ResponseWriter, r *http.Request) {
 		desc = &req.Description
 	}
 
+	slog.Info("creating scraper module", "name", req.Name, "user_id", user.ID)
 	module, err := q.CreateScraperModule(ctx, dbgen.CreateScraperModuleParams{
 		Name:        req.Name,
 		Description: desc,
 		Script:      req.Script,
 		ScriptType:  req.ScriptType,
+		UserID:      &user.ID,
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {

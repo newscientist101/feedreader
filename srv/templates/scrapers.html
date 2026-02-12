@@ -232,7 +232,7 @@ document.getElementById('ai-generate-form').addEventListener('submit', async (e)
     } catch (err) {
         alert('Failed to generate: ' + err.message);
     } finally {
-        btn.disabled = false;
+        btn.disabled = false; _scraperSubmitting = false;
         btn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 9l-7 7-7-7"/></svg> Generate Scraper Config`;
     }
 });
@@ -292,10 +292,12 @@ async function deleteScraper(id) {
 }
 
 // Manual scraper form
+let _scraperSubmitting = false;
 document.getElementById('add-scraper-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (_scraperSubmitting) return;
+    _scraperSubmitting = true;
     const btn = e.target.querySelector('button[type="submit"]');
-    if (btn.disabled) return;
     btn.disabled = true;
     
     const name = document.getElementById('scraper-name').value;
@@ -318,16 +320,16 @@ document.getElementById('add-scraper-form').addEventListener('submit', async (e)
             body: JSON.stringify({ name, description, script, script_type: scriptType })
         });
         
+        const data = await resp.json();
         if (resp.ok) {
-            location.reload();
+            window.location.href = '/scrapers';
         } else {
-            const data = await resp.json();
             alert(data.error || 'Failed to create scraper');
-            btn.disabled = false;
+            btn.disabled = false; _scraperSubmitting = false;
         }
     } catch (err) {
         alert('Failed to create: ' + err.message);
-        btn.disabled = false;
+        btn.disabled = false; _scraperSubmitting = false;
     }
 });
 
