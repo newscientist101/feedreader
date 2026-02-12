@@ -35,7 +35,7 @@ body {
 /* Sidebar */
 .sidebar {
     --sidebar-padding: 15px;
-    --sidebar-right-align: 15px;
+    --sidebar-right-align: 10px;
     width: 260px;
     background: var(--bg-secondary);
     display: flex;
