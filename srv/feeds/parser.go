@@ -1,12 +1,14 @@
 package feeds
 
 import (
+	"bytes"
 	"encoding/xml"
 	"fmt"
 	"html"
 	"io"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // FeedItem represents a single item from any feed type
@@ -36,6 +38,9 @@ func Parse(r io.Reader) (*ParsedFeed, error) {
 		return nil, fmt.Errorf("read feed: %w", err)
 	}
 
+	// Sanitize invalid UTF-8 bytes that can cause XML parsing to fail
+	data = sanitizeUTF8(data)
+
 	// Try RSS first
 	if feed, err := parseRSS(data); err == nil {
 		return feed, nil
@@ -47,6 +52,27 @@ func Parse(r io.Reader) (*ParsedFeed, error) {
 	}
 
 	return nil, fmt.Errorf("unable to parse as RSS or Atom feed")
+}
+
+// sanitizeUTF8 removes invalid UTF-8 sequences from the data
+func sanitizeUTF8(data []byte) []byte {
+	if utf8.Valid(data) {
+		return data
+	}
+	
+	// Replace invalid UTF-8 sequences with the replacement character
+	var buf bytes.Buffer
+	for len(data) > 0 {
+		r, size := utf8.DecodeRune(data)
+		if r == utf8.RuneError && size == 1 {
+			// Invalid byte, skip it
+			data = data[1:]
+			continue
+		}
+		buf.WriteRune(r)
+		data = data[size:]
+	}
+	return buf.Bytes()
 }
 
 // RSS structures
