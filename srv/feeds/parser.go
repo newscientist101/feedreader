@@ -195,14 +195,20 @@ type atomLink struct {
 }
 
 type atomEntry struct {
-	ID        string       `xml:"id"`
-	Title     string       `xml:"title"`
-	Links     []atomLink   `xml:"link"`
-	Summary   string       `xml:"summary"`
-	Content   *atomContent `xml:"content"`
-	Author    *atomAuthor  `xml:"author"`
-	Published string       `xml:"published"`
-	Updated   string       `xml:"updated"`
+	ID         string      `xml:"id"`
+	Title      string      `xml:"title"`
+	Links      []atomLink  `xml:"link"`
+	Summary    string      `xml:"summary"`
+	Content    *atomContent `xml:"content"`
+	Author     *atomAuthor `xml:"author"`
+	Published  string      `xml:"published"`
+	Updated    string      `xml:"updated"`
+	MediaGroup *mediaGroup `xml:"http://search.yahoo.com/mrss/ group"`
+}
+
+type mediaGroup struct {
+	Thumbnail *mediaThumbnail `xml:"http://search.yahoo.com/mrss/ thumbnail"`
+	Content   *mediaContent   `xml:"http://search.yahoo.com/mrss/ content"`
 }
 
 type atomContent struct {
@@ -268,9 +274,11 @@ func parseAtom(data []byte) (*ParsedFeed, error) {
 			}
 		}
 
-		// Extract image from content or summary
+		// Extract image - check media:group first (YouTube), then HTML content
 		var imageURL string
-		if imageURL = extractImageFromHTML(content); imageURL == "" {
+		if entry.MediaGroup != nil && entry.MediaGroup.Thumbnail != nil && entry.MediaGroup.Thumbnail.URL != "" {
+			imageURL = entry.MediaGroup.Thumbnail.URL
+		} else if imageURL = extractImageFromHTML(content); imageURL == "" {
 			imageURL = extractImageFromHTML(entry.Summary)
 		}
 
