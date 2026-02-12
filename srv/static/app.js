@@ -426,7 +426,8 @@ async function api(method, url, data = null) {
 }
 
 // Article actions
-async function markRead(id) {
+async function markRead(event, id) {
+    if (event) event.stopPropagation();
     try {
         await api('POST', `/api/articles/${id}/read`);
         const card = document.querySelector(`.article-card[data-id="${id}"]`);
@@ -437,7 +438,8 @@ async function markRead(id) {
     }
 }
 
-async function markUnread(id) {
+async function markUnread(event, id) {
+    if (event) event.stopPropagation();
     try {
         await api('POST', `/api/articles/${id}/unread`);
         const card = document.querySelector(`.article-card[data-id="${id}"]`);
@@ -448,11 +450,12 @@ async function markUnread(id) {
     }
 }
 
-async function toggleStar(id) {
+async function toggleStar(event, id) {
+    if (event) event.stopPropagation();
     try {
         await api('POST', `/api/articles/${id}/star`);
         // Toggle star button appearance
-        const btns = document.querySelectorAll(`[onclick="toggleStar(${id})"]`);
+        const btns = document.querySelectorAll(`[onclick="toggleStar(${id})"], [onclick="toggleStar(event, ${id})"]`);
         btns.forEach(btn => btn.classList.toggle('starred'));
         updateCounts();
     } catch (e) {
