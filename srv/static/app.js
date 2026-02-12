@@ -318,6 +318,8 @@ function renderArticles(articles) {
         </article>
     `).join('');
     
+    list.innerHTML = html;
+    
     // Re-apply user preferences (hide read, etc.)
     applyUserPreferences();
 }
