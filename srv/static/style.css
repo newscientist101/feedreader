@@ -1448,14 +1448,14 @@ th {
 
 .categories-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
 }
 
 .category-card {
     background: var(--bg-secondary);
-    border-radius: 8px;
-    padding: 10px 15px;
+    border-radius: 6px;
+    padding: 6px 12px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1469,11 +1469,21 @@ th {
     white-space: nowrap;
     flex: 1;
     min-width: 0;
+    font-size: 0.9rem;
 }
 
 .category-actions {
+    display: flex;
+    flex-direction: row;
+    gap: 2px;
     flex-shrink: 0;
     margin-left: 8px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.category-card:hover .category-actions {
+    opacity: 1;
 }
 
 .category-card:hover {
