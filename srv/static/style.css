@@ -187,6 +187,14 @@ body {
     margin-right: 6px;
 }
 
+.feed-favicon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    margin-right: 8px;
+    border-radius: 2px;
+}
+
 .feed-name {
     flex: 1;
     overflow: hidden;

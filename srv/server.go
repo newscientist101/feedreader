@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"regexp"
 	"path/filepath"
 	"runtime"
@@ -157,6 +158,7 @@ func (s *Server) renderTemplate(w http.ResponseWriter, name string, data any) er
 		"safeHTML":          safeHTML,
 		"stripLeadingImage": stripLeadingImage,
 		"multiply":   func(a, b int) int { return a * b },
+		"faviconURL": faviconURL,
 		"dict": func(pairs ...any) map[string]any {
 			m := make(map[string]any, len(pairs)/2)
 			for i := 0; i+1 < len(pairs); i += 2 {
@@ -1089,6 +1091,15 @@ func deref(p any) any {
 	default:
 		return p
 	}
+}
+
+// faviconURL returns a Google S2 favicon URL for the domain of the given feed URL.
+func faviconURL(feedURL string) string {
+	u, err := url.Parse(feedURL)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	return "https://www.google.com/s2/favicons?domain=" + url.QueryEscape(u.Host) + "&sz=32"
 }
 
 func safeHTML(s string) template.HTML {
