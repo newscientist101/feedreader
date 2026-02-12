@@ -207,8 +207,9 @@ type atomEntry struct {
 }
 
 type mediaGroup struct {
-	Thumbnail *mediaThumbnail `xml:"http://search.yahoo.com/mrss/ thumbnail"`
-	Content   *mediaContent   `xml:"http://search.yahoo.com/mrss/ content"`
+	Thumbnail   *mediaThumbnail `xml:"http://search.yahoo.com/mrss/ thumbnail"`
+	Content     *mediaContent   `xml:"http://search.yahoo.com/mrss/ content"`
+	Description string          `xml:"http://search.yahoo.com/mrss/ description"`
 }
 
 type atomContent struct {
@@ -263,6 +264,32 @@ func parseAtom(data []byte) (*ParsedFeed, error) {
 			content = entry.Content.Content
 		}
 
+		// If no content/summary, use media:group description and embed
+		if content == "" && entry.Summary == "" && entry.MediaGroup != nil {
+			var parts []string
+			// Add video embed if media:content is a video
+			if entry.MediaGroup.Content != nil && entry.MediaGroup.Content.URL != "" && url != "" {
+				// Use the article URL for embedding (works better than Flash URLs)
+				embedURL := url
+				// Convert YouTube watch URLs to embed URLs
+				if strings.Contains(embedURL, "youtube.com/watch?v=") {
+					embedURL = strings.Replace(embedURL, "/watch?v=", "/embed/", 1)
+				} else if strings.Contains(embedURL, "youtube.com/shorts/") {
+					embedURL = strings.Replace(embedURL, "/shorts/", "/embed/", 1)
+				}
+				parts = append(parts, fmt.Sprintf(`<iframe width="560" height="315" src="%s" frameborder="0" allowfullscreen></iframe>`, html.EscapeString(embedURL)))
+			}
+			if entry.MediaGroup.Description != "" {
+				// Wrap plain text description in a paragraph, preserving newlines
+				desc := html.EscapeString(entry.MediaGroup.Description)
+				desc = strings.ReplaceAll(desc, "\n", "<br>")
+				parts = append(parts, "<p>"+desc+"</p>")
+			}
+			if len(parts) > 0 {
+				content = strings.Join(parts, "\n")
+			}
+		}
+
 		var pubTime *time.Time
 		dateStr := entry.Published
 		if dateStr == "" {
@@ -275,8 +302,10 @@ func parseAtom(data []byte) (*ParsedFeed, error) {
 		}
 
 		// Extract image - check media:group first (YouTube), then HTML content
+		// Skip thumbnail if we already embedded media:content as video in the content
 		var imageURL string
-		if entry.MediaGroup != nil && entry.MediaGroup.Thumbnail != nil && entry.MediaGroup.Thumbnail.URL != "" {
+		hasVideoEmbed := entry.MediaGroup != nil && entry.MediaGroup.Content != nil && entry.MediaGroup.Content.URL != "" && strings.Contains(content, "<iframe")
+		if !hasVideoEmbed && entry.MediaGroup != nil && entry.MediaGroup.Thumbnail != nil && entry.MediaGroup.Thumbnail.URL != "" {
 			imageURL = entry.MediaGroup.Thumbnail.URL
 		} else if imageURL = extractImageFromHTML(content); imageURL == "" {
 			imageURL = extractImageFromHTML(entry.Summary)
