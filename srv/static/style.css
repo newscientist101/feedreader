@@ -1407,26 +1407,41 @@ th {
     flex: 1;
 }
 
-.folder-settings {
-    position: absolute;
-    right: var(--sidebar-padding);
-    top: 50%;
-    transform: translateY(-50%);
-    padding: 5px;
-    color: var(--text-secondary);
-    opacity: 0;
-    transition: all 0.2s;
-    border-radius: 4px;
-    z-index: 1;
+.folder-icon-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
 }
 
-.folder-row:hover .folder-settings {
+.folder-icon-wrapper .folder-icon {
+    transition: opacity 0.15s;
+}
+
+.folder-icon-wrapper .folder-settings {
+    position: absolute;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    transition: opacity 0.15s;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.folder-link:hover .folder-icon-wrapper .folder-icon {
+    opacity: 0;
+}
+
+.folder-link:hover .folder-icon-wrapper .folder-settings {
     opacity: 1;
 }
 
-.folder-settings:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+.folder-icon-wrapper .folder-settings:hover {
+    color: var(--accent);
 }
 
 .folder-feeds {
