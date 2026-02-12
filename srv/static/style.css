@@ -626,6 +626,10 @@ body {
     flex: none;
 }
 
+.article-meta .article-author {
+    color: var(--text-muted);
+}
+
 .article-meta .article-date {
     margin-left: auto;
 }

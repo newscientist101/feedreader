@@ -427,6 +427,7 @@ function renderArticles(articles) {
             <div class="article-body" onclick="openArticle(${a.id})" style="cursor: pointer;">
                 <div class="article-meta">
                     <a class="feed-name" href="/feed/${a.feed_id}" onclick="event.stopPropagation();">${a.feed_name || ''}</a>
+                    ${a.author ? `<span class="article-author">${a.author}</span>` : ''}
                     <span class="article-date">${formatTimeAgo(a.published_at)}</span>
                 </div>
                 <h2 class="article-title">

@@ -85,6 +85,7 @@
             <div class="article-body" onclick="openArticle({{.ID}})" style="cursor: pointer;">
                 <div class="article-meta">
                     <a class="feed-name" href="/feed/{{.FeedID}}" onclick="event.stopPropagation();">{{.FeedName}}</a>
+                    {{if .Author}}<span class="article-author">{{deref .Author}}</span>{{end}}
                     <span class="article-date" data-timestamp="{{formatDate .PublishedAt}}">{{timeAgo .PublishedAt}}</span>
                 </div>
                 <h2 class="article-title">
