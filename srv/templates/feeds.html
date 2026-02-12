@@ -16,7 +16,7 @@
         <h2>Folders</h2>
         <div class="categories-grid">
             {{range .Categories}}
-            <div class="category-card" data-id="{{.ID}}">
+            <div class="category-card" data-id="{{.ID}}" draggable="true">
                 <div class="category-name">{{.Name}}</div>
                 <div class="category-actions">
                     <a href="/category/{{.ID}}/settings" class="btn-icon" title="Settings">

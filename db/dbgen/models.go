@@ -29,6 +29,7 @@ type Category struct {
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
 	UserID    *int64    `json:"user_id"`
+	SortOrder *int64    `json:"sort_order"`
 }
 
 type CategoryExclusion struct {

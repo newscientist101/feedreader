@@ -108,6 +108,7 @@ func (s *Server) Serve(addr string) error {
 	mux.HandleFunc("GET /category/{id}", s.handleCategoryArticles)
 	mux.HandleFunc("GET /api/categories/{id}/articles", s.apiGetCategoryArticles)
 	mux.HandleFunc("POST /api/categories", s.apiCreateCategory)
+	mux.HandleFunc("POST /api/categories/reorder", s.apiReorderCategories)
 	mux.HandleFunc("PUT /api/categories/{id}", s.apiUpdateCategory)
 	mux.HandleFunc("DELETE /api/categories/{id}", s.apiDeleteCategory)
 	mux.HandleFunc("POST /api/feeds/{id}/category", s.apiSetFeedCategory)
@@ -1119,6 +1120,32 @@ func (s *Server) apiGetCategoryArticles(w http.ResponseWriter, r *http.Request) 
 		"category": category,
 		"articles": filteredArticles,
 	})
+}
+
+func (s *Server) apiReorderCategories(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	var req struct {
+		Order []int64 `json:"order"` // Category IDs in new order
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request", 400)
+		return
+	}
+
+	// Update sort_order for each category
+	for i, catID := range req.Order {
+		sortOrder := int64(i)
+		q.UpdateCategorySortOrder(ctx, dbgen.UpdateCategorySortOrderParams{
+			SortOrder: &sortOrder,
+			ID:        catID,
+			UserID:    &user.ID,
+		})
+	}
+
+	jsonResponse(w, map[string]string{"status": "ok"})
 }
 
 func (s *Server) apiCreateCategory(w http.ResponseWriter, r *http.Request) {

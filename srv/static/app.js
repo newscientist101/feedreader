@@ -403,6 +403,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize view mode
     initView();
+    
+    // Initialize folder drag-and-drop
+    initFolderDragDrop();
 });
 
 // API helpers
@@ -1169,4 +1172,111 @@ function formatDate(dateStr) {
     if (diff < 86400000) return Math.floor(diff / 3600000) + ' hours ago';
     if (diff < 604800000) return Math.floor(diff / 86400000) + ' days ago';
     return d.toLocaleDateString();
+}
+
+// Folder drag-and-drop reordering
+function initFolderDragDrop() {
+    // Sidebar folders
+    const foldersContainer = document.querySelector('.folders-list');
+    if (foldersContainer) {
+        initDragDrop(foldersContainer, '.folder-item', 'data-category-id');
+    }
+    
+    // Feeds page category cards
+    const categoriesGrid = document.querySelector('.categories-grid');
+    if (categoriesGrid) {
+        initDragDrop(categoriesGrid, '.category-card[data-id]', 'data-id');
+    }
+}
+
+function initDragDrop(container, itemSelector, idAttr) {
+    let draggedItem = null;
+    let placeholder = null;
+    
+    container.addEventListener('dragstart', (e) => {
+        const item = e.target.closest(itemSelector);
+        if (!item) return;
+        
+        draggedItem = item;
+        item.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', item.getAttribute(idAttr));
+        
+        // Create placeholder
+        placeholder = document.createElement('div');
+        placeholder.className = 'drag-placeholder';
+        placeholder.style.height = item.offsetHeight + 'px';
+    });
+    
+    container.addEventListener('dragend', (e) => {
+        if (draggedItem) {
+            draggedItem.classList.remove('dragging');
+            draggedItem = null;
+        }
+        if (placeholder && placeholder.parentNode) {
+            placeholder.remove();
+        }
+        placeholder = null;
+        
+        // Remove any remaining drag-over classes
+        container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    });
+    
+    container.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        
+        const afterElement = getDragAfterElement(container, e.clientY, itemSelector);
+        
+        if (placeholder) {
+            if (afterElement) {
+                container.insertBefore(placeholder, afterElement);
+            } else {
+                // Find the add-category card or append to end
+                const addCard = container.querySelector('.add-category');
+                if (addCard) {
+                    container.insertBefore(placeholder, addCard);
+                } else {
+                    container.appendChild(placeholder);
+                }
+            }
+        }
+    });
+    
+    container.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        
+        if (!draggedItem || !placeholder) return;
+        
+        // Insert the dragged item where the placeholder is
+        placeholder.replaceWith(draggedItem);
+        
+        // Get new order
+        const items = container.querySelectorAll(itemSelector);
+        const order = Array.from(items)
+            .map(item => parseInt(item.getAttribute(idAttr)))
+            .filter(id => !isNaN(id));
+        
+        // Save new order to server
+        try {
+            await api('POST', '/api/categories/reorder', { order });
+        } catch (err) {
+            console.error('Failed to save folder order:', err);
+        }
+    });
+}
+
+function getDragAfterElement(container, y, itemSelector) {
+    const draggableElements = [...container.querySelectorAll(itemSelector + ':not(.dragging)')];
+    
+    return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        
+        if (offset < 0 && offset > closest.offset) {
+            return { offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
 }

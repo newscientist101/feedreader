@@ -69,7 +69,7 @@
                 <div class="folders-list">
                     {{range .Categories}}
                     {{$catID := .ID}}
-                    <div class="folder-item{{if eq $.ActiveCategory .ID}} expanded{{end}}" data-category-id="{{.ID}}">
+                    <div class="folder-item{{if eq $.ActiveCategory .ID}} expanded{{end}}" data-category-id="{{.ID}}" draggable="true">
                         <div class="folder-row">
                             <a href="/category/{{.ID}}" class="folder-link {{if eq $.ActiveCategory .ID}}active{{end}}" onclick="return toggleFolder(event, {{.ID}})">
                                 <svg class="folder-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">

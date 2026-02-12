@@ -34,7 +34,10 @@ SELECT COUNT(*) as count FROM articles WHERE feed_id = ? AND is_read = 0;
 INSERT INTO categories (name, user_id) VALUES (?, ?) RETURNING *;
 
 -- name: ListCategories :many
-SELECT * FROM categories WHERE user_id = ? ORDER BY name;
+SELECT * FROM categories WHERE user_id = ? ORDER BY sort_order, name;
+
+-- name: UpdateCategorySortOrder :exec
+UPDATE categories SET sort_order = ? WHERE id = ? AND user_id = ?;
 
 -- name: GetCategory :one
 SELECT * FROM categories WHERE id = ? AND user_id = ?;

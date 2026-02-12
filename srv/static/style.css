@@ -1361,6 +1361,16 @@ th {
 .folder-item {
     display: flex;
     flex-direction: column;
+    cursor: grab;
+}
+
+.folder-item.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+.folder-item[draggable]:hover {
+    cursor: grab;
 }
 
 .folder-link {
@@ -1500,6 +1510,27 @@ th {
 
 .category-card:hover {
     background: var(--bg-hover);
+}
+
+.category-card[draggable] {
+    cursor: grab;
+}
+
+.category-card.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+/* Drag placeholder */
+.drag-placeholder {
+    background: var(--accent);
+    opacity: 0.3;
+    border-radius: 6px;
+    margin: 4px 0;
+}
+
+.categories-grid .drag-placeholder {
+    margin: 0;
 }
 
 .category-card.add-category {
