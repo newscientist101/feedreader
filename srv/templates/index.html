@@ -82,13 +82,13 @@
                 </svg>
             </div>
             {{end}}
-            <div class="article-body" onclick="window.location='/article/{{.ID}}'" style="cursor: pointer;">
+            <div class="article-body" onclick="openArticle({{.ID}})" style="cursor: pointer;">
                 <div class="article-meta">
                     <a class="feed-name" href="/feed/{{.FeedID}}" onclick="event.stopPropagation();">{{.FeedName}}</a>
                     <span class="article-date" data-timestamp="{{formatDate .PublishedAt}}">{{timeAgo .PublishedAt}}</span>
                 </div>
                 <h2 class="article-title">
-                    {{if .Url}}<a href="{{deref .Url}}" target="_blank" onclick="event.stopPropagation();">{{.Title}}</a>{{else}}<a href="/article/{{.ID}}">{{.Title}}</a>{{end}}
+                    {{if .Url}}<a href="{{deref .Url}}" target="_blank" onclick="openArticleExternal(event, {{.ID}}, this.href)">{{.Title}}</a>{{else}}<a href="/article/{{.ID}}" onclick="markReadSilent({{.ID}})">{{.Title}}</a>{{end}}
                 </h2>
                 {{if .Summary}}
                 <p class="article-summary">{{truncate (stripHTML (deref .Summary)) 200}}</p>
