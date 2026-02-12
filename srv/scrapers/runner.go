@@ -46,14 +46,28 @@ type FeedItem struct {
 	PublishedAt *time.Time
 }
 
-// Run executes a scraper script against HTML content
-func (r *Runner) Run(ctx context.Context, script, html, pageURL, config string) ([]FeedItem, error) {
+// Run executes a scraper script against fetched content
+func (r *Runner) Run(ctx context.Context, script, content, pageURL, config string) ([]FeedItem, error) {
+	// Detect config type
+	var probe struct {
+		Type string `json:"type"`
+	}
+	json.Unmarshal([]byte(script), &probe)
+
+	if probe.Type == "json" {
+		var jsonConfig JSONScraperConfig
+		if err := json.Unmarshal([]byte(script), &jsonConfig); err != nil {
+			return nil, fmt.Errorf("parse json scraper config: %w", err)
+		}
+		return r.runJSONScraper(jsonConfig, content, pageURL)
+	}
+
+	// Default: CSS selector scraper
 	var scraperConfig ScraperConfig
 	if err := json.Unmarshal([]byte(script), &scraperConfig); err != nil {
 		return nil, fmt.Errorf("parse scraper config: %w", err)
 	}
-
-	return r.runConfigScraper(scraperConfig, html, pageURL)
+	return r.runConfigScraper(scraperConfig, content, pageURL)
 }
 
 // ScraperConfig defines how to extract items from a page using CSS selectors
