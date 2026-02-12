@@ -52,6 +52,19 @@ mitmdump \
 
 Then browse to `http://localhost:3000/`.
 
+To view as a specific existing user, look up their credentials from the
+database and use those in the headers:
+
+```bash
+sqlite3 db.sqlite3 "SELECT external_id, email FROM users;"
+
+mitmdump \
+  --mode reverse:http://localhost:8000 \
+  --listen-port 3000 \
+  --set modify_headers='/~q/X-Exedev-Email/adam.atomboy@gmail.com' \
+  --set modify_headers='/~q/X-Exedev-Userid/usrWLLDRIQELLLW5'
+```
+
 Alternatively, set the `DEV` environment variable to skip auth entirely
 (the app will use a built-in dev user):
 
