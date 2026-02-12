@@ -1094,12 +1094,23 @@ func deref(p any) any {
 }
 
 // faviconURL returns a Google S2 favicon URL for the domain of the given feed URL.
+// It strips common feed-specific subdomains (feeds, rss, feed) so the favicon
+// resolves against the main site domain.
 func faviconURL(feedURL string) string {
 	u, err := url.Parse(feedURL)
 	if err != nil || u.Host == "" {
 		return ""
 	}
-	return "https://www.google.com/s2/favicons?domain=" + url.QueryEscape(u.Host) + "&sz=32"
+	host := u.Host
+	// Strip common feed-specific subdomains to get the main site domain.
+	parts := strings.Split(host, ".")
+	if len(parts) > 2 {
+		sub := strings.ToLower(parts[0])
+		if sub == "feeds" || sub == "feed" || sub == "rss" {
+			host = strings.Join(parts[1:], ".")
+		}
+	}
+	return "https://www.google.com/s2/favicons?domain=" + url.QueryEscape(host) + "&sz=32"
 }
 
 func safeHTML(s string) template.HTML {
