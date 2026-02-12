@@ -1,4 +1,4 @@
-const CACHE_NAME = 'feedreader-v2';
+const CACHE_NAME = 'feedreader-v3';
 const STATIC_ASSETS = [
   '/',
   '/static/style.css',
@@ -46,16 +46,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // For static assets, try cache first
+  // For static assets, try network first, fall back to cache
   if (url.pathname.startsWith('/static/')) {
     event.respondWith(
-      caches.match(event.request).then((cached) => {
-        return cached || fetch(event.request).then((response) => {
+      fetch(event.request)
+        .then((response) => {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
           return response;
-        });
-      })
+        })
+        .catch(() => caches.match(event.request))
     );
     return;
   }
