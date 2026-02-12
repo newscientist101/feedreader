@@ -1458,9 +1458,9 @@ th {
     padding: 6px 12px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
     transition: all 0.2s;
     min-width: 0;
+    position: relative;
 }
 
 .category-name {
@@ -1470,20 +1470,32 @@ th {
     flex: 1;
     min-width: 0;
     font-size: 0.9rem;
+    padding-right: 4px;
+}
+
+.category-card:hover .category-name {
+    mask-image: linear-gradient(to right, black 70%, transparent 95%);
+    -webkit-mask-image: linear-gradient(to right, black 70%, transparent 95%);
 }
 
 .category-actions {
     display: flex;
     flex-direction: row;
     gap: 2px;
-    flex-shrink: 0;
-    margin-left: 8px;
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
     opacity: 0;
     transition: opacity 0.2s;
+    background: var(--bg-secondary);
+    padding: 2px 4px;
+    border-radius: 4px;
 }
 
 .category-card:hover .category-actions {
     opacity: 1;
+    background: var(--bg-hover);
 }
 
 .category-card:hover {
