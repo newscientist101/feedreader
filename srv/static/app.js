@@ -1260,8 +1260,51 @@ function initDragDrop(container, itemSelector, idAttr) {
         // Save new order to server
         try {
             await api('POST', '/api/categories/reorder', { order });
+            // Sync the other container
+            syncFolderOrder(order, container);
         } catch (err) {
             console.error('Failed to save folder order:', err);
+        }
+    });
+}
+
+function syncFolderOrder(order, sourceContainer) {
+    // Sync sidebar folders
+    const sidebarFolders = document.querySelector('.folders-list');
+    if (sidebarFolders && sidebarFolders !== sourceContainer) {
+        reorderElements(sidebarFolders, '.folder-item', 'data-category-id', order);
+    }
+    
+    // Sync feeds page category cards
+    const categoriesGrid = document.querySelector('.categories-grid');
+    if (categoriesGrid && categoriesGrid !== sourceContainer) {
+        reorderElements(categoriesGrid, '.category-card[data-id]', 'data-id', order);
+    }
+}
+
+function reorderElements(container, itemSelector, idAttr, order) {
+    const items = container.querySelectorAll(itemSelector);
+    const itemMap = new Map();
+    
+    items.forEach(item => {
+        const id = parseInt(item.getAttribute(idAttr));
+        if (!isNaN(id)) {
+            itemMap.set(id, item);
+        }
+    });
+    
+    // Find the add-category card to insert before (if exists)
+    const addCard = container.querySelector('.add-category');
+    
+    // Reorder by removing and re-adding in order
+    order.forEach(id => {
+        const item = itemMap.get(id);
+        if (item) {
+            if (addCard) {
+                container.insertBefore(item, addCard);
+            } else {
+                container.appendChild(item);
+            }
         }
     });
 }
