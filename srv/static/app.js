@@ -109,9 +109,23 @@ function initAutoMarkRead() {
 async function markReadSilent(id) {
     try {
         await api('POST', `/api/articles/${id}/read`);
+        const card = document.querySelector(`.article-card[data-id="${id}"]`);
+        if (card) card.classList.add('read');
+        updateCounts();
     } catch (e) {
         console.error('Failed to mark article read:', e);
     }
+}
+
+function openArticle(id) {
+    markReadSilent(id);
+    window.location = `/article/${id}`;
+}
+
+function openArticleExternal(event, id, url) {
+    event.stopPropagation();
+    markReadSilent(id);
+    window.open(url, '_blank');
 }
 
 // Update unread counts in sidebar
@@ -391,13 +405,13 @@ function renderArticles(articles) {
                 </svg>
             </div>
             ${a.image_url ? `<div class="article-image expanded-only"><img src="${a.image_url}" alt="" loading="lazy"></div>` : ''}
-            <div class="article-body" onclick="window.location='/article/${a.id}'" style="cursor: pointer;">
+            <div class="article-body" onclick="openArticle(${a.id})" style="cursor: pointer;">
                 <div class="article-meta">
                     <span class="feed-name">${a.feed_name || ''}</span>
                     <span class="article-date">${formatTimeAgo(a.published_at)}</span>
                 </div>
                 <h2 class="article-title">
-                    ${a.url ? `<a href="${a.url}" target="_blank" onclick="event.stopPropagation();">${a.title}</a>` : `<a href="/article/${a.id}">${a.title}</a>`}
+                    ${a.url ? `<a href="${a.url}" target="_blank" onclick="openArticleExternal(event, ${a.id}, '${a.url.replace(/'/g, "\\'")}'">${a.title}</a>` : `<a href="/article/${a.id}" onclick="markReadSilent(${a.id})">${a.title}</a>`}
                 </h2>
                 ${a.summary ? `<p class="article-summary">${truncateText(stripHtml(a.summary), 200)}</p>` : ''}
                 <div class="article-actions">
@@ -1255,7 +1269,7 @@ function renderSearchResults(articles) {
                 <span class="article-date">${formatDate(a.published_at)}</span>
             </div>
             <h2 class="article-title">
-                <a href="/article/${a.id}">${escapeHtml(a.title)}</a>
+                <a href="/article/${a.id}" onclick="markReadSilent(${a.id})">${escapeHtml(a.title)}</a>
             </h2>
             ${a.summary ? `<p class="article-summary">${escapeHtml(truncate(stripHtml(a.summary), 200))}</p>` : ''}
             <div class="article-actions">
