@@ -441,6 +441,7 @@ func (s *Server) handleScrapers(w http.ResponseWriter, r *http.Request) {
 func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	q := dbgen.New(s.DB)
+	user := GetUser(ctx)
 
 	var req struct {
 		Name          string `json:"name"`
@@ -498,6 +499,7 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 		ScraperModule:        scraperModule,
 		ScraperConfig:        scraperConfig,
 		FetchIntervalMinutes: &req.Interval,
+		UserID:               &user.ID,
 	})
 	if err != nil {
 		jsonError(w, "Failed to create feed: "+err.Error(), 500)
