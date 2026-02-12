@@ -538,7 +538,8 @@ body {
 
 .view-expanded .article-title {
     font-size: 1.15rem;
-    margin-bottom: 6px;
+    margin-top: 0;
+    margin-bottom: 2px;
 }
 
 .view-expanded .article-summary {
