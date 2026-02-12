@@ -1,5 +1,5 @@
 {{define "content"}}
-<div class="articles-view">
+<div class="articles-view" data-view-scope="{{if .CurrentFeed}}feed{{else if .CurrentCategory}}folder{{else}}all{{end}}">
     {{if and .CurrentFeed .CurrentFeed.LastError}}
     <div class="feed-error-banner">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">

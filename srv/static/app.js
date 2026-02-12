@@ -352,27 +352,48 @@ function truncateText(text, maxLen) {
 }
 
 // View mode switching
+function getViewScope() {
+    const view = document.querySelector('.articles-view');
+    if (!view) return 'all';
+    return view.dataset.viewScope || 'all';
+}
+
 function setView(view) {
     const list = document.getElementById('articles-list');
     if (!list) return;
-    
+
     // Remove all view classes
     list.classList.remove('view-card', 'view-list', 'view-compact', 'view-magazine', 'view-expanded');
     // Add the selected view class
     list.classList.add('view-' + view);
-    
+
     // Update toggle buttons
     document.querySelectorAll('.view-toggle button').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.view === view);
     });
-    
-    // Save preference
-    localStorage.setItem('feedreader-view', view);
+
+    // Save preference (scope-aware)
+    const scope = getViewScope();
+    if (scope === 'folder') {
+        localStorage.setItem('feedreader-view-folder-default', view);
+    } else if (scope === 'feed') {
+        localStorage.setItem('feedreader-view-feed-default', view);
+    } else {
+        localStorage.setItem('feedreader-view', view);
+    }
 }
 
 // Initialize view on page load
 function initView() {
-    const savedView = localStorage.getItem('feedreader-view') || 'card';
+    const scope = getViewScope();
+    let savedView = 'card';
+    if (scope === 'folder') {
+        savedView = localStorage.getItem('feedreader-view-folder-default') || 'card';
+    } else if (scope === 'feed') {
+        savedView = localStorage.getItem('feedreader-view-feed-default') || 'card';
+    } else {
+        savedView = localStorage.getItem('feedreader-view') || 'card';
+    }
     setView(savedView);
 }
 

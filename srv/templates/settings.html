@@ -54,6 +54,38 @@
     </section>
 
     <section class="settings-section">
+        <h2>View Defaults</h2>
+
+        <div class="preference-item">
+            <div class="preference-info">
+                <label>Default Folder View</label>
+                <p class="preference-description">When viewing any folder, use this view mode by default</p>
+            </div>
+            <div class="radio-group" id="default-folder-view">
+                <label class="radio-option"><input type="radio" name="folder-view" value="card" onchange="setPreference('defaultFolderView', 'card')"><span>Card</span></label>
+                <label class="radio-option"><input type="radio" name="folder-view" value="list" onchange="setPreference('defaultFolderView', 'list')"><span>List</span></label>
+                <label class="radio-option"><input type="radio" name="folder-view" value="compact" onchange="setPreference('defaultFolderView', 'compact')"><span>Compact</span></label>
+                <label class="radio-option"><input type="radio" name="folder-view" value="magazine" onchange="setPreference('defaultFolderView', 'magazine')"><span>Magazine</span></label>
+                <label class="radio-option"><input type="radio" name="folder-view" value="expanded" onchange="setPreference('defaultFolderView', 'expanded')"><span>Expanded</span></label>
+            </div>
+        </div>
+
+        <div class="preference-item">
+            <div class="preference-info">
+                <label>Default Feed View</label>
+                <p class="preference-description">When viewing any individual feed, use this view mode by default</p>
+            </div>
+            <div class="radio-group" id="default-feed-view">
+                <label class="radio-option"><input type="radio" name="feed-view" value="card" onchange="setPreference('defaultFeedView', 'card')"><span>Card</span></label>
+                <label class="radio-option"><input type="radio" name="feed-view" value="list" onchange="setPreference('defaultFeedView', 'list')"><span>List</span></label>
+                <label class="radio-option"><input type="radio" name="feed-view" value="compact" onchange="setPreference('defaultFeedView', 'compact')"><span>Compact</span></label>
+                <label class="radio-option"><input type="radio" name="feed-view" value="magazine" onchange="setPreference('defaultFeedView', 'magazine')"><span>Magazine</span></label>
+                <label class="radio-option"><input type="radio" name="feed-view" value="expanded" onchange="setPreference('defaultFeedView', 'expanded')"><span>Expanded</span></label>
+            </div>
+        </div>
+    </section>
+
+    <section class="settings-section">
         <h2>Data Retention</h2>
         <p class="section-description">
             Old articles are automatically deleted to save space. Starred articles are never deleted.
@@ -156,6 +188,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const hideEmptyValue = localStorage.getItem('hideEmptyFeeds') || 'show';
     const hideEmptyRadio = document.querySelector(`input[name="hide-empty"][value="${hideEmptyValue}"]`);
     if (hideEmptyRadio) hideEmptyRadio.checked = true;
+
+    // Default view radios
+    const folderView = localStorage.getItem('defaultFolderView') || 'card';
+    const folderRadio = document.querySelector(`input[name="folder-view"][value="${folderView}"]`);
+    if (folderRadio) folderRadio.checked = true;
+
+    const feedView = localStorage.getItem('defaultFeedView') || 'card';
+    const feedRadio = document.querySelector(`input[name="feed-view"][value="${feedView}"]`);
+    if (feedRadio) feedRadio.checked = true;
 });
 
 function toggleAutoMarkRead(enabled) {
@@ -169,6 +210,10 @@ function setPreference(key, value) {
         applyHideReadArticles(value);
     } else if (key === 'hideEmptyFeeds') {
         applyHideEmptyFeeds(value);
+    } else if (key === 'defaultFolderView') {
+        localStorage.setItem('feedreader-view-folder-default', value);
+    } else if (key === 'defaultFeedView') {
+        localStorage.setItem('feedreader-view-feed-default', value);
     }
 }
 
