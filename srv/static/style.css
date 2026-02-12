@@ -1548,17 +1548,22 @@ th {
     color: var(--accent);
 }
 
-.folder-feeds {
-    padding-left: 28px;
+.folder-children {
     display: none;
+    padding-left: 16px;
 }
 
-.folder-item.expanded .folder-feeds {
+.folder-item.expanded > .folder-children {
     display: block;
 }
 
-.folder-item.folder-hidden {
+.folder-feeds {
+    padding-left: 12px;
     display: none;
+}
+
+.folder-item.expanded > .folder-children > .folder-feeds {
+    display: block;
 }
 
 .folder-feeds .feed-item {
@@ -1669,13 +1674,7 @@ th {
     background: rgba(100, 255, 218, 0.1);
 }
 
-/* Subfolder indent in sidebar - only indent the row, not the feeds */
-.folder-item[data-depth="1"] > .folder-row { padding-left: calc(15px + 20px); }
-.folder-item[data-depth="2"] > .folder-row { padding-left: calc(15px + 40px); }
-.folder-item[data-depth="3"] > .folder-row { padding-left: calc(15px + 60px); }
-.folder-item[data-depth="1"] > .folder-feeds { padding-left: calc(28px + 20px); }
-.folder-item[data-depth="2"] > .folder-feeds { padding-left: calc(28px + 40px); }
-.folder-item[data-depth="3"] > .folder-feeds { padding-left: calc(28px + 60px); }
+/* Subfolder indent handled by nesting + padding-left on .folder-children */
 
 .category-card.add-category {
     border: 2px dashed var(--border);

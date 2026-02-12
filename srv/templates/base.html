@@ -67,43 +67,7 @@
                     <span>Folders</span>
                 </div>
                 <div class="folders-list">
-                    {{range .FlatCategories}}
-                    {{$catID := .ID}}
-                    {{$depth := .Depth}}
-                    {{$hasParent := .ParentID}}
-                    <div class="folder-item{{if eq $.ActiveCategory .ID}} expanded{{end}}" data-category-id="{{.ID}}" data-parent-id="{{if $hasParent}}{{deref .ParentID}}{{end}}" data-depth="{{$depth}}" draggable="true">
-                        <div class="folder-row">
-                            <span class="folder-icon-wrapper">
-                                <svg class="folder-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                                    <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
-                                </svg>
-                                <a href="/category/{{.ID}}/settings" class="folder-settings" title="Folder settings">
-                                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                                        <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
-                                    </svg>
-                                </a>
-                            </span>
-                            <a href="/category/{{.ID}}" class="folder-link {{if eq $.ActiveCategory .ID}}active{{end}}" onclick="return toggleFolder(event, {{.ID}})">
-                                <span class="folder-name">{{.Name}}</span>
-                                {{$catCount := index $.CategoryCounts .ID}}
-                                <span class="badge small" data-count="category-{{.ID}}">{{if $catCount}}{{$catCount}}{{end}}</span>
-                            </a>
-                        </div>
-                        <div class="folder-feeds">
-                            {{range $.Feeds}}
-                            {{$feedCat := index $.FeedCategories .ID}}
-                            {{if eq $feedCat $catID}}
-                            <a href="/feed/{{.ID}}" class="feed-item {{if eq $.ActiveFeed .ID}}active{{end}}{{if .LastError}} has-error{{end}}" data-feed-id="{{.ID}}" data-feed-name="{{.Name}}"{{if not .LastFetchedAt}} data-never-fetched="true"{{end}}{{if .LastError}} title="Error: {{deref .LastError}}"{{end}}>
-                                <span class="feed-error-icon" data-error="feed-{{.ID}}">{{if .LastError}}⚠{{end}}</span>
-                                <span class="feed-name">{{.Name}}</span>
-                                {{$count := index $.FeedCounts .ID}}
-                                <span class="badge small{{if not .LastFetchedAt}} pending{{end}}" data-count="feed-{{.ID}}">{{if $count}}{{$count}}{{else if not .LastFetchedAt}}•{{end}}</span>
-                            </a>
-                            {{end}}
-                            {{end}}
-                        </div>
-                    </div>
-                    {{end}}
+                    {{template "folder-tree" dict "Nodes" .CategoryTree "Root" .}}
                 </div>
                 
                 <div class="feeds-header feeds-header-sticky">
@@ -165,3 +129,38 @@
     </script>
 </body>
 </html>
+
+{{define "folder-tree"}}{{range .Nodes}}{{$catID := .ID}}{{$root := $.Root}}
+<div class="folder-item{{if eq $root.ActiveCategory .ID}} expanded{{end}}" data-category-id="{{.ID}}" data-parent-id="{{if .ParentID}}{{deref .ParentID}}{{end}}" data-depth="{{.Depth}}" draggable="true">
+    <div class="folder-row">
+        <span class="folder-icon-wrapper">
+            <svg class="folder-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+            </svg>
+            <a href="/category/{{.ID}}/settings" class="folder-settings" title="Folder settings">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                    <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+                </svg>
+            </a>
+        </span>
+        <a href="/category/{{.ID}}" class="folder-link {{if eq $root.ActiveCategory .ID}}active{{end}}" onclick="return toggleFolder(event, {{.ID}})">
+            <span class="folder-name">{{.Name}}</span>
+            {{$catCount := index $root.CategoryCounts .ID}}
+            <span class="badge small" data-count="category-{{.ID}}">{{if $catCount}}{{$catCount}}{{end}}</span>
+        </a>
+    </div>
+    <div class="folder-children">
+        {{if .Children}}{{template "folder-tree" dict "Nodes" .Children "Root" $root}}{{end}}
+        <div class="folder-feeds">
+            {{range $root.Feeds}}{{$feedCat := index $root.FeedCategories .ID}}{{if eq $feedCat $catID}}
+            <a href="/feed/{{.ID}}" class="feed-item {{if eq $root.ActiveFeed .ID}}active{{end}}{{if .LastError}} has-error{{end}}" data-feed-id="{{.ID}}" data-feed-name="{{.Name}}"{{if not .LastFetchedAt}} data-never-fetched="true"{{end}}{{if .LastError}} title="Error: {{deref .LastError}}"{{end}}>
+                <span class="feed-error-icon" data-error="feed-{{.ID}}">{{if .LastError}}⚠{{end}}</span>
+                <span class="feed-name">{{.Name}}</span>
+                {{$count := index $root.FeedCounts .ID}}
+                <span class="badge small{{if not .LastFetchedAt}} pending{{end}}" data-count="feed-{{.ID}}">{{if $count}}{{$count}}{{else if not .LastFetchedAt}}•{{end}}</span>
+            </a>
+            {{end}}{{end}}
+        </div>
+    </div>
+</div>
+{{end}}{{end}}

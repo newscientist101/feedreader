@@ -208,13 +208,17 @@ function toggleFolder(event, categoryId) {
         return false;
     }
     
-    // Collapse other top-level folders (those not inside the same parent chain)
-    document.querySelectorAll('.folder-item.expanded').forEach(item => {
-        collapseFolder(item);
-    });
+    // Collapse sibling folders (same level under same parent)
+    const parent = folderItem.parentElement;
+    if (parent) {
+        parent.querySelectorAll(':scope > .folder-item.expanded').forEach(item => {
+            collapseFolder(item);
+        });
+    }
     
-    // Expand this folder and show its children
-    expandFolder(folderItem);
+    // Expand this folder
+    folderItem.classList.add('expanded');
+    folderItem.querySelector('.folder-link')?.classList.add('active');
     
     // Load category articles via AJAX
     loadCategoryArticles(categoryId, folderItem.querySelector('.folder-name')?.textContent || 'Category');
@@ -225,45 +229,10 @@ function toggleFolder(event, categoryId) {
 function collapseFolder(folderItem) {
     folderItem.classList.remove('expanded');
     folderItem.querySelector('.folder-link')?.classList.remove('active');
-    const id = folderItem.dataset.categoryId;
-    // Hide all descendant folders
-    getDescendantFolders(id).forEach(child => {
+    // Collapse all nested expanded subfolders too
+    folderItem.querySelectorAll('.folder-item.expanded').forEach(child => {
         child.classList.remove('expanded');
         child.querySelector('.folder-link')?.classList.remove('active');
-        child.classList.add('folder-hidden');
-    });
-}
-
-function expandFolder(folderItem) {
-    folderItem.classList.add('expanded');
-    folderItem.querySelector('.folder-link')?.classList.add('active');
-    const id = folderItem.dataset.categoryId;
-    // Show direct child folders (not deeply nested ones — those expand on their own click)
-    document.querySelectorAll(`.folder-item[data-parent-id="${id}"]`).forEach(child => {
-        child.classList.remove('folder-hidden');
-    });
-}
-
-// Get all descendant folder-items (children, grandchildren, etc.)
-function getDescendantFolders(categoryId) {
-    const descendants = [];
-    const directChildren = document.querySelectorAll(`.folder-item[data-parent-id="${categoryId}"]`);
-    directChildren.forEach(child => {
-        descendants.push(child);
-        descendants.push(...getDescendantFolders(child.dataset.categoryId));
-    });
-    return descendants;
-}
-
-// On page load, hide subfolders whose parent folder isn't expanded
-function initFolderCollapseState() {
-    document.querySelectorAll('.folder-item[data-parent-id]').forEach(item => {
-        const parentId = item.dataset.parentId;
-        if (!parentId) return;
-        const parent = document.querySelector(`.folder-item[data-category-id="${parentId}"]`);
-        if (!parent || !parent.classList.contains('expanded')) {
-            item.classList.add('folder-hidden');
-        }
     });
 }
 
@@ -586,9 +555,6 @@ function initView() {
 
 // Close sidebar when clicking a link on mobile
 document.addEventListener('DOMContentLoaded', () => {
-    // Initialize folder collapse state: hide subfolders whose parents aren't expanded
-    initFolderCollapseState();
-    
     // Initialize timestamp tooltips with local timezone
     initTimestampTooltips();
     

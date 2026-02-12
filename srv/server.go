@@ -157,6 +157,15 @@ func (s *Server) renderTemplate(w http.ResponseWriter, name string, data any) er
 		"safeHTML":          safeHTML,
 		"stripLeadingImage": stripLeadingImage,
 		"multiply":   func(a, b int) int { return a * b },
+		"dict": func(pairs ...any) map[string]any {
+			m := make(map[string]any, len(pairs)/2)
+			for i := 0; i+1 < len(pairs); i += 2 {
+				if k, ok := pairs[i].(string); ok {
+					m[k] = pairs[i+1]
+				}
+			}
+			return m
+		},
 	}
 	path := filepath.Join(s.TemplatesDir, name)
 	basePath := filepath.Join(s.TemplatesDir, "base.html")
