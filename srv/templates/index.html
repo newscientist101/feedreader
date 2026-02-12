@@ -84,7 +84,7 @@
             {{end}}
             <div class="article-body" onclick="window.location='/article/{{.ID}}'" style="cursor: pointer;">
                 <div class="article-meta">
-                    <span class="feed-name">{{.FeedName}}</span>
+                    <a class="feed-name" href="/feed/{{.FeedID}}" onclick="event.stopPropagation();">{{.FeedName}}</a>
                     <span class="article-date" data-timestamp="{{formatDate .PublishedAt}}">{{timeAgo .PublishedAt}}</span>
                 </div>
                 <h2 class="article-title">

@@ -615,6 +615,10 @@ body {
     text-decoration: none;
 }
 
+.article-meta .feed-name:hover {
+    text-decoration: underline;
+}
+
 .article-title {
     font-size: 1.1rem;
     font-weight: 600;
