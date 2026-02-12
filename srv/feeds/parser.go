@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -89,16 +90,17 @@ type rssChannel struct {
 }
 
 type rssItem struct {
-	Title       string        `xml:"title"`
-	Link        string        `xml:"link"`
-	Description string        `xml:"description"`
-	Content     string        `xml:"http://purl.org/rss/1.0/modules/content/ encoded"`
-	GUID        string        `xml:"guid"`
-	PubDate     string        `xml:"pubDate"`
-	Author      string        `xml:"author"`
-	Creator     string        `xml:"http://purl.org/dc/elements/1.1/ creator"`
-	Enclosure   *rssEnclosure `xml:"enclosure"`
-	MediaContent *mediaContent `xml:"http://search.yahoo.com/mrss/ content"`
+	Title          string          `xml:"title"`
+	Link           string          `xml:"link"`
+	Description    string          `xml:"description"`
+	Content        string          `xml:"http://purl.org/rss/1.0/modules/content/ encoded"`
+	GUID           string          `xml:"guid"`
+	PubDate        string          `xml:"pubDate"`
+	Author         string          `xml:"author"`
+	Creator        string          `xml:"http://purl.org/dc/elements/1.1/ creator"`
+	Enclosure      *rssEnclosure   `xml:"enclosure"`
+	MediaContent   []mediaContent  `xml:"http://search.yahoo.com/mrss/ content"`
+	MediaThumbnail []mediaThumbnail `xml:"http://search.yahoo.com/mrss/ thumbnail"`
 }
 
 type rssEnclosure struct {
@@ -107,8 +109,15 @@ type rssEnclosure struct {
 }
 
 type mediaContent struct {
-	URL  string `xml:"url,attr"`
-	Type string `xml:"type,attr"`
+	URL    string `xml:"url,attr"`
+	Type   string `xml:"type,attr"`
+	Medium string `xml:"medium,attr"`
+}
+
+type mediaThumbnail struct {
+	URL    string `xml:"url,attr"`
+	Width  string `xml:"width,attr"`
+	Height string `xml:"height,attr"`
 }
 
 func parseRSS(data []byte) (*ParsedFeed, error) {
@@ -146,13 +155,7 @@ func parseRSS(data []byte) (*ParsedFeed, error) {
 			content = item.Description
 		}
 
-		var imageURL string
-		if item.Enclosure != nil && strings.HasPrefix(item.Enclosure.Type, "image/") {
-			imageURL = item.Enclosure.URL
-		}
-		if imageURL == "" && item.MediaContent != nil && strings.HasPrefix(item.MediaContent.Type, "image/") {
-			imageURL = item.MediaContent.URL
-		}
+		imageURL := extractImageURL(item, content)
 
 		var pubTime *time.Time
 		if item.PubDate != "" {
@@ -265,6 +268,12 @@ func parseAtom(data []byte) (*ParsedFeed, error) {
 			}
 		}
 
+		// Extract image from content or summary
+		var imageURL string
+		if imageURL = extractImageFromHTML(content); imageURL == "" {
+			imageURL = extractImageFromHTML(entry.Summary)
+		}
+
 		feed.Items = append(feed.Items, FeedItem{
 			GUID:        entry.ID,
 			Title:       html.UnescapeString(entry.Title),
@@ -272,11 +281,75 @@ func parseAtom(data []byte) (*ParsedFeed, error) {
 			Author:      author,
 			Content:     content,
 			Summary:     entry.Summary,
+			ImageURL:    imageURL,
 			PublishedAt: pubTime,
 		})
 	}
 
 	return feed, nil
+}
+
+// extractImageURL finds an image URL from various RSS sources
+func extractImageURL(item rssItem, content string) string {
+	// 1. Check enclosure with image type
+	if item.Enclosure != nil && strings.HasPrefix(item.Enclosure.Type, "image/") {
+		return item.Enclosure.URL
+	}
+
+	// 2. Check media:content elements
+	for _, mc := range item.MediaContent {
+		if mc.URL != "" {
+			// Accept if type is image or medium is image, or no type specified (common for images)
+			if strings.HasPrefix(mc.Type, "image/") || mc.Medium == "image" || (mc.Type == "" && mc.Medium == "") {
+				if looksLikeImage(mc.URL) || mc.Type != "" || mc.Medium != "" {
+					return mc.URL
+				}
+			}
+		}
+	}
+
+	// 3. Check media:thumbnail elements
+	for _, mt := range item.MediaThumbnail {
+		if mt.URL != "" {
+			return mt.URL
+		}
+	}
+
+	// 4. Extract first image from HTML content
+	if imgURL := extractImageFromHTML(content); imgURL != "" {
+		return imgURL
+	}
+
+	return ""
+}
+
+// looksLikeImage checks if URL looks like an image based on extension
+func looksLikeImage(url string) bool {
+	lower := strings.ToLower(url)
+	extensions := []string{".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"}
+	for _, ext := range extensions {
+		if strings.Contains(lower, ext) {
+			return true
+		}
+	}
+	return false
+}
+
+// extractImageFromHTML extracts the first img src from HTML content
+func extractImageFromHTML(htmlContent string) string {
+	if htmlContent == "" {
+		return ""
+	}
+
+	// Simple regex to find img src
+	// Look for <img ... src="..." ...>
+	imgPattern := `<img[^>]+src=["']([^"']+)["']`
+	re := regexp.MustCompile(imgPattern)
+	matches := re.FindStringSubmatch(htmlContent)
+	if len(matches) >= 2 {
+		return html.UnescapeString(matches[1])
+	}
+	return ""
 }
 
 // parseTime tries various date formats
