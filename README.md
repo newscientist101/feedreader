@@ -25,6 +25,42 @@ make build
 
 The server listens on port 8000 by default.
 
+## Viewing the App
+
+The app requires exe.dev authentication headers (`X-Exedev-Userid` and
+`X-Exedev-Email`). Without them, all non-static requests redirect to
+`/__exe.dev/login`.
+
+### Via the exe.dev proxy (production)
+
+Access `https://lynx-fairy.exe.xyz:8000/` in a browser where you are
+logged into exe.dev. The proxy injects the auth headers automatically.
+
+### Local development (Shelley / browser tool)
+
+The built-in browser tool cannot authenticate through the exe.dev proxy.
+Use **mitmdump** as a reverse proxy on a second port to inject the
+required headers:
+
+```bash
+mitmdump \
+  --mode reverse:http://localhost:8000 \
+  --listen-port 3000 \
+  --set modify_headers='/~q/X-Exedev-Email/dev@localhost' \
+  --set modify_headers='/~q/X-Exedev-Userid/dev-user-1'
+```
+
+Then browse to `http://localhost:3000/`.
+
+Alternatively, set the `DEV` environment variable to skip auth entirely
+(the app will use a built-in dev user):
+
+```bash
+DEV=1 ./feedreader
+```
+
+With `DEV=1`, `http://localhost:8000/` works directly with no proxy.
+
 ## Configuration
 
 Create a `.env` file for environment variables:
