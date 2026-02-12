@@ -984,6 +984,8 @@ th {
     max-width: 600px;
     max-height: 90vh;
     overflow-y: auto;
+    position: relative;
+    z-index: 1;
 }
 
 .modal-content h2 {
@@ -995,6 +997,27 @@ th {
     justify-content: flex-end;
     gap: 10px;
     margin-top: 20px;
+}
+
+.modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
 }
 
 /* Empty State */

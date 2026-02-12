@@ -396,6 +396,46 @@ function filterFeeds(query) {
     });
 }
 
+// Edit feed modal
+async function editFeed(id) {
+    try {
+        const feed = await api('GET', `/api/feeds/${id}`);
+        document.getElementById('edit-feed-id').value = feed.id;
+        document.getElementById('edit-feed-name').value = feed.name;
+        document.getElementById('edit-feed-url').value = feed.url;
+        document.getElementById('edit-feed-interval').value = feed.fetch_interval_minutes || 60;
+        document.getElementById('edit-feed-modal').style.display = 'flex';
+    } catch (e) {
+        console.error('Failed to load feed:', e);
+        alert('Failed to load feed details');
+    }
+}
+
+function closeEditModal() {
+    document.getElementById('edit-feed-modal').style.display = 'none';
+}
+
+async function saveFeed(event) {
+    event.preventDefault();
+    const id = document.getElementById('edit-feed-id').value;
+    const name = document.getElementById('edit-feed-name').value;
+    const url = document.getElementById('edit-feed-url').value;
+    const interval = parseInt(document.getElementById('edit-feed-interval').value) || 60;
+    
+    try {
+        await api('PUT', `/api/feeds/${id}`, {
+            name: name,
+            url: url,
+            fetch_interval_minutes: interval
+        });
+        closeEditModal();
+        location.reload();
+    } catch (e) {
+        console.error('Failed to save feed:', e);
+        alert('Failed to save feed');
+    }
+}
+
 async function markAsRead(btn, age = 'all') {
     const dropdown = btn.closest('.dropdown');
     const feedId = dropdown.dataset.feedId;

@@ -90,6 +90,8 @@ func (s *Server) Serve(addr string) error {
 	mux.HandleFunc("GET /api/feeds/{id}/status", s.apiGetFeedStatus)
 	mux.HandleFunc("POST /api/feeds", s.apiCreateFeed)
 	mux.HandleFunc("DELETE /api/feeds/{id}", s.apiDeleteFeed)
+	mux.HandleFunc("PUT /api/feeds/{id}", s.apiUpdateFeed)
+	mux.HandleFunc("GET /api/feeds/{id}", s.apiGetFeed)
 	mux.HandleFunc("POST /api/feeds/{id}/refresh", s.apiRefreshFeed)
 	mux.HandleFunc("POST /api/articles/{id}/read", s.apiMarkRead)
 	mux.HandleFunc("POST /api/articles/{id}/unread", s.apiMarkUnread)
@@ -501,6 +503,100 @@ func (s *Server) apiDeleteFeed(w http.ResponseWriter, r *http.Request) {
 
 	if err := q.DeleteFeed(ctx, dbgen.DeleteFeedParams{ID: feedID, UserID: &user.ID}); err != nil {
 		jsonError(w, "Failed to delete feed", 500)
+		return
+	}
+
+	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) apiGetFeed(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	feedID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid feed ID", 400)
+		return
+	}
+
+	feed, err := q.GetFeed(ctx, dbgen.GetFeedParams{ID: feedID, UserID: &user.ID})
+	if err != nil {
+		jsonError(w, "Feed not found", 404)
+		return
+	}
+
+	jsonResponse(w, feed)
+}
+
+func (s *Server) apiUpdateFeed(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	feedID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid feed ID", 400)
+		return
+	}
+
+	// Verify feed exists and belongs to user
+	feed, err := q.GetFeed(ctx, dbgen.GetFeedParams{ID: feedID, UserID: &user.ID})
+	if err != nil {
+		jsonError(w, "Feed not found", 404)
+		return
+	}
+
+	var req struct {
+		Name                 string  `json:"name"`
+		URL                  string  `json:"url"`
+		FeedType             string  `json:"feed_type"`
+		ScraperModule        *string `json:"scraper_module"`
+		ScraperConfig        *string `json:"scraper_config"`
+		FetchIntervalMinutes *int64  `json:"fetch_interval_minutes"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request body", 400)
+		return
+	}
+
+	// Use existing values if not provided
+	name := req.Name
+	if name == "" {
+		name = feed.Name
+	}
+	url := req.URL
+	if url == "" {
+		url = feed.Url
+	}
+	feedType := req.FeedType
+	if feedType == "" {
+		feedType = feed.FeedType
+	}
+	scraperModule := req.ScraperModule
+	if scraperModule == nil {
+		scraperModule = feed.ScraperModule
+	}
+	scraperConfig := req.ScraperConfig
+	if scraperConfig == nil {
+		scraperConfig = feed.ScraperConfig
+	}
+	interval := req.FetchIntervalMinutes
+	if interval == nil {
+		interval = feed.FetchIntervalMinutes
+	}
+
+	if err := q.UpdateFeed(ctx, dbgen.UpdateFeedParams{
+		Name:                 name,
+		Url:                  url,
+		FeedType:             feedType,
+		ScraperModule:        scraperModule,
+		ScraperConfig:        scraperConfig,
+		FetchIntervalMinutes: interval,
+		ID:                   feedID,
+		UserID:               &user.ID,
+	}); err != nil {
+		jsonError(w, "Failed to update feed", 500)
 		return
 	}
 
