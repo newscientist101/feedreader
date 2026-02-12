@@ -375,22 +375,34 @@ function setView(view) {
     // Save preference (scope-aware)
     const scope = getViewScope();
     if (scope === 'folder') {
-        localStorage.setItem('feedreader-view-folder-default', view);
+        localStorage.setItem('defaultFolderView', view);
     } else if (scope === 'feed') {
-        localStorage.setItem('feedreader-view-feed-default', view);
+        localStorage.setItem('defaultFeedView', view);
     } else {
         localStorage.setItem('feedreader-view', view);
     }
 }
 
+function migrateLegacyViewDefaults() {
+    if (!localStorage.getItem('defaultFolderView')) {
+        const legacy = localStorage.getItem('feedreader-view-folder-default');
+        if (legacy) localStorage.setItem('defaultFolderView', legacy);
+    }
+    if (!localStorage.getItem('defaultFeedView')) {
+        const legacy = localStorage.getItem('feedreader-view-feed-default');
+        if (legacy) localStorage.setItem('defaultFeedView', legacy);
+    }
+}
+
 // Initialize view on page load
 function initView() {
+    migrateLegacyViewDefaults();
     const scope = getViewScope();
     let savedView = 'card';
     if (scope === 'folder') {
-        savedView = localStorage.getItem('feedreader-view-folder-default') || 'card';
+        savedView = localStorage.getItem('defaultFolderView') || 'card';
     } else if (scope === 'feed') {
-        savedView = localStorage.getItem('feedreader-view-feed-default') || 'card';
+        savedView = localStorage.getItem('defaultFeedView') || 'card';
     } else {
         savedView = localStorage.getItem('feedreader-view') || 'card';
     }

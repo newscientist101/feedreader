@@ -210,10 +210,6 @@ function setPreference(key, value) {
         applyHideReadArticles(value);
     } else if (key === 'hideEmptyFeeds') {
         applyHideEmptyFeeds(value);
-    } else if (key === 'defaultFolderView') {
-        localStorage.setItem('feedreader-view-folder-default', value);
-    } else if (key === 'defaultFeedView') {
-        localStorage.setItem('feedreader-view-feed-default', value);
     }
 }
 
