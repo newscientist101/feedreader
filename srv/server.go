@@ -927,7 +927,11 @@ func (s *Server) apiCreateScraper(w http.ResponseWriter, r *http.Request) {
 		ScriptType:  req.ScriptType,
 	})
 	if err != nil {
-		jsonError(w, "Failed to create scraper: "+err.Error(), 500)
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			jsonError(w, "A scraper with that name already exists", 409)
+		} else {
+			jsonError(w, "Failed to create scraper: "+err.Error(), 500)
+		}
 		return
 	}
 
