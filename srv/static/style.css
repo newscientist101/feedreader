@@ -837,6 +837,19 @@ body {
     color: var(--text-secondary);
 }
 
+.form-hint {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin: 4px 0 8px 0;
+}
+
+.form-hint code {
+    background: var(--bg-hover);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: 'SF Mono', Monaco, monospace;
+}
+
 .form-group input,
 .form-group select,
 .form-group textarea {

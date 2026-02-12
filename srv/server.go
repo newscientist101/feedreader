@@ -387,6 +387,16 @@ func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 
 	feed, _ := q.GetFeed(ctx, dbgen.GetFeedParams{ID: article.FeedID, UserID: &user.ID})
 
+	// Apply content filters if configured
+	if article.Content != nil && feed.ContentFilters != nil {
+		filtered := ApplyContentFilters(*article.Content, feed.ContentFilters)
+		article.Content = &filtered
+	}
+	if article.Summary != nil && feed.ContentFilters != nil {
+		filtered := ApplyContentFilters(*article.Summary, feed.ContentFilters)
+		article.Summary = &filtered
+	}
+
 	data := s.getCommonData(ctx)
 	data["Title"] = article.Title
 	data["Article"] = article
@@ -555,6 +565,7 @@ func (s *Server) apiUpdateFeed(w http.ResponseWriter, r *http.Request) {
 		ScraperModule        *string `json:"scraper_module"`
 		ScraperConfig        *string `json:"scraper_config"`
 		FetchIntervalMinutes *int64  `json:"fetch_interval_minutes"`
+		ContentFilters       *string `json:"content_filters"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonError(w, "Invalid request body", 400)
@@ -586,6 +597,10 @@ func (s *Server) apiUpdateFeed(w http.ResponseWriter, r *http.Request) {
 	if interval == nil {
 		interval = feed.FetchIntervalMinutes
 	}
+	contentFilters := req.ContentFilters
+	if contentFilters == nil {
+		contentFilters = feed.ContentFilters
+	}
 
 	if err := q.UpdateFeed(ctx, dbgen.UpdateFeedParams{
 		Name:                 name,
@@ -594,6 +609,7 @@ func (s *Server) apiUpdateFeed(w http.ResponseWriter, r *http.Request) {
 		ScraperModule:        scraperModule,
 		ScraperConfig:        scraperConfig,
 		FetchIntervalMinutes: interval,
+		ContentFilters:       contentFilters,
 		ID:                   feedID,
 		UserID:               &user.ID,
 	}); err != nil {

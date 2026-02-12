@@ -57,7 +57,7 @@ func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) 
 const createFeed = `-- name: CreateFeed :one
 INSERT INTO feeds (name, url, feed_type, scraper_module, scraper_config, fetch_interval_minutes, user_id)
 VALUES (?, ?, ?, ?, ?, ?, ?)
-RETURNING id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id
+RETURNING id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id, content_filters
 `
 
 type CreateFeedParams struct {
@@ -94,6 +94,7 @@ func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (Feed, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.UserID,
+		&i.ContentFilters,
 	)
 	return i, err
 }
@@ -183,7 +184,7 @@ func (q *Queries) GetCategoryUnreadCount(ctx context.Context, categoryID int64) 
 }
 
 const getFeed = `-- name: GetFeed :one
-SELECT id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id FROM feeds WHERE id = ? AND user_id = ?
+SELECT id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id, content_filters FROM feeds WHERE id = ? AND user_id = ?
 `
 
 type GetFeedParams struct {
@@ -207,12 +208,13 @@ func (q *Queries) GetFeed(ctx context.Context, arg GetFeedParams) (Feed, error) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.UserID,
+		&i.ContentFilters,
 	)
 	return i, err
 }
 
 const getFeedByURL = `-- name: GetFeedByURL :one
-SELECT id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id FROM feeds WHERE url = ? AND user_id = ?
+SELECT id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id, content_filters FROM feeds WHERE url = ? AND user_id = ?
 `
 
 type GetFeedByURLParams struct {
@@ -236,6 +238,7 @@ func (q *Queries) GetFeedByURL(ctx context.Context, arg GetFeedByURLParams) (Fee
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.UserID,
+		&i.ContentFilters,
 	)
 	return i, err
 }
@@ -329,7 +332,7 @@ func (q *Queries) ListCategories(ctx context.Context, userID *int64) ([]Category
 }
 
 const listFeeds = `-- name: ListFeeds :many
-SELECT id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id FROM feeds WHERE user_id = ? ORDER BY name
+SELECT id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id, content_filters FROM feeds WHERE user_id = ? ORDER BY name
 `
 
 func (q *Queries) ListFeeds(ctx context.Context, userID *int64) ([]Feed, error) {
@@ -354,6 +357,7 @@ func (q *Queries) ListFeeds(ctx context.Context, userID *int64) ([]Feed, error) 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.UserID,
+			&i.ContentFilters,
 		); err != nil {
 			return nil, err
 		}
@@ -369,7 +373,7 @@ func (q *Queries) ListFeeds(ctx context.Context, userID *int64) ([]Feed, error) 
 }
 
 const listFeedsByCategory = `-- name: ListFeedsByCategory :many
-SELECT f.id, f.name, f.url, f.feed_type, f.scraper_module, f.scraper_config, f.last_fetched_at, f.last_error, f.fetch_interval_minutes, f.created_at, f.updated_at, f.user_id FROM feeds f
+SELECT f.id, f.name, f.url, f.feed_type, f.scraper_module, f.scraper_config, f.last_fetched_at, f.last_error, f.fetch_interval_minutes, f.created_at, f.updated_at, f.user_id, f.content_filters FROM feeds f
 JOIN feed_categories fc ON f.id = fc.feed_id
 WHERE fc.category_id = ? AND f.user_id = ?
 ORDER BY f.name
@@ -402,6 +406,7 @@ func (q *Queries) ListFeedsByCategory(ctx context.Context, arg ListFeedsByCatego
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.UserID,
+			&i.ContentFilters,
 		); err != nil {
 			return nil, err
 		}
@@ -417,7 +422,7 @@ func (q *Queries) ListFeedsByCategory(ctx context.Context, arg ListFeedsByCatego
 }
 
 const listFeedsToFetch = `-- name: ListFeedsToFetch :many
-SELECT id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id FROM feeds 
+SELECT id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id, content_filters FROM feeds 
 WHERE last_fetched_at IS NULL 
    OR datetime(last_fetched_at, '+' || fetch_interval_minutes || ' minutes') < datetime('now')
 ORDER BY last_fetched_at NULLS FIRST
@@ -445,6 +450,7 @@ func (q *Queries) ListFeedsToFetch(ctx context.Context) ([]Feed, error) {
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.UserID,
+			&i.ContentFilters,
 		); err != nil {
 			return nil, err
 		}
@@ -460,7 +466,7 @@ func (q *Queries) ListFeedsToFetch(ctx context.Context) ([]Feed, error) {
 }
 
 const listUncategorizedFeeds = `-- name: ListUncategorizedFeeds :many
-SELECT f.id, f.name, f.url, f.feed_type, f.scraper_module, f.scraper_config, f.last_fetched_at, f.last_error, f.fetch_interval_minutes, f.created_at, f.updated_at, f.user_id FROM feeds f
+SELECT f.id, f.name, f.url, f.feed_type, f.scraper_module, f.scraper_config, f.last_fetched_at, f.last_error, f.fetch_interval_minutes, f.created_at, f.updated_at, f.user_id, f.content_filters FROM feeds f
 WHERE f.user_id = ? AND NOT EXISTS (
   SELECT 1 FROM feed_categories fc WHERE fc.feed_id = f.id
 )
@@ -489,6 +495,7 @@ func (q *Queries) ListUncategorizedFeeds(ctx context.Context, userID *int64) ([]
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.UserID,
+			&i.ContentFilters,
 		); err != nil {
 			return nil, err
 		}
@@ -533,7 +540,7 @@ func (q *Queries) UpdateCategory(ctx context.Context, arg UpdateCategoryParams) 
 }
 
 const updateFeed = `-- name: UpdateFeed :exec
-UPDATE feeds SET name = ?, url = ?, feed_type = ?, scraper_module = ?, scraper_config = ?, fetch_interval_minutes = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?
+UPDATE feeds SET name = ?, url = ?, feed_type = ?, scraper_module = ?, scraper_config = ?, fetch_interval_minutes = ?, content_filters = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?
 `
 
 type UpdateFeedParams struct {
@@ -543,6 +550,7 @@ type UpdateFeedParams struct {
 	ScraperModule        *string `json:"scraper_module"`
 	ScraperConfig        *string `json:"scraper_config"`
 	FetchIntervalMinutes *int64  `json:"fetch_interval_minutes"`
+	ContentFilters       *string `json:"content_filters"`
 	ID                   int64   `json:"id"`
 	UserID               *int64  `json:"user_id"`
 }
@@ -555,6 +563,7 @@ func (q *Queries) UpdateFeed(ctx context.Context, arg UpdateFeedParams) error {
 		arg.ScraperModule,
 		arg.ScraperConfig,
 		arg.FetchIntervalMinutes,
+		arg.ContentFilters,
 		arg.ID,
 		arg.UserID,
 	)

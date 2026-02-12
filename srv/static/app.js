@@ -616,6 +616,11 @@ function createEditFeedModal() {
                     <label for="edit-feed-interval">Refresh Interval (minutes)</label>
                     <input type="number" id="edit-feed-interval" min="1" value="60">
                 </div>
+                <div class="form-group">
+                    <label for="edit-feed-filters">Content Filters</label>
+                    <p class="form-hint">Remove patterns from article content. One per line. Prefix with <code>regex:</code> for regex patterns.</p>
+                    <textarea id="edit-feed-filters" rows="4" placeholder="<div class=&quot;ad&quot;></div>&#10;regex:<div class=&quot;ref-ar&quot;>.*?</div>"></textarea>
+                </div>
                 <div class="modal-actions">
                     <button type="button" onclick="closeEditModal()" class="btn btn-secondary">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save</button>
@@ -635,6 +640,22 @@ async function editFeed(id) {
         document.getElementById('edit-feed-name').value = feed.name;
         document.getElementById('edit-feed-url').value = feed.url;
         document.getElementById('edit-feed-interval').value = feed.fetch_interval_minutes || 60;
+        
+        // Load content filters
+        const filtersTextarea = document.getElementById('edit-feed-filters');
+        if (feed.content_filters) {
+            try {
+                const filters = JSON.parse(feed.content_filters);
+                filtersTextarea.value = filters.map(f => 
+                    f.is_regex ? `regex:${f.pattern}` : f.pattern
+                ).join('\n');
+            } catch (e) {
+                filtersTextarea.value = '';
+            }
+        } else {
+            filtersTextarea.value = '';
+        }
+        
         modal.style.display = 'flex';
     } catch (e) {
         console.error('Failed to load feed:', e);
@@ -654,11 +675,26 @@ async function saveFeed(event) {
     const url = document.getElementById('edit-feed-url').value;
     const interval = parseInt(document.getElementById('edit-feed-interval').value) || 60;
     
+    // Parse content filters from textarea
+    const filtersText = document.getElementById('edit-feed-filters').value.trim();
+    let contentFilters = null;
+    if (filtersText) {
+        const filters = filtersText.split('\n').filter(line => line.trim()).map(line => {
+            line = line.trim();
+            if (line.startsWith('regex:')) {
+                return { pattern: line.substring(6), is_regex: true };
+            }
+            return { pattern: line, is_regex: false };
+        });
+        contentFilters = JSON.stringify(filters);
+    }
+    
     try {
         await api('PUT', `/api/feeds/${id}`, {
             name: name,
             url: url,
-            fetch_interval_minutes: interval
+            fetch_interval_minutes: interval,
+            content_filters: contentFilters
         });
         closeEditModal();
         
