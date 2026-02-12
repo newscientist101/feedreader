@@ -17,7 +17,7 @@
         <div class="categories-grid">
             {{range .FlatCategories}}
             <div class="category-card" data-id="{{.ID}}" data-parent-id="{{if .ParentID}}{{deref .ParentID}}{{end}}" data-depth="{{.Depth}}" draggable="true">
-                <div class="category-name">{{if .ParentID}}<span class="subfolder-icon">└</span> {{end}}{{.Name}}</div>
+                <a href="/category/{{.ID}}" class="category-name">{{if .ParentID}}<span class="subfolder-icon">└</span> {{end}}{{.Name}}</a>
                 <div class="category-actions">
                     <a href="/category/{{.ID}}/settings" class="btn-icon" title="Settings">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">

@@ -1598,6 +1598,8 @@ th {
     min-width: 0;
     font-size: 0.9rem;
     padding-right: 4px;
+    color: inherit;
+    text-decoration: none;
 }
 
 .category-name .subfolder-icon {
