@@ -1485,7 +1485,7 @@ th {
 
 .folder-feeds .feed-item {
     font-size: 0.85rem;
-    padding: 6px 15px;
+    padding: 6px var(--sidebar-right-padding) 6px 15px;
 }
 
 /* Categories Section */
@@ -1591,10 +1591,13 @@ th {
     background: rgba(100, 255, 218, 0.1);
 }
 
-/* Subfolder indent in sidebar */
-.folder-item[data-depth="1"] { padding-left: 20px; }
-.folder-item[data-depth="2"] { padding-left: 40px; }
-.folder-item[data-depth="3"] { padding-left: 60px; }
+/* Subfolder indent in sidebar - only indent the row, not the feeds */
+.folder-item[data-depth="1"] > .folder-row { padding-left: calc(15px + 20px); }
+.folder-item[data-depth="2"] > .folder-row { padding-left: calc(15px + 40px); }
+.folder-item[data-depth="3"] > .folder-row { padding-left: calc(15px + 60px); }
+.folder-item[data-depth="1"] > .folder-feeds { padding-left: calc(28px + 20px); }
+.folder-item[data-depth="2"] > .folder-feeds { padding-left: calc(28px + 40px); }
+.folder-item[data-depth="3"] > .folder-feeds { padding-left: calc(28px + 60px); }
 
 .category-card.add-category {
     border: 2px dashed var(--border);
