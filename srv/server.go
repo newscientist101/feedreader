@@ -109,6 +109,7 @@ func (s *Server) Serve(addr string) error {
 	mux.HandleFunc("GET /api/categories/{id}/articles", s.apiGetCategoryArticles)
 	mux.HandleFunc("POST /api/categories", s.apiCreateCategory)
 	mux.HandleFunc("POST /api/categories/reorder", s.apiReorderCategories)
+	mux.HandleFunc("POST /api/categories/{id}/parent", s.apiSetCategoryParent)
 	mux.HandleFunc("PUT /api/categories/{id}", s.apiUpdateCategory)
 	mux.HandleFunc("DELETE /api/categories/{id}", s.apiDeleteCategory)
 	mux.HandleFunc("POST /api/feeds/{id}/category", s.apiSetFeedCategory)
@@ -152,6 +153,7 @@ func (s *Server) renderTemplate(w http.ResponseWriter, name string, data any) er
 		"stripHTML":  stripHTML,
 		"deref":      deref,
 		"safeHTML":   safeHTML,
+		"multiply":   func(a, b int) int { return a * b },
 	}
 	path := filepath.Join(s.TemplatesDir, name)
 	basePath := filepath.Join(s.TemplatesDir, "base.html")
@@ -262,15 +264,21 @@ func (s *Server) getCommonData(ctx context.Context) map[string]any {
 		}
 	}
 
+	// Build category tree for hierarchical display
+	categoryTree := BuildCategoryTree(categories)
+	flatCategories := FlattenCategoryTree(categoryTree)
+
 	return map[string]any{
-		"Feeds":          feeds,
-		"FeedCounts":     feedCounts,
-		"Categories":     categories,
-		"CategoryCounts": catCounts,
-		"FeedCategories": feedCategories,
-		"UnreadCount":    unreadCount,
-		"StarredCount":   starredCount,
-		"User":           user,
+		"Feeds":           feeds,
+		"FeedCounts":      feedCounts,
+		"Categories":      categories,
+		"CategoryTree":    categoryTree,
+		"FlatCategories":  flatCategories,
+		"CategoryCounts":  catCounts,
+		"FeedCategories":  feedCategories,
+		"UnreadCount":     unreadCount,
+		"StarredCount":    starredCount,
+		"User":            user,
 	}
 }
 
@@ -1143,6 +1151,46 @@ func (s *Server) apiReorderCategories(w http.ResponseWriter, r *http.Request) {
 			ID:        catID,
 			UserID:    &user.ID,
 		})
+	}
+
+	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) apiSetCategoryParent(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	catID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid category ID", 400)
+		return
+	}
+
+	var req struct {
+		ParentID  *int64 `json:"parent_id"`  // null = top level
+		SortOrder int64  `json:"sort_order"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request", 400)
+		return
+	}
+
+	// Prevent circular references
+	if req.ParentID != nil && *req.ParentID == catID {
+		jsonError(w, "Cannot set category as its own parent", 400)
+		return
+	}
+
+	err = q.UpdateCategoryParent(ctx, dbgen.UpdateCategoryParentParams{
+		ParentID:  req.ParentID,
+		SortOrder: &req.SortOrder,
+		ID:        catID,
+		UserID:    &user.ID,
+	})
+	if err != nil {
+		jsonError(w, "Failed to update category", 500)
+		return
 	}
 
 	jsonResponse(w, map[string]string{"status": "ok"})

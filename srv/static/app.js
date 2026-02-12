@@ -800,6 +800,19 @@ async function renameCategory(id, currentName) {
     }
 }
 
+async function unparentCategory(id) {
+    try {
+        await api('POST', `/api/categories/${id}/parent`, {
+            parent_id: null,
+            sort_order: 999 // Put at end
+        });
+        location.reload();
+    } catch (e) {
+        console.error('Failed to unparent category:', e);
+        alert('Failed to move folder to top level');
+    }
+}
+
 async function deleteCategory(id, name) {
     if (!confirm(`Delete folder "${name}"? Feeds will be moved to uncategorized.`)) {
         return;
@@ -1192,6 +1205,7 @@ function initFolderDragDrop() {
 function initDragDrop(container, itemSelector, idAttr) {
     let draggedItem = null;
     let placeholder = null;
+    let dropTarget = null; // For nesting
     
     container.addEventListener('dragstart', (e) => {
         const item = e.target.closest(itemSelector);
@@ -1219,12 +1233,31 @@ function initDragDrop(container, itemSelector, idAttr) {
         placeholder = null;
         
         // Remove any remaining drag-over classes
-        container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+        container.querySelectorAll('.drag-over, .nest-target').forEach(el => {
+            el.classList.remove('drag-over', 'nest-target');
+        });
+        dropTarget = null;
     });
     
     container.addEventListener('dragover', (e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
+        
+        const targetItem = e.target.closest(itemSelector);
+        
+        // Check if we're hovering over another folder (for nesting)
+        // Only if holding Shift key
+        if (e.shiftKey && targetItem && targetItem !== draggedItem) {
+            // Show nest target indicator
+            container.querySelectorAll('.nest-target').forEach(el => el.classList.remove('nest-target'));
+            targetItem.classList.add('nest-target');
+            dropTarget = targetItem;
+            if (placeholder.parentNode) placeholder.remove();
+            return;
+        } else {
+            container.querySelectorAll('.nest-target').forEach(el => el.classList.remove('nest-target'));
+            dropTarget = null;
+        }
         
         const afterElement = getDragAfterElement(container, e.clientY, itemSelector);
         
@@ -1246,12 +1279,34 @@ function initDragDrop(container, itemSelector, idAttr) {
     container.addEventListener('drop', async (e) => {
         e.preventDefault();
         
-        if (!draggedItem || !placeholder) return;
+        if (!draggedItem) return;
+        
+        const draggedId = parseInt(draggedItem.getAttribute(idAttr));
+        
+        // Check if nesting (Shift was held and we have a target)
+        if (dropTarget && dropTarget !== draggedItem) {
+            const parentId = parseInt(dropTarget.getAttribute(idAttr));
+            
+            // Set parent via API
+            try {
+                await api('POST', `/api/categories/${draggedId}/parent`, {
+                    parent_id: parentId,
+                    sort_order: 0
+                });
+                // Reload to show new hierarchy
+                location.reload();
+            } catch (err) {
+                console.error('Failed to nest folder:', err);
+            }
+            return;
+        }
+        
+        if (!placeholder) return;
         
         // Insert the dragged item where the placeholder is
         placeholder.replaceWith(draggedItem);
         
-        // Get new order
+        // Get new order (only top-level items for now)
         const items = container.querySelectorAll(itemSelector);
         const order = Array.from(items)
             .map(item => parseInt(item.getAttribute(idAttr)))

@@ -34,7 +34,7 @@ func (q *Queries) ClearFeedCategories(ctx context.Context, feedID int64) error {
 }
 
 const createCategory = `-- name: CreateCategory :one
-INSERT INTO categories (name, user_id) VALUES (?, ?) RETURNING id, name, created_at, user_id, sort_order
+INSERT INTO categories (name, user_id) VALUES (?, ?) RETURNING id, name, created_at, user_id, sort_order, parent_id
 `
 
 type CreateCategoryParams struct {
@@ -51,6 +51,7 @@ func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) 
 		&i.CreatedAt,
 		&i.UserID,
 		&i.SortOrder,
+		&i.ParentID,
 	)
 	return i, err
 }
@@ -129,7 +130,7 @@ func (q *Queries) DeleteFeed(ctx context.Context, arg DeleteFeedParams) error {
 }
 
 const getCategory = `-- name: GetCategory :one
-SELECT id, name, created_at, user_id, sort_order FROM categories WHERE id = ? AND user_id = ?
+SELECT id, name, created_at, user_id, sort_order, parent_id FROM categories WHERE id = ? AND user_id = ?
 `
 
 type GetCategoryParams struct {
@@ -146,12 +147,13 @@ func (q *Queries) GetCategory(ctx context.Context, arg GetCategoryParams) (Categ
 		&i.CreatedAt,
 		&i.UserID,
 		&i.SortOrder,
+		&i.ParentID,
 	)
 	return i, err
 }
 
 const getCategoryByName = `-- name: GetCategoryByName :one
-SELECT id, name, created_at, user_id, sort_order FROM categories WHERE name = ? AND user_id = ?
+SELECT id, name, created_at, user_id, sort_order, parent_id FROM categories WHERE name = ? AND user_id = ?
 `
 
 type GetCategoryByNameParams struct {
@@ -168,6 +170,7 @@ func (q *Queries) GetCategoryByName(ctx context.Context, arg GetCategoryByNamePa
 		&i.CreatedAt,
 		&i.UserID,
 		&i.SortOrder,
+		&i.ParentID,
 	)
 	return i, err
 }
@@ -184,6 +187,45 @@ func (q *Queries) GetCategoryUnreadCount(ctx context.Context, categoryID int64) 
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const getChildCategories = `-- name: GetChildCategories :many
+SELECT id, name, created_at, user_id, sort_order, parent_id FROM categories WHERE parent_id = ? AND user_id = ? ORDER BY sort_order, name
+`
+
+type GetChildCategoriesParams struct {
+	ParentID *int64 `json:"parent_id"`
+	UserID   *int64 `json:"user_id"`
+}
+
+func (q *Queries) GetChildCategories(ctx context.Context, arg GetChildCategoriesParams) ([]Category, error) {
+	rows, err := q.db.QueryContext(ctx, getChildCategories, arg.ParentID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Category{}
+	for rows.Next() {
+		var i Category
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.CreatedAt,
+			&i.UserID,
+			&i.SortOrder,
+			&i.ParentID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getFeed = `-- name: GetFeed :one
@@ -247,7 +289,7 @@ func (q *Queries) GetFeedByURL(ctx context.Context, arg GetFeedByURLParams) (Fee
 }
 
 const getFeedCategories = `-- name: GetFeedCategories :many
-SELECT c.id, c.name, c.created_at, c.user_id, c.sort_order FROM categories c
+SELECT c.id, c.name, c.created_at, c.user_id, c.sort_order, c.parent_id FROM categories c
 JOIN feed_categories fc ON c.id = fc.category_id
 WHERE fc.feed_id = ?
 `
@@ -267,6 +309,7 @@ func (q *Queries) GetFeedCategories(ctx context.Context, feedID int64) ([]Catego
 			&i.CreatedAt,
 			&i.UserID,
 			&i.SortOrder,
+			&i.ParentID,
 		); err != nil {
 			return nil, err
 		}
@@ -304,7 +347,7 @@ func (q *Queries) GetFeedUnreadCount(ctx context.Context, feedID int64) (int64, 
 }
 
 const listCategories = `-- name: ListCategories :many
-SELECT id, name, created_at, user_id, sort_order FROM categories WHERE user_id = ? ORDER BY sort_order, name
+SELECT id, name, created_at, user_id, sort_order, parent_id FROM categories WHERE user_id = ? ORDER BY sort_order, name
 `
 
 func (q *Queries) ListCategories(ctx context.Context, userID *int64) ([]Category, error) {
@@ -322,6 +365,7 @@ func (q *Queries) ListCategories(ctx context.Context, userID *int64) ([]Category
 			&i.CreatedAt,
 			&i.UserID,
 			&i.SortOrder,
+			&i.ParentID,
 		); err != nil {
 			return nil, err
 		}
@@ -541,6 +585,27 @@ type UpdateCategoryParams struct {
 
 func (q *Queries) UpdateCategory(ctx context.Context, arg UpdateCategoryParams) error {
 	_, err := q.db.ExecContext(ctx, updateCategory, arg.Name, arg.ID, arg.UserID)
+	return err
+}
+
+const updateCategoryParent = `-- name: UpdateCategoryParent :exec
+UPDATE categories SET parent_id = ?, sort_order = ? WHERE id = ? AND user_id = ?
+`
+
+type UpdateCategoryParentParams struct {
+	ParentID  *int64 `json:"parent_id"`
+	SortOrder *int64 `json:"sort_order"`
+	ID        int64  `json:"id"`
+	UserID    *int64 `json:"user_id"`
+}
+
+func (q *Queries) UpdateCategoryParent(ctx context.Context, arg UpdateCategoryParentParams) error {
+	_, err := q.db.ExecContext(ctx, updateCategoryParent,
+		arg.ParentID,
+		arg.SortOrder,
+		arg.ID,
+		arg.UserID,
+	)
 	return err
 }
 

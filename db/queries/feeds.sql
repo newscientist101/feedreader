@@ -39,6 +39,12 @@ SELECT * FROM categories WHERE user_id = ? ORDER BY sort_order, name;
 -- name: UpdateCategorySortOrder :exec
 UPDATE categories SET sort_order = ? WHERE id = ? AND user_id = ?;
 
+-- name: UpdateCategoryParent :exec
+UPDATE categories SET parent_id = ?, sort_order = ? WHERE id = ? AND user_id = ?;
+
+-- name: GetChildCategories :many
+SELECT * FROM categories WHERE parent_id = ? AND user_id = ? ORDER BY sort_order, name;
+
 -- name: GetCategory :one
 SELECT * FROM categories WHERE id = ? AND user_id = ?;
 

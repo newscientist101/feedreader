@@ -1483,6 +1483,11 @@ th {
     padding-right: 4px;
 }
 
+.category-name .subfolder-icon {
+    color: var(--text-secondary);
+    margin-right: 4px;
+}
+
 .category-card:hover .category-name {
     mask-image: linear-gradient(to right, black 70%, transparent 95%);
     -webkit-mask-image: linear-gradient(to right, black 70%, transparent 95%);
@@ -1532,6 +1537,19 @@ th {
 .categories-grid .drag-placeholder {
     margin: 0;
 }
+
+/* Nest target indicator (hold Shift while dragging) */
+.folder-item.nest-target,
+.category-card.nest-target {
+    outline: 2px dashed var(--accent);
+    outline-offset: 2px;
+    background: rgba(100, 255, 218, 0.1);
+}
+
+/* Subfolder indent in sidebar */
+.folder-item[data-depth="1"] { padding-left: 20px; }
+.folder-item[data-depth="2"] { padding-left: 40px; }
+.folder-item[data-depth="3"] { padding-left: 60px; }
 
 .category-card.add-category {
     border: 2px dashed var(--border);

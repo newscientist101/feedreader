@@ -11,6 +11,14 @@
         </div>
     </header>
 
+    {{if .CurrentCategory.ParentID}}
+    <div class="settings-section">
+        <h2>Parent Folder</h2>
+        <p class="section-description">This folder is nested inside another folder.</p>
+        <button onclick="unparentCategory({{.CurrentCategory.ID}})" class="btn btn-secondary">Move to Top Level</button>
+    </div>
+    {{end}}
+
     <div class="settings-section">
         <h2>Exclusion Rules</h2>
         <p class="section-description">Articles matching these rules will be hidden from this folder's view.</p>
