@@ -288,7 +288,7 @@ async function toggleStar(id) {
 // Feed actions
 async function refreshFeed(id) {
     // Find and update all refresh buttons for this feed
-    const buttons = document.querySelectorAll(`[data-feed-id="${id}"]`);
+    const buttons = document.querySelectorAll(`button[data-feed-id="${id}"]`);
     const originalContents = [];
     
     buttons.forEach((btn, i) => {
