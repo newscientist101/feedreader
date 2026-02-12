@@ -581,14 +581,61 @@ function filterFeeds() {
 }
 
 // Edit feed modal
+// Create and show the edit feed modal
+function createEditFeedModal() {
+    // Check if modal already exists
+    let modal = document.getElementById('edit-feed-modal');
+    if (modal) return modal;
+    
+    modal = document.createElement('div');
+    modal.id = 'edit-feed-modal';
+    modal.className = 'modal';
+    modal.style.display = 'none';
+    modal.innerHTML = `
+        <div class="modal-backdrop" onclick="closeEditModal()"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Feed</h3>
+                <button onclick="closeEditModal()" class="btn-icon">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                </button>
+            </div>
+            <form id="edit-feed-form" onsubmit="saveFeed(event)">
+                <input type="hidden" id="edit-feed-id">
+                <div class="form-group">
+                    <label for="edit-feed-name">Name</label>
+                    <input type="text" id="edit-feed-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-feed-url">URL</label>
+                    <input type="url" id="edit-feed-url" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-feed-interval">Refresh Interval (minutes)</label>
+                    <input type="number" id="edit-feed-interval" min="1" value="60">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" onclick="closeEditModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    return modal;
+}
+
 async function editFeed(id) {
     try {
         const feed = await api('GET', `/api/feeds/${id}`);
+        const modal = createEditFeedModal();
         document.getElementById('edit-feed-id').value = feed.id;
         document.getElementById('edit-feed-name').value = feed.name;
         document.getElementById('edit-feed-url').value = feed.url;
         document.getElementById('edit-feed-interval').value = feed.fetch_interval_minutes || 60;
-        document.getElementById('edit-feed-modal').style.display = 'flex';
+        modal.style.display = 'flex';
     } catch (e) {
         console.error('Failed to load feed:', e);
         alert('Failed to load feed details');
@@ -596,7 +643,8 @@ async function editFeed(id) {
 }
 
 function closeEditModal() {
-    document.getElementById('edit-feed-modal').style.display = 'none';
+    const modal = document.getElementById('edit-feed-modal');
+    if (modal) modal.style.display = 'none';
 }
 
 async function saveFeed(event) {
@@ -635,6 +683,13 @@ async function saveFeed(event) {
         const sidebarItem = document.querySelector(`.feed-item[href="/feed/${id}"] .feed-name`);
         if (sidebarItem) {
             sidebarItem.textContent = name;
+        }
+        
+        // Update page title and header if on feed page
+        const pageHeader = document.querySelector('.view-header h1');
+        if (pageHeader && window.location.pathname === `/feed/${id}`) {
+            pageHeader.textContent = name;
+            document.title = `${name} - FeedReader`;
         }
     } catch (e) {
         console.error('Failed to save feed:', e);
