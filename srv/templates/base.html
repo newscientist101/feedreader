@@ -19,7 +19,7 @@
     <!-- Manifest -->
     <link rel="manifest" href="/static/manifest.json">
     
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="{{staticPath "style.css"}}">
 </head>
 <body>
     <div class="mobile-header">
@@ -119,7 +119,7 @@
             {{template "content" .}}
         </main>
     </div>
-    <script src="/static/app.js"></script>
+    <script src="{{staticPath "app.js"}}"></script>
     <script>
         // Register Service Worker for PWA
         if ('serviceWorker' in navigator) {

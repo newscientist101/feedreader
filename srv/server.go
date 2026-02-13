@@ -2,7 +2,9 @@ package srv
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -10,6 +12,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"path/filepath"
 	"runtime"
@@ -30,6 +33,7 @@ type Server struct {
 	Hostname         string
 	TemplatesDir     string
 	StaticDir        string
+	StaticHashes     map[string]string // filename -> short hash for cache busting
 	Fetcher          *feeds.Fetcher
 	ScraperRunner    *scrapers.Runner
 	RetentionManager *RetentionManager
@@ -49,7 +53,28 @@ func New(dbPath, hostname string) (*Server, error) {
 		return nil, err
 	}
 	srv.Fetcher = feeds.NewFetcher(srv.DB, srv.ScraperRunner)
+	srv.StaticHashes = hashStaticFiles(srv.StaticDir)
 	return srv, nil
+}
+
+// hashStaticFiles computes short SHA-256 hashes for static files for cache busting.
+func hashStaticFiles(dir string) map[string]string {
+	hashes := make(map[string]string)
+	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		sum := sha256.Sum256(data)
+		rel, _ := filepath.Rel(dir, path)
+		hashes[rel] = hex.EncodeToString(sum[:4]) // 8 hex chars
+		return nil
+	})
+	slog.Info("static file hashes computed", "count", len(hashes))
+	return hashes
 }
 
 func (s *Server) setUpDatabase(dbPath string) error {
@@ -159,6 +184,12 @@ func (s *Server) renderTemplate(w http.ResponseWriter, name string, data any) er
 		"stripLeadingImage": stripLeadingImage,
 		"multiply":   func(a, b int) int { return a * b },
 		"faviconURL": faviconURL,
+		"staticPath": func(name string) string {
+			if h, ok := s.StaticHashes[name]; ok {
+				return "/static/" + name + "?v=" + h
+			}
+			return "/static/" + name
+		},
 		"dict": func(pairs ...any) map[string]any {
 			m := make(map[string]any, len(pairs)/2)
 			for i := 0; i+1 < len(pairs); i += 2 {
