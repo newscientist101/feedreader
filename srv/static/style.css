@@ -1550,7 +1550,7 @@ th {
     position: relative;
     display: flex;
     align-items: center;
-    padding: 0 var(--sidebar-right-padding) 0 10px;
+    padding: 0 0 0 10px;
     gap: 6px;
 }
 
@@ -1560,7 +1560,7 @@ th {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 6px 8px;
+    padding: 6px var(--sidebar-right-padding) 6px 8px;
     border-radius: 6px;
 }
 
