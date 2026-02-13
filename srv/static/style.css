@@ -342,7 +342,7 @@ body {
 .article-card {
     background: var(--bg-card);
     border-radius: 12px;
-    padding: 20px;
+    padding: 12px 20px;
     transition: all 0.2s;
     border: 1px solid transparent;
 }
