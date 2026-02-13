@@ -1534,11 +1534,11 @@ th {
     transition: transform 0.2s;
 }
 
-.folder-row:hover .folder-chevron {
+.folder-chevron:hover {
     color: var(--text-primary);
 }
 
-.folder-row:hover .folder-chevron::before {
+.folder-chevron:hover::before {
     opacity: 1;
 }
 
