@@ -1514,7 +1514,7 @@ th {
     pointer-events: none;
 }
 
-.folder-row:hover > .folder-chevron {
+.folder-chevron:hover {
     color: var(--text-primary);
     background: rgba(255, 255, 255, 0.1);
 }
