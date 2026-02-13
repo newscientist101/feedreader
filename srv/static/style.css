@@ -1609,11 +1609,13 @@ th {
     justify-content: center;
 }
 
-.folder-row .folder-link:hover .folder-icon-wrapper .folder-icon {
+.folder-main:hover .folder-icon-wrapper .folder-icon,
+.folder-row.active .folder-icon-wrapper .folder-icon {
     opacity: 0;
 }
 
-.folder-row .folder-link:hover .folder-icon-wrapper .folder-settings {
+.folder-main:hover .folder-icon-wrapper .folder-settings,
+.folder-row.active .folder-icon-wrapper .folder-settings {
     opacity: 1;
 }
 
