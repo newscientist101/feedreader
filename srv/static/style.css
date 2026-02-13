@@ -1552,6 +1552,21 @@ th {
     gap: 6px;
 }
 
+.folder-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px 6px 8px;
+    border-radius: 6px;
+}
+
+.folder-row:hover .folder-main,
+.folder-row.active .folder-main {
+    background: var(--bg-hover);
+}
+
 .folder-row .folder-link {
     flex: 1;
     display: flex;
@@ -1562,14 +1577,8 @@ th {
     transition: color 0.2s;
 }
 
-.folder-row:hover,
-.folder-row .folder-link.active {
-    background: var(--bg-hover);
-    border-radius: 6px;
-}
-
 .folder-row:hover .folder-link,
-.folder-row .folder-link.active {
+.folder-row.active .folder-link {
     color: var(--text-primary);
 }
 
