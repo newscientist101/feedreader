@@ -1,3 +1,10 @@
+// Sidebar highlighting helper — clears all active states in the sidebar,
+// then marks the given element (nav-item, feed-item, or folder-item) active.
+function setSidebarActive(el) {
+    document.querySelectorAll('.sidebar .active').forEach(a => a.classList.remove('active'));
+    if (el) el.classList.add('active');
+}
+
 // User settings (injected from server, saved via API)
 function getSetting(key, defaultValue) {
     const val = (window.__settings || {})[key];
@@ -236,12 +243,10 @@ function toggleFolderCollapse(categoryId) {
 }
 
 function collapseFolder(folderItem) {
-    folderItem.classList.remove('expanded');
-    folderItem.querySelector('.folder-link')?.classList.remove('active');
+    folderItem.classList.remove('expanded', 'active');
     // Collapse all nested expanded subfolders too
     folderItem.querySelectorAll('.folder-item.expanded').forEach(child => {
-        child.classList.remove('expanded');
-        child.querySelector('.folder-link')?.classList.remove('active');
+        child.classList.remove('expanded', 'active');
     });
 }
 
@@ -267,11 +272,8 @@ async function loadCategoryArticles(categoryId, categoryName) {
     }
     
     // Update active states in sidebar
-    document.querySelectorAll('.feed-item.active').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.folder-link.active').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.nav-item.active').forEach(el => el.classList.remove('active'));
     const folderItem = document.querySelector(`.folder-item[data-category-id="${categoryId}"]`);
-    if (folderItem) folderItem.querySelector('.folder-link')?.classList.add('active');
+    setSidebarActive(folderItem);
     
     try {
         const data = await api('GET', `/api/categories/${categoryId}/articles`);
@@ -323,12 +325,9 @@ async function loadFeedArticles(feedId, feedName) {
         articlesView.dataset.viewScope = 'feed';
     }
 
-    document.querySelectorAll('.feed-item.active').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.folder-link.active').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.nav-item.active').forEach(el => el.classList.remove('active'));
-
-    const activeFeedItems = document.querySelectorAll(`.feed-item[data-feed-id="${feedId}"]`);
-    activeFeedItems.forEach(item => item.classList.add('active'));
+    // Clear all sidebar active states, then activate matching feed items
+    setSidebarActive(null);
+    document.querySelectorAll(`.feed-item[data-feed-id="${feedId}"]`).forEach(item => item.classList.add('active'));
 
     try {
         const data = await api('GET', `/api/feeds/${feedId}/articles`);

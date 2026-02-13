@@ -73,12 +73,13 @@ body {
     transition: all 0.2s;
 }
 
-.nav-item:hover, .nav-item.active {
+.nav-item:hover {
     background: var(--bg-hover);
     color: var(--text-primary);
 }
 
 .nav-item.active {
+    background: var(--bg-hover);
     color: var(--accent);
 }
 
@@ -165,9 +166,14 @@ body {
     transition: all 0.2s;
 }
 
-.feed-item:hover, .feed-item.active {
+.feed-item:hover {
     background: var(--bg-hover);
     color: var(--text-primary);
+}
+
+.feed-item.active {
+    background: var(--bg-hover);
+    color: var(--accent);
 }
 
 .feed-item.has-error {
@@ -1511,10 +1517,6 @@ th {
     color: var(--text-primary);
 }
 
-.folder-link.active {
-    color: var(--accent);
-}
-
 .folder-chevron {
     background: none;
     border: none;
@@ -1586,7 +1588,7 @@ th {
 }
 
 .folder-main:hover,
-.folder-row.active .folder-main {
+.folder-item.active > .folder-row > .folder-main {
     background: var(--bg-hover);
 }
 
@@ -1604,7 +1606,7 @@ th {
     color: var(--text-primary);
 }
 
-.folder-row .folder-link.active {
+.folder-item.active > .folder-row .folder-link {
     color: var(--accent);
 }
 
@@ -1635,12 +1637,12 @@ th {
 }
 
 .folder-icon-wrapper:hover .folder-icon,
-.folder-row.active .folder-icon-wrapper .folder-icon {
+.folder-item.active > .folder-row .folder-icon-wrapper .folder-icon {
     opacity: 0;
 }
 
 .folder-icon-wrapper:hover .folder-settings,
-.folder-row.active .folder-icon-wrapper .folder-settings {
+.folder-item.active > .folder-row .folder-icon-wrapper .folder-settings {
     opacity: 1;
 }
 
