@@ -703,6 +703,7 @@ body {
 
 .article-meta {
     display: flex;
+    align-items: center;
     gap: 15px;
     font-size: 0.85rem;
     color: var(--text-secondary);
@@ -723,6 +724,8 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     min-width: 0;
+    flex: 1;
+    text-align: center;
 }
 
 .article-meta .article-date {
