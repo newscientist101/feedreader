@@ -65,6 +65,7 @@ type Feed struct {
 	UpdatedAt            time.Time  `json:"updated_at"`
 	UserID               *int64     `json:"user_id"`
 	ContentFilters       *string    `json:"content_filters"`
+	SiteUrl              string     `json:"site_url"`
 }
 
 type FeedCategory struct {

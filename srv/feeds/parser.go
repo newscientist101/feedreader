@@ -82,11 +82,36 @@ type rssFeed struct {
 	Channel rssChannel `xml:"channel"`
 }
 
+// rssLink captures both plain <link> text and <atom:link> attributes.
+type rssLink struct {
+	XMLName xml.Name
+	Href    string `xml:"href,attr"`
+	Rel     string `xml:"rel,attr"`
+	Text    string `xml:",chardata"`
+}
+
 type rssChannel struct {
 	Title       string    `xml:"title"`
-	Link        string    `xml:"link"`
+	Links       []rssLink `xml:"link"`
 	Description string    `xml:"description"`
 	Items       []rssItem `xml:"item"`
+}
+
+// ChannelLink returns the site URL from the channel's <link> elements,
+// preferring the plain-text <link> over atom:link.
+func (ch rssChannel) ChannelLink() string {
+	for _, l := range ch.Links {
+		if l.Text != "" {
+			return strings.TrimSpace(l.Text)
+		}
+	}
+	// Fall back to atom:link with rel="alternate"
+	for _, l := range ch.Links {
+		if l.Href != "" && (l.Rel == "alternate" || l.Rel == "") {
+			return l.Href
+		}
+	}
+	return ""
 }
 
 type rssItem struct {
@@ -132,7 +157,7 @@ func parseRSS(data []byte) (*ParsedFeed, error) {
 	feed := &ParsedFeed{
 		Title:       rss.Channel.Title,
 		Description: rss.Channel.Description,
-		URL:         rss.Channel.Link,
+		URL:         rss.Channel.ChannelLink(),
 		Items:       make([]FeedItem, 0, len(rss.Channel.Items)),
 	}
 

@@ -118,11 +118,12 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed dbgen.Feed) error {
 	now := time.Now()
 
 	var items []FeedItem
+	var siteURL string
 	var fetchErr error
 
 	switch feed.FeedType {
 	case "rss", "atom":
-		items, fetchErr = f.fetchRSSFeed(ctx, feed.Url)
+		items, siteURL, fetchErr = f.fetchRSSFeed(ctx, feed.Url)
 	case "scraper":
 		if feed.ScraperModule != nil && *feed.ScraperModule != "" {
 			items, fetchErr = f.fetchWithScraper(ctx, feed)
@@ -152,6 +153,13 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed dbgen.Feed) error {
 
 	if fetchErr != nil {
 		return fetchErr
+	}
+
+	// Persist the site URL discovered from the feed
+	if siteURL != "" && siteURL != feed.SiteUrl {
+		if err := q.UpdateFeedSiteURL(ctx, dbgen.UpdateFeedSiteURLParams{SiteUrl: siteURL, ID: feed.ID}); err != nil {
+			slog.Warn("update feed site_url", "error", err)
+		}
 	}
 
 	// Store items
@@ -192,10 +200,10 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed dbgen.Feed) error {
 	return nil
 }
 
-func (f *Fetcher) fetchRSSFeed(ctx context.Context, url string) ([]FeedItem, error) {
+func (f *Fetcher) fetchRSSFeed(ctx context.Context, url string) ([]FeedItem, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	// Use browser-like headers to avoid bot detection (e.g., Cloudflare)
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
@@ -211,12 +219,12 @@ func (f *Fetcher) fetchRSSFeed(ctx context.Context, url string) ([]FeedItem, err
 
 	resp, err := f.Client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), httpErrorDescription(resp.StatusCode))
+		return nil, "", fmt.Errorf("HTTP %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), httpErrorDescription(resp.StatusCode))
 	}
 
 	// Handle gzip-encoded responses
@@ -224,7 +232,7 @@ func (f *Fetcher) fetchRSSFeed(ctx context.Context, url string) ([]FeedItem, err
 	if resp.Header.Get("Content-Encoding") == "gzip" {
 		gzReader, err := gzip.NewReader(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decompress gzip response: %w", err)
+			return nil, "", fmt.Errorf("failed to decompress gzip response: %w", err)
 		}
 		defer gzReader.Close()
 		reader = gzReader
@@ -232,10 +240,10 @@ func (f *Fetcher) fetchRSSFeed(ctx context.Context, url string) ([]FeedItem, err
 
 	feed, err := Parse(reader)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return feed.Items, nil
+	return feed.Items, feed.URL, nil
 }
 
 func (f *Fetcher) fetchWithScraper(ctx context.Context, feed dbgen.Feed) ([]FeedItem, error) {

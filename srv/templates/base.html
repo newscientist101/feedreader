@@ -108,7 +108,7 @@
                     {{range .Feeds}}
                     <a href="/feed/{{.ID}}" class="feed-item {{if eq $.ActiveFeed .ID}}active{{end}}{{if .LastError}} has-error{{end}}" data-feed-id="{{.ID}}" data-feed-name="{{.Name}}"{{if not .LastFetchedAt}} data-never-fetched="true"{{end}}{{if .LastError}} title="Error: {{deref .LastError}}"{{end}}>
                         <span class="feed-error-icon" data-error="feed-{{.ID}}">{{if .LastError}}⚠{{end}}</span>
-                        <img class="feed-favicon" src="{{faviconURL .Url}}" width="16" height="16" alt="" loading="lazy">
+                        <img class="feed-favicon" src="{{faviconURL .SiteUrl .Url}}" width="16" height="16" alt="" loading="lazy">
                         <span class="feed-name">{{.Name}}</span>
                         {{$count := index $.FeedCounts .ID}}
                         <span class="badge small{{if not .LastFetchedAt}} pending{{end}}" data-count="feed-{{.ID}}">{{if $count}}{{$count}}{{else if not .LastFetchedAt}}•{{end}}</span>
@@ -187,7 +187,7 @@
             {{range $root.Feeds}}{{$feedCat := index $root.FeedCategories .ID}}{{if eq $feedCat $catID}}
             <a href="/feed/{{.ID}}" class="feed-item {{if eq $root.ActiveFeed .ID}}active{{end}}{{if .LastError}} has-error{{end}}" data-feed-id="{{.ID}}" data-feed-name="{{.Name}}"{{if not .LastFetchedAt}} data-never-fetched="true"{{end}}{{if .LastError}} title="Error: {{deref .LastError}}"{{end}}>
                 <span class="feed-error-icon" data-error="feed-{{.ID}}">{{if .LastError}}⚠{{end}}</span>
-                <img class="feed-favicon" src="{{faviconURL .Url}}" width="16" height="16" alt="" loading="lazy">
+                <img class="feed-favicon" src="{{faviconURL .SiteUrl .Url}}" width="16" height="16" alt="" loading="lazy">
                 <span class="feed-name">{{.Name}}</span>
                 {{$count := index $root.FeedCounts .ID}}
                 <span class="badge small{{if not .LastFetchedAt}} pending{{end}}" data-count="feed-{{.ID}}">{{if $count}}{{$count}}{{else if not .LastFetchedAt}}•{{end}}</span>

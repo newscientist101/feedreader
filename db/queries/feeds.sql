@@ -92,3 +92,6 @@ DELETE FROM feed_categories WHERE feed_id = ?;
 
 -- name: GetFeedOwner :one
 SELECT user_id FROM feeds WHERE id = ?;
+
+-- name: UpdateFeedSiteURL :exec
+UPDATE feeds SET site_url = ? WHERE id = ?;

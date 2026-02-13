@@ -162,8 +162,16 @@ func (s *Server) Serve(addr string) error {
 	mux.HandleFunc("DELETE /api/exclusions/{id}", s.apiDeleteExclusion)
 	mux.HandleFunc("GET /category/{id}/settings", s.handleCategorySettings)
 
-	// Static files
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(s.StaticDir))))
+	// Static files – serve with long cache lifetime (files are cache-busted via ?v=hash)
+	staticFS := http.FileServer(http.Dir(s.StaticDir))
+	mux.Handle("/static/", http.StripPrefix("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("v") != "" {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			w.Header().Set("Cache-Control", "public, max-age=3600")
+		}
+		staticFS.ServeHTTP(w, r)
+	})))
 
 	// Wrap with auth middleware
 	handler := s.AuthMiddleware(mux)
@@ -1124,11 +1132,16 @@ func deref(p any) any {
 	}
 }
 
-// faviconURL returns a Google S2 favicon URL for the domain of the given feed URL.
-// It strips common feed-specific subdomains (feeds, rss, feed) so the favicon
-// resolves against the main site domain.
-func faviconURL(feedURL string) string {
-	u, err := url.Parse(feedURL)
+// faviconURL returns a Google S2 favicon URL for the given feed.
+// It prefers siteURL (the feed's declared website) over the feed URL,
+// and strips common feed-specific subdomains as a fallback.
+func faviconURL(siteURL, feedURL string) string {
+	// Prefer the site URL if available
+	src := siteURL
+	if src == "" {
+		src = feedURL
+	}
+	u, err := url.Parse(src)
 	if err != nil || u.Host == "" {
 		return ""
 	}
