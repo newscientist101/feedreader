@@ -1497,7 +1497,7 @@ th {
 .folder-chevron {
     background: none;
     border: none;
-    padding: 4px 2px;
+    padding: 2px 2px;
     margin: 0;
     cursor: pointer;
     color: var(--text-muted);
@@ -1550,8 +1550,8 @@ th {
     position: relative;
     display: flex;
     align-items: center;
-    padding: 0 0 0 10px;
-    gap: 6px;
+    padding: 0 0 0 8px;
+    gap: 4px;
 }
 
 .folder-main {
@@ -1559,7 +1559,7 @@ th {
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     padding: 6px var(--sidebar-right-padding) 6px 8px;
     border-radius: 6px;
 }
