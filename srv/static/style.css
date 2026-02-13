@@ -1507,20 +1507,39 @@ th {
     justify-content: center;
     flex-shrink: 0;
     border-radius: 4px;
-    transition: color 0.2s, background 0.15s;
+    position: relative;
+    transition: color 0.2s;
     -webkit-user-drag: none;
     user-select: none;
 }
 
+.folder-chevron::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    opacity: 0;
+    transition: opacity 0s;
+    transform: translateZ(0);
+    will-change: opacity;
+}
+
 .folder-chevron svg {
     pointer-events: none;
+    position: relative;
+    z-index: 1;
     transition: transform 0.2s;
 }
 
 .folder-row.chevron-hover .folder-chevron,
 .folder-row.hover-lock .folder-chevron {
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.1);
+}
+
+.folder-row.chevron-hover .folder-chevron::before,
+.folder-row.hover-lock .folder-chevron::before {
+    opacity: 1;
 }
 
 .folder-item.expanded > .folder-row > .folder-chevron svg {
