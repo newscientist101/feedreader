@@ -327,11 +327,9 @@ func parseAtom(data []byte) (*ParsedFeed, error) {
 			}
 		}
 
-		// Extract image - check media:group first (YouTube), then HTML content
-		// Skip thumbnail if we already embedded media:content as video in the content
+		// Extract image - check media:group thumbnail first (YouTube), then HTML content
 		var imageURL string
-		hasVideoEmbed := entry.MediaGroup != nil && entry.MediaGroup.Content != nil && entry.MediaGroup.Content.URL != "" && strings.Contains(content, "<iframe")
-		if !hasVideoEmbed && entry.MediaGroup != nil && entry.MediaGroup.Thumbnail != nil && entry.MediaGroup.Thumbnail.URL != "" {
+		if entry.MediaGroup != nil && entry.MediaGroup.Thumbnail != nil && entry.MediaGroup.Thumbnail.URL != "" {
 			imageURL = entry.MediaGroup.Thumbnail.URL
 		} else if imageURL = extractImageFromHTML(content); imageURL == "" {
 			imageURL = extractImageFromHTML(entry.Summary)
