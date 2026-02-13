@@ -1491,7 +1491,6 @@ th {
 }
 
 .folder-link:hover, .folder-link.active {
-    background: var(--bg-hover);
     color: var(--text-primary);
 }
 
@@ -1561,6 +1560,12 @@ th {
     color: var(--text-secondary);
     text-decoration: none;
     transition: color 0.2s;
+}
+
+.folder-row:hover,
+.folder-row .folder-link.active {
+    background: var(--bg-hover);
+    border-radius: 6px;
 }
 
 .folder-row:hover .folder-link,
