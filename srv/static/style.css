@@ -80,7 +80,7 @@ body {
 
 .nav-item.active {
     background: var(--bg-hover);
-    color: var(--accent);
+    color: var(--text-primary);
 }
 
 .badge {
@@ -173,7 +173,7 @@ body {
 
 .feed-item.active {
     background: var(--bg-hover);
-    color: var(--accent);
+    color: var(--text-primary);
 }
 
 .feed-item.has-error {
@@ -1607,7 +1607,7 @@ th {
 }
 
 .folder-item.active > .folder-row .folder-link {
-    color: var(--accent);
+    color: var(--text-primary);
 }
 
 .folder-icon-wrapper {
