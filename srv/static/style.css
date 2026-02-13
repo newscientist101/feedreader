@@ -1507,8 +1507,12 @@ th {
     white-space: nowrap;
 }
 
-.folder-link:hover, .folder-link.active {
+.folder-link:hover {
     color: var(--text-primary);
+}
+
+.folder-link.active {
+    color: var(--accent);
 }
 
 .folder-chevron {
@@ -1596,9 +1600,12 @@ th {
     transition: color 0.2s;
 }
 
-.folder-row:hover .folder-link,
-.folder-row.active .folder-link {
+.folder-row:hover .folder-link {
     color: var(--text-primary);
+}
+
+.folder-row .folder-link.active {
+    color: var(--accent);
 }
 
 .folder-icon-wrapper {
