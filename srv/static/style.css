@@ -483,11 +483,13 @@ body {
 
 .view-magazine .article-body {
     padding: 15px;
+    flex: 1;
 }
 
 .view-magazine .article-meta {
     margin-bottom: 8px;
 }
+
 
 .view-magazine .article-title {
     font-size: 1rem;
@@ -613,9 +615,6 @@ body {
     display: flex;
 }
 
-.view-magazine .article-body {
-    padding: 15px;
-}
 
 .view-expanded .expanded-only,
 .view-expanded .magazine-expanded-only {
