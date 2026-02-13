@@ -997,10 +997,38 @@ async function markAsRead(btn, age = 'all') {
         
         await api('POST', url);
         document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
+        
+        // After marking a folder as read, navigate to the next folder with unread articles
+        if (categoryId) {
+            const nextUrl = findNextUnreadFolder(categoryId);
+            if (nextUrl) {
+                window.location.href = nextUrl;
+                return;
+            }
+        }
         location.reload();
     } catch (e) {
         console.error('Failed to mark as read:', e);
     }
+}
+
+// Find the next folder in sidebar order that has unread articles
+function findNextUnreadFolder(currentCategoryId) {
+    const allFolders = Array.from(document.querySelectorAll('.folder-item[data-category-id]'));
+    const currentIdx = allFolders.findIndex(f => f.dataset.categoryId === String(currentCategoryId));
+    if (currentIdx === -1) return null;
+    
+    // Search from current+1 to end, then wrap from start to current
+    const ordered = [...allFolders.slice(currentIdx + 1), ...allFolders.slice(0, currentIdx)];
+    for (const folder of ordered) {
+        const catId = folder.dataset.categoryId;
+        const badge = document.querySelector(`[data-count="category-${catId}"]`);
+        const count = badge ? parseInt(badge.textContent.trim(), 10) : 0;
+        if (count > 0) {
+            return `/category/${catId}`;
+        }
+    }
+    return null;
 }
 
 // Scraper actions
