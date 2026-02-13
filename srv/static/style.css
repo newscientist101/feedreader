@@ -564,6 +564,15 @@ body {
 
 .view-magazine .article-meta {
     margin-bottom: 8px;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.view-magazine .article-meta .article-author {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 
 
