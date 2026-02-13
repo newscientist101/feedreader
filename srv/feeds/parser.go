@@ -126,6 +126,7 @@ type rssItem struct {
 	Enclosure      *rssEnclosure   `xml:"enclosure"`
 	MediaContent   []mediaContent  `xml:"http://search.yahoo.com/mrss/ content"`
 	MediaThumbnail []mediaThumbnail `xml:"http://search.yahoo.com/mrss/ thumbnail"`
+	MediaGroup     *mediaGroup     `xml:"http://search.yahoo.com/mrss/ group"`
 }
 
 type rssEnclosure struct {
@@ -370,14 +371,19 @@ func extractImageURL(item rssItem, content string) string {
 		}
 	}
 
-	// 3. Check media:thumbnail elements
+	// 3. Check media:thumbnail elements (direct on item)
 	for _, mt := range item.MediaThumbnail {
 		if mt.URL != "" {
 			return mt.URL
 		}
 	}
 
-	// 4. Extract first image from HTML content
+	// 4. Check media:group > media:thumbnail
+	if item.MediaGroup != nil && item.MediaGroup.Thumbnail != nil && item.MediaGroup.Thumbnail.URL != "" {
+		return item.MediaGroup.Thumbnail.URL
+	}
+
+	// 5. Extract first image from HTML content
 	if imgURL := extractImageFromHTML(content); imgURL != "" {
 		return imgURL
 	}
