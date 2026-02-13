@@ -37,13 +37,9 @@
         
         <h1>{{.Article.Title}}</h1>
 
-        {{if .Article.ImageUrl}}
-        <img src="{{deref .Article.ImageUrl}}" alt="" class="article-image">
-        {{end}}
-
         <div class="article-body">
             {{if .Article.Content}}
-            {{if .Article.ImageUrl}}{{stripLeadingImage (deref .Article.Content) (deref .Article.ImageUrl) | safeHTML}}{{else}}{{deref .Article.Content | safeHTML}}{{end}}
+            {{deref .Article.Content | safeHTML}}
             {{else if .Article.Summary}}
             {{deref .Article.Summary | safeHTML}}
             {{else}}
