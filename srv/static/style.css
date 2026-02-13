@@ -82,7 +82,7 @@
     --card-padding: var(--space-xl);
     --card-radius: var(--radius-xl);
     --card-gap: var(--space-xl);
-    --magazine-text-gap: 4px;
+    --magazine-text-gap: 15px;
 }
 
 body {
