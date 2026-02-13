@@ -211,7 +211,8 @@ function toggleSidebar() {
 
 // Toggle folder expand/collapse in sidebar
 function navigateFolder(event, categoryId) {
-    if (document.querySelector('.settings-view')) {
+    // If not on the main articles page, use regular navigation
+    if (!document.getElementById('articles-list')) {
         return true;
     }
     event.preventDefault();
