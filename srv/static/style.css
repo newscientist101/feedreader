@@ -1516,7 +1516,8 @@ th {
 }
 
 .folder-chevron:hover,
-.folder-chevron.pressed {
+.folder-chevron:active,
+.folder-chevron:focus-visible {
     color: var(--text-primary);
     background: rgba(255, 255, 255, 0.1);
 }

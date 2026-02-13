@@ -1670,28 +1670,9 @@ function extractYouTubeId(url) {
 }
 
 
-// Keep chevron highlight stable in Chrome during expand/collapse.
-// Use pointer capture so the pressed highlight persists through DOM changes.
-let pressedChevron = null;
-
+// Chrome drops :hover on button click; focus the chevron so highlight stays.
 document.addEventListener('pointerdown', (event) => {
     const chevron = event.target.closest('.folder-chevron');
     if (!chevron) return;
-    pressedChevron = chevron;
-    chevron.classList.add('pressed');
-    if (chevron.setPointerCapture) {
-        chevron.setPointerCapture(event.pointerId);
-    }
-}, true);
-
-document.addEventListener('pointerup', () => {
-    if (!pressedChevron) return;
-    pressedChevron.classList.remove('pressed');
-    pressedChevron = null;
-}, true);
-
-document.addEventListener('pointercancel', () => {
-    if (!pressedChevron) return;
-    pressedChevron.classList.remove('pressed');
-    pressedChevron = null;
+    chevron.focus({ preventScroll: true });
 }, true);
