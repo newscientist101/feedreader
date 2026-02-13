@@ -1512,6 +1512,10 @@ th {
     user-select: none;
 }
 
+.folder-chevron:hover + .folder-main {
+    background: transparent;
+}
+
 .folder-chevron::before {
     content: '';
     position: absolute;
@@ -1530,13 +1534,11 @@ th {
     transition: transform 0.2s;
 }
 
-.folder-row.chevron-hover .folder-chevron,
-.folder-row.hover-lock .folder-chevron {
+.folder-row:hover .folder-chevron {
     color: var(--text-primary);
 }
 
-.folder-row.chevron-hover .folder-chevron::before,
-.folder-row.hover-lock .folder-chevron::before {
+.folder-row:hover .folder-chevron::before {
     opacity: 1;
 }
 
@@ -1548,7 +1550,7 @@ th {
     position: relative;
     display: flex;
     align-items: center;
-    padding: 8px var(--sidebar-right-padding) 8px 10px;
+    padding: 0 var(--sidebar-right-padding) 0 10px;
     gap: 6px;
 }
 
@@ -1558,11 +1560,11 @@ th {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 6px 8px 6px 8px;
+    padding: 6px 8px;
     border-radius: 6px;
 }
 
-.folder-row:hover .folder-main,
+.folder-main:hover,
 .folder-row.active .folder-main {
     background: var(--bg-hover);
 }
