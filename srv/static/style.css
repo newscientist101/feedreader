@@ -1507,7 +1507,7 @@ th {
     justify-content: center;
     flex-shrink: 0;
     border-radius: 4px;
-    transition: transform 0.2s, color 0.2s, background 0.15s;
+    transition: transform 0.2s, color 0.2s;
 }
 
 .folder-chevron svg {
