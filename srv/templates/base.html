@@ -16,8 +16,35 @@
     <link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg">
     <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
     
-    <!-- Manifest -->
-    
+    <!-- Manifest (inline blob URL to avoid exe.dev proxy CORS on static fetch) -->
+    <link rel="manifest" href="">
+    <script>
+    (function() {
+      var o = location.origin;
+      var m = {
+        name: "FeedReader",
+        short_name: "FeedReader",
+        description: "A modern feed reader with RSS/Atom support and custom scrapers",
+        start_url: o + "/",
+        display: "standalone",
+        background_color: "#1a1a2e",
+        theme_color: "#1a1a2e",
+        orientation: "any",
+        icons: [
+          {src: o+"/static/icons/icon-192.png", sizes:"192x192", type:"image/png", purpose:"any maskable"},
+          {src: o+"/static/icons/icon-512.png", sizes:"512x512", type:"image/png", purpose:"any maskable"}
+        ],
+        categories: ["news","productivity"],
+        shortcuts: [
+          {name:"Unread Articles", url:o+"/",       icons:[{src:o+"/static/icons/icon-192.png",sizes:"192x192"}]},
+          {name:"Starred",         url:o+"/starred", icons:[{src:o+"/static/icons/icon-192.png",sizes:"192x192"}]},
+          {name:"Manage Feeds",    url:o+"/feeds",   icons:[{src:o+"/static/icons/icon-192.png",sizes:"192x192"}]}
+        ]
+      };
+      var b = new Blob([JSON.stringify(m)], {type:"application/json"});
+      document.querySelector('link[rel="manifest"]').href = URL.createObjectURL(b);
+    })();
+    </script>
     <link rel="stylesheet" href="{{staticPath "style.css"}}">
 </head>
 <body>
