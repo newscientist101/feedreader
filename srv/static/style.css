@@ -570,6 +570,8 @@ body {
     margin-bottom: var(--magazine-text-gap);
     background: rgba(255, 255, 255, 0.05);
     padding: 4px 8px;
+    margin-left: -8px;
+    margin-right: -8px;
     border-radius: var(--radius-sm);
 }
 
