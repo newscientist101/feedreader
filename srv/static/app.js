@@ -1676,3 +1676,42 @@ document.addEventListener('dragstart', (event) => {
         event.preventDefault();
     }
 }, true);
+
+// Sticky chevron highlight driven by the row, not hover state.
+let hoverLockRow = null;
+let hoverLockTimer = null;
+
+document.addEventListener('pointerenter', (event) => {
+    const chevron = event.target.closest('.folder-chevron');
+    if (!chevron) return;
+    const row = chevron.closest('.folder-row');
+    if (!row) return;
+    row.classList.add('chevron-hover');
+}, true);
+
+document.addEventListener('pointerleave', (event) => {
+    const chevron = event.target.closest('.folder-chevron');
+    if (!chevron) return;
+    const row = chevron.closest('.folder-row');
+    if (!row) return;
+    row.classList.remove('chevron-hover');
+}, true);
+
+document.addEventListener('pointerdown', (event) => {
+    const chevron = event.target.closest('.folder-chevron');
+    if (!chevron) return;
+    const row = chevron.closest('.folder-row');
+    if (!row) return;
+    hoverLockRow = row;
+    row.classList.add('hover-lock');
+    if (hoverLockTimer) {
+        clearTimeout(hoverLockTimer);
+    }
+    hoverLockTimer = setTimeout(() => {
+        if (hoverLockRow) {
+            hoverLockRow.classList.remove('hover-lock');
+        }
+        hoverLockRow = null;
+        hoverLockTimer = null;
+    }, 200);
+}, true);

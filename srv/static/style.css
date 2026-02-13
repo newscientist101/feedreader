@@ -1517,9 +1517,8 @@ th {
     transition: transform 0.2s;
 }
 
-.folder-chevron:hover,
-.folder-chevron:active,
-.folder-chevron:focus-visible {
+.folder-row.chevron-hover .folder-chevron,
+.folder-row.hover-lock .folder-chevron {
     color: var(--text-primary);
     background: rgba(255, 255, 255, 0.1);
 }
