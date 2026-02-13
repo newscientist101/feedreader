@@ -462,7 +462,7 @@ function renderArticles(articles) {
                 <h2 class="article-title">
                     ${a.url ? `<a href="${a.url}" target="_blank" onclick="openArticleExternal(event, ${a.id}, '${a.url.replace(/'/g, "\\'")}'">${a.title}</a>` : `<a href="/article/${a.id}" onclick="markReadSilent(${a.id})">${a.title}</a>`}
                 </h2>
-                ${a.summary ? `<p class="article-summary">${truncateText(stripHtml(a.summary), 200)}</p>` : ''}
+                ${a.summary ? `<p class="article-summary">${truncateText(stripHtml(a.summary), 200)}</p>` : (a.content ? `<p class="article-summary">${truncateText(stripHtml(a.content), 200)}</p>` : '')}
                 ${a.content ? `<div class="article-content-preview expanded-only" onclick="event.stopPropagation(); markReadSilent(${a.id})">${truncateText(stripHtml(a.content), 800)}</div>` : (a.summary ? `<div class="article-content-preview expanded-only">${truncateText(stripHtml(a.summary), 800)}</div>` : '')}
                 <div class="article-actions">
                     <button onclick="${a.is_read ? 'markUnread' : 'markRead'}(event, ${a.id})" class="btn-icon btn-read-toggle" title="${a.is_read ? 'Mark unread' : 'Mark read'}">
@@ -1345,7 +1345,7 @@ function renderSearchResults(articles) {
             <h2 class="article-title">
                 <a href="/article/${a.id}" onclick="markReadSilent(${a.id})">${escapeHtml(a.title)}</a>
             </h2>
-            ${a.summary ? `<p class="article-summary">${escapeHtml(truncate(stripHtml(a.summary), 200))}</p>` : ''}
+            ${a.summary ? `<p class="article-summary">${escapeHtml(truncate(stripHtml(a.summary), 200))}</p>` : (a.content ? `<p class="article-summary">${escapeHtml(truncate(stripHtml(a.content), 200))}</p>` : '')}
             <div class="article-actions">
                 <button onclick="${a.is_read ? 'markUnread' : 'markRead'}(event, ${a.id})" class="btn-icon btn-read-toggle" title="${a.is_read ? 'Mark unread' : 'Mark read'}">
                     ${a.is_read ? SVG_MARK_UNREAD : SVG_MARK_READ}

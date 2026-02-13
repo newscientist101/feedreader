@@ -93,6 +93,8 @@
                 </h2>
                 {{if .Summary}}
                 <p class="article-summary">{{truncate (stripHTML (deref .Summary)) 200}}</p>
+                {{else if .Content}}
+                <p class="article-summary">{{truncate (stripHTML (deref .Content)) 200}}</p>
                 {{end}}
                 {{if .Content}}
                 <div class="article-content-preview expanded-only">{{truncate (stripHTML (deref .Content)) 800}}</div>
