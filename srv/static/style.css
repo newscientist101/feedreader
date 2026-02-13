@@ -532,6 +532,9 @@ body {
     height: 180px;
     overflow: hidden;
     background: var(--bg-secondary);
+    margin-bottom: 0;
+    border-radius: 0;
+    max-height: none;
 }
 
 .view-magazine .article-image img {
