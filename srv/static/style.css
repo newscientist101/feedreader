@@ -1559,7 +1559,8 @@ th {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px var(--sidebar-right-padding) 6px 0;
+    margin-left: -4px;
+    padding: 6px var(--sidebar-right-padding) 6px 4px;
     border-radius: 6px;
 }
 
