@@ -605,6 +605,18 @@ function initView() {
 
 // Close sidebar when clicking a link on mobile
 document.addEventListener('DOMContentLoaded', () => {
+    // Expand parent folders of the active folder/feed so it's visible
+    const activeItem = document.querySelector('.folder-item.active, .feed-item.active');
+    if (activeItem) {
+        let el = activeItem.parentElement;
+        while (el) {
+            const folder = el.closest('.folder-item');
+            if (!folder) break;
+            folder.classList.add('expanded');
+            el = folder.parentElement;
+        }
+    }
+
     // Initialize timestamp tooltips with local timezone
     initTimestampTooltips();
     
