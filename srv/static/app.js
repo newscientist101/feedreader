@@ -1670,9 +1670,9 @@ function extractYouTubeId(url) {
 }
 
 
-// Chrome drops :hover on button click; focus the chevron so highlight stays.
-document.addEventListener('pointerdown', (event) => {
-    const chevron = event.target.closest('.folder-chevron');
-    if (!chevron) return;
-    chevron.focus({ preventScroll: true });
+// Prevent starting a drag when clicking chevrons.
+document.addEventListener('dragstart', (event) => {
+    if (event.target.closest('.folder-chevron')) {
+        event.preventDefault();
+    }
 }, true);

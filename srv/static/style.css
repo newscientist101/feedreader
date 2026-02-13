@@ -1508,6 +1508,8 @@ th {
     flex-shrink: 0;
     border-radius: 4px;
     transition: color 0.2s, background 0.15s;
+    -webkit-user-drag: none;
+    user-select: none;
 }
 
 .folder-chevron svg {
