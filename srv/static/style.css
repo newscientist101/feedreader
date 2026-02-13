@@ -572,6 +572,7 @@ body {
 
 .view-magazine .article-title {
     font-size: 1rem;
+    margin-top: 0;
     margin-bottom: 8px;
     display: -webkit-box;
     -webkit-line-clamp: 2;
