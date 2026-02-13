@@ -414,7 +414,8 @@ body {
 .view-list .article-title {
     flex: 1;
     margin: 0;
-    font-size: 0.95rem;
+    font-size: 0.85rem;
+    font-weight: 400;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
