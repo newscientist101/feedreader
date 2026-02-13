@@ -1669,3 +1669,12 @@ function extractYouTubeId(url) {
     return m ? m[1] : null;
 }
 
+
+// Keep chevron highlight stable in Chrome during expand/collapse.
+// Chrome can drop :hover briefly when DOM changes; we pin a class for ~120ms.
+document.addEventListener('mousedown', (event) => {
+    const chevron = event.target.closest('.folder-chevron');
+    if (!chevron) return;
+    chevron.classList.add('pressed');
+    window.setTimeout(() => chevron.classList.remove('pressed'), 120);
+}, true);
