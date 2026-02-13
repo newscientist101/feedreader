@@ -573,6 +573,7 @@ body {
 
 .view-magazine .article-title {
     font-size: 1rem;
+    line-height: 1.3;
     margin-top: 0;
     margin-bottom: var(--magazine-text-gap);
     display: -webkit-box;
