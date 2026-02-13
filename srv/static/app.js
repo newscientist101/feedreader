@@ -1,3 +1,24 @@
+// SVG icons for read/unread toggle
+const SVG_MARK_READ = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/></svg>';
+const SVG_MARK_UNREAD = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V8l8 5 8-5v10zm-8-7L4 6h16l-8 5z"/></svg>';
+
+// Update the read/unread toggle button inside an article card
+function updateReadButton(card, isRead) {
+    if (!card) return;
+    const btn = card.querySelector('.btn-read-toggle');
+    if (!btn) return;
+    const id = card.dataset.id;
+    if (isRead) {
+        btn.setAttribute('onclick', `markUnread(event, ${id})`);
+        btn.setAttribute('title', 'Mark unread');
+        btn.innerHTML = SVG_MARK_UNREAD;
+    } else {
+        btn.setAttribute('onclick', `markRead(event, ${id})`);
+        btn.setAttribute('title', 'Mark read');
+        btn.innerHTML = SVG_MARK_READ;
+    }
+}
+
 // Sidebar highlighting helper — clears all active states in the sidebar,
 // then marks the given element (nav-item, feed-item, or folder-item) active.
 function setSidebarActive(el) {
@@ -133,7 +154,10 @@ async function markReadSilent(id) {
     try {
         await api('POST', `/api/articles/${id}/read`);
         const card = document.querySelector(`.article-card[data-id="${id}"]`);
-        if (card) card.classList.add('read');
+        if (card) {
+            card.classList.add('read');
+            updateReadButton(card, true);
+        }
         updateCounts();
     } catch (e) {
         console.error('Failed to mark article read:', e);
@@ -441,13 +465,8 @@ function renderArticles(articles) {
                 ${a.summary ? `<p class="article-summary">${truncateText(stripHtml(a.summary), 200)}</p>` : ''}
                 ${a.content ? `<div class="article-content-preview expanded-only" onclick="event.stopPropagation(); markReadSilent(${a.id})">${truncateText(stripHtml(a.content), 800)}</div>` : (a.summary ? `<div class="article-content-preview expanded-only">${truncateText(stripHtml(a.summary), 800)}</div>` : '')}
                 <div class="article-actions">
-                    <button onclick="${a.is_read ? 'markUnread' : 'markRead'}(${a.id})" class="btn-icon" title="${a.is_read ? 'Mark unread' : 'Mark read'}">
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                            ${a.is_read 
-                                ? '<path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V8l8 5 8-5v10zm-8-7L4 6h16l-8 5z"/>'
-                                : '<path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>'
-                            }
-                        </svg>
+                    <button onclick="${a.is_read ? 'markUnread' : 'markRead'}(event, ${a.id})" class="btn-icon btn-read-toggle" title="${a.is_read ? 'Mark unread' : 'Mark read'}">
+                        ${a.is_read ? SVG_MARK_UNREAD : SVG_MARK_READ}
                     </button>
                     <button onclick="toggleStar(${a.id})" class="btn-icon ${a.is_starred ? 'starred' : ''}" title="Star">
                         <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
@@ -654,7 +673,10 @@ async function markRead(event, id) {
     try {
         await api('POST', `/api/articles/${id}/read`);
         const card = document.querySelector(`.article-card[data-id="${id}"]`);
-        if (card) card.classList.add('read');
+        if (card) {
+            card.classList.add('read');
+            updateReadButton(card, true);
+        }
         updateCounts();
     } catch (e) {
         console.error('Failed to mark read:', e);
@@ -666,7 +688,10 @@ async function markUnread(event, id) {
     try {
         await api('POST', `/api/articles/${id}/unread`);
         const card = document.querySelector(`.article-card[data-id="${id}"]`);
-        if (card) card.classList.remove('read');
+        if (card) {
+            card.classList.remove('read');
+            updateReadButton(card, false);
+        }
         updateCounts();
     } catch (e) {
         console.error('Failed to mark unread:', e);
@@ -1322,10 +1347,8 @@ function renderSearchResults(articles) {
             </h2>
             ${a.summary ? `<p class="article-summary">${escapeHtml(truncate(stripHtml(a.summary), 200))}</p>` : ''}
             <div class="article-actions">
-                <button onclick="${a.is_read ? 'markUnread' : 'markRead'}(${a.id})" class="btn-icon" title="${a.is_read ? 'Mark unread' : 'Mark read'}">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                        <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>
-                    </svg>
+                <button onclick="${a.is_read ? 'markUnread' : 'markRead'}(event, ${a.id})" class="btn-icon btn-read-toggle" title="${a.is_read ? 'Mark unread' : 'Mark read'}">
+                    ${a.is_read ? SVG_MARK_UNREAD : SVG_MARK_READ}
                 </button>
                 <button onclick="toggleStar(${a.id})" class="btn-icon ${a.is_starred ? 'starred' : ''}" title="Star">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">

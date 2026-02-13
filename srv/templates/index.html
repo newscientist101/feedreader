@@ -101,13 +101,13 @@
                 {{end}}
                 <div class="article-actions">
                     {{if and .IsRead (ne (deref .IsRead) 0)}}
-                    <button onclick="markUnread(event, {{.ID}})" class="btn-icon" title="Mark unread">
+                    <button onclick="markUnread(event, {{.ID}})" class="btn-icon btn-read-toggle" title="Mark unread">
                         <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                             <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V8l8 5 8-5v10zm-8-7L4 6h16l-8 5z"/>
                         </svg>
                     </button>
                     {{else}}
-                    <button onclick="markRead(event, {{.ID}})" class="btn-icon" title="Mark read">
+                    <button onclick="markRead(event, {{.ID}})" class="btn-icon btn-read-toggle" title="Mark read">
                         <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                             <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>
                         </svg>
