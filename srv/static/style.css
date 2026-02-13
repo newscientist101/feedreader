@@ -1620,7 +1620,7 @@ th {
 }
 
 .folder-icon-wrapper .folder-settings:hover {
-    color: var(--accent);
+    color: var(--text-secondary);
 }
 
 .folder-children {
