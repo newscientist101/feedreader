@@ -564,15 +564,6 @@ body {
 
 .view-magazine .article-meta {
     margin-bottom: 8px;
-    flex-wrap: nowrap;
-    white-space: nowrap;
-    overflow: hidden;
-}
-
-.view-magazine .article-meta .article-author {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
 }
 
 
@@ -716,6 +707,9 @@ body {
     font-size: 0.85rem;
     color: var(--text-secondary);
     margin-bottom: 8px;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 .article-meta .feed-name {
@@ -726,6 +720,9 @@ body {
 
 .article-meta .article-author {
     color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 
 .article-meta .article-date {
