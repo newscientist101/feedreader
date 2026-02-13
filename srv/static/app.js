@@ -210,7 +210,7 @@ function toggleSidebar() {
 }
 
 // Toggle folder expand/collapse in sidebar
-function toggleFolder(event, categoryId) {
+function navigateFolder(event, categoryId) {
     if (document.querySelector('.settings-view')) {
         return true;
     }
@@ -218,21 +218,8 @@ function toggleFolder(event, categoryId) {
     const folderItem = document.querySelector(`.folder-item[data-category-id="${categoryId}"]`);
     if (!folderItem) return false;
     
-    // If already expanded, clicking again collapses children but still navigates
-    const wasExpanded = folderItem.classList.contains('expanded');
-    
-    if (!wasExpanded) {
-        // Collapse sibling folders (same level under same parent)
-        const parent = folderItem.parentElement;
-        if (parent) {
-            parent.querySelectorAll(':scope > .folder-item.expanded').forEach(item => {
-                collapseFolder(item);
-            });
-        }
-    }
-    
-    // Always expand and navigate
-    folderItem.classList.add('expanded');
+    // Mark as active
+    document.querySelectorAll('.folder-link.active').forEach(el => el.classList.remove('active'));
     folderItem.querySelector('.folder-link')?.classList.add('active');
     
     // Load category articles via AJAX

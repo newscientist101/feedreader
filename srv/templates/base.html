@@ -175,7 +175,7 @@
                     </svg>
                 </a>
             </span>
-            <a href="/category/{{.ID}}" class="folder-link" onclick="return toggleFolder(event, {{.ID}})">
+            <a href="/category/{{.ID}}" class="folder-link" onclick="return navigateFolder(event, {{.ID}})">
                 <span class="folder-name">{{.Name}}</span>
                 {{$catCount := index $root.CategoryCounts .ID}}
                 <span class="badge small" data-count="category-{{.ID}}">{{if $catCount}}{{$catCount}}{{end}}</span>
