@@ -82,6 +82,7 @@
     --card-padding: var(--space-xl);
     --card-radius: var(--radius-xl);
     --card-gap: var(--space-xl);
+    --magazine-text-gap: 4px;
 }
 
 body {
@@ -566,14 +567,14 @@ body {
 }
 
 .view-magazine .article-meta {
-    margin-bottom: 2px;
+    margin-bottom: var(--magazine-text-gap);
 }
 
 
 .view-magazine .article-title {
     font-size: 1rem;
     margin-top: 0;
-    margin-bottom: 8px;
+    margin-bottom: var(--magazine-text-gap);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
