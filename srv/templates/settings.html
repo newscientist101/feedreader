@@ -169,40 +169,40 @@
 </div>
 
 <script>
-// Initialize toggle state from localStorage
+// Initialize toggle state from server settings
 document.addEventListener('DOMContentLoaded', () => {
     // Auto-mark-read toggle
     const toggle = document.getElementById('auto-mark-read');
     if (toggle) {
-        toggle.checked = localStorage.getItem('autoMarkRead') === 'true';
+        toggle.checked = getSetting('autoMarkRead') === 'true';
     }
     
     // Hide read articles radio
-    const hideReadValue = localStorage.getItem('hideReadArticles') || 'show';
+    const hideReadValue = getSetting('hideReadArticles') || 'show';
     const hideReadRadio = document.querySelector(`input[name="hide-read"][value="${hideReadValue}"]`);
     if (hideReadRadio) hideReadRadio.checked = true;
     
     // Hide empty feeds radio
-    const hideEmptyValue = localStorage.getItem('hideEmptyFeeds') || 'show';
+    const hideEmptyValue = getSetting('hideEmptyFeeds') || 'show';
     const hideEmptyRadio = document.querySelector(`input[name="hide-empty"][value="${hideEmptyValue}"]`);
     if (hideEmptyRadio) hideEmptyRadio.checked = true;
 
     // Default view radios
-    const folderView = localStorage.getItem('defaultFolderView') || 'card';
+    const folderView = getSetting('defaultFolderView') || 'card';
     const folderRadio = document.querySelector(`input[name="folder-view"][value="${folderView}"]`);
     if (folderRadio) folderRadio.checked = true;
 
-    const feedView = localStorage.getItem('defaultFeedView') || 'card';
+    const feedView = getSetting('defaultFeedView') || 'card';
     const feedRadio = document.querySelector(`input[name="feed-view"][value="${feedView}"]`);
     if (feedRadio) feedRadio.checked = true;
 });
 
 function toggleAutoMarkRead(enabled) {
-    localStorage.setItem('autoMarkRead', enabled);
+    saveSetting('autoMarkRead', String(enabled));
 }
 
 function setPreference(key, value) {
-    localStorage.setItem(key, value);
+    saveSetting(key, value);
     // Apply immediately if on main page
     if (key === 'hideReadArticles') {
         applyHideReadArticles(value);

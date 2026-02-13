@@ -150,6 +150,8 @@ func (s *Server) Serve(addr string) error {
 	// Retention/cleanup endpoints
 	mux.HandleFunc("GET /api/retention/stats", s.apiRetentionStats)
 	mux.HandleFunc("POST /api/retention/cleanup", s.apiRetentionCleanup)
+	mux.HandleFunc("GET /api/settings", s.apiGetSettings)
+	mux.HandleFunc("PUT /api/settings", s.apiUpdateSettings)
 	mux.HandleFunc("GET /settings", s.handleSettings)
 
 	// AI scraper generation
@@ -189,6 +191,10 @@ func (s *Server) renderTemplate(w http.ResponseWriter, name string, data any) er
 		"stripHTML":  stripHTML,
 		"deref":      deref,
 		"safeHTML":          safeHTML,
+		"toJSON": func(v any) template.JS {
+			b, _ := json.Marshal(v)
+			return template.JS(b)
+		},
 		"stripLeadingImage": stripLeadingImage,
 		"multiply":   func(a, b int) int { return a * b },
 		"faviconURL": faviconURL,
@@ -321,6 +327,13 @@ func (s *Server) getCommonData(ctx context.Context) map[string]any {
 	categoryTree := BuildCategoryTree(categories)
 	flatCategories := FlattenCategoryTree(categoryTree)
 
+	// Load user settings
+	settingsRows, _ := q.GetUserSettings(ctx, userID)
+	settings := make(map[string]string)
+	for _, row := range settingsRows {
+		settings[row.Key] = row.Value
+	}
+
 	return map[string]any{
 		"Feeds":           feeds,
 		"FeedCounts":      feedCounts,
@@ -332,6 +345,7 @@ func (s *Server) getCommonData(ctx context.Context) map[string]any {
 		"UnreadCount":     unreadCount,
 		"StarredCount":    starredCount,
 		"User":            user,
+		"Settings":        settings,
 	}
 }
 
@@ -1836,6 +1850,70 @@ func (s *Server) apiRetentionCleanup(w http.ResponseWriter, r *http.Request) {
 		"deleted": deleted,
 		"message": "Cleanup completed",
 	})
+}
+
+// Valid setting keys and their allowed values (empty slice = any value)
+var validSettings = map[string][]string{
+	"autoMarkRead":     {"true", "false"},
+	"hideReadArticles": {"hide", "show"},
+	"hideEmptyFeeds":   {"hide", "show"},
+	"defaultFolderView": {"card", "list", "magazine", "expanded"},
+	"defaultFeedView":   {"card", "list", "magazine", "expanded"},
+	"defaultView":       {"card", "list", "magazine", "expanded"},
+}
+
+func (s *Server) apiGetSettings(w http.ResponseWriter, r *http.Request) {
+	user := GetUser(r.Context())
+	q := dbgen.New(s.DB)
+	rows, err := q.GetUserSettings(r.Context(), user.ID)
+	if err != nil {
+		jsonError(w, "Failed to get settings", 500)
+		return
+	}
+	settings := make(map[string]string)
+	for _, row := range rows {
+		settings[row.Key] = row.Value
+	}
+	jsonResponse(w, settings)
+}
+
+func (s *Server) apiUpdateSettings(w http.ResponseWriter, r *http.Request) {
+	user := GetUser(r.Context())
+	var body map[string]string
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		jsonError(w, "Invalid request body", 400)
+		return
+	}
+	q := dbgen.New(s.DB)
+	for key, value := range body {
+		allowed, ok := validSettings[key]
+		if !ok {
+			jsonError(w, "Unknown setting: "+key, 400)
+			return
+		}
+		if len(allowed) > 0 {
+			valid := false
+			for _, v := range allowed {
+				if v == value {
+					valid = true
+					break
+				}
+			}
+			if !valid {
+				jsonError(w, "Invalid value for "+key, 400)
+				return
+			}
+		}
+		if err := q.SetUserSetting(r.Context(), dbgen.SetUserSettingParams{
+			UserID: user.ID,
+			Key:    key,
+			Value:  value,
+		}); err != nil {
+			jsonError(w, "Failed to save setting", 500)
+			return
+		}
+	}
+	jsonResponse(w, map[string]string{"status": "ok"})
 }
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {

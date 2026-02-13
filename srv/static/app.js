@@ -1,7 +1,23 @@
-// Apply user preferences from localStorage
+// User settings (injected from server, saved via API)
+function getSetting(key, defaultValue) {
+    const val = (window.__settings || {})[key];
+    return val !== undefined ? val : (defaultValue || '');
+}
+
+function saveSetting(key, value) {
+    if (!window.__settings) window.__settings = {};
+    window.__settings[key] = value;
+    fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: value }),
+    }).catch(e => console.error('Failed to save setting:', e));
+}
+
+// Apply user preferences from settings
 function applyUserPreferences() {
     // Hide read articles
-    const hideRead = localStorage.getItem('hideReadArticles');
+    const hideRead = getSetting('hideReadArticles');
     if (hideRead === 'hide') {
         document.querySelectorAll('.article-card.read').forEach(card => {
             card.style.display = 'none';
@@ -12,7 +28,7 @@ function applyUserPreferences() {
     updateAllReadMessage();
     
     // Hide empty feeds (but never hide folders - they should always be visible)
-    const hideEmpty = localStorage.getItem('hideEmptyFeeds');
+    const hideEmpty = getSetting('hideEmptyFeeds');
     if (hideEmpty === 'hide') {
         // Hide feeds with no unread (but not never-fetched feeds)
         document.querySelectorAll('.feed-item').forEach(item => {
@@ -37,7 +53,7 @@ function updateAllReadMessage() {
     const existingMsg = document.getElementById('all-read-message');
     if (existingMsg) existingMsg.remove();
     
-    const hideRead = localStorage.getItem('hideReadArticles') === 'hide';
+    const hideRead = getSetting('hideReadArticles') === 'hide';
     if (!hideRead) return;
     
     // Check if there are articles but all are hidden
@@ -73,7 +89,7 @@ function showReadArticles() {
 let autoMarkReadObserver = null;
 
 function initAutoMarkRead() {
-    if (localStorage.getItem('autoMarkRead') !== 'true') {
+    if (getSetting('autoMarkRead') !== 'true') {
         return;
     }
     
@@ -525,33 +541,47 @@ function setView(view) {
     // Save preference (scope-aware)
     const scope = getViewScope();
     if (scope === 'folder') {
-        localStorage.setItem('defaultFolderView', view);
+        saveSetting('defaultFolderView', view);
     } else if (scope === 'feed') {
-        localStorage.setItem('defaultFeedView', view);
+        saveSetting('defaultFeedView', view);
     } else {
-        localStorage.setItem('feedreader-view', view);
+        saveSetting('defaultView', view);
     }
 }
 
 function migrateLegacyViewDefaults() {
-    if (!localStorage.getItem('defaultFolderView')) {
-        const legacy = localStorage.getItem('feedreader-view-folder-default');
-        if (legacy) localStorage.setItem('defaultFolderView', legacy);
+    // Migrate any localStorage settings to the server
+    const keys = ['autoMarkRead', 'hideReadArticles', 'hideEmptyFeeds', 'defaultFolderView', 'defaultFeedView'];
+    const localMap = {
+        'feedreader-view-folder-default': 'defaultFolderView',
+        'feedreader-view-feed-default': 'defaultFeedView',
+        'feedreader-view': 'defaultView',
+    };
+    let migrated = false;
+    for (const key of keys) {
+        if (!getSetting(key) && localStorage.getItem(key)) {
+            saveSetting(key, localStorage.getItem(key));
+            localStorage.removeItem(key);
+            migrated = true;
+        }
     }
-    if (!localStorage.getItem('defaultFeedView')) {
-        const legacy = localStorage.getItem('feedreader-view-feed-default');
-        if (legacy) localStorage.setItem('defaultFeedView', legacy);
+    for (const [oldKey, newKey] of Object.entries(localMap)) {
+        if (!getSetting(newKey) && localStorage.getItem(oldKey)) {
+            saveSetting(newKey, localStorage.getItem(oldKey));
+            localStorage.removeItem(oldKey);
+            migrated = true;
+        }
     }
 }
 
 function getDefaultViewForScope(scope) {
     if (scope === 'folder') {
-        return localStorage.getItem('defaultFolderView') || 'card';
+        return getSetting('defaultFolderView') || 'card';
     }
     if (scope === 'feed') {
-        return localStorage.getItem('defaultFeedView') || 'card';
+        return getSetting('defaultFeedView') || 'card';
     }
-    return localStorage.getItem('feedreader-view') || 'card';
+    return getSetting('defaultView') || 'card';
 }
 
 function applyDefaultViewForScope(scope) {

@@ -145,6 +145,7 @@
             {{template "content" .}}
         </main>
     </div>
+    <script>window.__settings = {{toJSON .Settings}};</script>
     <script src="{{staticPath "app.js"}}"></script>
     <script>
         // Register Service Worker for PWA
