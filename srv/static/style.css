@@ -1518,7 +1518,7 @@ th {
     position: absolute;
     inset: 0;
     border-radius: 4px;
-    background: rgba(255, 255, 255, 1);
+    background: var(--bg-hover);
     opacity: 0;
     transform: translateZ(0);
     will-change: opacity;
