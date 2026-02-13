@@ -1669,15 +1669,3 @@ function extractYouTubeId(url) {
     return m ? m[1] : null;
 }
 
-// Manage folder chevron hover state via JS to avoid Chrome :hover flash
-// when DOM changes during expand/collapse.
-document.addEventListener('mouseenter', (e) => {
-    if (e.target.closest('.folder-chevron')) {
-        e.target.closest('.folder-chevron').classList.add('hovered');
-    }
-}, true);
-document.addEventListener('mouseleave', (e) => {
-    if (e.target.closest('.folder-chevron')) {
-        e.target.closest('.folder-chevron').classList.remove('hovered');
-    }
-}, true);
