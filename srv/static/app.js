@@ -219,8 +219,10 @@ function navigateFolder(event, categoryId) {
     const folderItem = document.querySelector(`.folder-item[data-category-id="${categoryId}"]`);
     if (!folderItem) return false;
     
-    // Mark as active
+    // Mark as active (clear all sidebar highlights first)
     document.querySelectorAll('.folder-link.active').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.feed-item.active').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.nav-item.active').forEach(el => el.classList.remove('active'));
     folderItem.querySelector('.folder-link')?.classList.add('active');
     
     // Load category articles via AJAX
