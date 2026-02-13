@@ -1636,13 +1636,11 @@ th {
     justify-content: center;
 }
 
-.folder-icon-wrapper:hover .folder-icon,
-.folder-item.active > .folder-row .folder-icon-wrapper .folder-icon {
+.folder-icon-wrapper:hover .folder-icon {
     opacity: 0;
 }
 
-.folder-icon-wrapper:hover .folder-settings,
-.folder-item.active > .folder-row .folder-icon-wrapper .folder-settings {
+.folder-icon-wrapper:hover .folder-settings {
     opacity: 1;
 }
 
