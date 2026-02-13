@@ -243,10 +243,14 @@ function toggleFolderCollapse(categoryId) {
 }
 
 function collapseFolder(folderItem) {
-    folderItem.classList.remove('expanded', 'active');
-    // Collapse all nested expanded subfolders too
+    folderItem.classList.remove('expanded');
+    // Collapse nested subfolders and clear their active/expanded state
     folderItem.querySelectorAll('.folder-item.expanded').forEach(child => {
         child.classList.remove('expanded', 'active');
+    });
+    // Clear active from any nested feeds/folders that are now hidden
+    folderItem.querySelectorAll('.feed-item.active, .folder-item.active').forEach(child => {
+        child.classList.remove('active');
     });
 }
 
