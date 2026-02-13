@@ -219,13 +219,7 @@ function navigateFolder(event, categoryId) {
     const folderItem = document.querySelector(`.folder-item[data-category-id="${categoryId}"]`);
     if (!folderItem) return false;
     
-    // Mark as active (clear all sidebar highlights first)
-    document.querySelectorAll('.folder-link.active').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.feed-item.active').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.nav-item.active').forEach(el => el.classList.remove('active'));
-    folderItem.querySelector('.folder-link')?.classList.add('active');
-    
-    // Load category articles via AJAX
+    // Load category articles via AJAX (also updates active state)
     loadCategoryArticles(categoryId, folderItem.querySelector('.folder-name')?.textContent || 'Category');
     
     return false;
@@ -276,6 +270,8 @@ async function loadCategoryArticles(categoryId, categoryName) {
     document.querySelectorAll('.feed-item.active').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.folder-link.active').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.nav-item.active').forEach(el => el.classList.remove('active'));
+    const folderItem = document.querySelector(`.folder-item[data-category-id="${categoryId}"]`);
+    if (folderItem) folderItem.querySelector('.folder-link')?.classList.add('active');
     
     try {
         const data = await api('GET', `/api/categories/${categoryId}/articles`);
