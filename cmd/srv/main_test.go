@@ -5,19 +5,15 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"srv.exe.dev/srv"
 )
 
 func TestFlagDefault(t *testing.T) {
-	// The package-level flag should default to ":8000".
 	want := ":8000"
 	got := *flagListenAddr
 	if got != want {
 		t.Errorf("default listen address = %q, want %q", got, want)
 	}
 
-	// Also verify it's registered in the flag set.
 	f := flag.Lookup("listen")
 	if f == nil {
 		t.Fatal(`flag "listen" not registered`)
@@ -27,30 +23,49 @@ func TestFlagDefault(t *testing.T) {
 	}
 }
 
-func TestNewServerInvalidDBPath(t *testing.T) {
-	// A path inside a non-existent directory should fail to open/create.
+func TestInitServer_InvalidDBPath(t *testing.T) {
 	badPath := filepath.Join(t.TempDir(), "no", "such", "dir", "db.sqlite3")
-	_, err := srv.New(badPath, "testhost")
+	_, err := initServer(badPath)
 	if err == nil {
 		t.Fatal("expected error for invalid DB path, got nil")
 	}
 }
 
-func TestNewServerValidDBPath(t *testing.T) {
+func TestInitServer_ValidDBPath(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "test.sqlite3")
-	server, err := srv.New(dbPath, "testhost")
+	server, err := initServer(dbPath)
 	if err != nil {
-		t.Fatalf("srv.New with temp DB: %v", err)
+		t.Fatalf("initServer: %v", err)
 	}
 	if server == nil {
-		t.Fatal("srv.New returned nil server")
+		t.Fatal("returned nil server")
 	}
-	// Clean up the DB connection.
 	if server.DB != nil {
 		server.DB.Close()
 	}
-	// The DB file should have been created.
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		t.Error("expected DB file to be created")
+	}
+}
+
+func TestInitServer_SetsFields(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test.sqlite3")
+	server, err := initServer(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { server.DB.Close() })
+
+	if server.DB == nil {
+		t.Error("DB is nil")
+	}
+	if server.Hostname == "" {
+		t.Error("Hostname is empty")
+	}
+	if server.ScraperRunner == nil {
+		t.Error("ScraperRunner is nil")
+	}
+	if server.Fetcher == nil {
+		t.Error("Fetcher is nil")
 	}
 }

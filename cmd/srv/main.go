@@ -18,13 +18,23 @@ func main() {
 
 func run() error {
 	flag.Parse()
+	server, err := initServer("db.sqlite3")
+	if err != nil {
+		return err
+	}
+	return server.Serve(*flagListenAddr)
+}
+
+// initServer creates and configures the server. Separated from run()
+// so tests can exercise initialization without blocking on Serve().
+func initServer(dbPath string) (*srv.Server, error) {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "unknown"
 	}
-	server, err := srv.New("db.sqlite3", hostname)
+	server, err := srv.New(dbPath, hostname)
 	if err != nil {
-		return fmt.Errorf("create server: %w", err)
+		return nil, fmt.Errorf("create server: %w", err)
 	}
-	return server.Serve(*flagListenAddr)
+	return server, nil
 }
