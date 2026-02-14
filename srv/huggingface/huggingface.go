@@ -18,6 +18,7 @@ const baseURL = "https://huggingface.co"
 type Client struct {
 	httpClient *http.Client
 	token      string // optional API token for private content
+	baseURL    string // API base URL (defaults to baseURL const)
 }
 
 // NewClient creates a new HuggingFace client
@@ -25,6 +26,7 @@ func NewClient(token string) *Client {
 	return &Client{
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 		token:      token,
+		baseURL:    baseURL,
 	}
 }
 
@@ -71,7 +73,7 @@ func (c *Client) GetFeedName(ctx context.Context, config FeedConfig) (string, er
 	switch config.Type {
 	case FeedTypeCollection:
 		// Fetch collection info to get its title
-		apiURL := fmt.Sprintf("%s/api/collections/%s", baseURL, config.Identifier)
+		apiURL := fmt.Sprintf("%s/api/collections/%s", c.baseURL, config.Identifier)
 		data, err := c.doRequest(ctx, apiURL)
 		if err != nil {
 			return "", err
@@ -168,7 +170,7 @@ type Model struct {
 
 func (c *Client) fetchModels(ctx context.Context, config FeedConfig) ([]FeedItem, error) {
 	apiURL := fmt.Sprintf("%s/api/models?author=%s&limit=%d&sort=lastModified&direction=-1",
-		baseURL, url.QueryEscape(config.Identifier), config.Limit)
+		c.baseURL, url.QueryEscape(config.Identifier), config.Limit)
 
 	data, err := c.doRequest(ctx, apiURL)
 	if err != nil {
@@ -199,7 +201,7 @@ func (c *Client) fetchModels(ctx context.Context, config FeedConfig) ([]FeedItem
 		items = append(items, FeedItem{
 			GUID:        "hf:model:" + m.ID,
 			Title:       m.ID,
-			URL:         fmt.Sprintf("%s/%s", baseURL, m.ID),
+			URL:         fmt.Sprintf("%s/%s", c.baseURL, m.ID),
 			Author:      config.Identifier,
 			Summary:     summary,
 			PublishedAt: &pubTime,
@@ -240,7 +242,7 @@ type CollectionItem struct {
 
 func (c *Client) fetchCollection(ctx context.Context, config FeedConfig) ([]FeedItem, error) {
 	// Collection slug format: username/collection-name-id or username/collection-name
-	apiURL := fmt.Sprintf("%s/api/collections/%s", baseURL, config.Identifier)
+	apiURL := fmt.Sprintf("%s/api/collections/%s", c.baseURL, config.Identifier)
 
 	data, err := c.doRequest(ctx, apiURL)
 	if err != nil {
@@ -267,14 +269,14 @@ func (c *Client) fetchCollection(ctx context.Context, config FeedConfig) ([]Feed
 		var itemURL string
 		switch itemType {
 		case "model":
-			itemURL = fmt.Sprintf("%s/%s", baseURL, item.ID)
+			itemURL = fmt.Sprintf("%s/%s", c.baseURL, item.ID)
 		case "dataset":
-			itemURL = fmt.Sprintf("%s/datasets/%s", baseURL, item.ID)
+			itemURL = fmt.Sprintf("%s/datasets/%s", c.baseURL, item.ID)
 		case "space":
-			itemURL = fmt.Sprintf("%s/spaces/%s", baseURL, item.ID)
+			itemURL = fmt.Sprintf("%s/spaces/%s", c.baseURL, item.ID)
 		default:
 			// Default to model if type is unknown
-			itemURL = fmt.Sprintf("%s/%s", baseURL, item.ID)
+			itemURL = fmt.Sprintf("%s/%s", c.baseURL, item.ID)
 			itemType = "model"
 		}
 
@@ -335,7 +337,7 @@ type PostsResponse struct {
 
 func (c *Client) fetchPosts(ctx context.Context, config FeedConfig) ([]FeedItem, error) {
 	apiURL := fmt.Sprintf("%s/api/posts?author=%s&limit=%d",
-		baseURL, url.QueryEscape(config.Identifier), config.Limit)
+		c.baseURL, url.QueryEscape(config.Identifier), config.Limit)
 
 	data, err := c.doRequest(ctx, apiURL)
 	if err != nil {
@@ -373,7 +375,7 @@ func (c *Client) fetchPosts(ctx context.Context, config FeedConfig) ([]FeedItem,
 		items = append(items, FeedItem{
 			GUID:        "hf:post:" + post.Slug,
 			Title:       title,
-			URL:         fmt.Sprintf("%s/posts/%s/%s", baseURL, authorName, post.Slug),
+			URL:         fmt.Sprintf("%s/posts/%s/%s", c.baseURL, authorName, post.Slug),
 			Author:      authorName,
 			Summary:     truncateString(summary.String(), 300),
 			PublishedAt: &pubTime,
@@ -404,7 +406,7 @@ type Paper struct {
 }
 
 func (c *Client) fetchDailyPapers(ctx context.Context, config FeedConfig) ([]FeedItem, error) {
-	apiURL := fmt.Sprintf("%s/api/daily_papers?limit=%d", baseURL, config.Limit)
+	apiURL := fmt.Sprintf("%s/api/daily_papers?limit=%d", c.baseURL, config.Limit)
 
 	data, err := c.doRequest(ctx, apiURL)
 	if err != nil {
@@ -427,7 +429,7 @@ func (c *Client) fetchDailyPapers(ctx context.Context, config FeedConfig) ([]Fee
 		items = append(items, FeedItem{
 			GUID:        "hf:paper:" + p.Paper.ID,
 			Title:       p.Title,
-			URL:         fmt.Sprintf("%s/papers/%s", baseURL, p.Paper.ID),
+			URL:         fmt.Sprintf("%s/papers/%s", c.baseURL, p.Paper.ID),
 			Author:      strings.Join(authors, ", "),
 			Summary:     truncateString(p.Summary, 500),
 			PublishedAt: &pubTime,
@@ -451,7 +453,7 @@ type Dataset struct {
 
 func (c *Client) fetchDatasets(ctx context.Context, config FeedConfig) ([]FeedItem, error) {
 	apiURL := fmt.Sprintf("%s/api/datasets?author=%s&limit=%d&sort=lastModified&direction=-1",
-		baseURL, url.QueryEscape(config.Identifier), config.Limit)
+		c.baseURL, url.QueryEscape(config.Identifier), config.Limit)
 
 	data, err := c.doRequest(ctx, apiURL)
 	if err != nil {
@@ -477,7 +479,7 @@ func (c *Client) fetchDatasets(ctx context.Context, config FeedConfig) ([]FeedIt
 		items = append(items, FeedItem{
 			GUID:        "hf:dataset:" + d.ID,
 			Title:       d.ID,
-			URL:         fmt.Sprintf("%s/datasets/%s", baseURL, d.ID),
+			URL:         fmt.Sprintf("%s/datasets/%s", c.baseURL, d.ID),
 			Author:      config.Identifier,
 			Summary:     fmt.Sprintf("Downloads: %d | Likes: %d", d.Downloads, d.Likes),
 			PublishedAt: &pubTime,
@@ -501,7 +503,7 @@ type Space struct {
 
 func (c *Client) fetchSpaces(ctx context.Context, config FeedConfig) ([]FeedItem, error) {
 	apiURL := fmt.Sprintf("%s/api/spaces?author=%s&limit=%d&sort=lastModified&direction=-1",
-		baseURL, url.QueryEscape(config.Identifier), config.Limit)
+		c.baseURL, url.QueryEscape(config.Identifier), config.Limit)
 
 	data, err := c.doRequest(ctx, apiURL)
 	if err != nil {
@@ -532,7 +534,7 @@ func (c *Client) fetchSpaces(ctx context.Context, config FeedConfig) ([]FeedItem
 		items = append(items, FeedItem{
 			GUID:        "hf:space:" + s.ID,
 			Title:       s.ID,
-			URL:         fmt.Sprintf("%s/spaces/%s", baseURL, s.ID),
+			URL:         fmt.Sprintf("%s/spaces/%s", c.baseURL, s.ID),
 			Author:      config.Identifier,
 			Summary:     summary,
 			PublishedAt: &pubTime,
