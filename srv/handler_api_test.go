@@ -1,10 +1,13 @@
 package srv
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
+
+	"srv.exe.dev/db/dbgen"
 )
 
 // --------------- Article actions ---------------
@@ -252,6 +255,107 @@ func TestHandlerSearch(t *testing.T) {
 	w = serveAPI(t, s.apiSearch, "GET", "/api/search?q=Golang", "", ctx)
 	if w.Code != 200 {
 		t.Fatalf("got %d", w.Code)
+	}
+}
+
+func TestHandlerSearchScopedByFeed(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	ctx, user := testUser(t, s)
+	feedA := createFeed(t, s, user.ID, "Feed A", "http://a")
+	feedB := createFeed(t, s, user.ID, "Feed B", "http://b")
+	createArticle(t, s, feedA.ID, "Europe summit news", "a1")
+	createArticle(t, s, feedB.ID, "Europe travel guide", "b1")
+	createArticle(t, s, feedA.ID, "Unrelated article", "a2")
+
+	// Global search returns both feeds
+	w := serveAPI(t, s.apiSearch, "GET", "/api/search?q=Europe", "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("got %d", w.Code)
+	}
+	var globalResults []map[string]any
+	json.Unmarshal(w.Body.Bytes(), &globalResults)
+	if len(globalResults) != 2 {
+		t.Fatalf("global search: expected 2 results, got %d", len(globalResults))
+	}
+
+	// Scoped to feed A returns only feed A's match
+	w = serveAPI(t, s.apiSearch, "GET", fmt.Sprintf("/api/search?q=Europe&feed_id=%d", feedA.ID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("got %d", w.Code)
+	}
+	var feedResults []map[string]any
+	json.Unmarshal(w.Body.Bytes(), &feedResults)
+	if len(feedResults) != 1 {
+		t.Fatalf("feed-scoped search: expected 1 result, got %d", len(feedResults))
+	}
+	if feedResults[0]["title"] != "Europe summit news" {
+		t.Errorf("expected 'Europe summit news', got %q", feedResults[0]["title"])
+	}
+
+	// Scoped to feed B returns only feed B's match
+	w = serveAPI(t, s.apiSearch, "GET", fmt.Sprintf("/api/search?q=Europe&feed_id=%d", feedB.ID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("got %d", w.Code)
+	}
+	var feedBResults []map[string]any
+	json.Unmarshal(w.Body.Bytes(), &feedBResults)
+	if len(feedBResults) != 1 {
+		t.Fatalf("feed B scoped search: expected 1 result, got %d", len(feedBResults))
+	}
+	if feedBResults[0]["title"] != "Europe travel guide" {
+		t.Errorf("expected 'Europe travel guide', got %q", feedBResults[0]["title"])
+	}
+
+	// Invalid feed_id returns 400
+	w = serveAPI(t, s.apiSearch, "GET", "/api/search?q=Europe&feed_id=abc", "", ctx)
+	if w.Code != 400 {
+		t.Fatalf("expected 400 for invalid feed_id, got %d", w.Code)
+	}
+}
+
+func TestHandlerSearchScopedByCategory(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	ctx, user := testUser(t, s)
+	q := dbgen.New(s.DB)
+
+	feedA := createFeed(t, s, user.ID, "Feed A", "http://a")
+	feedB := createFeed(t, s, user.ID, "Feed B", "http://b")
+	createArticle(t, s, feedA.ID, "Climate change report", "a1")
+	createArticle(t, s, feedB.ID, "Climate summit recap", "b1")
+
+	// Create a category and assign only feed A to it
+	cat, err := q.CreateCategory(context.Background(), dbgen.CreateCategoryParams{
+		Name: "News", UserID: &user.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.AddFeedToCategory(context.Background(), dbgen.AddFeedToCategoryParams{
+		FeedID: feedA.ID, CategoryID: cat.ID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Category-scoped search returns only feed A's article
+	w := serveAPI(t, s.apiSearch, "GET", fmt.Sprintf("/api/search?q=Climate&category_id=%d", cat.ID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("got %d", w.Code)
+	}
+	var catResults []map[string]any
+	json.Unmarshal(w.Body.Bytes(), &catResults)
+	if len(catResults) != 1 {
+		t.Fatalf("category-scoped search: expected 1 result, got %d", len(catResults))
+	}
+	if catResults[0]["title"] != "Climate change report" {
+		t.Errorf("expected 'Climate change report', got %q", catResults[0]["title"])
+	}
+
+	// Invalid category_id returns 400
+	w = serveAPI(t, s.apiSearch, "GET", "/api/search?q=Climate&category_id=xyz", "", ctx)
+	if w.Code != 400 {
+		t.Fatalf("expected 400 for invalid category_id, got %d", w.Code)
 	}
 }
 
