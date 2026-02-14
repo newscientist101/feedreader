@@ -192,7 +192,7 @@ func parseRSS(data []byte) (*ParsedFeed, error) {
 
 		feed.Items = append(feed.Items, FeedItem{
 			GUID:        guid,
-			Title:       html.UnescapeString(item.Title),
+			Title:       stripTags(item.Title),
 			URL:         item.Link,
 			Author:      author,
 			Content:     content,
@@ -337,7 +337,7 @@ func parseAtom(data []byte) (*ParsedFeed, error) {
 
 		feed.Items = append(feed.Items, FeedItem{
 			GUID:        entry.ID,
-			Title:       html.UnescapeString(entry.Title),
+			Title:       stripTags(entry.Title),
 			URL:         url,
 			Author:      author,
 			Content:     content,
@@ -440,4 +440,11 @@ func parseTime(s string) (time.Time, error) {
 		}
 	}
 	return time.Time{}, fmt.Errorf("unable to parse time: %s", s)
+}
+
+var tagRegexp = regexp.MustCompile(`<[^>]*>`)
+
+// stripTags removes HTML tags and decodes entities.
+func stripTags(s string) string {
+	return strings.TrimSpace(html.UnescapeString(tagRegexp.ReplaceAllString(s, "")))
 }
