@@ -759,7 +759,7 @@ body {
 .feeds-view,
 .scrapers-view,
 .settings-view {
-    max-width: 900px;
+    max-width: 1100px;
     margin: 0 auto;
 }
 
@@ -1478,7 +1478,7 @@ th {
     /* Card view gets grid on large screens */
     .articles-list.view-card {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
         gap: 20px;
     }
     
