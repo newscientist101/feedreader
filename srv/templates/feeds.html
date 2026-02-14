@@ -164,7 +164,7 @@
                             {{end}}
                         </select>
                     </td>
-                    <td>{{.FeedType}}</td>
+                    <td class="type-cell">{{.FeedType}}</td>
                     <td data-timestamp="{{if .LastFetchedAt}}{{formatDate .LastFetchedAt}}{{end}}">{{if .LastFetchedAt}}{{timeAgo .LastFetchedAt}}{{else}}Never{{end}}</td>
                     <td>
                         {{if .LastError}}

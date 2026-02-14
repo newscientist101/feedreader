@@ -1154,6 +1154,12 @@ th {
     max-width: 100%;
 }
 
+.type-cell {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .add-feed-form h2, .add-scraper-form h2, .feeds-table h2, .scrapers-table h2 {
     font-size: 1.1rem;
     margin-bottom: 20px;
