@@ -9,6 +9,10 @@ See README.md for user-facing docs (features, API endpoints, scraper config, etc
 Do **not** use subagents to read all files and output all file contents in full.
 This will fail due to context/token limits and should not be attempted.
 
+**Always test your changes.** After making code changes, run `make build` to
+confirm the project compiles and run `go test ./...` to ensure tests pass
+before committing.
+
 ## Tech Stack
 
 - **Go** (module `srv.exe.dev`) with the standard library `net/http` router
