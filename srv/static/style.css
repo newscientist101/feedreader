@@ -519,7 +519,6 @@ body {
     overflow: hidden;
 }
 
-.view-card .article-image,
 .view-magazine .article-image {
     width: 100%;
     height: 180px;
@@ -530,7 +529,6 @@ body {
     max-height: none;
 }
 
-.view-card .article-image img,
 .view-magazine .article-image img,
 .view-expanded .article-image img {
     width: 100%;
@@ -539,7 +537,6 @@ body {
     display: block;
 }
 
-.view-card .article-image-placeholder,
 .view-magazine .article-image-placeholder {
     width: 100%;
     height: 180px;
@@ -691,8 +688,6 @@ body {
     display: none;
 }
 
-.view-card .magazine-only,
-.view-card .magazine-expanded-only,
 .view-magazine .magazine-only,
 .view-magazine .magazine-expanded-only {
     display: flex;
