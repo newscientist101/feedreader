@@ -754,7 +754,11 @@ body {
 }
 
 /* Article View */
-.article-view {
+.article-view,
+.articles-view,
+.feeds-view,
+.scrapers-view,
+.settings-view {
     max-width: 900px;
     margin: 0 auto;
 }
@@ -1116,9 +1120,6 @@ th {
 }
 
 /* Views */
-.feeds-view, .scrapers-view {
-    max-width: 1200px;
-}
 
 .add-feed-form, .add-scraper-form, .feeds-table, .scrapers-table,
 .categories-section,
@@ -1845,10 +1846,6 @@ th {
 }
 
 /* Settings Page */
-.settings-view {
-    max-width: 900px;
-}
-
 .header-title {
     display: flex;
     align-items: center;
