@@ -1,5 +1,93 @@
 # Agent Instructions
 
-This is a Go web application template for exe.dev.
+This is a Go web application — a multi-user feed reader — hosted on exe.dev.
 
-See README.md for details on the structure and components.
+See README.md for user-facing docs (features, API endpoints, scraper config, etc.).
+
+## Important
+
+Do **not** use subagents to read all files and output all file contents in full.
+This will fail due to context/token limits and should not be attempted.
+
+## Tech Stack
+
+- **Go** (module `srv.exe.dev`) with the standard library `net/http` router
+- **SQLite** via `modernc.org/sqlite` (pure-Go, no CGO)
+- **sqlc** for type-safe query generation (`db/queries/` → `db/dbgen/`)
+- **HTML templates** (`html/template`) served server-side
+- **Vanilla JS** frontend (no framework) in `srv/static/`
+- Runs on port **8000** behind the exe.dev HTTPS proxy
+
+## Code Layout
+
+```
+cmd/srv/main.go          Entry point — parses flags, opens DB, starts server
+srv/
+  server.go              HTTP server, all route handlers (~2100 lines, the bulk of the app)
+  auth.go                exe.dev auth middleware (reads X-Exedev-* headers; DEV=1 bypass)
+  filter.go              Exclusion-rule filtering (keyword/author per folder)
+  content_filter.go      Per-feed content transform filters
+  category_tree.go       Nested category/folder tree builder
+  retention.go           Data retention / old-article cleanup
+  ai_scraper.go          Anthropic API integration for AI scraper config generation
+  feeds/
+    fetcher.go           RSS/Atom feed fetching with conditional GET support
+    parser.go            RSS and Atom XML parser
+    parser_test.go       Parser tests
+  scrapers/
+    runner.go            CSS-selector-based HTML scraper (goquery)
+    json_scraper.go      JSON API scraper
+  huggingface/
+    huggingface.go       Hugging Face-specific feed source
+  opml/
+    opml.go              OPML import/export
+  templates/             Server-rendered HTML templates
+    base.html            Shared layout (nav, head, sidebar)
+    index.html           Main article list view
+    article.html         Single article view
+    feeds.html           Feed management page
+    scrapers.html        Scraper management page
+    settings.html        User settings page
+    queue.html           Reading queue page
+    category_settings.html  Folder exclusion-rule settings
+  static/
+    app.js               Main client-side JS (~1800 lines)
+    script.js            Service worker registration
+    sw.js                Service worker
+    style.css            All styles (~2600 lines)
+db/
+  db.go                  DB open, migrations, pragmas
+  sqlc.yaml              sqlc configuration
+  migrations/            Numbered SQL migration files (001–012)
+  queries/               SQL query files for sqlc
+  dbgen/                 Generated Go code from sqlc (do not edit by hand)
+```
+
+## Key Patterns
+
+- **Authentication**: All non-static routes go through auth middleware. The
+  exe.dev proxy injects `X-Exedev-Userid` and `X-Exedev-Email` headers.
+  Set `DEV=1` to skip auth for local development.
+- **Database migrations**: Auto-applied on startup in `db.Open()`. Add new
+  migrations as sequentially numbered `.sql` files in `db/migrations/`.
+- **sqlc workflow**: Edit SQL in `db/queries/*.sql`, then run
+  `go generate ./db/...` to regenerate `db/dbgen/`.
+- **Single-file server**: Most handler logic lives in `srv/server.go`.
+  It's large but flat — each handler is a standalone function on the server struct.
+- **Build**: `make build` produces the `./feedreader` binary.
+- **Service**: Managed via systemd (`srv.service`). Restart after changes
+  with `make build && sudo systemctl restart feedreader`.
+
+## Viewing the App During Development
+
+See README.md for full details. Quick options:
+
+1. **With auth proxy**: Use `mitmdump` on port 3000 to inject auth headers,
+   then browse `http://localhost:3000/`.
+2. **Dev mode**: Run with `DEV=1 ./feedreader` and browse `http://localhost:8000/`
+   directly (uses a built-in dev user).
+
+Look up real user credentials with:
+```bash
+sqlite3 db.sqlite3 "SELECT external_id, email FROM users;"
+```
