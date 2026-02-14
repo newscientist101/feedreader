@@ -72,15 +72,6 @@ mitmdump \
 use the real user's credentials from the database so you see their actual
 feeds, folders, and read state.
 
-Alternatively, set the `DEV` environment variable to skip auth entirely
-(the app will use a built-in dev user):
-
-```bash
-DEV=1 ./feedreader
-```
-
-With `DEV=1`, `http://localhost:8000/` works directly with no proxy.
-
 ## Configuration
 
 Create a `.env` file for environment variables:

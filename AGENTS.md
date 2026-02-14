@@ -88,8 +88,6 @@ See README.md for full details. Quick options:
 
 1. **With auth proxy**: Use `mitmdump` on port 3000 to inject auth headers,
    then browse `http://localhost:3000/`.
-2. **Dev mode**: Run with `DEV=1 ./feedreader` and browse `http://localhost:8000/`
-   directly (uses a built-in dev user).
 
 Look up real user credentials with:
 ```bash
