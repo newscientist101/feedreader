@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html"
 	"html/template"
 	"io"
 	"log/slog"
@@ -285,7 +286,7 @@ func stripHTML(s string) string {
 			result.WriteRune(r)
 		}
 	}
-	return strings.TrimSpace(result.String())
+	return strings.TrimSpace(html.UnescapeString(result.String()))
 }
 
 // Page Handlers
