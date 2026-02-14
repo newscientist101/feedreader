@@ -5,6 +5,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"regexp"
 	"sort"
@@ -45,7 +46,11 @@ func Open(path string) (*sql.DB, error) {
 // RunMigrations executes database migrations in numeric order (NNN-*.sql),
 // similar in spirit to exed's exedb.RunMigrations.
 func RunMigrations(db *sql.DB) error {
-	entries, err := migrationFS.ReadDir("migrations")
+	return runMigrations(db, migrationFS)
+}
+
+func runMigrations(db *sql.DB, mfs fs.ReadFileFS) error {
+	entries, err := fs.ReadDir(mfs, "migrations")
 	if err != nil {
 		return fmt.Errorf("read migrations dir: %w", err)
 	}
@@ -97,7 +102,7 @@ func RunMigrations(db *sql.DB) error {
 		if executed[n] {
 			continue
 		}
-		if err := executeMigration(db, m); err != nil {
+		if err := executeMigration(db, mfs, m, n); err != nil {
 			return fmt.Errorf("execute %s: %w", m, err)
 		}
 		slog.Info("db: applied migration", "file", m, "number", n)
@@ -105,8 +110,8 @@ func RunMigrations(db *sql.DB) error {
 	return nil
 }
 
-func executeMigration(db *sql.DB, filename string) error {
-	content, err := migrationFS.ReadFile("migrations/" + filename)
+func executeMigration(db *sql.DB, mfs fs.ReadFileFS, filename string, number int) error {
+	content, err := fs.ReadFile(mfs, "migrations/"+filename)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", filename, err)
 	}
@@ -117,6 +122,15 @@ func executeMigration(db *sql.DB, filename string) error {
 	if _, err := tx.Exec(string(content)); err != nil {
 		_ = tx.Rollback()
 		return fmt.Errorf("exec %s: %w", filename, err)
+	}
+	// Ensure the migration is recorded (some SQL files self-register,
+	// so use INSERT OR IGNORE to avoid duplicates).
+	if _, err := tx.Exec(
+		"INSERT OR IGNORE INTO migrations (migration_number, migration_name) VALUES (?, ?)",
+		number, filename,
+	); err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("record %s: %w", filename, err)
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit %s: %w", filename, err)
