@@ -10,7 +10,7 @@ func tp(t time.Time) *time.Time { return &t }
 func TestTimeAgo(t *testing.T) {
 	now := time.Now()
 	tests := []struct {
-		name string
+		name  string
 		input *time.Time
 		want  string
 	}{
@@ -48,9 +48,9 @@ func TestFormatDate(t *testing.T) {
 
 func TestTruncate(t *testing.T) {
 	tests := []struct {
-		input  string
-		max    int
-		want   string
+		input string
+		max   int
+		want  string
 	}{
 		{"short", 10, "short"},
 		{"hello world this is long", 10, "hello worl..."},
@@ -138,7 +138,6 @@ func TestFaviconURL(t *testing.T) {
 		})
 	}
 }
-
 
 func TestConvertSteamNewsURL(t *testing.T) {
 	tests := []struct {

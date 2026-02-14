@@ -2,12 +2,14 @@ module srv.exe.dev
 
 go 1.25.7
 
-require modernc.org/sqlite v1.39.0
+require (
+	github.com/PuerkitoBio/goquery v1.11.0
+	modernc.org/sqlite v1.39.0
+)
 
 require (
 	cel.dev/expr v0.24.0 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/PuerkitoBio/goquery v1.11.0 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/cubicdaiya/gonp v1.0.4 // indirect

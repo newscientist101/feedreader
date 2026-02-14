@@ -79,8 +79,8 @@ func TestParseRSS_GUIDFallbacks(t *testing.T) {
 			wantGUID: "https://example.com/2",
 		},
 		{
-			name: "no guid no link, fallback to title",
-			xml: `<item><title>Only Title</title></item>`,
+			name:     "no guid no link, fallback to title",
+			xml:      `<item><title>Only Title</title></item>`,
 			wantGUID: "Only Title",
 		},
 	}

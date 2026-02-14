@@ -46,25 +46,25 @@ type FeedItem struct {
 type FeedType string
 
 const (
-	FeedTypeUserModels       FeedType = "user_models"
-	FeedTypeOrgModels        FeedType = "org_models"
-	FeedTypeCollection       FeedType = "collection"
-	FeedTypeUserPosts        FeedType = "user_posts"
-	FeedTypeOrgPosts         FeedType = "org_posts"
-	FeedTypeDailyPapers      FeedType = "daily_papers"
-	FeedTypeUserDatasets     FeedType = "user_datasets"
-	FeedTypeOrgDatasets      FeedType = "org_datasets"
-	FeedTypeUserSpaces       FeedType = "user_spaces"
-	FeedTypeOrgSpaces        FeedType = "org_spaces"
+	FeedTypeUserModels   FeedType = "user_models"
+	FeedTypeOrgModels    FeedType = "org_models"
+	FeedTypeCollection   FeedType = "collection"
+	FeedTypeUserPosts    FeedType = "user_posts"
+	FeedTypeOrgPosts     FeedType = "org_posts"
+	FeedTypeDailyPapers  FeedType = "daily_papers"
+	FeedTypeUserDatasets FeedType = "user_datasets"
+	FeedTypeOrgDatasets  FeedType = "org_datasets"
+	FeedTypeUserSpaces   FeedType = "user_spaces"
+	FeedTypeOrgSpaces    FeedType = "org_spaces"
 )
 
 // FeedConfig represents the configuration for a HuggingFace feed
 type FeedConfig struct {
-	Type         FeedType `json:"type"`
-	Identifier   string   `json:"identifier"`   // username, org name, or collection slug
-	Limit        int      `json:"limit"`        // max items to fetch
-	IncludeTags  []string `json:"include_tags"` // optional: only include items with these tags
-	ExcludeTags  []string `json:"exclude_tags"` // optional: exclude items with these tags
+	Type        FeedType `json:"type"`
+	Identifier  string   `json:"identifier"`   // username, org name, or collection slug
+	Limit       int      `json:"limit"`        // max items to fetch
+	IncludeTags []string `json:"include_tags"` // optional: only include items with these tags
+	ExcludeTags []string `json:"exclude_tags"` // optional: exclude items with these tags
 }
 
 // Fetch retrieves items based on the feed configuration
@@ -157,14 +157,14 @@ func (c *Client) doRequest(ctx context.Context, url string) ([]byte, error) {
 
 // Model represents a HuggingFace model
 type Model struct {
-	ID          string    `json:"id"`
-	ModelID     string    `json:"modelId"`
-	Author      string    `json:"author"`
-	Likes       int       `json:"likes"`
-	Downloads   int       `json:"downloads"`
-	Tags        []string  `json:"tags"`
-	PipelineTag string    `json:"pipeline_tag"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID           string    `json:"id"`
+	ModelID      string    `json:"modelId"`
+	Author       string    `json:"author"`
+	Likes        int       `json:"likes"`
+	Downloads    int       `json:"downloads"`
+	Tags         []string  `json:"tags"`
+	PipelineTag  string    `json:"pipeline_tag"`
+	CreatedAt    time.Time `json:"createdAt"`
 	LastModified time.Time `json:"lastModified"`
 }
 
@@ -364,13 +364,13 @@ func (c *Client) fetchPosts(ctx context.Context, config FeedConfig) ([]FeedItem,
 		}
 
 		pubTime := post.PublishedAt
-		
+
 		// Post URL format: /posts/{username}/{slug}
 		authorName := post.Author.Name
 		if authorName == "" {
 			authorName = config.Identifier
 		}
-		
+
 		items = append(items, FeedItem{
 			GUID:        "hf:post:" + post.Slug,
 			Title:       title,
@@ -387,10 +387,10 @@ func (c *Client) fetchPosts(ctx context.Context, config FeedConfig) ([]FeedItem,
 // Paper represents a HuggingFace daily paper
 type Paper struct {
 	Paper struct {
-		ID       string `json:"id"`
-		Title    string `json:"title"`
-		Summary  string `json:"summary"`
-		Authors  []struct {
+		ID      string `json:"id"`
+		Title   string `json:"title"`
+		Summary string `json:"summary"`
+		Authors []struct {
 			Name string `json:"name"`
 		} `json:"authors"`
 	} `json:"paper"`
@@ -441,12 +441,12 @@ func (c *Client) fetchDailyPapers(ctx context.Context, config FeedConfig) ([]Fee
 
 // Dataset represents a HuggingFace dataset
 type Dataset struct {
-	ID          string    `json:"id"`
-	Author      string    `json:"author"`
-	Likes       int       `json:"likes"`
-	Downloads   int       `json:"downloads"`
-	Tags        []string  `json:"tags"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID           string    `json:"id"`
+	Author       string    `json:"author"`
+	Likes        int       `json:"likes"`
+	Downloads    int       `json:"downloads"`
+	Tags         []string  `json:"tags"`
+	CreatedAt    time.Time `json:"createdAt"`
 	LastModified time.Time `json:"lastModified"`
 }
 
@@ -491,13 +491,13 @@ func (c *Client) fetchDatasets(ctx context.Context, config FeedConfig) ([]FeedIt
 
 // Space represents a HuggingFace space
 type Space struct {
-	ID          string    `json:"id"`
-	Author      string    `json:"author"`
-	Likes       int       `json:"likes"`
-	Tags        []string  `json:"tags"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID           string    `json:"id"`
+	Author       string    `json:"author"`
+	Likes        int       `json:"likes"`
+	Tags         []string  `json:"tags"`
+	CreatedAt    time.Time `json:"createdAt"`
 	LastModified time.Time `json:"lastModified"`
-	SDK         string    `json:"sdk"`
+	SDK          string    `json:"sdk"`
 }
 
 func (c *Client) fetchSpaces(ctx context.Context, config FeedConfig) ([]FeedItem, error) {

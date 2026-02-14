@@ -142,9 +142,9 @@ func TestHttpErrorDescription(t *testing.T) {
 		{502, "The server received an invalid response from upstream"},
 		{503, "The server is temporarily unavailable"},
 		{504, "The server timed out waiting for an upstream response"},
-		{418, "The request could not be completed"},  // unknown 4xx
-		{599, "The server encountered an error"},      // unknown 5xx
-		{301, "An unexpected error occurred"},           // other
+		{418, "The request could not be completed"}, // unknown 4xx
+		{599, "The server encountered an error"},    // unknown 5xx
+		{301, "An unexpected error occurred"},       // other
 	}
 	for _, tc := range cases {
 		got := httpErrorDescription(tc.code)

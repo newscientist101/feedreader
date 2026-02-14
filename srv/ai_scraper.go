@@ -39,7 +39,7 @@ func (g *ShelleyScraperGenerator) IsAvailable() bool {
 		return false
 	}
 	req.Header.Set("X-Exedev-Userid", "local")
-	
+
 	resp, err := g.httpClient.Do(req)
 	if err != nil {
 		return false
@@ -161,7 +161,7 @@ func (g *ShelleyScraperGenerator) waitForResponse(ctx context.Context, conversat
 			if err != nil {
 				continue
 			}
-			
+
 			var convs []struct {
 				ConversationID string `json:"conversation_id"`
 				Working        bool   `json:"working"`

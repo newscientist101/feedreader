@@ -12,11 +12,11 @@ import (
 
 // RetentionManager handles automatic cleanup of old articles
 type RetentionManager struct {
-	server         *Server
-	retentionDays  int
-	checkInterval  time.Duration
-	stopChan       chan struct{}
-	wg             sync.WaitGroup
+	server        *Server
+	retentionDays int
+	checkInterval time.Duration
+	stopChan      chan struct{}
+	wg            sync.WaitGroup
 }
 
 // NewRetentionManager creates a new retention manager

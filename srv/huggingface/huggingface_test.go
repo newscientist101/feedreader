@@ -53,10 +53,10 @@ func TestTruncateString(t *testing.T) {
 func TestMatchesTags(t *testing.T) {
 	c := &Client{}
 	tests := []struct {
-		name     string
-		tags     []string
-		config   FeedConfig
-		want     bool
+		name   string
+		tags   []string
+		config FeedConfig
+		want   bool
 	}{
 		{"no filters", []string{"a", "b"}, FeedConfig{}, true},
 		{"include match", []string{"a", "b"}, FeedConfig{IncludeTags: []string{"a"}}, true},
@@ -163,8 +163,8 @@ func TestFetchModels(t *testing.T) {
 		{
 			ID: "alice/llama-finetune", ModelID: "alice/llama-finetune", Author: "alice",
 			Likes: 42, Downloads: 1000, Tags: []string{"pytorch", "llm"},
-			PipelineTag: "text-generation",
-			CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			PipelineTag:  "text-generation",
+			CreatedAt:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 			LastModified: time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC),
 		},
 		{
@@ -279,9 +279,9 @@ func TestFetchModels_WithTagFilters(t *testing.T) {
 
 func TestFetchCollection(t *testing.T) {
 	collection := Collection{
-		Slug:  "bob/my-collection-abc123",
-		Title: "My Collection",
-		Owner: CollectionOwner{Name: "bob"},
+		Slug:        "bob/my-collection-abc123",
+		Title:       "My Collection",
+		Owner:       CollectionOwner{Name: "bob"},
 		LastUpdated: time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC),
 		Items: []CollectionItem{
 			{ID: "bob/model1", Type: "model", Likes: 10, Downloads: 500,
@@ -363,9 +363,9 @@ func TestFetchPosts(t *testing.T) {
 				NumLikes:    7,
 			},
 			{
-				Slug:    "post-no-text",
-				Content: []PostContent{{Type: "image", Value: "pic.jpg"}},
-				Author:  PostAuthor{},
+				Slug:        "post-no-text",
+				Content:     []PostContent{{Type: "image", Value: "pic.jpg"}},
+				Author:      PostAuthor{},
 				PublishedAt: time.Date(2024, 4, 2, 0, 0, 0, 0, time.UTC),
 			},
 		},
@@ -470,8 +470,8 @@ func TestFetchDatasets(t *testing.T) {
 	datasets := []Dataset{
 		{
 			ID: "dan/my-dataset", Author: "dan", Likes: 8, Downloads: 3000,
-			Tags:        []string{"text", "en"},
-			CreatedAt:   time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
+			Tags:         []string{"text", "en"},
+			CreatedAt:    time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
 			LastModified: time.Date(2024, 7, 1, 0, 0, 0, 0, time.UTC),
 		},
 	}
@@ -509,9 +509,9 @@ func TestFetchSpaces(t *testing.T) {
 	spaces := []Space{
 		{
 			ID: "eve/my-space", Author: "eve", Likes: 15,
-			Tags:        []string{"gradio"},
-			SDK:         "gradio",
-			CreatedAt:   time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC),
+			Tags:         []string{"gradio"},
+			SDK:          "gradio",
+			CreatedAt:    time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC),
 			LastModified: time.Date(2024, 8, 1, 0, 0, 0, 0, time.UTC),
 		},
 		{

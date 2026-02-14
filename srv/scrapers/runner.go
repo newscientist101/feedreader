@@ -80,13 +80,13 @@ type ScraperConfig struct {
 	// Field extractors (CSS selectors)
 	TitleSelector   string `json:"titleSelector"`
 	URLSelector     string `json:"urlSelector"`
-	URLAttr         string `json:"urlAttr"`         // attribute to get URL from (default: "href")
+	URLAttr         string `json:"urlAttr"` // attribute to get URL from (default: "href")
 	AuthorSelector  string `json:"authorSelector"`
 	SummarySelector string `json:"summarySelector"`
 	ImageSelector   string `json:"imageSelector"`
-	ImageAttr       string `json:"imageAttr"`       // attribute to get image from (default: "src")
+	ImageAttr       string `json:"imageAttr"` // attribute to get image from (default: "src")
 	DateSelector    string `json:"dateSelector"`
-	DateAttr        string `json:"dateAttr"`        // attribute to get date from (default: text content)
+	DateAttr        string `json:"dateAttr"` // attribute to get date from (default: text content)
 	// BaseURL for relative URLs
 	BaseURL string `json:"baseUrl"`
 }

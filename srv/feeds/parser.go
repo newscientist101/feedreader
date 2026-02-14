@@ -26,11 +26,11 @@ type FeedItem struct {
 
 // ParsedFeed contains the parsed feed data
 type ParsedFeed struct {
-	Title          string
-	Description    string
-	URL            string
-	LastBuildDate  *time.Time
-	Items          []FeedItem
+	Title         string
+	Description   string
+	URL           string
+	LastBuildDate *time.Time
+	Items         []FeedItem
 }
 
 // Parse attempts to parse the feed content as RSS or Atom
@@ -61,7 +61,7 @@ func sanitizeUTF8(data []byte) []byte {
 	if utf8.Valid(data) {
 		return data
 	}
-	
+
 	// Replace invalid UTF-8 sequences with the replacement character
 	var buf bytes.Buffer
 	for len(data) > 0 {
@@ -92,11 +92,11 @@ type rssLink struct {
 }
 
 type rssChannel struct {
-	Title          string    `xml:"title"`
-	Links          []rssLink `xml:"link"`
-	Description    string    `xml:"description"`
-	LastBuildDate  string    `xml:"lastBuildDate"`
-	Items          []rssItem `xml:"item"`
+	Title         string    `xml:"title"`
+	Links         []rssLink `xml:"link"`
+	Description   string    `xml:"description"`
+	LastBuildDate string    `xml:"lastBuildDate"`
+	Items         []rssItem `xml:"item"`
 }
 
 // ChannelLink returns the site URL from the channel's <link> elements,
@@ -124,18 +124,18 @@ type xmlTitle struct {
 }
 
 type rssItem struct {
-	Titles         []xmlTitle      `xml:"title"`
-	Link           string          `xml:"link"`
-	Description    string          `xml:"description"`
-	Content        string          `xml:"http://purl.org/rss/1.0/modules/content/ encoded"`
-	GUID           string          `xml:"guid"`
-	PubDate        string          `xml:"pubDate"`
-	Author         string          `xml:"author"`
-	Creator        string          `xml:"http://purl.org/dc/elements/1.1/ creator"`
-	Enclosure      *rssEnclosure   `xml:"enclosure"`
-	MediaContent   []mediaContent  `xml:"http://search.yahoo.com/mrss/ content"`
+	Titles         []xmlTitle       `xml:"title"`
+	Link           string           `xml:"link"`
+	Description    string           `xml:"description"`
+	Content        string           `xml:"http://purl.org/rss/1.0/modules/content/ encoded"`
+	GUID           string           `xml:"guid"`
+	PubDate        string           `xml:"pubDate"`
+	Author         string           `xml:"author"`
+	Creator        string           `xml:"http://purl.org/dc/elements/1.1/ creator"`
+	Enclosure      *rssEnclosure    `xml:"enclosure"`
+	MediaContent   []mediaContent   `xml:"http://search.yahoo.com/mrss/ content"`
 	MediaThumbnail []mediaThumbnail `xml:"http://search.yahoo.com/mrss/ thumbnail"`
-	MediaGroup     *mediaGroup     `xml:"http://search.yahoo.com/mrss/ group"`
+	MediaGroup     *mediaGroup      `xml:"http://search.yahoo.com/mrss/ group"`
 }
 
 // Title returns the non-namespaced <title> value, ignoring <media:title> etc.
@@ -257,15 +257,15 @@ type atomLink struct {
 }
 
 type atomEntry struct {
-	ID         string      `xml:"id"`
-	Title      string      `xml:"title"`
-	Links      []atomLink  `xml:"link"`
-	Summary    string      `xml:"summary"`
+	ID         string       `xml:"id"`
+	Title      string       `xml:"title"`
+	Links      []atomLink   `xml:"link"`
+	Summary    string       `xml:"summary"`
 	Content    *atomContent `xml:"content"`
-	Author     *atomAuthor `xml:"author"`
-	Published  string      `xml:"published"`
-	Updated    string      `xml:"updated"`
-	MediaGroup *mediaGroup `xml:"http://search.yahoo.com/mrss/ group"`
+	Author     *atomAuthor  `xml:"author"`
+	Published  string       `xml:"published"`
+	Updated    string       `xml:"updated"`
+	MediaGroup *mediaGroup  `xml:"http://search.yahoo.com/mrss/ group"`
 }
 
 type mediaGroup struct {

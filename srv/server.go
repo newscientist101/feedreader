@@ -1,6 +1,7 @@
 package srv
 
 import (
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -14,10 +15,9 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"compress/gzip"
 	"os"
-	"regexp"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -206,14 +206,14 @@ func (s *Server) renderTemplate(w http.ResponseWriter, name string, data any) er
 		"truncate":   truncate,
 		"stripHTML":  stripHTML,
 		"deref":      deref,
-		"safeHTML":          safeHTML,
+		"safeHTML":   safeHTML,
 		"toJSON": func(v any) template.JS {
 			b, _ := json.Marshal(v)
 			return template.JS(b)
 		},
 		"stripLeadingImage": stripLeadingImage,
-		"multiply":   func(a, b int) int { return a * b },
-		"faviconURL": faviconURL,
+		"multiply":          func(a, b int) int { return a * b },
+		"faviconURL":        faviconURL,
 		"staticPath": func(name string) string {
 			if h, ok := s.StaticHashes[name]; ok {
 				return "/static/" + name + "?v=" + h
@@ -357,18 +357,18 @@ func (s *Server) getCommonData(ctx context.Context) map[string]any {
 	}
 
 	return map[string]any{
-		"Feeds":           feeds,
-		"FeedCounts":      feedCounts,
-		"Categories":      categories,
-		"CategoryTree":    categoryTree,
-		"FlatCategories":  flatCategories,
-		"CategoryCounts":  catCounts,
-		"FeedCategories":  feedCategories,
-		"UnreadCount":     unreadCount,
-		"StarredCount":    starredCount,
-		"QueueCount":      queueCount,
-		"User":            user,
-		"Settings":        settings,
+		"Feeds":          feeds,
+		"FeedCounts":     feedCounts,
+		"Categories":     categories,
+		"CategoryTree":   categoryTree,
+		"FlatCategories": flatCategories,
+		"CategoryCounts": catCounts,
+		"FeedCategories": feedCategories,
+		"UnreadCount":    unreadCount,
+		"StarredCount":   starredCount,
+		"QueueCount":     queueCount,
+		"User":           user,
+		"Settings":       settings,
 	}
 }
 
@@ -888,10 +888,10 @@ func (s *Server) apiGetFeedStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonResponse(w, map[string]any{
-		"id":           feed.ID,
-		"name":         feed.Name,
+		"id":          feed.ID,
+		"name":        feed.Name,
 		"lastFetched": lastFetched,
-		"lastError":    lastError,
+		"lastError":   lastError,
 	})
 }
 
@@ -1564,7 +1564,7 @@ func (s *Server) apiSetCategoryParent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		ParentID  *int64 `json:"parent_id"`  // null = top level
+		ParentID  *int64 `json:"parent_id"` // null = top level
 		SortOrder int64  `json:"sort_order"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1915,7 +1915,7 @@ func (s *Server) apiCreateExclusion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Type    string `json:"type"`    // "author" or "keyword"
+		Type    string `json:"type"` // "author" or "keyword"
 		Pattern string `json:"pattern"`
 		IsRegex bool   `json:"isRegex"`
 	}
@@ -2014,13 +2014,13 @@ func (s *Server) handleCategorySettings(w http.ResponseWriter, r *http.Request) 
 // Retention API handlers
 func (s *Server) apiRetentionStats(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	stats, err := s.RetentionManager.GetStats(ctx)
 	if err != nil {
 		jsonError(w, err.Error(), 500)
 		return
 	}
-	
+
 	jsonResponse(w, stats)
 }
 
@@ -2030,7 +2030,7 @@ func (s *Server) apiRetentionCleanup(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), 500)
 		return
 	}
-	
+
 	jsonResponse(w, map[string]any{
 		"deleted": deleted,
 		"message": "Cleanup completed",
@@ -2039,9 +2039,9 @@ func (s *Server) apiRetentionCleanup(w http.ResponseWriter, r *http.Request) {
 
 // Valid setting keys and their allowed values (empty slice = any value)
 var validSettings = map[string][]string{
-	"autoMarkRead":     {"true", "false"},
-	"hideReadArticles": {"hide", "show"},
-	"hideEmptyFeeds":   {"hide", "show"},
+	"autoMarkRead":      {"true", "false"},
+	"hideReadArticles":  {"hide", "show"},
+	"hideEmptyFeeds":    {"hide", "show"},
 	"defaultFolderView": {"card", "list", "magazine", "expanded"},
 	"defaultFeedView":   {"card", "list", "magazine", "expanded"},
 	"defaultView":       {"card", "list", "magazine", "expanded"},
@@ -2103,13 +2103,13 @@ func (s *Server) apiUpdateSettings(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	stats, _ := s.RetentionManager.GetStats(ctx)
-	
+
 	data := s.getCommonData(ctx)
 	data["Title"] = "Settings"
 	data["RetentionStats"] = stats
-	
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.renderTemplate(w, "settings.html", data); err != nil {
 		slog.Warn("render template", "error", err)

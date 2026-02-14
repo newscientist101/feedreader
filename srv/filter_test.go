@@ -44,8 +44,8 @@ func TestMatchesPattern_Regex(t *testing.T) {
 		{"case insensitive", "Hello World", "hello", true},
 		{"word boundary", "the cat sat", "\\bcat\\b", true},
 		{"no match", "hello", "^world", false},
-		{"empty text", "", ".*", false},  // empty text returns false early
-		{"empty pattern", "hello", "", false}, // empty pattern returns false early
+		{"empty text", "", ".*", false},        // empty text returns false early
+		{"empty pattern", "hello", "", false},  // empty pattern returns false early
 		{"invalid regex", "hello", "[", false}, // compile error -> false
 	}
 	for _, tc := range tests {

@@ -35,7 +35,7 @@ func (s *Server) FilterArticles(ctx context.Context, articles []dbgen.ListUnread
 // FilterArticlesByFeed applies exclusion rules for feed articles
 func (s *Server) FilterArticlesByFeed(ctx context.Context, articles []dbgen.ListArticlesByFeedRow, feedID int64, userID int64) []dbgen.ListArticlesByFeedRow {
 	q := dbgen.New(s.DB)
-	
+
 	// Get the category for this feed
 	cats, err := q.GetFeedCategories(ctx, feedID)
 	if err != nil || len(cats) == 0 {
