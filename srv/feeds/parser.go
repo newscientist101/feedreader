@@ -114,8 +114,15 @@ func (ch rssChannel) ChannelLink() string {
 	return ""
 }
 
+// xmlTitle captures a <title> element along with its namespace, so we can
+// distinguish <title> (no namespace) from <media:title> (MRSS namespace).
+type xmlTitle struct {
+	XMLName xml.Name
+	Value   string `xml:",chardata"`
+}
+
 type rssItem struct {
-	Title          string          `xml:"title"`
+	Titles         []xmlTitle      `xml:"title"`
 	Link           string          `xml:"link"`
 	Description    string          `xml:"description"`
 	Content        string          `xml:"http://purl.org/rss/1.0/modules/content/ encoded"`
@@ -127,6 +134,20 @@ type rssItem struct {
 	MediaContent   []mediaContent  `xml:"http://search.yahoo.com/mrss/ content"`
 	MediaThumbnail []mediaThumbnail `xml:"http://search.yahoo.com/mrss/ thumbnail"`
 	MediaGroup     *mediaGroup     `xml:"http://search.yahoo.com/mrss/ group"`
+}
+
+// Title returns the non-namespaced <title> value, ignoring <media:title> etc.
+func (item rssItem) Title() string {
+	for _, t := range item.Titles {
+		if t.XMLName.Space == "" {
+			return t.Value
+		}
+	}
+	// Fallback: return any title if no un-namespaced one exists
+	if len(item.Titles) > 0 {
+		return item.Titles[0].Value
+	}
+	return ""
 }
 
 type rssEnclosure struct {
@@ -168,7 +189,7 @@ func parseRSS(data []byte) (*ParsedFeed, error) {
 			guid = item.Link
 		}
 		if guid == "" {
-			guid = item.Title
+			guid = item.Title()
 		}
 
 		author := item.Author
@@ -192,7 +213,7 @@ func parseRSS(data []byte) (*ParsedFeed, error) {
 
 		feed.Items = append(feed.Items, FeedItem{
 			GUID:        guid,
-			Title:       stripTags(item.Title),
+			Title:       stripTags(item.Title()),
 			URL:         item.Link,
 			Author:      author,
 			Content:     content,
