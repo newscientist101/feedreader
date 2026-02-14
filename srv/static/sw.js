@@ -11,7 +11,3 @@ self.addEventListener('activate', (event) => {
   );
   self.clients.claim();
 });
-
-self.addEventListener('fetch', () => {
-  // No-op: let the browser handle all fetches normally
-});
