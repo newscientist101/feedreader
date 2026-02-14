@@ -79,6 +79,13 @@ type Migration struct {
 	ExecutedAt      time.Time `json:"executed_at"`
 }
 
+type QueueArticle struct {
+	ID        int64     `json:"id"`
+	UserID    int64     `json:"user_id"`
+	ArticleID int64     `json:"article_id"`
+	AddedAt   time.Time `json:"added_at"`
+}
+
 type ScraperModule struct {
 	ID          int64     `json:"id"`
 	Name        string    `json:"name"`
@@ -97,4 +104,10 @@ type User struct {
 	Email      string    `json:"email"`
 	CreatedAt  time.Time `json:"created_at"`
 	LastSeenAt time.Time `json:"last_seen_at"`
+}
+
+type UserSetting struct {
+	UserID int64  `json:"user_id"`
+	Key    string `json:"key"`
+	Value  string `json:"value"`
 }

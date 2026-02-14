@@ -15,6 +15,7 @@ const countOldUnstarredArticles = `-- name: CountOldUnstarredArticles :one
 SELECT COUNT(*) FROM articles a
 JOIN feeds f ON a.feed_id = f.id
 WHERE a.is_starred = 0 
+  AND a.id NOT IN (SELECT article_id FROM queue_articles)
   AND a.fetched_at < datetime('now', '-' || ? || ' days')
   AND f.user_id = ?
 `
@@ -34,6 +35,7 @@ func (q *Queries) CountOldUnstarredArticles(ctx context.Context, arg CountOldUns
 const countOldUnstarredArticlesGlobal = `-- name: CountOldUnstarredArticlesGlobal :one
 SELECT COUNT(*) FROM articles
 WHERE is_starred = 0 
+  AND id NOT IN (SELECT article_id FROM queue_articles)
   AND fetched_at < datetime('now', '-' || ? || ' days')
 `
 
@@ -103,9 +105,10 @@ func (q *Queries) CreateArticle(ctx context.Context, arg CreateArticleParams) (A
 
 const deleteOldUnstarredArticles = `-- name: DeleteOldUnstarredArticles :execresult
 DELETE FROM articles
-WHERE is_starred = 0 
-  AND fetched_at < datetime('now', '-' || ? || ' days')
-  AND feed_id IN (SELECT id FROM feeds WHERE user_id = ?)
+WHERE articles.is_starred = 0 
+  AND articles.id NOT IN (SELECT article_id FROM queue_articles)
+  AND articles.fetched_at < datetime('now', '-' || ? || ' days')
+  AND articles.feed_id IN (SELECT id FROM feeds WHERE feeds.user_id = ?)
 `
 
 type DeleteOldUnstarredArticlesParams struct {
@@ -120,6 +123,7 @@ func (q *Queries) DeleteOldUnstarredArticles(ctx context.Context, arg DeleteOldU
 const deleteOldUnstarredArticlesGlobal = `-- name: DeleteOldUnstarredArticlesGlobal :execresult
 DELETE FROM articles
 WHERE is_starred = 0 
+  AND id NOT IN (SELECT article_id FROM queue_articles)
   AND fetched_at < datetime('now', '-' || ? || ' days')
 `
 

@@ -38,6 +38,7 @@
         shortcuts: [
           {name:"Unread Articles", url:o+"/",       icons:[{src:o+"/static/icons/icon-192.png",sizes:"192x192"}]},
           {name:"Starred",         url:o+"/starred", icons:[{src:o+"/static/icons/icon-192.png",sizes:"192x192"}]},
+          {name:"Queue",           url:o+"/queue",   icons:[{src:o+"/static/icons/icon-192.png",sizes:"192x192"}]},
           {name:"Manage Feeds",    url:o+"/feeds",   icons:[{src:o+"/static/icons/icon-192.png",sizes:"192x192"}]}
         ]
       };
@@ -85,6 +86,13 @@
                     </svg>
                     <span>Starred</span>
                     <span class="badge" data-count="starred">{{if .StarredCount}}{{.StarredCount}}{{end}}</span>
+                </a>
+                <a href="/queue" class="nav-item {{if eq .ActiveView "queue"}}active{{end}}">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/>
+                    </svg>
+                    <span>Queue</span>
+                    <span class="badge" data-count="queue">{{if .QueueCount}}{{.QueueCount}}{{end}}</span>
                 </a>
             </nav>
 

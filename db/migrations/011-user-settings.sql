@@ -7,3 +7,5 @@ CREATE TABLE IF NOT EXISTS user_settings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_settings_user ON user_settings(user_id);
+
+INSERT INTO migrations (migration_number, migration_name) VALUES (11, '011-user-settings.sql');

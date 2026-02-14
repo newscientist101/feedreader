@@ -112,14 +112,16 @@ WHERE feed_id IN (
 
 -- name: DeleteOldUnstarredArticles :execresult
 DELETE FROM articles
-WHERE is_starred = 0 
-  AND fetched_at < datetime('now', '-' || ? || ' days')
-  AND feed_id IN (SELECT id FROM feeds WHERE user_id = ?);
+WHERE articles.is_starred = 0 
+  AND articles.id NOT IN (SELECT article_id FROM queue_articles)
+  AND articles.fetched_at < datetime('now', '-' || ? || ' days')
+  AND articles.feed_id IN (SELECT id FROM feeds WHERE feeds.user_id = ?);
 
 -- name: CountOldUnstarredArticles :one
 SELECT COUNT(*) FROM articles a
 JOIN feeds f ON a.feed_id = f.id
 WHERE a.is_starred = 0 
+  AND a.id NOT IN (SELECT article_id FROM queue_articles)
   AND a.fetched_at < datetime('now', '-' || ? || ' days')
   AND f.user_id = ?;
 
@@ -157,11 +159,13 @@ WHERE is_read = 0
 -- For background cleanup - deletes across all users
 DELETE FROM articles
 WHERE is_starred = 0 
+  AND id NOT IN (SELECT article_id FROM queue_articles)
   AND fetched_at < datetime('now', '-' || ? || ' days');
 
 -- name: CountOldUnstarredArticlesGlobal :one
 SELECT COUNT(*) FROM articles
 WHERE is_starred = 0 
+  AND id NOT IN (SELECT article_id FROM queue_articles)
   AND fetched_at < datetime('now', '-' || ? || ' days');
 
 -- name: GetOldestArticleDateGlobal :one

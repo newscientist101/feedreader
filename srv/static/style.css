@@ -767,10 +767,29 @@ body {
 .article-view,
 .articles-view,
 .feeds-view,
+.queue-view,
 .scrapers-view,
 .settings-view {
     max-width: 1100px;
     margin: 0 auto;
+}
+
+.queue-position {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.queue-counter {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.queue-next-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .article-header {
@@ -1013,6 +1032,10 @@ body {
 
 .btn-icon.starred {
     color: var(--star-color);
+}
+
+.btn-icon.queued {
+    color: var(--accent);
 }
 
 .btn-icon.danger:hover {

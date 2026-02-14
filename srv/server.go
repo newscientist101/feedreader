@@ -110,6 +110,7 @@ func (s *Server) Serve(addr string) error {
 	mux.HandleFunc("GET /{$}", s.handleIndex)
 	mux.HandleFunc("GET /feeds", s.handleFeeds)
 	mux.HandleFunc("GET /starred", s.handleStarred)
+	mux.HandleFunc("GET /queue", s.handleQueue)
 	mux.HandleFunc("GET /feed/{id}", s.handleFeedArticles)
 	mux.HandleFunc("GET /article/{id}", s.handleArticle)
 	mux.HandleFunc("GET /scrapers", s.handleScrapers)
@@ -126,6 +127,9 @@ func (s *Server) Serve(addr string) error {
 	mux.HandleFunc("POST /api/articles/{id}/read", s.apiMarkRead)
 	mux.HandleFunc("POST /api/articles/{id}/unread", s.apiMarkUnread)
 	mux.HandleFunc("POST /api/articles/{id}/star", s.apiToggleStar)
+	mux.HandleFunc("POST /api/articles/{id}/queue", s.apiToggleQueue)
+	mux.HandleFunc("DELETE /api/articles/{id}/queue", s.apiRemoveFromQueue)
+	mux.HandleFunc("GET /api/queue", s.apiListQueue)
 	mux.HandleFunc("POST /api/feeds/{id}/read-all", s.apiMarkFeedRead)
 	mux.HandleFunc("POST /api/articles/read-all", s.apiMarkAllRead)
 	mux.HandleFunc("GET /api/scrapers/{id}", s.apiGetScraper)
@@ -306,6 +310,7 @@ func (s *Server) getCommonData(ctx context.Context) map[string]any {
 	feeds, _ := q.ListFeeds(ctx, &userID)
 	unreadCount, _ := q.GetUnreadCount(ctx, &userID)
 	starredCount, _ := q.GetStarredCount(ctx, &userID)
+	queueCount, _ := q.GetQueueCount(ctx, userID)
 	categories, _ := q.ListCategories(ctx, &userID)
 
 	feedCounts := make(map[int64]int64)
@@ -350,6 +355,7 @@ func (s *Server) getCommonData(ctx context.Context) map[string]any {
 		"FeedCategories":  feedCategories,
 		"UnreadCount":     unreadCount,
 		"StarredCount":    starredCount,
+		"QueueCount":      queueCount,
 		"User":            user,
 		"Settings":        settings,
 	}
@@ -407,6 +413,45 @@ func (s *Server) handleStarred(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.renderTemplate(w, "index.html", data); err != nil {
+		slog.Warn("render template", "error", err)
+		http.Error(w, "Internal Server Error", 500)
+	}
+}
+
+func (s *Server) handleQueue(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+	user := GetUser(ctx)
+
+	articles, _ := q.ListQueueArticles(ctx, dbgen.ListQueueArticlesParams{
+		UserID: user.ID,
+		Limit:  200,
+		Offset: 0,
+	})
+
+	data := s.getCommonData(ctx)
+	data["Title"] = "Queue"
+	data["ActiveView"] = "queue"
+	data["QueueArticles"] = articles
+
+	// If there are articles, load the first one fully (with content filters)
+	if len(articles) > 0 {
+		first := articles[0]
+		feed, _ := q.GetFeed(ctx, dbgen.GetFeedParams{ID: first.FeedID, UserID: &user.ID})
+		if first.Content != nil && feed.ContentFilters != nil {
+			filtered := ApplyContentFilters(*first.Content, feed.ContentFilters)
+			first.Content = &filtered
+		}
+		if first.Summary != nil && feed.ContentFilters != nil {
+			filtered := ApplyContentFilters(*first.Summary, feed.ContentFilters)
+			first.Summary = &filtered
+		}
+		data["Article"] = first
+		data["Feed"] = feed
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.renderTemplate(w, "queue.html", data); err != nil {
 		slog.Warn("render template", "error", err)
 		http.Error(w, "Internal Server Error", 500)
 	}
@@ -772,6 +817,7 @@ func (s *Server) apiGetCounts(w http.ResponseWriter, r *http.Request) {
 
 	unreadCount, _ := q.GetUnreadCount(ctx, &userID)
 	starredCount, _ := q.GetStarredCount(ctx, &userID)
+	queueCount, _ := q.GetQueueCount(ctx, userID)
 
 	feedCounts := make(map[int64]int64)
 	feedErrors := make(map[int64]string)
@@ -792,6 +838,7 @@ func (s *Server) apiGetCounts(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, map[string]any{
 		"unread":     unreadCount,
 		"starred":    starredCount,
+		"queue":      queueCount,
 		"feeds":      feedCounts,
 		"categories": catCounts,
 		"feedErrors": feedErrors,
@@ -886,6 +933,70 @@ func (s *Server) apiToggleStar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) apiToggleQueue(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	articleID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid article ID", 400)
+		return
+	}
+
+	queued, _ := q.IsArticleQueued(ctx, dbgen.IsArticleQueuedParams{UserID: user.ID, ArticleID: articleID})
+	if queued > 0 {
+		if err := q.RemoveFromQueue(ctx, dbgen.RemoveFromQueueParams{UserID: user.ID, ArticleID: articleID}); err != nil {
+			jsonError(w, "Failed to remove from queue", 500)
+			return
+		}
+		jsonResponse(w, map[string]any{"status": "ok", "queued": false})
+	} else {
+		if err := q.AddToQueue(ctx, dbgen.AddToQueueParams{UserID: user.ID, ArticleID: articleID}); err != nil {
+			jsonError(w, "Failed to add to queue", 500)
+			return
+		}
+		jsonResponse(w, map[string]any{"status": "ok", "queued": true})
+	}
+}
+
+func (s *Server) apiRemoveFromQueue(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	articleID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid article ID", 400)
+		return
+	}
+
+	if err := q.RemoveFromQueue(ctx, dbgen.RemoveFromQueueParams{UserID: user.ID, ArticleID: articleID}); err != nil {
+		jsonError(w, "Failed to remove from queue", 500)
+		return
+	}
+
+	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) apiListQueue(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	articles, err := q.ListQueueArticles(ctx, dbgen.ListQueueArticlesParams{
+		UserID: user.ID,
+		Limit:  200,
+		Offset: 0,
+	})
+	if err != nil {
+		jsonError(w, "Failed to list queue", 500)
+		return
+	}
+
+	jsonResponse(w, articles)
 }
 
 func (s *Server) apiMarkAllRead(w http.ResponseWriter, r *http.Request) {

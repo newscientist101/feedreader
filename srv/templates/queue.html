@@ -1,0 +1,76 @@
+{{define "content"}}
+<div class="queue-view">
+    {{if .Article}}
+    <header class="article-header">
+        <div class="queue-position">
+            <span class="queue-counter">1 of {{len .QueueArticles}}</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+            <div class="article-actions-placeholder"
+                data-article-id="{{.Article.ID}}"
+                data-is-read="{{if and .Article.IsRead (ne (deref .Article.IsRead) 0)}}1{{else}}0{{end}}"
+                data-is-starred="{{if and .Article.IsStarred (ne (deref .Article.IsStarred) 0)}}1{{else}}0{{end}}"
+                data-url="{{if .Article.Url}}{{deref .Article.Url}}{{end}}"
+                data-is-queued="1"
+            ></div>
+            <button class="btn btn-primary queue-next-btn" onclick="queueNext()" title="Remove from queue and show next">
+                Next
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                    <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <article class="article-content">
+        <div class="article-meta">
+            {{if .Feed}}<a href="/feed/{{.Feed.ID}}" class="feed-name">{{.Feed.Name}}</a>{{end}}
+            {{if .Article.Author}}<span class="author">by {{deref .Article.Author}}</span>{{end}}
+            <span class="date" data-timestamp="{{formatDate .Article.PublishedAt}}">{{timeAgo .Article.PublishedAt}}</span>
+        </div>
+        
+        <h1>{{.Article.Title}}</h1>
+
+        <div class="article-body">
+            {{if .Article.Content}}
+            {{deref .Article.Content | safeHTML}}
+            {{else if .Article.Summary}}
+            {{deref .Article.Summary | safeHTML}}
+            {{else}}
+            <p class="no-content">No content available. <a href="{{if .Article.Url}}{{deref .Article.Url}}{{end}}" target="_blank">View the original article</a>.</p>
+            {{end}}
+        </div>
+    </article>
+
+    {{else}}
+    <div class="empty-state">
+        <svg viewBox="0 0 24 24" width="64" height="64" fill="currentColor" style="opacity: 0.3;">
+            <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/>
+        </svg>
+        <h2>Queue is empty</h2>
+        <p>Add articles to your queue to read them later, one at a time.</p>
+    </div>
+    {{end}}
+
+    <script>
+    // Queue article IDs in order (oldest first)
+    const queueArticleIds = [{{range $i, $a := .QueueArticles}}{{if $i}},{{end}}{{$a.ID}}{{end}}];
+    let queueIndex = 0;
+
+    async function queueNext() {
+        if (queueArticleIds.length === 0) return;
+        const currentId = queueArticleIds[queueIndex];
+        // Remove current article from queue
+        await api('DELETE', `/api/articles/${currentId}/queue`);
+        queueIndex++;
+        if (queueIndex < queueArticleIds.length) {
+            // Navigate to queue page — server will render next article
+            window.location.href = '/queue';
+        } else {
+            // Queue is done
+            window.location.href = '/queue';
+        }
+    }
+    </script>
+</div>
+{{end}}

@@ -4,9 +4,11 @@ const SVG_MARK_UNREAD = '<svg viewBox="0 0 24 24" width="18" height="18" fill="c
 const SVG_STAR_FILLED = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>';
 const SVG_STAR_EMPTY = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/></svg>';
 const SVG_EXTERNAL = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>';
+const SVG_QUEUE_ADD = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zm-7-2h2v-3h3V9h-3V6h-2v3h-2v2h2v3z"/></svg>';
+const SVG_QUEUE_REMOVE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zm-2-5H10V9h8v2z"/></svg>';
 
 // Render the standard set of action buttons for an article.
-// `a` must have: id, is_read, is_starred, url (optional).
+// `a` must have: id, is_read, is_starred, url (optional), is_queued (optional).
 // To add a new action button to all views, add it here.
 function renderArticleActions(a) {
     const readBtn = `<button onclick="${a.is_read ? 'markUnread' : 'markRead'}(event, ${a.id})" class="btn-icon btn-read-toggle" title="${a.is_read ? 'Mark unread' : 'Mark read'}">
@@ -15,8 +17,11 @@ function renderArticleActions(a) {
     const starBtn = `<button onclick="toggleStar(${a.id})" class="btn-icon ${a.is_starred ? 'starred' : ''}" title="Star">
         ${a.is_starred ? SVG_STAR_FILLED : SVG_STAR_EMPTY}
     </button>`;
+    const queueBtn = `<button onclick="toggleQueue(event, ${a.id})" class="btn-icon btn-queue-toggle ${a.is_queued ? 'queued' : ''}" title="${a.is_queued ? 'Remove from queue' : 'Add to queue'}">
+        ${a.is_queued ? SVG_QUEUE_REMOVE : SVG_QUEUE_ADD}
+    </button>`;
     const extBtn = a.url ? `<a href="${a.url}" target="_blank" class="btn-icon" title="Open original">${SVG_EXTERNAL}</a>` : '';
-    return `<div class="article-actions">${readBtn}${starBtn}${extBtn}</div>`;
+    return `<div class="article-actions">${readBtn}${starBtn}${queueBtn}${extBtn}</div>`;
 }
 
 // Update the read/unread toggle button inside an article card
@@ -132,6 +137,8 @@ function showReadArticles() {
 
 // Auto-mark-read on scroll feature
 let autoMarkReadObserver = null;
+let queuedArticleIds = new Set();
+let queuedIdsReady = Promise.resolve();
 
 function initAutoMarkRead() {
     if (getSetting('autoMarkRead') !== 'true') {
@@ -431,7 +438,8 @@ async function loadFeedArticles(feedId, feedName) {
     }
 }
 
-function renderArticles(articles) {
+async function renderArticles(articles) {
+    await queuedIdsReady;
     const list = document.getElementById('articles-list');
     if (!list) return;
     
@@ -448,7 +456,9 @@ function renderArticles(articles) {
     }
     
     // Build HTML in chunks to avoid UI blocking
-    const html = articles.map(a => `
+    const html = articles.map(a => {
+    a.is_queued = queuedArticleIds.has(a.id);
+    return `
         <article class="article-card ${a.is_read ? 'read' : ''}${a.image_url ? ' has-image' : ''}" data-id="${a.id}">
             ${a.image_url ? `<div class="article-image magazine-expanded-only"><img src="${a.image_url}" alt="" loading="lazy"></div>` : `<div class="article-image-placeholder magazine-only">
                 <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
@@ -469,7 +479,7 @@ function renderArticles(articles) {
                 ${renderArticleActions(a)}
             </div>
         </article>
-    `).join('');
+    `}).join('');
     
     list.innerHTML = html;
     
@@ -602,22 +612,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Load queued article IDs, then hydrate action-button placeholders
+    queuedIdsReady = api('GET', '/api/queue').then(articles => {
+        queuedArticleIds = new Set((articles || []).map(a => a.id));
+    }).catch(() => {});
+    queuedIdsReady.then(() => {
+        document.querySelectorAll('.article-actions-placeholder').forEach(el => {
+            const a = {
+                id: Number(el.dataset.articleId),
+                is_read: el.dataset.isRead === '1',
+                is_starred: el.dataset.isStarred === '1',
+                is_queued: el.dataset.isQueued === '1' || queuedArticleIds.has(Number(el.dataset.articleId)),
+                url: el.dataset.url || null,
+            };
+            el.outerHTML = renderArticleActions(a);
+        });
+    });
+
     // Initialize timestamp tooltips with local timezone
     initTimestampTooltips();
     
     // Process embeds in article page content
     processEmbeds(document.querySelector('.article-body'));
-
-    // Populate article-detail action buttons from the shared renderer
-    document.querySelectorAll('.article-actions-placeholder').forEach(el => {
-        const a = {
-            id: Number(el.dataset.articleId),
-            is_read: el.dataset.isRead === '1',
-            is_starred: el.dataset.isStarred === '1',
-            url: el.dataset.url || null,
-        };
-        el.outerHTML = renderArticleActions(a);
-    });
 
     // Initialize auto-mark-read on scroll
     initAutoMarkRead();
@@ -719,6 +735,29 @@ async function toggleStar(event, id) {
         updateCounts();
     } catch (e) {
         console.error('Failed to toggle star:', e);
+    }
+}
+
+async function toggleQueue(event, id) {
+    if (event) event.stopPropagation();
+    try {
+        const resp = await api('POST', `/api/articles/${id}/queue`);
+        const isNowQueued = resp.queued;
+        if (isNowQueued) {
+            queuedArticleIds.add(id);
+        } else {
+            queuedArticleIds.delete(id);
+        }
+        // Toggle queue button appearance
+        const btns = document.querySelectorAll(`[onclick="toggleQueue(event, ${id})"]`);
+        btns.forEach(btn => {
+            btn.classList.toggle('queued', isNowQueued);
+            btn.title = isNowQueued ? 'Remove from queue' : 'Add to queue';
+            btn.innerHTML = isNowQueued ? SVG_QUEUE_REMOVE : SVG_QUEUE_ADD;
+        });
+        updateCounts();
+    } catch (e) {
+        console.error('Failed to toggle queue:', e);
     }
 }
 
@@ -1146,6 +1185,12 @@ async function updateCounts() {
         const starredBadge = document.querySelector('[data-count="starred"]');
         if (starredBadge) {
             starredBadge.textContent = counts.starred || '';
+        }
+
+        // Update queue count
+        const queueBadge = document.querySelector('[data-count="queue"]');
+        if (queueBadge) {
+            queueBadge.textContent = counts.queue || '';
         }
         
         // Update category counts
