@@ -561,7 +561,10 @@ body {
     margin-top: auto;
 }
 
-.view-card .article-meta,
+.view-card .article-meta {
+    display: none;
+}
+
 .view-magazine .article-meta {
     margin-bottom: var(--magazine-text-gap);
     background: rgba(255, 255, 255, 0.05);
