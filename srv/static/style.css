@@ -504,12 +504,14 @@ body {
 }
 
 /* === MAGAZINE VIEW === */
+.articles-list.view-card,
 .articles-list.view-magazine {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 20px;
 }
 
+.view-card .article-card,
 .view-magazine .article-card {
     display: flex;
     flex-direction: column;
@@ -517,6 +519,7 @@ body {
     overflow: hidden;
 }
 
+.view-card .article-image,
 .view-magazine .article-image {
     width: 100%;
     height: 180px;
@@ -527,6 +530,7 @@ body {
     max-height: none;
 }
 
+.view-card .article-image img,
 .view-magazine .article-image img,
 .view-expanded .article-image img {
     width: 100%;
@@ -535,6 +539,7 @@ body {
     display: block;
 }
 
+.view-card .article-image-placeholder,
 .view-magazine .article-image-placeholder {
     width: 100%;
     height: 180px;
@@ -545,6 +550,7 @@ body {
     color: var(--text-secondary);
 }
 
+.view-card .article-body,
 .view-magazine .article-body {
     padding: 15px;
     padding-top: var(--magazine-text-gap);
@@ -553,10 +559,12 @@ body {
     flex-direction: column;
 }
 
+.view-card .article-actions,
 .view-magazine .article-actions {
     margin-top: auto;
 }
 
+.view-card .article-meta,
 .view-magazine .article-meta {
     margin-bottom: var(--magazine-text-gap);
     background: rgba(255, 255, 255, 0.05);
@@ -567,6 +575,7 @@ body {
 }
 
 
+.view-card .article-title,
 .view-magazine .article-title {
     font-size: 1rem;
     line-height: 1.3;
@@ -578,6 +587,7 @@ body {
     overflow: hidden;
 }
 
+.view-card .article-summary,
 .view-magazine .article-summary {
     font-size: 0.85rem;
     display: -webkit-box;
@@ -681,6 +691,8 @@ body {
     display: none;
 }
 
+.view-card .magazine-only,
+.view-card .magazine-expanded-only,
 .view-magazine .magazine-only,
 .view-magazine .magazine-expanded-only {
     display: flex;
@@ -1475,28 +1487,10 @@ th {
         padding: 40px 50px;
     }
     
-    /* Card view gets grid on large screens */
-    .articles-list.view-card {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-        gap: 20px;
-    }
-    
-    .view-card .article-card {
-        margin: 0;
-    }
-    
-    /* Magazine gets larger cards */
+    /* Card and magazine get larger cards */
+    .articles-list.view-card,
     .articles-list.view-magazine {
         grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-    }
-}
-
-/* Medium screens - no grid for card view */
-@media (max-width: 1399px) {
-    .articles-list.view-card {
-        display: flex;
-        flex-direction: column;
     }
 }
 
@@ -1522,6 +1516,7 @@ th {
         white-space: normal;
     }
     
+    .view-card,
     .view-magazine {
         grid-template-columns: 1fr;
     }
