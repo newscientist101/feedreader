@@ -110,8 +110,16 @@ func executeMigration(db *sql.DB, filename string) error {
 	if err != nil {
 		return fmt.Errorf("read %s: %w", filename, err)
 	}
-	if _, err := db.Exec(string(content)); err != nil {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx for %s: %w", filename, err)
+	}
+	if _, err := tx.Exec(string(content)); err != nil {
+		_ = tx.Rollback()
 		return fmt.Errorf("exec %s: %w", filename, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit %s: %w", filename, err)
 	}
 	return nil
 }

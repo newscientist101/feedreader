@@ -890,6 +890,7 @@ func (s *Server) apiMarkRead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := q.MarkArticleRead(ctx, dbgen.MarkArticleReadParams{ID: articleID, UserID: &user.ID}); err != nil {
+		slog.Error("failed to mark article read", "article_id", articleID, "user_id", user.ID, "error", err)
 		jsonError(w, "Failed to mark read", 500)
 		return
 	}
