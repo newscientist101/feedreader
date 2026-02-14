@@ -638,6 +638,137 @@ func TestLooksLikeImage(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Epoch / missing pubDate fallback to lastBuildDate
+// ---------------------------------------------------------------------------
+
+func TestParseRSS_EpochPubDateFallsBackToLastBuildDate(t *testing.T) {
+	const rss = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test</title>
+    <link>https://example.com</link>
+    <lastBuildDate>Sun, 01 Feb 2026 16:58:48 +0000</lastBuildDate>
+    <item>
+      <title>Epoch Date</title>
+      <link>https://example.com/epoch</link>
+      <guid>guid-epoch</guid>
+      <pubDate>Thu, 01 Jan 1970 00:00:00 +0000</pubDate>
+    </item>
+    <item>
+      <title>Valid Date</title>
+      <link>https://example.com/valid</link>
+      <guid>guid-valid</guid>
+      <pubDate>Mon, 02 Jan 2006 15:04:05 -0700</pubDate>
+    </item>
+    <item>
+      <title>No Date</title>
+      <link>https://example.com/nodate</link>
+      <guid>guid-nodate</guid>
+    </item>
+  </channel>
+</rss>`
+
+	feed, err := Parse(strings.NewReader(rss))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	// Feed-level lastBuildDate should be parsed
+	if feed.LastBuildDate == nil {
+		t.Fatal("LastBuildDate is nil")
+	}
+	if feed.LastBuildDate.Year() != 2026 || feed.LastBuildDate.Month() != time.February {
+		t.Errorf("unexpected LastBuildDate: %v", feed.LastBuildDate)
+	}
+
+	if len(feed.Items) != 3 {
+		t.Fatalf("expected 3 items, got %d", len(feed.Items))
+	}
+
+	// Item with epoch pubDate should fall back to lastBuildDate
+	epochItem := feed.Items[0]
+	if epochItem.PublishedAt == nil {
+		t.Fatal("epoch item PublishedAt is nil")
+	}
+	if epochItem.PublishedAt.Year() != 2026 {
+		t.Errorf("epoch item should use lastBuildDate, got: %v", epochItem.PublishedAt)
+	}
+
+	// Item with valid pubDate should keep its own date
+	validItem := feed.Items[1]
+	if validItem.PublishedAt == nil {
+		t.Fatal("valid item PublishedAt is nil")
+	}
+	if validItem.PublishedAt.Year() != 2006 {
+		t.Errorf("valid item should keep its pubDate, got: %v", validItem.PublishedAt)
+	}
+
+	// Item with no pubDate should fall back to lastBuildDate
+	nodateItem := feed.Items[2]
+	if nodateItem.PublishedAt == nil {
+		t.Fatal("nodate item PublishedAt is nil")
+	}
+	if nodateItem.PublishedAt.Year() != 2026 {
+		t.Errorf("nodate item should use lastBuildDate, got: %v", nodateItem.PublishedAt)
+	}
+}
+
+func TestParseAtom_EpochDateFallsBackToFeedUpdated(t *testing.T) {
+	const atom = `<?xml version="1.0"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>T</title>
+  <updated>2026-02-01T16:58:48Z</updated>
+  <entry>
+    <id>1</id>
+    <title>Epoch</title>
+    <published>1970-01-01T00:00:00Z</published>
+  </entry>
+  <entry>
+    <id>2</id>
+    <title>No Date</title>
+  </entry>
+  <entry>
+    <id>3</id>
+    <title>Valid</title>
+    <published>2025-06-15T10:00:00Z</published>
+  </entry>
+</feed>`
+
+	feed, err := Parse(strings.NewReader(atom))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	if feed.LastBuildDate == nil {
+		t.Fatal("LastBuildDate is nil")
+	}
+
+	// Epoch entry falls back to feed updated
+	if feed.Items[0].PublishedAt == nil || feed.Items[0].PublishedAt.Year() != 2026 {
+		t.Errorf("epoch entry should use feed updated, got: %v", feed.Items[0].PublishedAt)
+	}
+	// Missing date entry falls back to feed updated
+	if feed.Items[1].PublishedAt == nil || feed.Items[1].PublishedAt.Year() != 2026 {
+		t.Errorf("no-date entry should use feed updated, got: %v", feed.Items[1].PublishedAt)
+	}
+	// Valid date preserved
+	if feed.Items[2].PublishedAt == nil || feed.Items[2].PublishedAt.Year() != 2025 {
+		t.Errorf("valid entry should keep its date, got: %v", feed.Items[2].PublishedAt)
+	}
+}
+
+func TestIsEpoch(t *testing.T) {
+	epoch := time.Unix(0, 0)
+	if !isEpoch(epoch) {
+		t.Error("expected true for Unix epoch")
+	}
+	now := time.Now()
+	if isEpoch(now) {
+		t.Error("expected false for current time")
+	}
+}
+
+// ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
 

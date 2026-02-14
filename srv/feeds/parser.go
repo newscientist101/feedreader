@@ -26,10 +26,11 @@ type FeedItem struct {
 
 // ParsedFeed contains the parsed feed data
 type ParsedFeed struct {
-	Title       string
-	Description string
-	URL         string
-	Items       []FeedItem
+	Title          string
+	Description    string
+	URL            string
+	LastBuildDate  *time.Time
+	Items          []FeedItem
 }
 
 // Parse attempts to parse the feed content as RSS or Atom
@@ -91,10 +92,11 @@ type rssLink struct {
 }
 
 type rssChannel struct {
-	Title       string    `xml:"title"`
-	Links       []rssLink `xml:"link"`
-	Description string    `xml:"description"`
-	Items       []rssItem `xml:"item"`
+	Title          string    `xml:"title"`
+	Links          []rssLink `xml:"link"`
+	Description    string    `xml:"description"`
+	LastBuildDate  string    `xml:"lastBuildDate"`
+	Items          []rssItem `xml:"item"`
 }
 
 // ChannelLink returns the site URL from the channel's <link> elements,
@@ -176,11 +178,19 @@ func parseRSS(data []byte) (*ParsedFeed, error) {
 		return nil, fmt.Errorf("not an RSS feed")
 	}
 
+	var lastBuildDate *time.Time
+	if rss.Channel.LastBuildDate != "" {
+		if t, err := parseTime(rss.Channel.LastBuildDate); err == nil && !isEpoch(t) {
+			lastBuildDate = &t
+		}
+	}
+
 	feed := &ParsedFeed{
-		Title:       rss.Channel.Title,
-		Description: rss.Channel.Description,
-		URL:         rss.Channel.ChannelLink(),
-		Items:       make([]FeedItem, 0, len(rss.Channel.Items)),
+		Title:         rss.Channel.Title,
+		Description:   rss.Channel.Description,
+		URL:           rss.Channel.ChannelLink(),
+		LastBuildDate: lastBuildDate,
+		Items:         make([]FeedItem, 0, len(rss.Channel.Items)),
 	}
 
 	for _, item := range rss.Channel.Items {
@@ -206,9 +216,13 @@ func parseRSS(data []byte) (*ParsedFeed, error) {
 
 		var pubTime *time.Time
 		if item.PubDate != "" {
-			if t, err := parseTime(item.PubDate); err == nil {
+			if t, err := parseTime(item.PubDate); err == nil && !isEpoch(t) {
 				pubTime = &t
 			}
+		}
+		// Fall back to channel lastBuildDate for missing/epoch pub dates
+		if pubTime == nil && lastBuildDate != nil {
+			pubTime = lastBuildDate
 		}
 
 		feed.Items = append(feed.Items, FeedItem{
@@ -232,6 +246,7 @@ type atomFeed struct {
 	Title    string      `xml:"title"`
 	Subtitle string      `xml:"subtitle"`
 	Links    []atomLink  `xml:"link"`
+	Updated  string      `xml:"updated"`
 	Entries  []atomEntry `xml:"entry"`
 }
 
@@ -285,11 +300,19 @@ func parseAtom(data []byte) (*ParsedFeed, error) {
 		}
 	}
 
+	var lastBuildDate *time.Time
+	if atom.Updated != "" {
+		if t, err := parseTime(atom.Updated); err == nil && !isEpoch(t) {
+			lastBuildDate = &t
+		}
+	}
+
 	feed := &ParsedFeed{
-		Title:       atom.Title,
-		Description: atom.Subtitle,
-		URL:         feedURL,
-		Items:       make([]FeedItem, 0, len(atom.Entries)),
+		Title:         atom.Title,
+		Description:   atom.Subtitle,
+		URL:           feedURL,
+		LastBuildDate: lastBuildDate,
+		Items:         make([]FeedItem, 0, len(atom.Entries)),
 	}
 
 	for _, entry := range atom.Entries {
@@ -343,9 +366,13 @@ func parseAtom(data []byte) (*ParsedFeed, error) {
 			dateStr = entry.Updated
 		}
 		if dateStr != "" {
-			if t, err := parseTime(dateStr); err == nil {
+			if t, err := parseTime(dateStr); err == nil && !isEpoch(t) {
 				pubTime = &t
 			}
+		}
+		// Fall back to feed-level updated date for missing/epoch pub dates
+		if pubTime == nil && lastBuildDate != nil {
+			pubTime = lastBuildDate
 		}
 
 		// Extract image - check media:group thumbnail first (YouTube), then HTML content
@@ -437,6 +464,12 @@ func extractImageFromHTML(htmlContent string) string {
 		return html.UnescapeString(matches[1])
 	}
 	return ""
+}
+
+// isEpoch returns true if the time is the Unix epoch (1970-01-01 00:00:00 UTC),
+// which many feeds use as a placeholder for missing dates.
+func isEpoch(t time.Time) bool {
+	return t.Unix() == 0
 }
 
 // parseTime tries various date formats
