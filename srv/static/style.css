@@ -337,8 +337,15 @@ body {
 
 .header-actions {
     display: flex;
+    flex: 1 1 auto;
     gap: 10px;
     align-items: center;
+    justify-content: flex-end;
+}
+
+.search-box {
+    flex: 1 1 auto;
+    min-width: 120px;
 }
 
 .search-box input {
@@ -348,8 +355,6 @@ body {
     border-radius: var(--radius-pill);
     color: var(--text-primary);
     width: 100%;
-    min-width: 200px;
-    max-width: 350px;
 }
 
 .search-box input:focus {
