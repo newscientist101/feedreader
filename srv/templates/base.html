@@ -157,10 +157,14 @@
     <script src="{{staticPath "app.js"}}"></script>
     <script>
         // Register Service Worker for PWA (once)
-        if ('serviceWorker' in navigator && !navigator.serviceWorker.controller) {
-            navigator.serviceWorker.register('/static/sw.js')
-                .then((reg) => console.log('Service Worker registered', reg.scope))
-                .catch((err) => console.log('Service Worker registration failed', err));
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistration('/static/').then((reg) => {
+                if (!reg) {
+                    navigator.serviceWorker.register('/static/sw.js')
+                        .then((r) => console.log('Service Worker registered', r.scope))
+                        .catch((err) => console.log('Service Worker registration failed', err));
+                }
+            });
         }
     </script>
 </body>
