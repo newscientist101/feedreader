@@ -104,6 +104,15 @@ func (s *Server) Serve(addr string) error {
 	// Initialize Shelley scraper generator
 	s.ShelleyGenerator = NewShelleyScraperGenerator()
 
+	handler := s.Handler()
+
+	slog.Info("starting server", "addr", addr)
+	return http.ListenAndServe(addr, handler)
+}
+
+// Handler builds the full HTTP handler with routing, auth middleware, and gzip.
+// Extracted from Serve so integration tests can use it without ListenAndServe.
+func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	// Pages
@@ -182,10 +191,7 @@ func (s *Server) Serve(addr string) error {
 	})))
 
 	// Wrap with auth middleware, then gzip compression
-	handler := gzipMiddleware(s.AuthMiddleware(mux))
-
-	slog.Info("starting server", "addr", addr)
-	return http.ListenAndServe(addr, handler)
+	return gzipMiddleware(s.AuthMiddleware(mux))
 }
 
 // Template helpers
