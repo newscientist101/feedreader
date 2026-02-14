@@ -52,7 +52,7 @@ func (r *Runner) Run(ctx context.Context, script, content, pageURL, config strin
 	var probe struct {
 		Type string `json:"type"`
 	}
-	json.Unmarshal([]byte(script), &probe)
+	_ = json.Unmarshal([]byte(script), &probe)
 
 	switch probe.Type {
 	case "json":
@@ -156,11 +156,12 @@ func (r *Runner) runConfigScraper(config ScraperConfig, html, pageURL string) ([
 		}
 
 		// Generate GUID
-		if item.URL != "" {
+		switch {
+		case item.URL != "":
 			item.GUID = item.URL
-		} else if item.Title != "" {
+		case item.Title != "":
 			item.GUID = fmt.Sprintf("%s-%d", item.Title, i)
-		} else {
+		default:
 			return // Skip items without identifiable content
 		}
 

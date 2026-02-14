@@ -271,7 +271,9 @@ func (f *Fetcher) fetchWithScraper(ctx context.Context, feed dbgen.Feed) ([]Feed
 	defer resp.Body.Close()
 
 	buf := new(bytes.Buffer)
-	buf.ReadFrom(resp.Body)
+	if _, err := buf.ReadFrom(resp.Body); err != nil {
+		return nil, fmt.Errorf("reading response body: %w", err)
+	}
 	htmlContent := buf.String()
 
 	var config string

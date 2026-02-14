@@ -86,7 +86,7 @@ func (g *ShelleyScraperGenerator) Generate(ctx context.Context, req GenerateRequ
 
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("Shelley returned error: %s", string(body))
+		return nil, fmt.Errorf("shelley returned error: %s", string(body))
 	}
 
 	var convResp struct {
@@ -166,10 +166,13 @@ func (g *ShelleyScraperGenerator) waitForResponse(ctx context.Context, conversat
 				ConversationID string `json:"conversation_id"`
 				Working        bool   `json:"working"`
 			}
-			json.NewDecoder(resp.Body).Decode(&convs)
+			if err := json.NewDecoder(resp.Body).Decode(&convs); err != nil {
+				resp.Body.Close()
+				continue
+			}
 			resp.Body.Close()
 
-			var working bool = true
+			working := true
 			for _, c := range convs {
 				if c.ConversationID == conversationID {
 					working = c.Working
@@ -293,7 +296,7 @@ func (g *ShelleyScraperGenerator) parseResponse(text string) (*GenerateResponse,
 		return &GenerateResponse{
 			Name:   result.Name,
 			Config: string(result.Config),
-		}, nil
+		}, err
 	}
 
 	prettyConfig, _ := json.MarshalIndent(configObj, "", "  ")

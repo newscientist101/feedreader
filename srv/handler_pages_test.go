@@ -28,7 +28,7 @@ func TestHandleIndex(t *testing.T) {
 		t.Fatalf("got %d: %s", w.Code, w.Body.String()[:200])
 	}
 	if ct := w.Header().Get("Content-Type"); ct != "" && ct != "text/html; charset=utf-8" {
-		// renderTemplate may not set Content-Type explicitly, that's fine
+		t.Logf("unexpected Content-Type: %s", ct)
 	}
 }
 

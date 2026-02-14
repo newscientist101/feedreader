@@ -90,20 +90,6 @@ func TestShouldExclude(t *testing.T) {
 		{"keyword", "^\\[AD\\]", &oneInt},
 	}
 
-	// Convert to the dbgen type. We use the actual struct here.
-	var dbExclusions []struct {
-		ExclusionType string
-		Pattern       string
-		IsRegex       *int64
-	}
-	for _, e := range exclusions {
-		dbExclusions = append(dbExclusions, struct {
-			ExclusionType string
-			Pattern       string
-			IsRegex       *int64
-		}{e.exclType, e.pattern, e.isRegex})
-	}
-
 	// Since shouldExclude takes []dbgen.CategoryExclusion, we need the actual type.
 	// Let's test matchesPattern directly instead, which is the core logic.
 
@@ -123,6 +109,7 @@ func TestShouldExclude(t *testing.T) {
 
 	_ = s
 	_ = tests
+	_ = exclusions
 	// The actual shouldExclude requires dbgen.CategoryExclusion. Test the
 	// underlying matchesPattern instead, which we've already tested above.
 	// This validates the logic chain.

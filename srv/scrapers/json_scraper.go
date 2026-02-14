@@ -69,15 +69,17 @@ func (r *Runner) runJSONScraper(config JSONScraperConfig, content, pageURL strin
 
 		// GUID
 		fi.GUID = getStringPath(item, config.GUIDPath)
-		if fi.GUID == "" && fi.URL != "" {
+		switch {
+		case fi.GUID == "" && fi.URL != "":
 			fi.GUID = fi.URL
-		} else if fi.GUID == "" {
+		case fi.GUID == "":
 			dateStr := getStringPath(item, config.DatePath)
-			if fi.Title != "" && dateStr != "" {
+			switch {
+			case fi.Title != "" && dateStr != "":
 				fi.GUID = fmt.Sprintf("%s-%s", fi.Title, dateStr)
-			} else if fi.Title != "" {
+			case fi.Title != "":
 				fi.GUID = fmt.Sprintf("%s-%d", fi.Title, i)
-			} else {
+			default:
 				continue
 			}
 		}

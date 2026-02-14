@@ -88,7 +88,7 @@ func ValidateSelector(selector string) bool {
 		return false
 	}
 	// goquery will panic on invalid selectors, so we need to recover
-	defer func() { recover() }()
+	defer func() { _ = recover() }()
 	doc.Find(selector)
 	return true
 }

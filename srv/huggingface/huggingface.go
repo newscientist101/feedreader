@@ -277,7 +277,6 @@ func (c *Client) fetchCollection(ctx context.Context, config FeedConfig) ([]Feed
 		default:
 			// Default to model if type is unknown
 			itemURL = fmt.Sprintf("%s/%s", c.baseURL, item.ID)
-			itemType = "model"
 		}
 
 		// Build summary with stats

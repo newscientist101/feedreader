@@ -10,6 +10,7 @@ import (
 	"html"
 	"html/template"
 	"io"
+	"log"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -62,19 +63,22 @@ func New(dbPath, hostname string) (*Server, error) {
 // hashStaticFiles computes short SHA-256 hashes for static files for cache busting.
 func hashStaticFiles(dir string) map[string]string {
 	hashes := make(map[string]string)
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
-			return nil
+			return err
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {
-			return nil
+			return err
 		}
 		sum := sha256.Sum256(data)
 		rel, _ := filepath.Rel(dir, path)
 		hashes[rel] = hex.EncodeToString(sum[:4]) // 8 hex chars
 		return nil
 	})
+	if err != nil {
+		slog.Warn("failed to walk static dir", "error", err)
+	}
 	slog.Info("static file hashes computed", "count", len(hashes))
 	return hashes
 }
@@ -292,11 +296,12 @@ func stripHTML(s string) string {
 	var result strings.Builder
 	inTag := false
 	for _, r := range s {
-		if r == '<' {
+		switch {
+		case r == '<':
 			inTag = true
-		} else if r == '>' {
+		case r == '>':
 			inTag = false
-		} else if !inTag {
+		case !inTag:
 			result.WriteRune(r)
 		}
 	}
@@ -516,7 +521,9 @@ func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Mark as read
-	q.MarkArticleRead(ctx, dbgen.MarkArticleReadParams{ID: articleID, UserID: &user.ID})
+	if err := q.MarkArticleRead(ctx, dbgen.MarkArticleReadParams{ID: articleID, UserID: &user.ID}); err != nil {
+		slog.Warn("failed to mark article read", "error", err)
+	}
 
 	feed, _ := q.GetFeed(ctx, dbgen.GetFeedParams{ID: article.FeedID, UserID: &user.ID})
 
@@ -659,7 +666,11 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Trigger immediate fetch
-	go s.Fetcher.FetchFeed(context.Background(), feed)
+	go func() {
+		if err := s.Fetcher.FetchFeed(context.Background(), feed); err != nil {
+			slog.Warn("background feed fetch failed", "error", err, "feed_id", feed.ID)
+		}
+	}()
 
 	jsonResponse(w, feed)
 }
@@ -1274,13 +1285,17 @@ func (s *Server) apiSearch(w http.ResponseWriter, r *http.Request) {
 
 func jsonResponse(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(data)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		log.Printf("jsonResponse encode error: %v", err)
+	}
 }
 
 func jsonError(w http.ResponseWriter, msg string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(map[string]string{"error": msg})
+	if err := json.NewEncoder(w).Encode(map[string]string{"error": msg}); err != nil {
+		log.Printf("jsonError encode error: %v", err)
+	}
 }
 
 func deref(p any) any {
@@ -1525,11 +1540,13 @@ func (s *Server) apiReorderCategories(w http.ResponseWriter, r *http.Request) {
 	// Update sort_order for each category
 	for i, catID := range req.Order {
 		sortOrder := int64(i)
-		q.UpdateCategorySortOrder(ctx, dbgen.UpdateCategorySortOrderParams{
+		if err := q.UpdateCategorySortOrder(ctx, dbgen.UpdateCategorySortOrderParams{
 			SortOrder: &sortOrder,
 			ID:        catID,
 			UserID:    &user.ID,
-		})
+		}); err != nil {
+			slog.Warn("failed to update category sort order", "error", err, "category_id", catID)
+		}
 	}
 
 	jsonResponse(w, map[string]string{"status": "ok"})
@@ -1758,7 +1775,9 @@ func (s *Server) apiExportOPML(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/xml")
 	w.Header().Set("Content-Disposition", "attachment; filename=feedreader-export.opml")
-	w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		log.Printf("failed to write OPML export: %v", err)
+	}
 }
 
 func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
@@ -1835,10 +1854,12 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 
 		// Assign to category
 		if catID > 0 {
-			q.AddFeedToCategory(ctx, dbgen.AddFeedToCategoryParams{
+			if err := q.AddFeedToCategory(ctx, dbgen.AddFeedToCategoryParams{
 				FeedID:     newFeed.ID,
 				CategoryID: catID,
-			})
+			}); err != nil {
+				slog.Warn("import: failed to add feed to category", "error", err, "feed_id", newFeed.ID, "category_id", catID)
+			}
 		}
 
 		imported++
@@ -1849,7 +1870,9 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 	// Run in background so we can return the response immediately
 	go func() {
 		for _, feed := range importedFeeds {
-			s.Fetcher.FetchFeed(context.Background(), feed)
+			if err := s.Fetcher.FetchFeed(context.Background(), feed); err != nil {
+				slog.Warn("import: background feed fetch failed", "error", err, "feed_id", feed.ID)
+			}
 		}
 	}()
 

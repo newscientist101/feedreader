@@ -560,19 +560,16 @@ function migrateLegacyViewDefaults() {
         'feedreader-view-feed-default': 'defaultFeedView',
         'feedreader-view': 'defaultView',
     };
-    let migrated = false;
     for (const key of keys) {
         if (!getSetting(key) && localStorage.getItem(key)) {
             saveSetting(key, localStorage.getItem(key));
             localStorage.removeItem(key);
-            migrated = true;
         }
     }
     for (const [oldKey, newKey] of Object.entries(localMap)) {
         if (!getSetting(newKey) && localStorage.getItem(oldKey)) {
             saveSetting(newKey, localStorage.getItem(oldKey));
             localStorage.removeItem(oldKey);
-            migrated = true;
         }
     }
 }
