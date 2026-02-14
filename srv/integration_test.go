@@ -103,6 +103,7 @@ func readJSONArray(t *testing.T, resp *http.Response) []any {
 // ---------- Auth integration ----------
 
 func TestIntegration_UnauthenticatedAPIReturns401(t *testing.T) {
+	t.Parallel()
 	ts, _ := integrationServer(t)
 
 	resp, err := http.Get(ts.URL + "/api/counts")
@@ -116,6 +117,7 @@ func TestIntegration_UnauthenticatedAPIReturns401(t *testing.T) {
 }
 
 func TestIntegration_UnauthenticatedPageRedirects(t *testing.T) {
+	t.Parallel()
 	ts, _ := integrationServer(t)
 
 	// Disable redirect following
@@ -133,6 +135,7 @@ func TestIntegration_UnauthenticatedPageRedirects(t *testing.T) {
 }
 
 func TestIntegration_StaticFilesNoAuth(t *testing.T) {
+	t.Parallel()
 	ts, _ := integrationServer(t)
 
 	resp, err := http.Get(ts.URL + "/static/app.js")
@@ -148,6 +151,7 @@ func TestIntegration_StaticFilesNoAuth(t *testing.T) {
 // ---------- Full workflow: create feed → read articles → star → queue ----------
 
 func TestIntegration_FeedWorkflow(t *testing.T) {
+	t.Parallel()
 	ts, _ := integrationServer(t)
 
 	// 1. Create a category
@@ -230,6 +234,7 @@ func TestIntegration_FeedWorkflow(t *testing.T) {
 // ---------- Full workflow: articles (read, star, queue) ----------
 
 func TestIntegration_ArticleWorkflow(t *testing.T) {
+	t.Parallel()
 	ts, s := integrationServer(t)
 
 	// Create feed + article directly in DB (bypasses fetch)
@@ -346,6 +351,7 @@ func TestIntegration_ArticleWorkflow(t *testing.T) {
 // ---------- Scraper + OPML + Settings workflow ----------
 
 func TestIntegration_ScraperAndSettings(t *testing.T) {
+	t.Parallel()
 	ts, _ := integrationServer(t)
 
 	// 1. Create scraper
@@ -428,6 +434,7 @@ func TestIntegration_ScraperAndSettings(t *testing.T) {
 // ---------- OPML round-trip ----------
 
 func TestIntegration_OPMLRoundTrip(t *testing.T) {
+	t.Parallel()
 	ts, _ := integrationServer(t)
 
 	// 1. Create a category and a feed in it
@@ -462,6 +469,7 @@ func TestIntegration_OPMLRoundTrip(t *testing.T) {
 // ---------- Category with exclusion rules ----------
 
 func TestIntegration_ExclusionRules(t *testing.T) {
+	t.Parallel()
 	ts, _ := integrationServer(t)
 
 	// Create category
@@ -506,6 +514,7 @@ func TestIntegration_ExclusionRules(t *testing.T) {
 // ---------- Category hierarchy ----------
 
 func TestIntegration_CategoryHierarchy(t *testing.T) {
+	t.Parallel()
 	ts, _ := integrationServer(t)
 
 	// Create parent
@@ -559,6 +568,7 @@ func TestIntegration_CategoryHierarchy(t *testing.T) {
 // ---------- Pages render for fresh user (no data) ----------
 
 func TestIntegration_EmptyStatePages(t *testing.T) {
+	t.Parallel()
 	ts, _ := integrationServer(t)
 
 	pages := []string{

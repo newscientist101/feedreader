@@ -18,6 +18,7 @@ func testServerWithTemplates(t *testing.T) *Server {
 }
 
 func TestHandleIndex(t *testing.T) {
+	t.Parallel()
 	s := testServerWithTemplates(t)
 	ctx, user := testUser(t, s)
 	createFeed(t, s, user.ID, "Feed1", "http://f1.com")
@@ -32,6 +33,7 @@ func TestHandleIndex(t *testing.T) {
 }
 
 func TestHandleFeeds(t *testing.T) {
+	t.Parallel()
 	s := testServerWithTemplates(t)
 	ctx, user := testUser(t, s)
 	createFeed(t, s, user.ID, "Feed1", "http://f1.com")
@@ -43,6 +45,7 @@ func TestHandleFeeds(t *testing.T) {
 }
 
 func TestHandleStarred(t *testing.T) {
+	t.Parallel()
 	s := testServerWithTemplates(t)
 	ctx, _ := testUser(t, s)
 
@@ -53,6 +56,7 @@ func TestHandleStarred(t *testing.T) {
 }
 
 func TestHandleQueue(t *testing.T) {
+	t.Parallel()
 	s := testServerWithTemplates(t)
 	ctx, _ := testUser(t, s)
 
@@ -63,6 +67,7 @@ func TestHandleQueue(t *testing.T) {
 }
 
 func TestHandleScrapers(t *testing.T) {
+	t.Parallel()
 	s := testServerWithTemplates(t)
 	ctx, _ := testUser(t, s)
 
@@ -73,6 +78,7 @@ func TestHandleScrapers(t *testing.T) {
 }
 
 func TestHandleSettings(t *testing.T) {
+	t.Parallel()
 	s := testServerWithTemplates(t)
 	ctx, _ := testUser(t, s)
 
@@ -83,6 +89,7 @@ func TestHandleSettings(t *testing.T) {
 }
 
 func TestHandleFeedArticles(t *testing.T) {
+	t.Parallel()
 	s := testServerWithTemplates(t)
 	ctx, user := testUser(t, s)
 	feed := createFeed(t, s, user.ID, "f", "http://f")
@@ -96,6 +103,7 @@ func TestHandleFeedArticles(t *testing.T) {
 }
 
 func TestHandleArticle(t *testing.T) {
+	t.Parallel()
 	s := testServerWithTemplates(t)
 	ctx, user := testUser(t, s)
 	feed := createFeed(t, s, user.ID, "f", "http://f")
@@ -116,6 +124,7 @@ func TestHandleArticle(t *testing.T) {
 }
 
 func TestHandleCategoryArticles(t *testing.T) {
+	t.Parallel()
 	s := testServerWithTemplates(t)
 	ctx, user := testUser(t, s)
 	cat := createCategory(t, s, user.ID, "Tech")
@@ -128,6 +137,7 @@ func TestHandleCategoryArticles(t *testing.T) {
 }
 
 func TestHandleCategorySettings(t *testing.T) {
+	t.Parallel()
 	s := testServerWithTemplates(t)
 	ctx, user := testUser(t, s)
 	cat := createCategory(t, s, user.ID, "News")

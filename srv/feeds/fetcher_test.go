@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,14 +20,48 @@ import (
 
 // --- helpers ---
 
+var (
+	cachedSchema     string
+	cachedSchemaOnce sync.Once
+)
+
+func getSchema() string {
+	cachedSchemaOnce.Do(func() {
+		d, err := sql.Open("sqlite", ":memory:")
+		if err != nil {
+			panic(err)
+		}
+		defer d.Close()
+		d.Exec("PRAGMA foreign_keys=ON")
+		if err := db.RunMigrations(d); err != nil {
+			panic(err)
+		}
+		rows, _ := d.Query("SELECT sql FROM sqlite_master WHERE sql IS NOT NULL AND sql NOT LIKE 'CREATE TABLE sqlite_%' ORDER BY rowid")
+		defer rows.Close()
+		var sb strings.Builder
+		for rows.Next() {
+			var s string
+			rows.Scan(&s)
+			sb.WriteString(s)
+			sb.WriteString(";\n")
+		}
+		cachedSchema = sb.String()
+	})
+	return cachedSchema
+}
+
 func setupTestDB(t *testing.T) (*sql.DB, *dbgen.Queries) {
 	t.Helper()
-	sqlDB, err := db.Open(":memory:")
+	schema := getSchema()
+	sqlDB, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { sqlDB.Close() })
-	if err := db.RunMigrations(sqlDB); err != nil {
+	if _, err := sqlDB.Exec("PRAGMA foreign_keys=ON"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sqlDB.Exec(schema); err != nil {
 		t.Fatal(err)
 	}
 	return sqlDB, dbgen.New(sqlDB)
@@ -64,6 +100,7 @@ func validRSSBody(title, guid, link string) string {
 // --- strPtr ---
 
 func TestStrPtr(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		in   string
 		nil_ bool
@@ -88,6 +125,7 @@ func TestStrPtr(t *testing.T) {
 // --- httpErrorDescription ---
 
 func TestHttpErrorDescription(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		code int
 		want string
@@ -119,6 +157,7 @@ func TestHttpErrorDescription(t *testing.T) {
 // --- NewFetcher ---
 
 func TestNewFetcher(t *testing.T) {
+	t.Parallel()
 	sqlDB, _ := setupTestDB(t)
 	f := NewFetcher(sqlDB, nil)
 	if f.DB != sqlDB {
@@ -132,6 +171,7 @@ func TestNewFetcher(t *testing.T) {
 // --- fetchRSSFeed ---
 
 func TestFetchRSSFeed_Success(t *testing.T) {
+	t.Parallel()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/xml")
 		fmt.Fprint(w, validRSSBody("Hello", "guid-1", "https://example.com/1"))
@@ -158,6 +198,7 @@ func TestFetchRSSFeed_Success(t *testing.T) {
 }
 
 func TestFetchRSSFeed_Gzip(t *testing.T) {
+	t.Parallel()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Encoding", "gzip")
 		w.Header().Set("Content-Type", "application/xml")
@@ -178,6 +219,7 @@ func TestFetchRSSFeed_Gzip(t *testing.T) {
 }
 
 func TestFetchRSSFeed_HTTPError(t *testing.T) {
+	t.Parallel()
 	for _, code := range []int{403, 404, 500} {
 		t.Run(fmt.Sprintf("HTTP_%d", code), func(t *testing.T) {
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -195,6 +237,7 @@ func TestFetchRSSFeed_HTTPError(t *testing.T) {
 }
 
 func TestFetchRSSFeed_InvalidXML(t *testing.T) {
+	t.Parallel()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "not xml at all")
 	}))
@@ -208,6 +251,7 @@ func TestFetchRSSFeed_InvalidXML(t *testing.T) {
 }
 
 func TestFetchRSSFeed_BadURL(t *testing.T) {
+	t.Parallel()
 	f := &Fetcher{Client: http.DefaultClient}
 	_, _, err := f.fetchRSSFeed(context.Background(), "http://127.0.0.1:1/nope")
 	if err == nil {
@@ -216,6 +260,7 @@ func TestFetchRSSFeed_BadURL(t *testing.T) {
 }
 
 func TestFetchRSSFeed_InvalidGzip(t *testing.T) {
+	t.Parallel()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Encoding", "gzip")
 		w.Write([]byte("not gzip data"))
@@ -232,6 +277,7 @@ func TestFetchRSSFeed_InvalidGzip(t *testing.T) {
 // --- FetchFeed integration (RSS path) ---
 
 func TestFetchFeed_RSS(t *testing.T) {
+	t.Parallel()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, validRSSBody("Article 1", "rss-guid-1", "https://example.com/1"))
 	}))
@@ -282,6 +328,7 @@ func TestFetchFeed_RSS(t *testing.T) {
 }
 
 func TestFetchFeed_RSS_DuplicateGUID(t *testing.T) {
+	t.Parallel()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, validRSSBody("Article", "dup-guid", "https://example.com/dup"))
 	}))
@@ -312,6 +359,7 @@ func TestFetchFeed_RSS_DuplicateGUID(t *testing.T) {
 }
 
 func TestFetchFeed_RSS_FetchError(t *testing.T) {
+	t.Parallel()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 	}))
@@ -338,6 +386,7 @@ func TestFetchFeed_RSS_FetchError(t *testing.T) {
 }
 
 func TestFetchFeed_UnknownType(t *testing.T) {
+	t.Parallel()
 	sqlDB, q := setupTestDB(t)
 	user := createTestUser(t, q)
 
@@ -369,6 +418,7 @@ func TestFetchFeed_UnknownType(t *testing.T) {
 }
 
 func TestFetchFeed_Atom(t *testing.T) {
+	t.Parallel()
 	atomXML := `<?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
   <title>Atom Feed</title>
@@ -408,6 +458,7 @@ func TestFetchFeed_Atom(t *testing.T) {
 }
 
 func TestFetchFeed_ScraperMissingModule(t *testing.T) {
+	t.Parallel()
 	sqlDB, q := setupTestDB(t)
 	user := createTestUser(t, q)
 
@@ -423,6 +474,7 @@ func TestFetchFeed_ScraperMissingModule(t *testing.T) {
 }
 
 func TestFetchFeed_ScraperNoRunner(t *testing.T) {
+	t.Parallel()
 	sqlDB, q := setupTestDB(t)
 	user := createTestUser(t, q)
 
@@ -449,6 +501,7 @@ func TestFetchFeed_ScraperNoRunner(t *testing.T) {
 }
 
 func TestFetchFeed_HuggingFaceNoConfig(t *testing.T) {
+	t.Parallel()
 	sqlDB, q := setupTestDB(t)
 	user := createTestUser(t, q)
 
@@ -464,6 +517,7 @@ func TestFetchFeed_HuggingFaceNoConfig(t *testing.T) {
 }
 
 func TestFetchFeed_HuggingFaceBadConfig(t *testing.T) {
+	t.Parallel()
 	sqlDB, q := setupTestDB(t)
 	user := createTestUser(t, q)
 
@@ -485,6 +539,7 @@ func TestFetchFeed_HuggingFaceBadConfig(t *testing.T) {
 // --- FetchAll ---
 
 func TestFetchAll(t *testing.T) {
+	t.Parallel()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, validRSSBody("FetchAll Item", "fa-guid", "https://example.com/fa"))
 	}))
@@ -511,6 +566,7 @@ func TestFetchAll(t *testing.T) {
 // --- Start / Stop ---
 
 func TestStartStop(t *testing.T) {
+	t.Parallel()
 	sqlDB, _ := setupTestDB(t)
 	f := &Fetcher{DB: sqlDB, Client: http.DefaultClient}
 
@@ -537,6 +593,7 @@ func TestStartStop(t *testing.T) {
 // --- FetchFeed with items that have empty GUID (should be skipped) ---
 
 func TestFetchFeed_SkipsEmptyGUID(t *testing.T) {
+	t.Parallel()
 	// RSS with an item that has no <guid>
 	xml := `<?xml version="1.0"?>
 <rss version="2.0">

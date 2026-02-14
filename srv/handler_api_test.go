@@ -10,6 +10,7 @@ import (
 // --------------- Article actions ---------------
 
 func TestHandlerMarkRead(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	feed := createFeed(t, s, user.ID, "f", "http://f")
@@ -33,6 +34,7 @@ func TestHandlerMarkRead(t *testing.T) {
 }
 
 func TestHandlerMarkUnread(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	feed := createFeed(t, s, user.ID, "f", "http://f")
@@ -46,6 +48,7 @@ func TestHandlerMarkUnread(t *testing.T) {
 }
 
 func TestHandlerToggleStar(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	feed := createFeed(t, s, user.ID, "f", "http://f")
@@ -65,6 +68,7 @@ func TestHandlerToggleStar(t *testing.T) {
 }
 
 func TestHandlerToggleQueue(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	feed := createFeed(t, s, user.ID, "f", "http://f")
@@ -91,6 +95,7 @@ func TestHandlerToggleQueue(t *testing.T) {
 }
 
 func TestHandlerRemoveFromQueue(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	feed := createFeed(t, s, user.ID, "f", "http://f")
@@ -108,6 +113,7 @@ func TestHandlerRemoveFromQueue(t *testing.T) {
 }
 
 func TestHandlerListQueue(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	feed := createFeed(t, s, user.ID, "f", "http://f")
@@ -131,6 +137,7 @@ func TestHandlerListQueue(t *testing.T) {
 }
 
 func TestHandlerMarkAllRead(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	feed := createFeed(t, s, user.ID, "f", "http://f")
@@ -149,6 +156,7 @@ func TestHandlerMarkAllRead(t *testing.T) {
 }
 
 func TestHandlerMarkFeedRead(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	feed := createFeed(t, s, user.ID, "f", "http://f")
@@ -170,6 +178,7 @@ func TestHandlerMarkFeedRead(t *testing.T) {
 // --------------- Feed CRUD ---------------
 
 func TestHandlerDeleteFeed(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	feed := createFeed(t, s, user.ID, "f", "http://f")
@@ -189,6 +198,7 @@ func TestHandlerDeleteFeed(t *testing.T) {
 }
 
 func TestHandlerGetFeed(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	feed := createFeed(t, s, user.ID, "myfeed", "http://f")
@@ -221,6 +231,7 @@ func TestHandlerGetFeed(t *testing.T) {
 // --------------- Search ---------------
 
 func TestHandlerSearch(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	feed := createFeed(t, s, user.ID, "f", "http://f")
@@ -247,6 +258,7 @@ func TestHandlerSearch(t *testing.T) {
 // --------------- Counts ---------------
 
 func TestHandlerGetCounts(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	feed := createFeed(t, s, user.ID, "f", "http://f")
@@ -267,6 +279,7 @@ func TestHandlerGetCounts(t *testing.T) {
 // --------------- Settings ---------------
 
 func TestHandlerSettings(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, _ := testUser(t, s)
 
@@ -306,6 +319,7 @@ func TestHandlerSettings(t *testing.T) {
 }
 
 func TestHandlerSettingsAllKeys(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, _ := testUser(t, s)
 
@@ -334,6 +348,7 @@ func TestHandlerSettingsAllKeys(t *testing.T) {
 // --------------- Categories ---------------
 
 func TestHandlerCategoryCRUD(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, _ := testUser(t, s)
 
@@ -386,6 +401,7 @@ func TestHandlerCategoryCRUD(t *testing.T) {
 }
 
 func TestHandlerSetFeedCategory(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	feed := createFeed(t, s, user.ID, "f", "http://f")
@@ -412,6 +428,7 @@ func TestHandlerSetFeedCategory(t *testing.T) {
 }
 
 func TestHandlerMarkCategoryRead(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	_ = createFeed(t, s, user.ID, "f", "http://f")
@@ -436,6 +453,7 @@ func TestHandlerMarkCategoryRead(t *testing.T) {
 // --------------- Exclusions ---------------
 
 func TestHandlerExclusions(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, _ := testUser(t, s)
 
@@ -501,6 +519,7 @@ func TestHandlerExclusions(t *testing.T) {
 // --------------- AI Status ---------------
 
 func TestHandlerAIStatus(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, _ := testUser(t, s)
 

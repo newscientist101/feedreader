@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"srv.exe.dev/db"
@@ -15,10 +16,49 @@ import (
 	"srv.exe.dev/srv/scrapers"
 )
 
+// cachedSchema holds the fully-migrated schema SQL so we only run
+// migrations once per test binary instead of once per test.
+var (
+	cachedSchema     string
+	cachedSchemaOnce sync.Once
+)
+
+// getSchema runs migrations once and captures the resulting schema.
+func getSchema(t *testing.T) string {
+	t.Helper()
+	cachedSchemaOnce.Do(func() {
+		d, err := sql.Open("sqlite", ":memory:")
+		if err != nil {
+			panic(err)
+		}
+		defer d.Close()
+		d.Exec("PRAGMA foreign_keys=ON")
+		if err := db.RunMigrations(d); err != nil {
+			panic(err)
+		}
+		rows, err := d.Query("SELECT sql FROM sqlite_master WHERE sql IS NOT NULL AND sql NOT LIKE 'CREATE TABLE sqlite_%' ORDER BY rowid")
+		if err != nil {
+			panic(err)
+		}
+		defer rows.Close()
+		var sb strings.Builder
+		for rows.Next() {
+			var s string
+			rows.Scan(&s)
+			sb.WriteString(s)
+			sb.WriteString(";\n")
+		}
+		cachedSchema = sb.String()
+	})
+	return cachedSchema
+}
+
 // testServer creates a Server backed by an in-memory SQLite DB with
-// migrations applied. The DB is closed when the test finishes.
+// the fully-migrated schema applied. Uses a cached schema dump so
+// migrations only run once per test binary.
 func testServer(t *testing.T) *Server {
 	t.Helper()
+	schema := getSchema(t)
 	sqlDB, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatal(err)
@@ -27,7 +67,7 @@ func testServer(t *testing.T) *Server {
 	if _, err := sqlDB.Exec("PRAGMA foreign_keys=ON"); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.RunMigrations(sqlDB); err != nil {
+	if _, err := sqlDB.Exec(schema); err != nil {
 		t.Fatal(err)
 	}
 	s := &Server{

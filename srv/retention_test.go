@@ -18,6 +18,7 @@ func TestNewRetentionManager(t *testing.T) {
 }
 
 func TestRetentionManager_StartStop(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	rm := NewRetentionManager(s, 30)
 	rm.checkInterval = 10 * time.Second // short interval to avoid blocking
@@ -28,6 +29,7 @@ func TestRetentionManager_StartStop(t *testing.T) {
 }
 
 func TestRetentionManager_RunCleanupNow(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	rm := NewRetentionManager(s, 30)
 
@@ -41,6 +43,7 @@ func TestRetentionManager_RunCleanupNow(t *testing.T) {
 }
 
 func TestRetentionManager_GetStats(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	rm := NewRetentionManager(s, 30)
 
@@ -57,6 +60,7 @@ func TestRetentionManager_GetStats(t *testing.T) {
 }
 
 func TestRetentionManager_CleanupWithData(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	feed := createFeed(t, s, user.ID, "f", "http://f")

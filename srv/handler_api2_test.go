@@ -51,6 +51,7 @@ func createScraperModule(t *testing.T, s *Server, userID int64, name, script str
 // --------------- Scraper CRUD ---------------
 
 func TestHandlerScraperCRUD(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, _ := testUser(t, s)
 
@@ -148,6 +149,7 @@ func TestHandlerScraperCRUD(t *testing.T) {
 // --------------- Feed Create / Update / Refresh / Status ---------------
 
 func TestHandlerCreateFeed(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, _ := testUser(t, s)
 	// Give the server a no-op fetcher so the goroutine doesn't panic
@@ -209,6 +211,7 @@ func TestHandlerCreateFeed(t *testing.T) {
 }
 
 func TestHandlerUpdateFeed(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	feed := createFeed(t, s, user.ID, "Original", "http://orig.com")
@@ -255,6 +258,7 @@ func TestHandlerUpdateFeed(t *testing.T) {
 }
 
 func TestHandlerRefreshFeed(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	s.Fetcher = testFetcher(s)
@@ -286,6 +290,7 @@ func TestHandlerRefreshFeed(t *testing.T) {
 }
 
 func TestHandlerGetFeedStatus(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	feed := createFeed(t, s, user.ID, "f", "http://f")
@@ -318,6 +323,7 @@ func TestHandlerGetFeedStatus(t *testing.T) {
 // --------------- Category Articles / Feed Articles ---------------
 
 func TestHandlerGetCategoryArticles(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	cat := createCategory(t, s, user.ID, "News")
@@ -352,6 +358,7 @@ func TestHandlerGetCategoryArticles(t *testing.T) {
 }
 
 func TestHandlerGetFeedArticles(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	feed := createFeed(t, s, user.ID, "f", "http://f")
@@ -381,6 +388,7 @@ func TestHandlerGetFeedArticles(t *testing.T) {
 // --------------- Reorder / Set Parent ---------------
 
 func TestHandlerReorderCategories(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	cat1 := createCategory(t, s, user.ID, "A")
@@ -400,6 +408,7 @@ func TestHandlerReorderCategories(t *testing.T) {
 }
 
 func TestHandlerSetCategoryParent(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	parent := createCategory(t, s, user.ID, "Parent")
@@ -447,6 +456,7 @@ func TestHandlerSetCategoryParent(t *testing.T) {
 // --------------- OPML ---------------
 
 func TestHandlerExportOPML(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, user := testUser(t, s)
 	createFeed(t, s, user.ID, "Feed1", "http://f1.com/rss")
@@ -468,6 +478,7 @@ func TestHandlerExportOPML(t *testing.T) {
 }
 
 func TestHandlerImportOPML_XML(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, _ := testUser(t, s)
 	s.Fetcher = testFetcher(s)
@@ -512,6 +523,7 @@ func TestHandlerImportOPML_XML(t *testing.T) {
 }
 
 func TestHandlerImportOPML_Multipart(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, _ := testUser(t, s)
 	s.Fetcher = testFetcher(s)
@@ -541,6 +553,7 @@ func TestHandlerImportOPML_Multipart(t *testing.T) {
 }
 
 func TestHandlerImportOPML_BadData(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, _ := testUser(t, s)
 
@@ -558,6 +571,7 @@ func TestHandlerImportOPML_BadData(t *testing.T) {
 // --------------- Retention ---------------
 
 func TestHandlerRetentionStats(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, _ := testUser(t, s)
 
@@ -572,6 +586,7 @@ func TestHandlerRetentionStats(t *testing.T) {
 }
 
 func TestHandlerRetentionCleanup(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, _ := testUser(t, s)
 
@@ -588,6 +603,7 @@ func TestHandlerRetentionCleanup(t *testing.T) {
 // --------------- Generate Scraper ---------------
 
 func TestHandlerGenerateScraper_Validation(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	ctx, _ := testUser(t, s)
 
@@ -611,6 +627,7 @@ func TestHandlerGenerateScraper_Validation(t *testing.T) {
 // --------------- Gzip Middleware ---------------
 
 func TestGzipMiddleware(t *testing.T) {
+	t.Parallel()
 	handler := gzipMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("hello world"))
 	}))

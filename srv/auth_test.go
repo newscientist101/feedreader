@@ -14,6 +14,7 @@ func TestGetUser_NoUser(t *testing.T) {
 }
 
 func TestAuthMiddleware_StaticBypass(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	called := false
 	handler := s.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -30,6 +31,7 @@ func TestAuthMiddleware_StaticBypass(t *testing.T) {
 }
 
 func TestAuthMiddleware_NoHeaders_APIReturns401(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	handler := s.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
@@ -44,6 +46,7 @@ func TestAuthMiddleware_NoHeaders_APIReturns401(t *testing.T) {
 }
 
 func TestAuthMiddleware_NoHeaders_PageRedirects(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	handler := s.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
@@ -62,6 +65,7 @@ func TestAuthMiddleware_NoHeaders_PageRedirects(t *testing.T) {
 }
 
 func TestAuthMiddleware_WithHeaders(t *testing.T) {
+	t.Parallel()
 	s := testServer(t)
 	var gotUser *User
 	handler := s.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
