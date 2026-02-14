@@ -235,19 +235,23 @@ func timeAgo(t *time.Time) string {
 	diff := time.Since(*t)
 	switch {
 	case diff < time.Minute:
-		return "just now"
+		s := int(diff.Seconds())
+		if s == 1 {
+			return "1 sec ago"
+		}
+		return fmt.Sprintf("%d sec ago", s)
 	case diff < time.Hour:
 		m := int(diff.Minutes())
 		if m == 1 {
-			return "1 minute ago"
+			return "1 min ago"
 		}
-		return fmt.Sprintf("%d minutes ago", m)
+		return fmt.Sprintf("%d min ago", m)
 	case diff < 24*time.Hour:
 		h := int(diff.Hours())
 		if h == 1 {
-			return "1 hour ago"
+			return "1 hr ago"
 		}
-		return fmt.Sprintf("%d hours ago", h)
+		return fmt.Sprintf("%d hr ago", h)
 	case diff < 7*24*time.Hour:
 		d := int(diff.Hours() / 24)
 		if d == 1 {
