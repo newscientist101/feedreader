@@ -645,6 +645,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize folder drag-and-drop
     initFolderDragDrop();
+
+    // Initialize settings page controls (no-op if not on settings page)
+    initSettingsPage();
 });
 
 // API helpers
@@ -1636,3 +1639,90 @@ document.addEventListener('dragstart', (event) => {
     }
 }, true);
 
+
+// --- Helpers moved from inline template scripts ---
+
+// Generic confirm-and-delete: shows confirm dialog, calls DELETE, reloads on success.
+function confirmDeleteAndReload(url, name, noun) {
+    if (!confirm(`Delete ${noun} "${name}"? ${noun === 'feed' ? 'This will also delete all its articles.' : ''}`)) {
+        return;
+    }
+    api('DELETE', url)
+        .then(() => location.reload())
+        .catch(e => alert(`Failed to delete ${noun}: ` + e.message));
+}
+
+// Settings page: toggle auto-mark-read
+function toggleAutoMarkRead(enabled) {
+    saveSetting('autoMarkRead', String(enabled));
+}
+
+// Settings page: set a preference and apply it immediately
+function setPreference(key, value) {
+    saveSetting(key, value);
+    if (key === 'hideReadArticles') {
+        applyHideReadArticles(value);
+    } else if (key === 'hideEmptyFeeds') {
+        applyHideEmptyFeeds(value);
+    }
+}
+
+// Toggle read articles visibility (used by settings page for instant feedback)
+function applyHideReadArticles(value) {
+    document.querySelectorAll('.article-card.read').forEach(card => {
+        card.style.display = value === 'hide' ? 'none' : '';
+    });
+}
+
+// Toggle empty feeds visibility (used by settings page for instant feedback)
+function applyHideEmptyFeeds(value) {
+    document.querySelectorAll('.feed-item').forEach(item => {
+        const badge = item.querySelector('.badge');
+        const count = badge ? parseInt(badge.textContent || '0', 10) : 0;
+        if (!count) {
+            item.style.display = value === 'hide' ? 'none' : '';
+        } else {
+            item.style.display = '';
+        }
+    });
+}
+
+// Settings page: run retention cleanup
+async function runCleanup() {
+    const status = document.getElementById('cleanup-status');
+    status.textContent = 'Cleaning up...';
+    status.className = 'cleanup-status';
+    try {
+        const data = await api('POST', '/api/retention/cleanup');
+        status.textContent = `Deleted ${data.deleted} articles`;
+        status.className = 'cleanup-status success';
+        document.getElementById('articles-to-delete').textContent = '0';
+    } catch (err) {
+        status.textContent = 'Cleanup failed: ' + err.message;
+        status.className = 'cleanup-status error';
+    }
+}
+
+// Settings page: initialize controls from server settings
+function initSettingsPage() {
+    const toggle = document.getElementById('auto-mark-read');
+    if (!toggle) return; // not on settings page
+
+    toggle.checked = getSetting('autoMarkRead') === 'true';
+
+    const hideReadValue = getSetting('hideReadArticles') || 'show';
+    const hideReadRadio = document.querySelector(`input[name="hide-read"][value="${hideReadValue}"]`);
+    if (hideReadRadio) hideReadRadio.checked = true;
+
+    const hideEmptyValue = getSetting('hideEmptyFeeds') || 'show';
+    const hideEmptyRadio = document.querySelector(`input[name="hide-empty"][value="${hideEmptyValue}"]`);
+    if (hideEmptyRadio) hideEmptyRadio.checked = true;
+
+    const folderView = getSetting('defaultFolderView') || 'card';
+    const folderRadio = document.querySelector(`input[name="folder-view"][value="${folderView}"]`);
+    if (folderRadio) folderRadio.checked = true;
+
+    const feedView = getSetting('defaultFeedView') || 'card';
+    const feedRadio = document.querySelector(`input[name="feed-view"][value="${feedView}"]`);
+    if (feedRadio) feedRadio.checked = true;
+}

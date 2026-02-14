@@ -119,17 +119,8 @@ document.getElementById('add-exclusion-form').addEventListener('submit', async (
     const type = document.getElementById('exclusion-type').value;
     const pattern = document.getElementById('exclusion-pattern').value;
     const isRegex = document.getElementById('exclusion-regex').checked;
-
     try {
-        const res = await fetch(`/api/categories/${categoryId}/exclusions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type, pattern, isRegex })
-        });
-        if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error || 'Failed to create rule');
-        }
+        await api('POST', `/api/categories/${categoryId}/exclusions`, { type, pattern, isRegex });
         location.reload();
     } catch (e) {
         alert('Error: ' + e.message);
@@ -138,13 +129,9 @@ document.getElementById('add-exclusion-form').addEventListener('submit', async (
 
 async function deleteExclusion(id) {
     if (!confirm('Delete this exclusion rule?')) return;
-    try {
-        const res = await fetch(`/api/exclusions/${id}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error('Failed to delete');
-        location.reload();
-    } catch (e) {
-        alert('Error: ' + e.message);
-    }
+    api('DELETE', `/api/exclusions/${id}`)
+        .then(() => location.reload())
+        .catch(e => alert('Error: ' + e.message));
 }
 </script>
 {{end}}

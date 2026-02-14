@@ -202,8 +202,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const statusEl = document.getElementById('ai-status');
     try {
-        const resp = await fetch('/api/ai/status');
-        const data = await resp.json();
+        const data = await api('GET', '/api/ai/status');
         if (data.available) {
             statusEl.className = 'ai-status available';
             statusEl.querySelector('.status-text').textContent = 'Shelley is available';
@@ -226,25 +225,15 @@ document.getElementById('ai-generate-form').addEventListener('submit', async (e)
     const btn = document.getElementById('ai-generate-btn');
     const url = document.getElementById('ai-url').value;
     const description = document.getElementById('ai-description').value;
-    
+
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> Shelley is analyzing the page...';
-    
+
     try {
-        const resp = await fetch('/api/ai/generate-scraper', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url, description })
-        });
-        const data = await resp.json();
-        
-        if (data.error) {
-            alert('Error: ' + data.error);
-        } else {
-            document.getElementById('ai-result-name').value = data.name || 'Custom Scraper';
-            document.getElementById('ai-result-config').textContent = data.config;
-            document.getElementById('ai-result').style.display = 'block';
-        }
+        const data = await api('POST', '/api/ai/generate-scraper', { url, description });
+        document.getElementById('ai-result-name').value = data.name || 'Custom Scraper';
+        document.getElementById('ai-result-config').textContent = data.config;
+        document.getElementById('ai-result').style.display = 'block';
     } catch (err) {
         alert('Failed to generate: ' + err.message);
     } finally {
@@ -254,14 +243,9 @@ document.getElementById('ai-generate-form').addEventListener('submit', async (e)
 });
 
 function useGeneratedConfig() {
-    const name = document.getElementById('ai-result-name').value;
-    const config = document.getElementById('ai-result-config').textContent;
-    
-    document.getElementById('scraper-name').value = name;
-    document.getElementById('scraper-script').value = config;
+    document.getElementById('scraper-name').value = document.getElementById('ai-result-name').value;
+    document.getElementById('scraper-script').value = document.getElementById('ai-result-config').textContent;
     document.getElementById('ai-result').style.display = 'none';
-    
-    // Scroll to the form
     document.querySelector('.manual-scraper-section').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -271,15 +255,12 @@ function hideAIResult() {
 
 async function editScraper(id) {
     try {
-        const resp = await fetch(`/api/scrapers/${id}`);
-        const scraper = await resp.json();
-        
+        const scraper = await api('GET', `/api/scrapers/${id}`);
         document.getElementById('modal-scraper-id').value = scraper.id;
         document.getElementById('modal-scraper-name').value = scraper.name;
         document.getElementById('modal-scraper-description').value = scraper.description || '';
         try {
-            const config = JSON.parse(scraper.script);
-            document.getElementById('modal-scraper-script').value = JSON.stringify(config, null, 2);
+            document.getElementById('modal-scraper-script').value = JSON.stringify(JSON.parse(scraper.script), null, 2);
         } catch {
             document.getElementById('modal-scraper-script').value = scraper.script;
         }
@@ -289,32 +270,26 @@ async function editScraper(id) {
     }
 }
 
+function validateJSON(str) {
+    try {
+        JSON.parse(str);
+        return true;
+    } catch (err) {
+        alert('Invalid JSON: ' + err.message);
+        return false;
+    }
+}
+
 async function saveScraperConfig() {
     const id = document.getElementById('modal-scraper-id').value;
     const name = document.getElementById('modal-scraper-name').value;
     const description = document.getElementById('modal-scraper-description').value;
     const script = document.getElementById('modal-scraper-script').value;
+    if (!validateJSON(script)) return;
 
     try {
-        JSON.parse(script);
-    } catch (err) {
-        alert('Invalid JSON: ' + err.message);
-        return;
-    }
-
-    try {
-        const resp = await fetch(`/api/scrapers/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, description, script })
-        });
-        if (resp.ok) {
-            window.location.href = '/scrapers';
-        } else {
-            let msg = 'Failed to save';
-            try { const data = await resp.json(); msg = data.error || msg; } catch {}
-            alert(msg);
-        }
+        await api('PUT', `/api/scrapers/${id}`, { name, description, script });
+        window.location.href = '/scrapers';
     } catch (err) {
         alert('Failed to save: ' + err.message);
     }
@@ -326,18 +301,9 @@ function closeConfigModal() {
 
 async function deleteScraper(id) {
     if (!confirm('Delete this scraper module?')) return;
-    
-    try {
-        const resp = await fetch(`/api/scrapers/${id}`, { method: 'DELETE' });
-        if (resp.ok) {
-            location.reload();
-        } else {
-            const data = await resp.json();
-            alert(data.error || 'Failed to delete');
-        }
-    } catch (err) {
-        alert('Failed to delete: ' + err.message);
-    }
+    api('DELETE', `/api/scrapers/${id}`)
+        .then(() => location.reload())
+        .catch(err => alert('Failed to delete: ' + err.message));
 }
 
 // Manual scraper form
@@ -348,42 +314,16 @@ document.getElementById('add-scraper-form').addEventListener('submit', async (e)
     _scraperSubmitting = true;
     const btn = e.target.querySelector('button[type="submit"]');
     btn.disabled = true;
-    
+
     const name = document.getElementById('scraper-name').value;
     const description = document.getElementById('scraper-description').value;
     const script = document.getElementById('scraper-script').value;
     const scriptType = document.getElementById('script-type').value;
-    
-    // Validate JSON
+    if (!validateJSON(script)) { btn.disabled = false; _scraperSubmitting = false; return; }
+
     try {
-        JSON.parse(script);
-    } catch (err) {
-        alert('Invalid JSON: ' + err.message);
-        return;
-    }
-    
-    try {
-        const reqId = crypto.randomUUID();
-        console.log('Submitting scraper, reqId:', reqId);
-        const resp = await fetch('/api/scrapers', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Request-Id': reqId },
-            body: JSON.stringify({ name, description, script, script_type: scriptType })
-        });
-        
-        if (resp.ok) {
-            window.location.href = '/scrapers';
-            return;
-        }
-        let msg = 'Failed to create scraper';
-        try {
-            const data = await resp.json();
-            msg = data.error || msg;
-        } catch {
-            msg = await resp.text() || msg;
-        }
-        alert(msg);
-        btn.disabled = false; _scraperSubmitting = false;
+        await api('POST', '/api/scrapers', { name, description, script, script_type: scriptType });
+        window.location.href = '/scrapers';
     } catch (err) {
         alert('Failed to create: ' + err.message);
         btn.disabled = false; _scraperSubmitting = false;
@@ -393,46 +333,25 @@ document.getElementById('add-scraper-form').addEventListener('submit', async (e)
 function insertField(key, defaultValue) {
     const ta = document.getElementById('scraper-script');
     const val = ta.value;
-    const pos = ta.selectionStart;
 
-    // Format the value
-    let valueStr;
-    if (typeof defaultValue === 'boolean') {
-        valueStr = String(defaultValue);
-    } else {
-        valueStr = '"' + (defaultValue || '') + '"';
-    }
+    let valueStr = typeof defaultValue === 'boolean' ? String(defaultValue) : '"' + (defaultValue || '') + '"';
     const newLine = '  "' + key + '": ' + valueStr;
 
     if (val.trim() === '') {
-        // Empty textarea - start a new JSON object
         ta.value = '{\n' + newLine + '\n}';
-        // Place cursor inside the value
-        const cursorPos = 2 + newLine.length - (typeof defaultValue === 'boolean' ? 0 : 1);
-        ta.selectionStart = ta.selectionEnd = cursorPos;
+        ta.selectionStart = ta.selectionEnd = 2 + newLine.length - (typeof defaultValue === 'boolean' ? 0 : 1);
         ta.focus();
         return;
     }
 
-    // Find where to insert: before the cursor position, or at end before closing brace
-    // Find the last non-whitespace char before the closing brace
     const trimmed = val.trimEnd();
-    let insertPos;
-    let prefix = '';
-
     if (trimmed.endsWith('}')) {
-        // Insert before the closing brace
         const bracePos = val.lastIndexOf('}');
         const beforeBrace = val.substring(0, bracePos).trimEnd();
-
-        // Add comma to previous line if needed
         if (beforeBrace.length > 0 && !beforeBrace.endsWith(',') && !beforeBrace.endsWith('{')) {
-            // Find position of last non-whitespace before brace
             const lastCharPos = val.substring(0, bracePos).search(/\S\s*$/);
             if (lastCharPos >= 0) {
-                const before = val.substring(0, lastCharPos + 1);
-                const after = val.substring(lastCharPos + 1, bracePos);
-                ta.value = before + ',' + after + newLine + '\n}';
+                ta.value = val.substring(0, lastCharPos + 1) + ',' + val.substring(lastCharPos + 1, bracePos) + newLine + '\n}';
             } else {
                 ta.value = val.substring(0, bracePos) + newLine + '\n}';
             }
@@ -440,21 +359,12 @@ function insertField(key, defaultValue) {
             ta.value = val.substring(0, bracePos) + newLine + '\n}';
         }
     } else {
-        // No closing brace found, just append
         ta.value = val + ',\n' + newLine;
     }
 
-    // Place cursor inside the value quotes
     const inserted = ta.value.lastIndexOf(newLine);
     if (inserted >= 0) {
-        let cursorPos;
-        if (typeof defaultValue === 'boolean') {
-            cursorPos = inserted + newLine.length;
-        } else {
-            // Position cursor inside the quotes, after the default value
-            cursorPos = inserted + newLine.length - 1;
-        }
-        ta.selectionStart = ta.selectionEnd = cursorPos;
+        ta.selectionStart = ta.selectionEnd = inserted + newLine.length - (typeof defaultValue === 'boolean' ? 0 : 1);
     }
     ta.focus();
 }
@@ -482,7 +392,6 @@ function updateConfigTemplate() {
     }
 }
 
-// Close modal on outside click
 document.getElementById('config-modal').addEventListener('click', (e) => {
     if (e.target.id === 'config-modal') closeConfigModal();
 });
