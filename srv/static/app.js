@@ -1362,15 +1362,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('search');
     if (searchInput) {
         let timeout;
+        let searchAbort = null;
+        let originalHTML = null;
         searchInput.addEventListener('input', (e) => {
             clearTimeout(timeout);
+            if (searchAbort) { searchAbort.abort(); searchAbort = null; }
             timeout = setTimeout(async () => {
                 const q = e.target.value.trim();
                 if (q.length < 2) {
-                    location.reload();
+                    // Restore original article list if we saved it
+                    if (originalHTML !== null) {
+                        const list = document.getElementById('articles-list');
+                        if (list) list.innerHTML = originalHTML;
+                        originalHTML = null;
+                        applyUserPreferences();
+                    }
                     return;
                 }
+                // Save original HTML before first search replaces it
+                if (originalHTML === null) {
+                    const list = document.getElementById('articles-list');
+                    if (list) originalHTML = list.innerHTML;
+                }
                 try {
+                    searchAbort = new AbortController();
                     let searchUrl = `/api/search?q=${encodeURIComponent(q)}`;
                     // Scope search to current feed or category context
                     const pathMatch = window.location.pathname.match(/^\/(feed|category)\/(\d+)/);
@@ -1378,9 +1393,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         const [, type, id] = pathMatch;
                         searchUrl += type === 'feed' ? `&feed_id=${id}` : `&category_id=${id}`;
                     }
-                    const articles = await api('GET', searchUrl);
+                    const res = await fetch(searchUrl, { signal: searchAbort.signal });
+                    const articles = await res.json();
+                    searchAbort = null;
+                    if (!res.ok) throw new Error(articles.error || 'Search failed');
                     renderSearchResults(articles);
                 } catch (e) {
+                    if (e.name === 'AbortError') return; // cancelled, ignore
                     console.error('Search failed:', e);
                 }
             }, 300);
