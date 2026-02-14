@@ -133,7 +133,6 @@ function initAutoMarkRead() {
                 if (articleId && !article.classList.contains('read')) {
                     markReadSilent(articleId);
                     article.classList.add('read');
-                    updateUnreadCounts(-1);
                 }
             }
         });
@@ -175,17 +174,41 @@ function openArticleExternal(event, id, url) {
     window.open(url, '_blank');
 }
 
-// Update unread counts in sidebar
-function updateUnreadCounts(delta) {
-    // Update main unread count
-    const unreadBadge = document.querySelector('.nav-item .badge');
-    if (unreadBadge) {
-        const current = parseInt(unreadBadge.textContent) || 0;
-        const newCount = Math.max(0, current + delta);
-        unreadBadge.textContent = newCount;
+// Show loading spinner in the articles list
+function showArticlesLoading() {
+    const list = document.getElementById('articles-list');
+    if (list) {
+        list.innerHTML = `
+            <div class="loading-state">
+                <div class="spinner"></div>
+                <p>Loading articles...</p>
+            </div>
+        `;
     }
-    
-    // Update feed counts would require knowing which feed, so we skip for simplicity
+}
+
+// Create or update the feed error banner
+function showFeedErrorBanner(feedId, errorMessage) {
+    let banner = document.querySelector('.feed-error-banner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.className = 'feed-error-banner';
+        const view = document.querySelector('.articles-view');
+        if (view) view.insertBefore(banner, view.firstChild);
+    }
+    banner.innerHTML = `
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+        </svg>
+        <span>Last fetch failed: ${errorMessage}</span>
+        <button onclick="refreshFeed(${feedId})" class="btn btn-small" data-feed-id="${feedId}">Retry</button>
+    `;
+}
+
+// Remove the feed error banner if present
+function removeFeedErrorBanner() {
+    const banner = document.querySelector('.feed-error-banner');
+    if (banner) banner.remove();
 }
 
 // Format timestamps in user's local timezone
@@ -279,16 +302,7 @@ function collapseFolder(folderItem) {
 }
 
 async function loadCategoryArticles(categoryId, categoryName) {
-    // Show loading state immediately
-    const list = document.getElementById('articles-list');
-    if (list) {
-        list.innerHTML = `
-            <div class="loading-state">
-                <div class="spinner"></div>
-                <p>Loading articles...</p>
-            </div>
-        `;
-    }
+    showArticlesLoading();
     
     // Update page title immediately for responsiveness
     document.querySelector('.view-header h1').textContent = categoryName;
@@ -325,8 +339,7 @@ async function loadCategoryArticles(categoryId, categoryName) {
         });
         
         // Remove any feed error banner
-        const errorBanner = document.querySelector('.feed-error-banner');
-        if (errorBanner) errorBanner.remove();
+        removeFeedErrorBanner();
 
         applyDefaultViewForScope('folder');
     } catch (e) {
@@ -335,15 +348,7 @@ async function loadCategoryArticles(categoryId, categoryName) {
 }
 
 async function loadFeedArticles(feedId, feedName) {
-    const list = document.getElementById('articles-list');
-    if (list) {
-        list.innerHTML = `
-            <div class="loading-state">
-                <div class="spinner"></div>
-                <p>Loading articles...</p>
-            </div>
-        `;
-    }
+    showArticlesLoading();
 
     document.querySelector('.view-header h1').textContent = feedName;
     document.title = `${feedName} - FeedReader`;
@@ -397,30 +402,10 @@ async function loadFeedArticles(feedId, feedName) {
             refreshBtn.onclick = () => refreshFeed(feedId);
         }
 
-        const errorBanner = document.querySelector('.feed-error-banner');
         if (feed && feed.last_error) {
-            if (!errorBanner) {
-                const banner = document.createElement('div');
-                banner.className = 'feed-error-banner';
-                banner.innerHTML = `
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-                    </svg>
-                    <span>Last fetch failed: ${feed.last_error}</span>
-                    <button class="btn btn-small" data-feed-id="${feedId}">Retry</button>
-                `;
-                const retryBtn = banner.querySelector('button');
-                retryBtn.onclick = () => refreshFeed(feedId);
-                const view = document.querySelector('.articles-view');
-                if (view) {
-                    view.insertBefore(banner, view.firstChild);
-                }
-            } else {
-                const span = errorBanner.querySelector('span');
-                if (span) span.textContent = 'Last fetch failed: ' + feed.last_error;
-            }
-        } else if (errorBanner) {
-            errorBanner.remove();
+            showFeedErrorBanner(feedId, feed.last_error);
+        } else {
+            removeFeedErrorBanner();
         }
 
         applyDefaultViewForScope('feed');
@@ -1043,15 +1028,6 @@ function findNextUnreadFolder(currentCategoryId) {
     return null;
 }
 
-// Scraper actions
-// deleteScraper is defined in scrapers.html template
-
-// editScraper is defined in scrapers.html template
-
-function closeModal() {
-    document.getElementById('edit-modal').style.display = 'none';
-}
-
 // Category functions
 async function createCategory() {
     const name = prompt('Enter folder name:');
@@ -1239,33 +1215,12 @@ function updateFeedErrors(feedErrors) {
     });
     
     // Also update the error banner on the current feed page if present
-    const errorBanner = document.querySelector('.feed-error-banner');
     const currentFeedId = document.querySelector('button[data-feed-id]')?.dataset.feedId;
     if (currentFeedId) {
         if (feedErrors[currentFeedId]) {
-            if (!errorBanner) {
-                // Create error banner if it doesn't exist
-                const banner = document.createElement('div');
-                banner.className = 'feed-error-banner';
-                banner.innerHTML = `
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-                    </svg>
-                    <span>Last fetch failed: ${feedErrors[currentFeedId]}</span>
-                    <button onclick="refreshFeed(${currentFeedId})" class="btn btn-small" data-feed-id="${currentFeedId}">Retry</button>
-                `;
-                const articlesView = document.querySelector('.articles-view');
-                if (articlesView) {
-                    articlesView.insertBefore(banner, articlesView.firstChild);
-                }
-            } else {
-                // Update existing banner
-                const span = errorBanner.querySelector('span');
-                if (span) span.textContent = 'Last fetch failed: ' + feedErrors[currentFeedId];
-            }
-        } else if (errorBanner) {
-            // Remove error banner if error is cleared
-            errorBanner.remove();
+            showFeedErrorBanner(currentFeedId, feedErrors[currentFeedId]);
+        } else {
+            removeFeedErrorBanner();
         }
     }
 }
@@ -1367,72 +1322,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// renderSearchResults delegates to the shared renderArticles function
 function renderSearchResults(articles) {
-    const list = document.getElementById('articles-list');
-    if (!list) return;
-
-    if (!articles || articles.length === 0) {
-        list.innerHTML = '<div class="empty-state"><p>No results found</p></div>';
-        return;
-    }
-
-    list.innerHTML = articles.map(a => `
-        <article class="article-card ${a.is_read ? 'read' : ''}" data-id="${a.id}">
-            <div class="article-meta">
-                <span class="feed-name">${a.feed_name || 'Unknown'}</span>
-                <span class="article-date">${formatDate(a.published_at)}</span>
-            </div>
-            <h2 class="article-title">
-                <a href="/article/${a.id}" onclick="markReadSilent(${a.id})">${escapeHtml(a.title)}</a>
-            </h2>
-            ${a.summary ? `<p class="article-summary">${escapeHtml(truncate(stripHtml(a.summary), 200))}</p>` : (a.content ? `<p class="article-summary">${escapeHtml(truncate(stripHtml(a.content), 200))}</p>` : '')}
-            <div class="article-actions">
-                <button onclick="${a.is_read ? 'markUnread' : 'markRead'}(event, ${a.id})" class="btn-icon btn-read-toggle" title="${a.is_read ? 'Mark unread' : 'Mark read'}">
-                    ${a.is_read ? SVG_MARK_UNREAD : SVG_MARK_READ}
-                </button>
-                <button onclick="toggleStar(${a.id})" class="btn-icon ${a.is_starred ? 'starred' : ''}" title="Star">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                        <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-                    </svg>
-                </button>
-                ${a.url ? `
-                <a href="${a.url}" target="_blank" class="btn-icon" title="Open original">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                        <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
-                    </svg>
-                </a>
-                ` : ''}
-            </div>
-        </article>
-    `).join('');
-}
-
-function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-function stripHtml(str) {
-    if (!str) return '';
-    return str.replace(/<[^>]*>/g, '');
-}
-
-function truncate(str, n) {
-    if (!str || str.length <= n) return str;
-    return str.slice(0, n) + '...';
-}
-
-function formatDate(dateStr) {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    const now = new Date();
-    const diff = now - d;
-    
-    if (diff < 60000) return 'just now';
-    if (diff < 3600000) return Math.floor(diff / 60000) + ' min ago';
-    if (diff < 86400000) return Math.floor(diff / 3600000) + ' hours ago';
-    if (diff < 604800000) return Math.floor(diff / 86400000) + ' days ago';
-    return d.toLocaleDateString();
+    renderArticles(articles);
 }
 
 // Folder drag-and-drop reordering
@@ -1659,21 +1551,6 @@ function reorderElements(container, itemSelector, idAttr, order, parentId = null
             }
         }
     });
-}
-
-function getDragAfterElement(container, y, itemSelector) {
-    const draggableElements = [...container.querySelectorAll(itemSelector + ':not(.dragging)')];
-    
-    return draggableElements.reduce((closest, child) => {
-        const box = child.getBoundingClientRect();
-        const offset = y - box.top - box.height / 2;
-        
-        if (offset < 0 && offset > closest.offset) {
-            return { offset, element: child };
-        } else {
-            return closest;
-        }
-    }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
 // Get position among a specific set of sibling elements
