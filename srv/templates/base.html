@@ -156,8 +156,8 @@
     <script>window.__settings = {{toJSON .Settings}};</script>
     <script src="{{staticPath "app.js"}}"></script>
     <script>
-        // Register Service Worker for PWA
-        if ('serviceWorker' in navigator) {
+        // Register Service Worker for PWA (once)
+        if ('serviceWorker' in navigator && !navigator.serviceWorker.controller) {
             navigator.serviceWorker.register('/static/sw.js')
                 .then((reg) => console.log('Service Worker registered', reg.scope))
                 .catch((err) => console.log('Service Worker registration failed', err));
