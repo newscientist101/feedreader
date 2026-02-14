@@ -1,6 +1,23 @@
-// SVG icons for read/unread toggle
+// SVG icons
 const SVG_MARK_READ = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/></svg>';
 const SVG_MARK_UNREAD = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V8l8 5 8-5v10zm-8-7L4 6h16l-8 5z"/></svg>';
+const SVG_STAR_FILLED = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>';
+const SVG_STAR_EMPTY = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/></svg>';
+const SVG_EXTERNAL = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>';
+
+// Render the standard set of action buttons for an article.
+// `a` must have: id, is_read, is_starred, url (optional).
+// To add a new action button to all views, add it here.
+function renderArticleActions(a) {
+    const readBtn = `<button onclick="${a.is_read ? 'markUnread' : 'markRead'}(event, ${a.id})" class="btn-icon btn-read-toggle" title="${a.is_read ? 'Mark unread' : 'Mark read'}">
+        ${a.is_read ? SVG_MARK_UNREAD : SVG_MARK_READ}
+    </button>`;
+    const starBtn = `<button onclick="toggleStar(${a.id})" class="btn-icon ${a.is_starred ? 'starred' : ''}" title="Star">
+        ${a.is_starred ? SVG_STAR_FILLED : SVG_STAR_EMPTY}
+    </button>`;
+    const extBtn = a.url ? `<a href="${a.url}" target="_blank" class="btn-icon" title="Open original">${SVG_EXTERNAL}</a>` : '';
+    return `<div class="article-actions">${readBtn}${starBtn}${extBtn}</div>`;
+}
 
 // Update the read/unread toggle button inside an article card
 function updateReadButton(card, isRead) {
@@ -449,24 +466,7 @@ function renderArticles(articles) {
                 </h2>
                 ${a.summary ? `<p class="article-summary">${truncateText(stripHtml(a.summary), 200)}</p>` : (a.content ? `<p class="article-summary">${truncateText(stripHtml(a.content), 200)}</p>` : '')}
                 ${a.content ? `<div class="article-content-preview expanded-only" onclick="event.stopPropagation(); markReadSilent(${a.id})">${truncateText(stripHtml(a.content), 800)}</div>` : (a.summary ? `<div class="article-content-preview expanded-only">${truncateText(stripHtml(a.summary), 800)}</div>` : '')}
-                <div class="article-actions">
-                    <button onclick="${a.is_read ? 'markUnread' : 'markRead'}(event, ${a.id})" class="btn-icon btn-read-toggle" title="${a.is_read ? 'Mark unread' : 'Mark read'}">
-                        ${a.is_read ? SVG_MARK_UNREAD : SVG_MARK_READ}
-                    </button>
-                    <button onclick="toggleStar(${a.id})" class="btn-icon ${a.is_starred ? 'starred' : ''}" title="Star">
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                            ${a.is_starred
-                                ? '<path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>'
-                                : '<path d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>'
-                            }
-                        </svg>
-                    </button>
-                    ${a.url ? `<a href="${a.url}" target="_blank" class="btn-icon" title="Open original">
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                            <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
-                        </svg>
-                    </a>` : ''}
-                </div>
+                ${renderArticleActions(a)}
             </div>
         </article>
     `).join('');
@@ -607,7 +607,18 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Process embeds in article page content
     processEmbeds(document.querySelector('.article-body'));
-    
+
+    // Populate article-detail action buttons from the shared renderer
+    document.querySelectorAll('.article-actions-placeholder').forEach(el => {
+        const a = {
+            id: Number(el.dataset.articleId),
+            is_read: el.dataset.isRead === '1',
+            is_starred: el.dataset.isStarred === '1',
+            url: el.dataset.url || null,
+        };
+        el.outerHTML = renderArticleActions(a);
+    });
+
     // Initialize auto-mark-read on scroll
     initAutoMarkRead();
     

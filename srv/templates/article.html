@@ -7,25 +7,12 @@
             </svg>
             Back
         </a>
-        <div class="article-actions">
-            <button onclick="toggleStar({{.Article.ID}})" class="btn-icon {{if and .Article.IsStarred (ne (deref .Article.IsStarred) 0)}}starred{{end}}" title="Star">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                    {{if and .Article.IsStarred (ne (deref .Article.IsStarred) 0)}}
-                    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
-                    {{else}}
-                    <path d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/>
-                    {{end}}
-                </svg>
-            </button>
-            {{if .Article.Url}}
-            <a href="{{deref .Article.Url}}" target="_blank" class="btn btn-secondary">
-                Open Original
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                    <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
-                </svg>
-            </a>
-            {{end}}
-        </div>
+        <div class="article-actions-placeholder"
+            data-article-id="{{.Article.ID}}"
+            data-is-read="{{if and .Article.IsRead (ne (deref .Article.IsRead) 0)}}1{{else}}0{{end}}"
+            data-is-starred="{{if and .Article.IsStarred (ne (deref .Article.IsStarred) 0)}}1{{else}}0{{end}}"
+            data-url="{{if .Article.Url}}{{deref .Article.Url}}{{end}}"
+        ></div>
     </header>
 
     <article class="article-content">
