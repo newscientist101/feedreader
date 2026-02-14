@@ -86,6 +86,21 @@ WHERE f.user_id = ? AND (a.title LIKE '%' || ? || '%' OR a.content LIKE '%' || ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?;
 
+-- name: SearchArticlesByFeed :many
+SELECT a.*, f.name as feed_name FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+WHERE a.feed_id = ? AND f.user_id = ? AND (a.title LIKE '%' || ? || '%' OR a.content LIKE '%' || ? || '%')
+ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
+LIMIT ? OFFSET ?;
+
+-- name: SearchArticlesByCategory :many
+SELECT a.*, f.name as feed_name FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+JOIN feed_categories fc ON f.id = fc.feed_id
+WHERE fc.category_id = ? AND f.user_id = ? AND (a.title LIKE '%' || ? || '%' OR a.content LIKE '%' || ? || '%')
+ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
+LIMIT ? OFFSET ?;
+
 -- name: ListArticlesByCategory :many
 SELECT a.*, f.name as feed_name FROM articles a
 JOIN feeds f ON a.feed_id = f.id

@@ -1219,19 +1219,57 @@ func (s *Server) apiSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	articles, err := q.SearchArticles(ctx, dbgen.SearchArticlesParams{
-		UserID:  &user.ID,
-		Column2: &query,
-		Column3: &query,
-		Limit:   50,
-		Offset:  0,
-	})
+	feedIDStr := r.URL.Query().Get("feed_id")
+	categoryIDStr := r.URL.Query().Get("category_id")
+
+	var result any
+	var err error
+
+	switch {
+	case feedIDStr != "":
+		feedID, convErr := strconv.ParseInt(feedIDStr, 10, 64)
+		if convErr != nil {
+			jsonError(w, "Invalid feed_id", 400)
+			return
+		}
+		result, err = q.SearchArticlesByFeed(ctx, dbgen.SearchArticlesByFeedParams{
+			FeedID:  feedID,
+			UserID:  &user.ID,
+			Column3: &query,
+			Column4: &query,
+			Limit:   50,
+			Offset:  0,
+		})
+	case categoryIDStr != "":
+		categoryID, convErr := strconv.ParseInt(categoryIDStr, 10, 64)
+		if convErr != nil {
+			jsonError(w, "Invalid category_id", 400)
+			return
+		}
+		result, err = q.SearchArticlesByCategory(ctx, dbgen.SearchArticlesByCategoryParams{
+			CategoryID: categoryID,
+			UserID:     &user.ID,
+			Column3:    &query,
+			Column4:    &query,
+			Limit:      50,
+			Offset:     0,
+		})
+	default:
+		result, err = q.SearchArticles(ctx, dbgen.SearchArticlesParams{
+			UserID:  &user.ID,
+			Column2: &query,
+			Column3: &query,
+			Limit:   50,
+			Offset:  0,
+		})
+	}
+
 	if err != nil {
 		jsonError(w, "Search failed", 500)
 		return
 	}
 
-	jsonResponse(w, articles)
+	jsonResponse(w, result)
 }
 
 func jsonResponse(w http.ResponseWriter, data any) {

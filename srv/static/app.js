@@ -1371,7 +1371,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 try {
-                    const articles = await api('GET', `/api/search?q=${encodeURIComponent(q)}`);
+                    let searchUrl = `/api/search?q=${encodeURIComponent(q)}`;
+                    // Scope search to current feed or category context
+                    const pathMatch = window.location.pathname.match(/^\/(feed|category)\/(\d+)/);
+                    if (pathMatch) {
+                        const [, type, id] = pathMatch;
+                        searchUrl += type === 'feed' ? `&feed_id=${id}` : `&category_id=${id}`;
+                    }
+                    const articles = await api('GET', searchUrl);
                     renderSearchResults(articles);
                 } catch (e) {
                     console.error('Search failed:', e);

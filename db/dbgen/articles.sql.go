@@ -915,6 +915,165 @@ func (q *Queries) SearchArticles(ctx context.Context, arg SearchArticlesParams) 
 	return items, nil
 }
 
+const searchArticlesByCategory = `-- name: SearchArticlesByCategory :many
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+JOIN feed_categories fc ON f.id = fc.feed_id
+WHERE fc.category_id = ? AND f.user_id = ? AND (a.title LIKE '%' || ? || '%' OR a.content LIKE '%' || ? || '%')
+ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
+LIMIT ? OFFSET ?
+`
+
+type SearchArticlesByCategoryParams struct {
+	CategoryID int64   `json:"category_id"`
+	UserID     *int64  `json:"user_id"`
+	Column3    *string `json:"column_3"`
+	Column4    *string `json:"column_4"`
+	Limit      int64   `json:"limit"`
+	Offset     int64   `json:"offset"`
+}
+
+type SearchArticlesByCategoryRow struct {
+	ID          int64      `json:"id"`
+	FeedID      int64      `json:"feed_id"`
+	Guid        string     `json:"guid"`
+	Title       string     `json:"title"`
+	Url         *string    `json:"url"`
+	Author      *string    `json:"author"`
+	Content     *string    `json:"content"`
+	Summary     *string    `json:"summary"`
+	ImageUrl    *string    `json:"image_url"`
+	PublishedAt *time.Time `json:"published_at"`
+	FetchedAt   time.Time  `json:"fetched_at"`
+	IsRead      *int64     `json:"is_read"`
+	IsStarred   *int64     `json:"is_starred"`
+	FeedName    string     `json:"feed_name"`
+}
+
+func (q *Queries) SearchArticlesByCategory(ctx context.Context, arg SearchArticlesByCategoryParams) ([]SearchArticlesByCategoryRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchArticlesByCategory,
+		arg.CategoryID,
+		arg.UserID,
+		arg.Column3,
+		arg.Column4,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchArticlesByCategoryRow{}
+	for rows.Next() {
+		var i SearchArticlesByCategoryRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FeedID,
+			&i.Guid,
+			&i.Title,
+			&i.Url,
+			&i.Author,
+			&i.Content,
+			&i.Summary,
+			&i.ImageUrl,
+			&i.PublishedAt,
+			&i.FetchedAt,
+			&i.IsRead,
+			&i.IsStarred,
+			&i.FeedName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchArticlesByFeed = `-- name: SearchArticlesByFeed :many
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+WHERE a.feed_id = ? AND f.user_id = ? AND (a.title LIKE '%' || ? || '%' OR a.content LIKE '%' || ? || '%')
+ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
+LIMIT ? OFFSET ?
+`
+
+type SearchArticlesByFeedParams struct {
+	FeedID  int64   `json:"feed_id"`
+	UserID  *int64  `json:"user_id"`
+	Column3 *string `json:"column_3"`
+	Column4 *string `json:"column_4"`
+	Limit   int64   `json:"limit"`
+	Offset  int64   `json:"offset"`
+}
+
+type SearchArticlesByFeedRow struct {
+	ID          int64      `json:"id"`
+	FeedID      int64      `json:"feed_id"`
+	Guid        string     `json:"guid"`
+	Title       string     `json:"title"`
+	Url         *string    `json:"url"`
+	Author      *string    `json:"author"`
+	Content     *string    `json:"content"`
+	Summary     *string    `json:"summary"`
+	ImageUrl    *string    `json:"image_url"`
+	PublishedAt *time.Time `json:"published_at"`
+	FetchedAt   time.Time  `json:"fetched_at"`
+	IsRead      *int64     `json:"is_read"`
+	IsStarred   *int64     `json:"is_starred"`
+	FeedName    string     `json:"feed_name"`
+}
+
+func (q *Queries) SearchArticlesByFeed(ctx context.Context, arg SearchArticlesByFeedParams) ([]SearchArticlesByFeedRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchArticlesByFeed,
+		arg.FeedID,
+		arg.UserID,
+		arg.Column3,
+		arg.Column4,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchArticlesByFeedRow{}
+	for rows.Next() {
+		var i SearchArticlesByFeedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FeedID,
+			&i.Guid,
+			&i.Title,
+			&i.Url,
+			&i.Author,
+			&i.Content,
+			&i.Summary,
+			&i.ImageUrl,
+			&i.PublishedAt,
+			&i.FetchedAt,
+			&i.IsRead,
+			&i.IsStarred,
+			&i.FeedName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const toggleArticleStar = `-- name: ToggleArticleStar :exec
 UPDATE articles SET is_starred = NOT is_starred 
 WHERE articles.id = ? AND feed_id IN (SELECT feeds.id FROM feeds WHERE feeds.user_id = ?)
