@@ -1079,12 +1079,34 @@ function findNextUnreadFolder(currentCategoryId) {
 }
 
 // Category functions
-async function createCategory() {
-    const name = prompt('Enter folder name:');
+function openCreateFolderModal() {
+    const modal = document.getElementById('create-folder-modal');
+    if (!modal) return;
+    document.getElementById('new-folder-name').value = '';
+    document.getElementById('new-folder-parent').value = '0';
+    modal.style.display = 'flex';
+    document.getElementById('new-folder-name').focus();
+}
+
+function closeCreateFolderModal() {
+    const modal = document.getElementById('create-folder-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function submitCreateFolder(e) {
+    e.preventDefault();
+    const name = document.getElementById('new-folder-name').value.trim();
     if (!name) return;
-    
+    const parentId = parseInt(document.getElementById('new-folder-parent').value) || 0;
+
     try {
-        await api('POST', '/api/categories', { name });
+        const cat = await api('POST', '/api/categories', { name });
+        if (parentId > 0 && cat.id) {
+            await api('POST', `/api/categories/${cat.id}/parent`, {
+                parent_id: parentId,
+                sort_order: 0
+            });
+        }
         location.reload();
     } catch (e) {
         alert('Failed to create folder: ' + e.message);

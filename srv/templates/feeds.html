@@ -39,7 +39,7 @@
                 </div>
             </div>
             {{end}}
-            <div class="category-card add-category" onclick="createCategory()">
+            <div class="category-card add-category" onclick="openCreateFolderModal()">
                 <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
                     <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
                 </svg>
@@ -223,6 +223,42 @@
             </tbody>
         </table>
         {{end}}
+    </div>
+</div>
+
+<!-- Create Folder Modal -->
+<div id="create-folder-modal" class="modal" style="display:none">
+    <div class="modal-backdrop" onclick="closeCreateFolderModal()"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>New Folder</h3>
+            <button onclick="closeCreateFolderModal()" class="btn-icon">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+            </button>
+        </div>
+        <form id="create-folder-form" onsubmit="submitCreateFolder(event)">
+            <div class="form-group">
+                <label for="new-folder-name">Folder Name</label>
+                <input type="text" id="new-folder-name" required placeholder="Enter folder name">
+            </div>
+            <div class="form-group">
+                <label for="new-folder-parent">Parent Folder</label>
+                <select id="new-folder-parent">
+                    <option value="0">None (top level)</option>
+                    {{range .Categories}}
+                    {{if ne .Name "Uncategorized"}}
+                    <option value="{{.ID}}">{{.Name}}</option>
+                    {{end}}
+                    {{end}}
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button type="button" onclick="closeCreateFolderModal()" class="btn btn-secondary">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create</button>
+            </div>
+        </form>
     </div>
 </div>
 
