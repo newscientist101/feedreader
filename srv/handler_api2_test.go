@@ -210,6 +210,82 @@ func TestHandlerCreateFeed(t *testing.T) {
 	}
 }
 
+func TestHandlerCreateFeedReddit(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	ctx, _ := testUser(t, s)
+	s.Fetcher = testFetcher(s)
+
+	tests := []struct {
+		name     string
+		url      string
+		wantName string
+		wantType string
+	}{
+		{
+			name:     "reddit top with time period",
+			url:      "https://www.reddit.com/r/FDVR_Dream/top/.rss?t=week",
+			wantName: "r/FDVR_Dream",
+			wantType: "rss",
+		},
+		{
+			name:     "reddit hot",
+			url:      "https://www.reddit.com/r/golang/hot/.rss",
+			wantName: "r/golang",
+			wantType: "rss",
+		},
+		{
+			name:     "reddit best (default sort)",
+			url:      "https://www.reddit.com/r/technology/.rss",
+			wantName: "r/technology",
+			wantType: "rss",
+		},
+		{
+			name:     "reddit new",
+			url:      "https://www.reddit.com/r/science/new/.rss",
+			wantName: "r/science",
+			wantType: "rss",
+		},
+		{
+			name:     "reddit top all time",
+			url:      "https://www.reddit.com/r/AskReddit/top/.rss?t=all",
+			wantName: "r/AskReddit",
+			wantType: "rss",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := fmt.Sprintf(`{"url":%q,"feedType":"rss"}`, tt.url)
+			w := serveAPI(t, s.apiCreateFeed, "POST", "/api/feeds", body, ctx)
+			if w.Code != 200 {
+				t.Fatalf("create got %d: %s", w.Code, w.Body.String())
+			}
+			m := jsonBody(t, w)
+			if m["name"] != tt.wantName {
+				t.Errorf("name = %q, want %q", m["name"], tt.wantName)
+			}
+			if m["feed_type"] != tt.wantType {
+				t.Errorf("feed_type = %q, want %q", m["feed_type"], tt.wantType)
+			}
+			if m["url"] != tt.url {
+				t.Errorf("url = %q, want %q", m["url"], tt.url)
+			}
+		})
+	}
+
+	// With explicit name, the auto-generated name should NOT override it
+	w := serveAPI(t, s.apiCreateFeed, "POST", "/api/feeds",
+		`{"url":"https://www.reddit.com/r/linux/new/.rss","name":"My Linux Feed","feedType":"rss"}`, ctx)
+	if w.Code != 200 {
+		t.Fatalf("create got %d: %s", w.Code, w.Body.String())
+	}
+	m := jsonBody(t, w)
+	if m["name"] != "My Linux Feed" {
+		t.Errorf("explicit name not preserved: got %q", m["name"])
+	}
+}
+
 func TestHandlerUpdateFeed(t *testing.T) {
 	t.Parallel()
 	s := testServer(t)
