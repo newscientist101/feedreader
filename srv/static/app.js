@@ -654,7 +654,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('.feed-item[data-feed-id]').forEach(link => {
         link.addEventListener('click', (event) => {
-            if (document.querySelector('.settings-view')) {
+            // On non-article pages, use normal navigation
+            if (!document.querySelector('.articles-view')) {
                 return;
             }
             event.preventDefault();
