@@ -201,12 +201,13 @@ func (s *Server) Handler() http.Handler {
 // Template helpers
 func (s *Server) renderTemplate(w http.ResponseWriter, name string, data any) error {
 	funcMap := template.FuncMap{
-		"timeAgo":    timeAgo,
-		"formatDate": formatDate,
-		"truncate":   truncate,
-		"stripHTML":  stripHTML,
-		"deref":      deref,
-		"safeHTML":   safeHTML,
+		"timeAgo":     timeAgo,
+		"formatDate":  formatDate,
+		"truncate":    truncate,
+		"stripHTML":   stripHTML,
+		"previewText": previewText,
+		"deref":       deref,
+		"safeHTML":    safeHTML,
 		"toJSON": func(v any) template.JS {
 			b, _ := json.Marshal(v)
 			return template.JS(b)
@@ -283,6 +284,12 @@ func formatDate(t *time.Time) string {
 	}
 	// Return ISO 8601 format for JavaScript to parse
 	return t.UTC().Format(time.RFC3339)
+}
+
+const previewTextLimit = 500
+
+func previewText(s string) string {
+	return truncate(stripHTML(s), previewTextLimit)
 }
 
 func truncate(s string, n int) string {
