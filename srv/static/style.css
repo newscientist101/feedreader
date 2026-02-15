@@ -653,7 +653,9 @@ body {
     margin-top: 4px;
     margin-bottom: 8px;
     cursor: text;
-    max-height: 8.5em; /* ~5 lines */
+    display: -webkit-box;
+    -webkit-line-clamp: 5;
+    -webkit-box-orient: vertical;
     overflow: hidden;
 }
 
@@ -707,6 +709,10 @@ body {
 .view-expanded .expanded-only,
 .view-expanded .magazine-expanded-only {
     display: block;
+}
+
+.view-expanded .article-content-preview.expanded-only {
+    display: -webkit-box;
 }
 
 .article-meta {
