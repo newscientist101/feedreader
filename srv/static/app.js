@@ -1296,7 +1296,30 @@ document.addEventListener('DOMContentLoaded', () => {
             const interval = parseInt(document.getElementById('feed-interval').value) || 60;
             
             let scraperConfig = '';
-            
+            let actualFeedType = feedType;
+
+            // Handle Reddit feed type — it becomes a regular RSS feed
+            if (feedType === 'reddit') {
+                let subreddit = document.getElementById('reddit-subreddit').value.trim();
+                if (!subreddit) {
+                    alert('Please enter a subreddit name');
+                    return;
+                }
+                // Strip leading r/ if present
+                subreddit = subreddit.replace(/^\/?(r\/)?/, '');
+                const sort = document.getElementById('reddit-sort').value;
+                const period = document.getElementById('reddit-top-period').value;
+
+                if (sort === 'top') {
+                    url = `https://www.reddit.com/r/${subreddit}/top/.rss?t=${period}`;
+                } else if (sort === 'best') {
+                    url = `https://www.reddit.com/r/${subreddit}/.rss`;
+                } else {
+                    url = `https://www.reddit.com/r/${subreddit}/${sort}/.rss`;
+                }
+                actualFeedType = 'rss';
+            }
+
             // Handle HuggingFace feed type
             if (feedType === 'huggingface') {
                 const hfType = document.getElementById('hf-type').value;
@@ -1330,12 +1353,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
-                // For HuggingFace feeds, let the server auto-generate the name
-                const feedName = (feedType === 'huggingface' && !name) ? '' : (name || url);
+                // For HuggingFace/Reddit feeds, let the server auto-generate the name
+                const feedName = ((feedType === 'huggingface' || feedType === 'reddit') && !name) ? '' : (name || url);
                 const feed = await api('POST', '/api/feeds', {
                     url,
                     name: feedName,
-                    feedType,
+                    feedType: actualFeedType,
                     scraperModule,
                     scraperConfig,
                     interval

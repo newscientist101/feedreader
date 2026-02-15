@@ -614,6 +614,14 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Auto-generate name for Reddit RSS feeds
+	if req.Name == "" && req.FeedType == "rss" {
+		redditRe := regexp.MustCompile(`reddit\.com/r/([^/]+)`)
+		if m := redditRe.FindStringSubmatch(req.URL); m != nil {
+			req.Name = "r/" + m[1]
+		}
+	}
+
 	// Auto-generate name for HuggingFace feeds
 	if req.Name == "" && req.FeedType == "huggingface" && req.ScraperConfig != "" {
 		var hfConfig huggingface.FeedConfig
