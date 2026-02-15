@@ -9,9 +9,9 @@ See README.md for user-facing docs (features, API endpoints, scraper config, etc
 Do **not** use subagents to read all files and output all file contents in full.
 This will fail due to context/token limits and should not be attempted.
 
-**Always test your changes.** After making code changes, run `make build` to
-confirm the project compiles and run `go test ./...` to ensure tests pass
-before committing.
+**Always validate your changes.** After making code changes, run `make check`
+before committing. This runs formatting checks, linting, tests, and
+vulnerability scanning in one command.
 
 ## Tech Stack
 
@@ -78,9 +78,43 @@ db/
   `go generate ./db/...` to regenerate `db/dbgen/`.
 - **Single-file server**: Most handler logic lives in `srv/server.go`.
   It's large but flat — each handler is a standalone function on the server struct.
-- **Build**: `make build` produces the `./feedreader` binary.
+- **Build & validation**: See the Build Workflow section below.
 - **Service**: Managed via systemd (`srv.service`). Restart after changes
   with `make build && sudo systemctl restart feedreader`.
+
+## Build Workflow
+
+Run `make check` before committing. It runs all validation steps in order:
+
+| Command          | What it does                                       |
+|------------------|----------------------------------------------------|
+| `make check`     | **Run all four steps below in sequence**            |
+| `make fmt-check` | Fail if any Go files need `goimports` formatting    |
+| `make lint`      | `golangci-lint` (Go) + `eslint` (JS)                |
+| `make test`      | `go test ./...`                                     |
+| `make vulncheck` | `govulncheck` — scan deps for known vulnerabilities |
+
+Other useful targets:
+
+| Command      | What it does                                  |
+|--------------|-----------------------------------------------|
+| `make build` | Compile the `./feedreader` binary             |
+| `make fmt`   | Auto-fix Go formatting with `goimports -w .`  |
+
+### Linting details
+
+- **Go** (`.golangci.yml`): errcheck, govet, staticcheck, gocritic,
+  misspell, nilerr, errorlint, bodyclose, ineffassign, unused.
+  `errcheck`/`bodyclose`/`unused` are suppressed in test files.
+  Generated `db/dbgen/` is excluded entirely.
+- **JS** (`eslint.config.mjs`): no-undef, no-unused-vars, eqeqeq, no-eval,
+  etc. Functions called from HTML `onclick` attributes are whitelisted in
+  `varsIgnorePattern`.
+
+### Fixing formatting
+
+If `make fmt-check` fails, run `make fmt` to auto-fix, then re-run
+`make check`.
 
 ## Viewing the App During Development
 
