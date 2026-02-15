@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -115,6 +116,18 @@ func executeMigration(db *sql.DB, mfs fs.ReadFileFS, filename string, number int
 	if err != nil {
 		return fmt.Errorf("read %s: %w", filename, err)
 	}
+
+	// Migrations that recreate tables need foreign keys disabled to
+	// prevent ON DELETE CASCADE from wiping referencing rows.
+	// PRAGMA foreign_keys cannot be changed inside a transaction,
+	// so we toggle it outside.
+	if strings.Contains(string(content), "-- pragma:disable_fk") {
+		if _, err := db.Exec("PRAGMA foreign_keys = OFF"); err != nil {
+			return fmt.Errorf("disable fk for %s: %w", filename, err)
+		}
+		defer func() { _, _ = db.Exec("PRAGMA foreign_keys = ON") }()
+	}
+
 	tx, err := db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin tx for %s: %w", filename, err)
