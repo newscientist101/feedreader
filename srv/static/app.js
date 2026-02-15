@@ -632,6 +632,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Process embeds in article page content
     processEmbeds(document.querySelector('.article-body'));
 
+
     // Initialize auto-mark-read on scroll
     initAutoMarkRead();
     

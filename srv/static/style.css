@@ -653,6 +653,8 @@ body {
     margin-top: 4px;
     margin-bottom: 8px;
     cursor: text;
+    max-height: 8.5em; /* ~5 lines */
+    overflow: hidden;
 }
 
 .view-expanded .article-content-preview img {
