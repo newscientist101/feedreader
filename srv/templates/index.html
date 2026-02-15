@@ -35,9 +35,12 @@
             </div>
             {{if or .CurrentFeed .CurrentCategory (eq .Title "All Unread")}}
             <div class="dropdown" data-feed-id="{{if .CurrentFeed}}{{.CurrentFeed.ID}}{{end}}" data-category-id="{{if .CurrentCategory}}{{.CurrentCategory.ID}}{{end}}">
-                <button class="btn btn-secondary dropdown-toggle" onclick="toggleDropdown(this)">
-                    Mark as Read
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <button class="btn btn-secondary dropdown-toggle mark-read-toggle" onclick="toggleDropdown(this)">
+                    <svg class="mark-read-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>
+                    </svg>
+                    <span class="mark-read-label">Mark as Read</span>
+                    <svg class="dropdown-chevron" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                         <path d="M7 10l5 5 5-5z"/>
                     </svg>
                 </button>

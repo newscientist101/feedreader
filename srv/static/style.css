@@ -1367,6 +1367,15 @@ th {
     font-size: 0.9rem;
 }
 
+/* Mark as Read button: icon hidden by default, shown at narrow widths */
+.mark-read-icon {
+    display: none;
+}
+
+.mark-read-toggle .dropdown-chevron {
+    flex-shrink: 0;
+}
+
 /* Responsive - Tablet */
 @media (max-width: 1024px) {
     .sidebar {
@@ -1380,6 +1389,14 @@ th {
     
     .article-card {
         padding: 15px;
+    }
+
+    .mark-read-label {
+        display: none;
+    }
+
+    .mark-read-icon {
+        display: block;
     }
 }
 
@@ -2408,6 +2425,7 @@ th {
     display: flex;
     align-items: center;
     gap: 5px;
+    white-space: nowrap;
 }
 
 .dropdown-toggle svg {
