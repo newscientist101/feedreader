@@ -83,26 +83,28 @@
                 <div class="form-group" id="reddit-group" style="display:none">
                     <label for="reddit-subreddit">Subreddit</label>
                     <input type="text" id="reddit-subreddit" placeholder="e.g. r/FDVR_Dream or FDVR_Dream">
-                    <div class="form-group" style="margin-top: 10px;">
-                        <label for="reddit-sort">Sort By</label>
-                        <select id="reddit-sort">
-                            <option value="best">Best</option>
-                            <option value="hot">Hot</option>
-                            <option value="new">New</option>
-                            <option value="top">Top</option>
-                            <option value="rising">Rising</option>
-                        </select>
-                    </div>
-                    <div class="form-group" id="reddit-top-period-group" style="display:none; margin-top: 10px;">
-                        <label for="reddit-top-period">Time Period</label>
-                        <select id="reddit-top-period">
-                            <option value="hour">Now</option>
-                            <option value="day">Today</option>
-                            <option value="week">This Week</option>
-                            <option value="month">This Month</option>
-                            <option value="year">This Year</option>
-                            <option value="all">All Time</option>
-                        </select>
+                    <div style="display: flex; gap: 12px; margin-top: 10px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label for="reddit-sort">Sort By</label>
+                            <select id="reddit-sort">
+                                <option value="best">Best</option>
+                                <option value="hot">Hot</option>
+                                <option value="new">New</option>
+                                <option value="top">Top</option>
+                                <option value="rising">Rising</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="reddit-top-period-group" style="display:none; flex: 1;">
+                            <label for="reddit-top-period">Time Period</label>
+                            <select id="reddit-top-period">
+                                <option value="hour">Now</option>
+                                <option value="day">Today</option>
+                                <option value="week">This Week</option>
+                                <option value="month">This Month</option>
+                                <option value="year">This Year</option>
+                                <option value="all">All Time</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div class="form-group" id="huggingface-group" style="display:none">
