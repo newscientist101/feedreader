@@ -2428,11 +2428,11 @@ th {
     white-space: nowrap;
 }
 
-.dropdown-toggle svg {
+.dropdown-toggle .dropdown-chevron {
     transition: transform 0.2s;
 }
 
-.dropdown.open .dropdown-toggle svg {
+.dropdown.open .dropdown-toggle .dropdown-chevron {
     transform: rotate(180deg);
 }
 
