@@ -383,6 +383,35 @@ func (q *Queries) ListCategories(ctx context.Context, userID *int64) ([]Category
 	return items, nil
 }
 
+const listFeedCategoryMappings = `-- name: ListFeedCategoryMappings :many
+SELECT fc.feed_id, fc.category_id FROM feed_categories fc
+JOIN feeds f ON fc.feed_id = f.id
+WHERE f.user_id = ?
+`
+
+func (q *Queries) ListFeedCategoryMappings(ctx context.Context, userID *int64) ([]FeedCategory, error) {
+	rows, err := q.db.QueryContext(ctx, listFeedCategoryMappings, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FeedCategory{}
+	for rows.Next() {
+		var i FeedCategory
+		if err := rows.Scan(&i.FeedID, &i.CategoryID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listFeeds = `-- name: ListFeeds :many
 SELECT id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id, content_filters, site_url FROM feeds WHERE user_id = ? ORDER BY name
 `

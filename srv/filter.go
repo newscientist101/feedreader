@@ -32,6 +32,57 @@ func (s *Server) FilterArticles(ctx context.Context, articles []dbgen.ListUnread
 	return filtered
 }
 
+// FilterAllUnreadArticles applies all folder exclusion rules across all categories
+// to a global list of unread articles.
+func (s *Server) FilterAllUnreadArticles(ctx context.Context, articles []dbgen.ListUnreadArticlesRow, userID int64) []dbgen.ListUnreadArticlesRow {
+	q := dbgen.New(s.DB)
+
+	allExclusions, err := q.ListAllExclusions(ctx, &userID)
+	if err != nil || len(allExclusions) == 0 {
+		return articles
+	}
+
+	// Group exclusions by category_id
+	exclusionsByCategory := make(map[int64][]dbgen.CategoryExclusion)
+	for _, e := range allExclusions {
+		exclusionsByCategory[e.CategoryID] = append(exclusionsByCategory[e.CategoryID], dbgen.CategoryExclusion{
+			ID:            e.ID,
+			CategoryID:    e.CategoryID,
+			ExclusionType: e.ExclusionType,
+			Pattern:       e.Pattern,
+			IsRegex:       e.IsRegex,
+			CreatedAt:     e.CreatedAt,
+		})
+	}
+
+	// Build feed_id → category_ids map
+	mappings, err := q.ListFeedCategoryMappings(ctx, &userID)
+	if err != nil {
+		return articles
+	}
+	feedCategories := make(map[int64][]int64)
+	for _, m := range mappings {
+		feedCategories[m.FeedID] = append(feedCategories[m.FeedID], m.CategoryID)
+	}
+
+	var filtered []dbgen.ListUnreadArticlesRow
+	for _, article := range articles {
+		excluded := false
+		for _, catID := range feedCategories[article.FeedID] {
+			if excls, ok := exclusionsByCategory[catID]; ok {
+				if s.shouldExclude(article.Title, ptrToStr(article.Summary), ptrToStr(article.Author), excls) {
+					excluded = true
+					break
+				}
+			}
+		}
+		if !excluded {
+			filtered = append(filtered, article)
+		}
+	}
+	return filtered
+}
+
 // FilterArticlesByFeed applies exclusion rules for feed articles
 func (s *Server) FilterArticlesByFeed(ctx context.Context, articles []dbgen.ListArticlesByFeedRow, feedID int64, userID int64) []dbgen.ListArticlesByFeedRow {
 	q := dbgen.New(s.DB)

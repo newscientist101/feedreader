@@ -378,7 +378,13 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(ctx)
 
 	userID := user.ID
-	articles, _ := q.ListUnreadArticles(ctx, dbgen.ListUnreadArticlesParams{UserID: &userID, Limit: 50, Offset: 0})
+	articles, _ := q.ListUnreadArticles(ctx, dbgen.ListUnreadArticlesParams{UserID: &userID, Limit: 100, Offset: 0})
+
+	// Apply folder exclusion filters
+	articles = s.FilterAllUnreadArticles(ctx, articles, userID)
+	if len(articles) > 50 {
+		articles = articles[:50]
+	}
 
 	data := s.getCommonData(ctx)
 	data["Title"] = "All Unread"

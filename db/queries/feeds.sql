@@ -87,6 +87,11 @@ WHERE fc.category_id = ? AND a.is_read = 0;
 -- name: UpdateCategory :exec
 UPDATE categories SET name = ? WHERE id = ? AND user_id = ?;
 
+-- name: ListFeedCategoryMappings :many
+SELECT fc.feed_id, fc.category_id FROM feed_categories fc
+JOIN feeds f ON fc.feed_id = f.id
+WHERE f.user_id = ?;
+
 -- name: ClearFeedCategories :exec
 DELETE FROM feed_categories WHERE feed_id = ?;
 
