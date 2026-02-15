@@ -153,7 +153,7 @@
             {{template "content" .}}
         </main>
     </div>
-    <script>window.__settings = {{toJSON .Settings}}; window.PREVIEW_TEXT_LIMIT = {{.PreviewTextLimit}};</script>
+    <script>window.__settings = {{toJSON .Settings}};</script>
     <script src="{{staticPath "app.js"}}"></script>
     <script>
         // Register Service Worker for PWA (once)

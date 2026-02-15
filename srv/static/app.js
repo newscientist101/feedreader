@@ -1,7 +1,7 @@
 // Max characters to put in the DOM for article text previews.
 // CSS line-clamp handles the visual truncation; this just limits DOM weight.
-// Value injected by the server via base.html; fallback if missing.
-const PREVIEW_TEXT_LIMIT = window.PREVIEW_TEXT_LIMIT || 500;
+// Keep in sync with previewTextLimit in server.go.
+const PREVIEW_TEXT_LIMIT = 500;
 
 // SVG icons
 const SVG_MARK_READ = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/></svg>';

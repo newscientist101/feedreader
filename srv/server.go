@@ -286,6 +286,8 @@ func formatDate(t *time.Time) string {
 	return t.UTC().Format(time.RFC3339)
 }
 
+// previewTextLimit caps how much text goes into article preview DOM elements.
+// Keep in sync with PREVIEW_TEXT_LIMIT in static/app.js.
 const previewTextLimit = 500
 
 func previewText(s string) string {
@@ -364,19 +366,18 @@ func (s *Server) getCommonData(ctx context.Context) map[string]any {
 	}
 
 	return map[string]any{
-		"Feeds":            feeds,
-		"FeedCounts":       feedCounts,
-		"Categories":       categories,
-		"CategoryTree":     categoryTree,
-		"FlatCategories":   flatCategories,
-		"CategoryCounts":   catCounts,
-		"FeedCategories":   feedCategories,
-		"UnreadCount":      unreadCount,
-		"StarredCount":     starredCount,
-		"QueueCount":       queueCount,
-		"User":             user,
-		"Settings":         settings,
-		"PreviewTextLimit": previewTextLimit,
+		"Feeds":          feeds,
+		"FeedCounts":     feedCounts,
+		"Categories":     categories,
+		"CategoryTree":   categoryTree,
+		"FlatCategories": flatCategories,
+		"CategoryCounts": catCounts,
+		"FeedCategories": feedCategories,
+		"UnreadCount":    unreadCount,
+		"StarredCount":   starredCount,
+		"QueueCount":     queueCount,
+		"User":           user,
+		"Settings":       settings,
 	}
 }
 
