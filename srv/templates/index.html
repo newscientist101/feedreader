@@ -95,14 +95,14 @@
                     {{if .Url}}<a href="{{deref .Url}}" target="_blank" onclick="openArticleExternal(event, {{.ID}}, this.href)">{{.Title}}</a>{{else}}<a href="/article/{{.ID}}" onclick="markReadSilent({{.ID}})">{{.Title}}</a>{{end}}
                 </h2>
                 {{if .Summary}}
-                <p class="article-summary">{{truncate (stripHTML (deref .Summary)) 200}}</p>
+                <p class="article-summary">{{truncate (stripHTML (deref .Summary)) 500}}</p>
                 {{else if .Content}}
-                <p class="article-summary">{{truncate (stripHTML (deref .Content)) 200}}</p>
+                <p class="article-summary">{{truncate (stripHTML (deref .Content)) 500}}</p>
                 {{end}}
                 {{if .Content}}
-                <div class="article-content-preview expanded-only">{{truncate (stripHTML (deref .Content)) 800}}</div>
+                <div class="article-content-preview expanded-only">{{truncate (stripHTML (deref .Content)) 1500}}</div>
                 {{else if .Summary}}
-                <div class="article-content-preview expanded-only">{{truncate (stripHTML (deref .Summary)) 800}}</div>
+                <div class="article-content-preview expanded-only">{{truncate (stripHTML (deref .Summary)) 1500}}</div>
                 {{end}}
                 <div class="article-actions-placeholder"
                     data-article-id="{{.ID}}"
