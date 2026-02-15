@@ -1398,6 +1398,10 @@ th {
     .mark-read-icon {
         display: block;
     }
+
+    .view-list .article-meta .article-date {
+        display: none;
+    }
 }
 
 /* Responsive - Mobile */
