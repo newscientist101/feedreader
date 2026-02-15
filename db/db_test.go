@@ -218,3 +218,75 @@ func TestRunMigrations_RealMigrations(t *testing.T) {
 		t.Fatalf("expected 13 migrations recorded, got %d", count)
 	}
 }
+
+func TestRunMigrations_DisableFKDirective(t *testing.T) {
+	db := openTestDB(t)
+
+	initSQL := `
+CREATE TABLE IF NOT EXISTS migrations (
+  migration_number INTEGER PRIMARY KEY,
+  migration_name TEXT NOT NULL,
+  executed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE parent (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE);
+CREATE TABLE child (
+  id INTEGER PRIMARY KEY,
+  parent_id INTEGER NOT NULL REFERENCES parent(id) ON DELETE CASCADE
+);
+INSERT INTO parent VALUES (1, 'a');
+INSERT INTO parent VALUES (2, 'b');
+INSERT INTO child VALUES (10, 1);
+INSERT INTO child VALUES (20, 2);
+INSERT INTO migrations (migration_number, migration_name) VALUES (1, '001-init.sql');
+`
+
+	// Migration that recreates the parent table with a different constraint.
+	// Without pragma:disable_fk, the DROP TABLE would cascade-delete child rows.
+	recreateSQL := `
+-- pragma:disable_fk
+CREATE TABLE parent_new (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  extra TEXT,
+  UNIQUE(name)
+);
+INSERT INTO parent_new (id, name) SELECT id, name FROM parent;
+DROP TABLE parent;
+ALTER TABLE parent_new RENAME TO parent;
+`
+
+	mfs := makeFS(map[string]string{
+		"001-init.sql":     initSQL,
+		"002-recreate.sql": recreateSQL,
+	})
+
+	if err := runMigrations(db, mfs); err != nil {
+		t.Fatalf("migrations failed: %v", err)
+	}
+
+	// Child rows must still exist (CASCADE did not fire)
+	var count int
+	if err := db.QueryRow("SELECT count(*) FROM child").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 {
+		t.Fatalf("expected 2 child rows preserved, got %d", count)
+	}
+
+	// Parent rows must still exist
+	if err := db.QueryRow("SELECT count(*) FROM parent").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 {
+		t.Fatalf("expected 2 parent rows, got %d", count)
+	}
+
+	// Foreign keys should be re-enabled after migration
+	var fkEnabled int
+	if err := db.QueryRow("PRAGMA foreign_keys").Scan(&fkEnabled); err != nil {
+		t.Fatal(err)
+	}
+	if fkEnabled != 1 {
+		t.Fatal("foreign keys should be re-enabled after migration")
+	}
+}
