@@ -100,9 +100,9 @@
                 <p class="article-summary">{{truncate (stripHTML (deref .Content)) 500}}</p>
                 {{end}}
                 {{if .Content}}
-                <div class="article-content-preview expanded-only">{{truncate (stripHTML (deref .Content)) 1500}}</div>
+                <div class="article-content-preview expanded-only">{{truncate (stripHTML (deref .Content)) 500}}</div>
                 {{else if .Summary}}
-                <div class="article-content-preview expanded-only">{{truncate (stripHTML (deref .Summary)) 1500}}</div>
+                <div class="article-content-preview expanded-only">{{truncate (stripHTML (deref .Summary)) 500}}</div>
                 {{end}}
                 <div class="article-actions-placeholder"
                     data-article-id="{{.ID}}"

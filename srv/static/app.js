@@ -475,7 +475,7 @@ async function renderArticles(articles) {
                     ${a.url ? `<a href="${a.url}" target="_blank" onclick="openArticleExternal(event, ${a.id}, '${a.url.replace(/'/g, "\\'")}'">${a.title}</a>` : `<a href="/article/${a.id}" onclick="markReadSilent(${a.id})">${a.title}</a>`}
                 </h2>
                 ${a.summary ? `<p class="article-summary">${truncateText(stripHtml(a.summary), 500)}</p>` : (a.content ? `<p class="article-summary">${truncateText(stripHtml(a.content), 500)}</p>` : '')}
-                ${a.content ? `<div class="article-content-preview expanded-only" onclick="event.stopPropagation(); markReadSilent(${a.id})">${truncateText(stripHtml(a.content), 1500)}</div>` : (a.summary ? `<div class="article-content-preview expanded-only">${truncateText(stripHtml(a.summary), 1500)}</div>` : '')}
+                ${a.content ? `<div class="article-content-preview expanded-only" onclick="event.stopPropagation(); markReadSilent(${a.id})">${truncateText(stripHtml(a.content), 500)}</div>` : (a.summary ? `<div class="article-content-preview expanded-only">${truncateText(stripHtml(a.summary), 500)}</div>` : '')}
                 ${renderArticleActions(a)}
             </div>
         </article>
