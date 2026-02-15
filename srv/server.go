@@ -364,18 +364,19 @@ func (s *Server) getCommonData(ctx context.Context) map[string]any {
 	}
 
 	return map[string]any{
-		"Feeds":          feeds,
-		"FeedCounts":     feedCounts,
-		"Categories":     categories,
-		"CategoryTree":   categoryTree,
-		"FlatCategories": flatCategories,
-		"CategoryCounts": catCounts,
-		"FeedCategories": feedCategories,
-		"UnreadCount":    unreadCount,
-		"StarredCount":   starredCount,
-		"QueueCount":     queueCount,
-		"User":           user,
-		"Settings":       settings,
+		"Feeds":            feeds,
+		"FeedCounts":       feedCounts,
+		"Categories":       categories,
+		"CategoryTree":     categoryTree,
+		"FlatCategories":   flatCategories,
+		"CategoryCounts":   catCounts,
+		"FeedCategories":   feedCategories,
+		"UnreadCount":      unreadCount,
+		"StarredCount":     starredCount,
+		"QueueCount":       queueCount,
+		"User":             user,
+		"Settings":         settings,
+		"PreviewTextLimit": previewTextLimit,
 	}
 }
 
