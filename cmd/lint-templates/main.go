@@ -90,14 +90,17 @@ func main() {
 var templateActionRE = regexp.MustCompile(`\{\{-?\s*.*?\s*-?\}\}`)
 
 // checkHTML performs HTML well-formedness checks on a template file.
-// It strips template actions first so the HTML parser isn't confused by them.
 func checkHTML(path string) []string {
 	name := filepath.Base(path)
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return []string{fmt.Sprintf("%s: read error: %v", name, err)}
 	}
-	src := string(raw)
+	return checkHTMLString(name, string(raw))
+}
+
+// checkHTMLString performs HTML well-formedness checks on template source.
+func checkHTMLString(name, src string) []string {
 
 	var problems []string
 
