@@ -693,11 +693,18 @@ async function api(method, url, data = null) {
         options.body = JSON.stringify(data);
     }
     const res = await fetch(url, options);
-    const json = await res.json();
     if (!res.ok) {
-        throw new Error(json.error || 'Request failed');
+        let message = 'Request failed';
+        const text = await res.text();
+        try {
+            const json = JSON.parse(text);
+            message = json.error || message;
+        } catch {
+            message = text || message;
+        }
+        throw new Error(message);
     }
-    return json;
+    return res.json();
 }
 
 // Article actions
