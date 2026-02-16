@@ -297,7 +297,7 @@ func TestFetchFeed_RSS(t *testing.T) {
 	}
 
 	f := &Fetcher{DB: sqlDB, Client: ts.Client()}
-	if err := f.FetchFeed(context.Background(), feed); err != nil {
+	if err := f.FetchFeed(context.Background(), &feed); err != nil {
 		t.Fatalf("FetchFeed: %v", err)
 	}
 
@@ -344,10 +344,10 @@ func TestFetchFeed_RSS_DuplicateGUID(t *testing.T) {
 	f := &Fetcher{DB: sqlDB, Client: ts.Client()}
 
 	// Fetch twice — second should not error, just skip duplicate
-	if err := f.FetchFeed(context.Background(), feed); err != nil {
+	if err := f.FetchFeed(context.Background(), &feed); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.FetchFeed(context.Background(), feed); err != nil {
+	if err := f.FetchFeed(context.Background(), &feed); err != nil {
 		t.Fatal(err)
 	}
 
@@ -373,7 +373,7 @@ func TestFetchFeed_RSS_FetchError(t *testing.T) {
 	})
 
 	f := &Fetcher{DB: sqlDB, Client: ts.Client()}
-	err := f.FetchFeed(context.Background(), feed)
+	err := f.FetchFeed(context.Background(), &feed)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -408,7 +408,7 @@ func TestFetchFeed_UnknownType(t *testing.T) {
 	}
 
 	f := &Fetcher{DB: sqlDB, Client: http.DefaultClient}
-	err = f.FetchFeed(context.Background(), feed)
+	err = f.FetchFeed(context.Background(), &feed)
 	if err == nil {
 		t.Fatal("expected error for unknown feed type")
 	}
@@ -444,7 +444,7 @@ func TestFetchFeed_Atom(t *testing.T) {
 	})
 
 	f := &Fetcher{DB: sqlDB, Client: ts.Client()}
-	if err := f.FetchFeed(context.Background(), feed); err != nil {
+	if err := f.FetchFeed(context.Background(), &feed); err != nil {
 		t.Fatalf("FetchFeed atom: %v", err)
 	}
 
@@ -467,7 +467,7 @@ func TestFetchFeed_ScraperMissingModule(t *testing.T) {
 	})
 
 	f := &Fetcher{DB: sqlDB, Client: http.DefaultClient}
-	err := f.FetchFeed(context.Background(), feed)
+	err := f.FetchFeed(context.Background(), &feed)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -494,7 +494,7 @@ func TestFetchFeed_ScraperNoRunner(t *testing.T) {
 	}
 
 	f := &Fetcher{DB: sqlDB, Client: http.DefaultClient, ScraperRunner: nil}
-	err = f.FetchFeed(context.Background(), feed)
+	err = f.FetchFeed(context.Background(), &feed)
 	if err == nil {
 		t.Fatal("expected error for nil scraper runner")
 	}
@@ -510,7 +510,7 @@ func TestFetchFeed_HuggingFaceNoConfig(t *testing.T) {
 	})
 
 	f := &Fetcher{DB: sqlDB, Client: http.DefaultClient}
-	err := f.FetchFeed(context.Background(), feed)
+	err := f.FetchFeed(context.Background(), &feed)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -530,7 +530,7 @@ func TestFetchFeed_HuggingFaceBadConfig(t *testing.T) {
 	})
 
 	f := &Fetcher{DB: sqlDB, Client: http.DefaultClient}
-	err := f.FetchFeed(context.Background(), feed)
+	err := f.FetchFeed(context.Background(), &feed)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -624,7 +624,7 @@ func TestFetchFeed_SkipsEmptyGUID(t *testing.T) {
 	})
 
 	f := &Fetcher{DB: sqlDB, Client: ts.Client()}
-	if err := f.FetchFeed(context.Background(), feed); err != nil {
+	if err := f.FetchFeed(context.Background(), &feed); err != nil {
 		t.Fatal(err)
 	}
 
