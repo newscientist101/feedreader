@@ -101,7 +101,7 @@ type rssChannel struct {
 
 // ChannelLink returns the site URL from the channel's <link> elements,
 // preferring the plain-text <link> over atom:link.
-func (ch rssChannel) ChannelLink() string {
+func (ch *rssChannel) ChannelLink() string {
 	for _, l := range ch.Links {
 		if l.Text != "" {
 			return strings.TrimSpace(l.Text)
@@ -139,7 +139,7 @@ type rssItem struct {
 }
 
 // Title returns the non-namespaced <title> value, ignoring <media:title> etc.
-func (item rssItem) Title() string {
+func (item *rssItem) Title() string {
 	for _, t := range item.Titles {
 		if t.XMLName.Space == "" {
 			return t.Value
@@ -193,7 +193,8 @@ func parseRSS(data []byte) (*ParsedFeed, error) {
 		Items:         make([]FeedItem, 0, len(rss.Channel.Items)),
 	}
 
-	for _, item := range rss.Channel.Items {
+	for i := range rss.Channel.Items {
+		item := &rss.Channel.Items[i]
 		guid := item.GUID
 		if guid == "" {
 			guid = item.Link
@@ -315,7 +316,8 @@ func parseAtom(data []byte) (*ParsedFeed, error) {
 		Items:         make([]FeedItem, 0, len(atom.Entries)),
 	}
 
-	for _, entry := range atom.Entries {
+	for i := range atom.Entries {
+		entry := &atom.Entries[i]
 		var url string
 		for _, link := range entry.Links {
 			if link.Rel == "" || link.Rel == "alternate" {
@@ -347,7 +349,7 @@ func parseAtom(data []byte) (*ParsedFeed, error) {
 				} else if strings.Contains(embedURL, "youtube.com/shorts/") {
 					embedURL = strings.Replace(embedURL, "/shorts/", "/embed/", 1)
 				}
-				parts = append(parts, fmt.Sprintf(`<iframe src="%s" allowfullscreen></iframe>`, html.EscapeString(embedURL)))
+				parts = append(parts, fmt.Sprintf(`<iframe src="%s" allowfullscreen></iframe>`, html.EscapeString(embedURL))) //nolint:gocritic // %q would add unwanted Go quotes in HTML attribute
 			}
 			if entry.MediaGroup.Description != "" {
 				// Wrap plain text description in a paragraph, preserving newlines
@@ -399,7 +401,7 @@ func parseAtom(data []byte) (*ParsedFeed, error) {
 }
 
 // extractImageURL finds an image URL from various RSS sources
-func extractImageURL(item rssItem, content string) string {
+func extractImageURL(item *rssItem, content string) string {
 	// 1. Check enclosure with image type
 	if item.Enclosure != nil && strings.HasPrefix(item.Enclosure.Type, "image/") {
 		return item.Enclosure.URL

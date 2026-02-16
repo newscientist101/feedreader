@@ -709,7 +709,7 @@ func TestGzipMiddleware(t *testing.T) {
 	}))
 
 	// With gzip
-	r := httptest.NewRequest("GET", "/", nil)
+	r := httptest.NewRequest("GET", "/", http.NoBody)
 	r.Header.Set("Accept-Encoding", "gzip")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, r)
@@ -718,7 +718,7 @@ func TestGzipMiddleware(t *testing.T) {
 	}
 
 	// Without gzip
-	r = httptest.NewRequest("GET", "/", nil)
+	r = httptest.NewRequest("GET", "/", http.NoBody)
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, r)
 	if w.Header().Get("Content-Encoding") == "gzip" {

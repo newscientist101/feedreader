@@ -440,7 +440,7 @@ func TestHandlerSettingsAllKeys(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.key+"="+tt.value, func(t *testing.T) {
-			body := fmt.Sprintf(`{"%s":"%s"}`, tt.key, tt.value)
+			body := fmt.Sprintf(`{"%s":"%s"}`, tt.key, tt.value) //nolint:gocritic // %q would add unwanted Go-style quotes in JSON
 			w := serveAPI(t, s.apiUpdateSettings, "PUT", "/api/settings", body, ctx)
 			if w.Code != tt.wantCode {
 				t.Fatalf("got %d, want %d: %s", w.Code, tt.wantCode, w.Body.String())

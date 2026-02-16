@@ -105,7 +105,7 @@ func serveAPI(t *testing.T, handler http.HandlerFunc, method, target, body strin
 		r = httptest.NewRequest(method, target, strings.NewReader(body))
 		r.Header.Set("Content-Type", "application/json")
 	} else {
-		r = httptest.NewRequest(method, target, nil)
+		r = httptest.NewRequest(method, target, http.NoBody)
 	}
 	r = r.WithContext(ctx)
 	w := httptest.NewRecorder()
@@ -162,7 +162,7 @@ func serveMux(t *testing.T, pattern string, handler http.HandlerFunc, method, ta
 		r = httptest.NewRequest(method, target, strings.NewReader(body))
 		r.Header.Set("Content-Type", "application/json")
 	} else {
-		r = httptest.NewRequest(method, target, nil)
+		r = httptest.NewRequest(method, target, http.NoBody)
 	}
 	r = r.WithContext(ctx)
 	w := httptest.NewRecorder()

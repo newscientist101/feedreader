@@ -26,7 +26,7 @@ type JSONScraperConfig struct {
 	ConsolidateDuplicates bool `json:"consolidateDuplicates"`
 }
 
-func (r *Runner) runJSONScraper(config JSONScraperConfig, content, pageURL string) ([]FeedItem, error) {
+func (r *Runner) runJSONScraper(config *JSONScraperConfig, content, pageURL string) ([]FeedItem, error) {
 	var raw any
 	if err := json.Unmarshal([]byte(content), &raw); err != nil {
 		return nil, fmt.Errorf("parse JSON content: %w", err)

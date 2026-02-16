@@ -104,15 +104,15 @@ func (f *Fetcher) FetchAll(ctx context.Context) {
 		return
 	}
 
-	for _, feed := range feeds {
-		if err := f.FetchFeed(ctx, feed); err != nil {
-			slog.Warn("fetch feed", "feed_id", feed.ID, "url", feed.Url, "error", err)
+	for i := range feeds {
+		if err := f.FetchFeed(ctx, &feeds[i]); err != nil {
+			slog.Warn("fetch feed", "feed_id", feeds[i].ID, "url", feeds[i].Url, "error", err)
 		}
 	}
 }
 
 // FetchFeed fetches a single feed
-func (f *Fetcher) FetchFeed(ctx context.Context, feed dbgen.Feed) error {
+func (f *Fetcher) FetchFeed(ctx context.Context, feed *dbgen.Feed) error {
 	slog.Debug("starting feed fetch", "feed_id", feed.ID, "url", feed.Url, "type", feed.FeedType)
 	q := dbgen.New(f.DB)
 	now := time.Now()
@@ -201,7 +201,7 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed dbgen.Feed) error {
 }
 
 func (f *Fetcher) fetchRSSFeed(ctx context.Context, url string) ([]FeedItem, string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return nil, "", err
 	}
@@ -246,7 +246,7 @@ func (f *Fetcher) fetchRSSFeed(ctx context.Context, url string) ([]FeedItem, str
 	return feed.Items, feed.URL, nil
 }
 
-func (f *Fetcher) fetchWithScraper(ctx context.Context, feed dbgen.Feed) ([]FeedItem, error) {
+func (f *Fetcher) fetchWithScraper(ctx context.Context, feed *dbgen.Feed) ([]FeedItem, error) {
 	if f.ScraperRunner == nil {
 		return nil, fmt.Errorf("scraper runner not available")
 	}
@@ -258,7 +258,7 @@ func (f *Fetcher) fetchWithScraper(ctx context.Context, feed dbgen.Feed) ([]Feed
 	}
 
 	// Fetch the page content
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, feed.Url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, feed.Url, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +310,7 @@ func strPtr(s string) *string {
 	return &s
 }
 
-func (f *Fetcher) fetchHuggingFace(ctx context.Context, feed dbgen.Feed) ([]FeedItem, error) {
+func (f *Fetcher) fetchHuggingFace(ctx context.Context, feed *dbgen.Feed) ([]FeedItem, error) {
 	if feed.ScraperConfig == nil || *feed.ScraperConfig == "" {
 		return nil, fmt.Errorf("huggingface config not set")
 	}
@@ -321,21 +321,21 @@ func (f *Fetcher) fetchHuggingFace(ctx context.Context, feed dbgen.Feed) ([]Feed
 	}
 
 	client := huggingface.NewClient("") // No auth token for now
-	hfItems, err := client.Fetch(ctx, config)
+	hfItems, err := client.Fetch(ctx, &config)
 	if err != nil {
 		return nil, fmt.Errorf("fetch from huggingface: %w", err)
 	}
 
 	items := make([]FeedItem, len(hfItems))
-	for i, hfItem := range hfItems {
+	for i := range hfItems {
 		items[i] = FeedItem{
-			GUID:        hfItem.GUID,
-			Title:       hfItem.Title,
-			URL:         hfItem.URL,
-			Author:      hfItem.Author,
-			Summary:     hfItem.Summary,
-			ImageURL:    hfItem.ImageURL,
-			PublishedAt: hfItem.PublishedAt,
+			GUID:        hfItems[i].GUID,
+			Title:       hfItems[i].Title,
+			URL:         hfItems[i].URL,
+			Author:      hfItems[i].Author,
+			Summary:     hfItems[i].Summary,
+			ImageURL:    hfItems[i].ImageURL,
+			PublishedAt: hfItems[i].PublishedAt,
 		}
 	}
 	return items, nil

@@ -69,7 +69,7 @@ type FeedConfig struct {
 
 // Fetch retrieves items based on the feed configuration
 // GetFeedName returns a suggested name for the feed based on the config
-func (c *Client) GetFeedName(ctx context.Context, config FeedConfig) (string, error) {
+func (c *Client) GetFeedName(ctx context.Context, config *FeedConfig) (string, error) {
 	switch config.Type {
 	case FeedTypeCollection:
 		// Fetch collection info to get its title
@@ -109,7 +109,7 @@ func (c *Client) GetFeedName(ctx context.Context, config FeedConfig) (string, er
 	}
 }
 
-func (c *Client) Fetch(ctx context.Context, config FeedConfig) ([]FeedItem, error) {
+func (c *Client) Fetch(ctx context.Context, config *FeedConfig) ([]FeedItem, error) {
 	if config.Limit == 0 {
 		config.Limit = 50
 	}
@@ -132,8 +132,8 @@ func (c *Client) Fetch(ctx context.Context, config FeedConfig) ([]FeedItem, erro
 	}
 }
 
-func (c *Client) doRequest(ctx context.Context, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+func (c *Client) doRequest(ctx context.Context, rawURL string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +168,7 @@ type Model struct {
 	LastModified time.Time `json:"lastModified"`
 }
 
-func (c *Client) fetchModels(ctx context.Context, config FeedConfig) ([]FeedItem, error) {
+func (c *Client) fetchModels(ctx context.Context, config *FeedConfig) ([]FeedItem, error) {
 	apiURL := fmt.Sprintf("%s/api/models?author=%s&limit=%d&sort=lastModified&direction=-1",
 		c.baseURL, url.QueryEscape(config.Identifier), config.Limit)
 
@@ -183,29 +183,29 @@ func (c *Client) fetchModels(ctx context.Context, config FeedConfig) ([]FeedItem
 	}
 
 	items := make([]FeedItem, 0, len(models))
-	for _, m := range models {
-		if !c.matchesTags(m.Tags, config) {
+	for i := range models {
+		if !c.matchesTags(models[i].Tags, config) {
 			continue
 		}
 
-		pubTime := m.CreatedAt
-		if !m.LastModified.IsZero() {
-			pubTime = m.LastModified
+		pubTime := models[i].CreatedAt
+		if !models[i].LastModified.IsZero() {
+			pubTime = models[i].LastModified
 		}
 
-		summary := fmt.Sprintf("Downloads: %d | Likes: %d", m.Downloads, m.Likes)
-		if m.PipelineTag != "" {
-			summary = fmt.Sprintf("%s | %s", m.PipelineTag, summary)
+		summary := fmt.Sprintf("Downloads: %d | Likes: %d", models[i].Downloads, models[i].Likes)
+		if models[i].PipelineTag != "" {
+			summary = fmt.Sprintf("%s | %s", models[i].PipelineTag, summary)
 		}
 
 		items = append(items, FeedItem{
-			GUID:        "hf:model:" + m.ID,
-			Title:       m.ID,
-			URL:         fmt.Sprintf("%s/%s", c.baseURL, m.ID),
+			GUID:        "hf:model:" + models[i].ID,
+			Title:       models[i].ID,
+			URL:         fmt.Sprintf("%s/%s", c.baseURL, models[i].ID),
 			Author:      config.Identifier,
 			Summary:     summary,
 			PublishedAt: &pubTime,
-			Tags:        m.Tags,
+			Tags:        models[i].Tags,
 		})
 	}
 
@@ -240,7 +240,7 @@ type CollectionItem struct {
 	LastModified time.Time `json:"lastModified"`
 }
 
-func (c *Client) fetchCollection(ctx context.Context, config FeedConfig) ([]FeedItem, error) {
+func (c *Client) fetchCollection(ctx context.Context, config *FeedConfig) ([]FeedItem, error) {
 	// Collection slug format: username/collection-name-id or username/collection-name
 	apiURL := fmt.Sprintf("%s/api/collections/%s", c.baseURL, config.Identifier)
 
@@ -255,50 +255,50 @@ func (c *Client) fetchCollection(ctx context.Context, config FeedConfig) ([]Feed
 	}
 
 	items := make([]FeedItem, 0, len(collection.Items))
-	for _, item := range collection.Items {
+	for i := range collection.Items {
 		if len(items) >= config.Limit {
 			break
 		}
 
 		// Use repoType if type is empty
-		itemType := item.Type
+		itemType := collection.Items[i].Type
 		if itemType == "" {
-			itemType = item.RepoType
+			itemType = collection.Items[i].RepoType
 		}
 
 		var itemURL string
 		switch itemType {
 		case "model":
-			itemURL = fmt.Sprintf("%s/%s", c.baseURL, item.ID)
+			itemURL = fmt.Sprintf("%s/%s", c.baseURL, collection.Items[i].ID)
 		case "dataset":
-			itemURL = fmt.Sprintf("%s/datasets/%s", c.baseURL, item.ID)
+			itemURL = fmt.Sprintf("%s/datasets/%s", c.baseURL, collection.Items[i].ID)
 		case "space":
-			itemURL = fmt.Sprintf("%s/spaces/%s", c.baseURL, item.ID)
+			itemURL = fmt.Sprintf("%s/spaces/%s", c.baseURL, collection.Items[i].ID)
 		default:
 			// Default to model if type is unknown
-			itemURL = fmt.Sprintf("%s/%s", c.baseURL, item.ID)
+			itemURL = fmt.Sprintf("%s/%s", c.baseURL, collection.Items[i].ID)
 		}
 
 		// Build summary with stats
 		summary := fmt.Sprintf("Part of collection: %s", collection.Title)
-		if item.Downloads > 0 || item.Likes > 0 {
-			summary = fmt.Sprintf("%s | Downloads: %d | Likes: %d", summary, item.Downloads, item.Likes)
+		if collection.Items[i].Downloads > 0 || collection.Items[i].Likes > 0 {
+			summary = fmt.Sprintf("%s | Downloads: %d | Likes: %d", summary, collection.Items[i].Downloads, collection.Items[i].Likes)
 		}
-		if item.PipelineTag != "" {
-			summary = fmt.Sprintf("%s | %s", item.PipelineTag, summary)
+		if collection.Items[i].PipelineTag != "" {
+			summary = fmt.Sprintf("%s | %s", collection.Items[i].PipelineTag, summary)
 		}
 
 		// Use item's lastModified if available, otherwise collection's
 		pubTime := collection.LastUpdated
-		if !item.LastModified.IsZero() {
-			pubTime = item.LastModified
+		if !collection.Items[i].LastModified.IsZero() {
+			pubTime = collection.Items[i].LastModified
 		}
 
 		items = append(items, FeedItem{
-			GUID:        fmt.Sprintf("hf:collection:%s:%s", collection.Slug, item.ID),
-			Title:       item.ID,
+			GUID:        fmt.Sprintf("hf:collection:%s:%s", collection.Slug, collection.Items[i].ID),
+			Title:       collection.Items[i].ID,
 			URL:         itemURL,
-			Author:      item.Author,
+			Author:      collection.Items[i].Author,
 			Summary:     summary,
 			PublishedAt: &pubTime,
 		})
@@ -334,7 +334,7 @@ type PostsResponse struct {
 	SocialPosts []Post `json:"socialPosts"`
 }
 
-func (c *Client) fetchPosts(ctx context.Context, config FeedConfig) ([]FeedItem, error) {
+func (c *Client) fetchPosts(ctx context.Context, config *FeedConfig) ([]FeedItem, error) {
 	apiURL := fmt.Sprintf("%s/api/posts?author=%s&limit=%d",
 		c.baseURL, url.QueryEscape(config.Identifier), config.Limit)
 
@@ -349,11 +349,11 @@ func (c *Client) fetchPosts(ctx context.Context, config FeedConfig) ([]FeedItem,
 	}
 
 	items := make([]FeedItem, 0, len(resp.SocialPosts))
-	for _, post := range resp.SocialPosts {
+	for i := range resp.SocialPosts {
 		// Extract title from first text content
 		title := "Post"
 		var summary strings.Builder
-		for _, content := range post.Content {
+		for _, content := range resp.SocialPosts[i].Content {
 			if content.Type == "text" && content.Value != "" {
 				if title == "Post" {
 					title = truncateString(content.Value, 100)
@@ -363,18 +363,18 @@ func (c *Client) fetchPosts(ctx context.Context, config FeedConfig) ([]FeedItem,
 			}
 		}
 
-		pubTime := post.PublishedAt
+		pubTime := resp.SocialPosts[i].PublishedAt
 
 		// Post URL format: /posts/{username}/{slug}
-		authorName := post.Author.Name
+		authorName := resp.SocialPosts[i].Author.Name
 		if authorName == "" {
 			authorName = config.Identifier
 		}
 
 		items = append(items, FeedItem{
-			GUID:        "hf:post:" + post.Slug,
+			GUID:        "hf:post:" + resp.SocialPosts[i].Slug,
 			Title:       title,
-			URL:         fmt.Sprintf("%s/posts/%s/%s", c.baseURL, authorName, post.Slug),
+			URL:         fmt.Sprintf("%s/posts/%s/%s", c.baseURL, authorName, resp.SocialPosts[i].Slug),
 			Author:      authorName,
 			Summary:     truncateString(summary.String(), 300),
 			PublishedAt: &pubTime,
@@ -404,7 +404,7 @@ type Paper struct {
 	} `json:"submittedBy"`
 }
 
-func (c *Client) fetchDailyPapers(ctx context.Context, config FeedConfig) ([]FeedItem, error) {
+func (c *Client) fetchDailyPapers(ctx context.Context, config *FeedConfig) ([]FeedItem, error) {
 	apiURL := fmt.Sprintf("%s/api/daily_papers?limit=%d", c.baseURL, config.Limit)
 
 	data, err := c.doRequest(ctx, apiURL)
@@ -418,21 +418,21 @@ func (c *Client) fetchDailyPapers(ctx context.Context, config FeedConfig) ([]Fee
 	}
 
 	items := make([]FeedItem, 0, len(papers))
-	for _, p := range papers {
-		authors := make([]string, len(p.Paper.Authors))
-		for i, a := range p.Paper.Authors {
-			authors[i] = a.Name
+	for i := range papers {
+		authors := make([]string, len(papers[i].Paper.Authors))
+		for j, a := range papers[i].Paper.Authors {
+			authors[j] = a.Name
 		}
 
-		pubTime := p.PublishedAt
+		pubTime := papers[i].PublishedAt
 		items = append(items, FeedItem{
-			GUID:        "hf:paper:" + p.Paper.ID,
-			Title:       p.Title,
-			URL:         fmt.Sprintf("%s/papers/%s", c.baseURL, p.Paper.ID),
+			GUID:        "hf:paper:" + papers[i].Paper.ID,
+			Title:       papers[i].Title,
+			URL:         fmt.Sprintf("%s/papers/%s", c.baseURL, papers[i].Paper.ID),
 			Author:      strings.Join(authors, ", "),
-			Summary:     truncateString(p.Summary, 500),
+			Summary:     truncateString(papers[i].Summary, 500),
 			PublishedAt: &pubTime,
-			ImageURL:    p.Thumbnail,
+			ImageURL:    papers[i].Thumbnail,
 		})
 	}
 
@@ -450,7 +450,7 @@ type Dataset struct {
 	LastModified time.Time `json:"lastModified"`
 }
 
-func (c *Client) fetchDatasets(ctx context.Context, config FeedConfig) ([]FeedItem, error) {
+func (c *Client) fetchDatasets(ctx context.Context, config *FeedConfig) ([]FeedItem, error) {
 	apiURL := fmt.Sprintf("%s/api/datasets?author=%s&limit=%d&sort=lastModified&direction=-1",
 		c.baseURL, url.QueryEscape(config.Identifier), config.Limit)
 
@@ -500,7 +500,7 @@ type Space struct {
 	SDK          string    `json:"sdk"`
 }
 
-func (c *Client) fetchSpaces(ctx context.Context, config FeedConfig) ([]FeedItem, error) {
+func (c *Client) fetchSpaces(ctx context.Context, config *FeedConfig) ([]FeedItem, error) {
 	apiURL := fmt.Sprintf("%s/api/spaces?author=%s&limit=%d&sort=lastModified&direction=-1",
 		c.baseURL, url.QueryEscape(config.Identifier), config.Limit)
 
@@ -515,36 +515,36 @@ func (c *Client) fetchSpaces(ctx context.Context, config FeedConfig) ([]FeedItem
 	}
 
 	items := make([]FeedItem, 0, len(spaces))
-	for _, s := range spaces {
-		if !c.matchesTags(s.Tags, config) {
+	for i := range spaces {
+		if !c.matchesTags(spaces[i].Tags, config) {
 			continue
 		}
 
-		pubTime := s.CreatedAt
-		if !s.LastModified.IsZero() {
-			pubTime = s.LastModified
+		pubTime := spaces[i].CreatedAt
+		if !spaces[i].LastModified.IsZero() {
+			pubTime = spaces[i].LastModified
 		}
 
-		summary := fmt.Sprintf("Likes: %d", s.Likes)
-		if s.SDK != "" {
-			summary = fmt.Sprintf("SDK: %s | %s", s.SDK, summary)
+		summary := fmt.Sprintf("Likes: %d", spaces[i].Likes)
+		if spaces[i].SDK != "" {
+			summary = fmt.Sprintf("SDK: %s | %s", spaces[i].SDK, summary)
 		}
 
 		items = append(items, FeedItem{
-			GUID:        "hf:space:" + s.ID,
-			Title:       s.ID,
-			URL:         fmt.Sprintf("%s/spaces/%s", c.baseURL, s.ID),
+			GUID:        "hf:space:" + spaces[i].ID,
+			Title:       spaces[i].ID,
+			URL:         fmt.Sprintf("%s/spaces/%s", c.baseURL, spaces[i].ID),
 			Author:      config.Identifier,
 			Summary:     summary,
 			PublishedAt: &pubTime,
-			Tags:        s.Tags,
+			Tags:        spaces[i].Tags,
 		})
 	}
 
 	return items, nil
 }
 
-func (c *Client) matchesTags(itemTags []string, config FeedConfig) bool {
+func (c *Client) matchesTags(itemTags []string, config *FeedConfig) bool {
 	// Check include tags (must have at least one)
 	if len(config.IncludeTags) > 0 {
 		hasInclude := false

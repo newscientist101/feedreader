@@ -34,7 +34,7 @@ func NewShelleyScraperGenerator() *ShelleyScraperGenerator {
 
 func (g *ShelleyScraperGenerator) IsAvailable() bool {
 	// Check if Shelley is running
-	req, err := http.NewRequest("GET", g.shelleyURL+"/api/conversations", nil)
+	req, err := http.NewRequest("GET", g.shelleyURL+"/api/conversations", http.NoBody)
 	if err != nil {
 		return false
 	}
@@ -155,7 +155,7 @@ func (g *ShelleyScraperGenerator) waitForResponse(ctx context.Context, conversat
 			return "", fmt.Errorf("timeout waiting for Shelley response")
 		case <-ticker.C:
 			// Check if conversation is done via API
-			req, _ := http.NewRequestWithContext(ctx, "GET", g.shelleyURL+"/api/conversations", nil)
+			req, _ := http.NewRequestWithContext(ctx, "GET", g.shelleyURL+"/api/conversations", http.NoBody)
 			req.Header.Set("X-Exedev-Userid", "local")
 			resp, err := g.httpClient.Do(req)
 			if err != nil {

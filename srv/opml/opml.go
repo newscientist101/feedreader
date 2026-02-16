@@ -55,12 +55,12 @@ func Parse(r io.Reader) ([]Feed, error) {
 
 	var feeds []Feed
 	for _, outline := range opml.Body.Outlines {
-		feeds = append(feeds, extractFeeds(outline, "")...)
+		feeds = append(feeds, extractFeeds(&outline, "")...)
 	}
 	return feeds, nil
 }
 
-func extractFeeds(outline Outline, category string) []Feed {
+func extractFeeds(outline *Outline, category string) []Feed {
 	var feeds []Feed
 
 	// If this outline has a feed URL, it's a feed
@@ -88,7 +88,7 @@ func extractFeeds(outline Outline, category string) []Feed {
 	}
 
 	for _, child := range outline.Outlines {
-		feeds = append(feeds, extractFeeds(child, folderName)...)
+		feeds = append(feeds, extractFeeds(&child, folderName)...)
 	}
 
 	return feeds

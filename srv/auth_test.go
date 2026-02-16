@@ -7,7 +7,7 @@ import (
 )
 
 func TestGetUser_NoUser(t *testing.T) {
-	ctx := httptest.NewRequest("GET", "/", nil).Context()
+	ctx := httptest.NewRequest("GET", "/", http.NoBody).Context()
 	if u := GetUser(ctx); u != nil {
 		t.Errorf("expected nil, got %+v", u)
 	}
@@ -22,7 +22,7 @@ func TestAuthMiddleware_StaticBypass(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 
-	r := httptest.NewRequest("GET", "/static/app.js", nil)
+	r := httptest.NewRequest("GET", "/static/app.js", http.NoBody)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, r)
 	if !called {
@@ -37,7 +37,7 @@ func TestAuthMiddleware_NoHeaders_APIReturns401(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 
-	r := httptest.NewRequest("GET", "/api/feeds", nil)
+	r := httptest.NewRequest("GET", "/api/feeds", http.NoBody)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, r)
 	if w.Code != 401 {
@@ -52,7 +52,7 @@ func TestAuthMiddleware_NoHeaders_PageRedirects(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 
-	r := httptest.NewRequest("GET", "/feeds", nil)
+	r := httptest.NewRequest("GET", "/feeds", http.NoBody)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, r)
 	if w.Code != http.StatusTemporaryRedirect {
@@ -73,7 +73,7 @@ func TestAuthMiddleware_WithHeaders(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 
-	r := httptest.NewRequest("GET", "/api/feeds", nil)
+	r := httptest.NewRequest("GET", "/api/feeds", http.NoBody)
 	r.Header.Set("X-Exedev-Userid", "ext-123")
 	r.Header.Set("X-Exedev-Email", "user@example.com")
 	w := httptest.NewRecorder()

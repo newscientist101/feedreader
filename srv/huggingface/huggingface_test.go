@@ -72,7 +72,7 @@ func TestMatchesTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := c.matchesTags(tt.tags, tt.config)
+			got := c.matchesTags(tt.tags, &tt.config)
 			if got != tt.want {
 				t.Errorf("matchesTags(%v, ...) = %v, want %v", tt.tags, got, tt.want)
 			}
@@ -84,7 +84,7 @@ func TestMatchesTags(t *testing.T) {
 
 func TestFetch_UnknownType(t *testing.T) {
 	c := newTestClient("http://unused")
-	_, err := c.Fetch(context.Background(), FeedConfig{Type: "bogus"})
+	_, err := c.Fetch(context.Background(), &FeedConfig{Type: "bogus"})
 	if err == nil || !strings.Contains(err.Error(), "unknown feed type") {
 		t.Fatalf("expected unknown feed type error, got: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestFetch_DefaultLimit(t *testing.T) {
 	defer ts.Close()
 
 	c := newTestClient(ts.URL)
-	c.Fetch(context.Background(), FeedConfig{Type: FeedTypeUserModels, Identifier: "testuser"})
+	c.Fetch(context.Background(), &FeedConfig{Type: FeedTypeUserModels, Identifier: "testuser"})
 	if !strings.Contains(capturedURL, "limit=50") {
 		t.Errorf("expected default limit=50 in URL, got: %s", capturedURL)
 	}
@@ -116,7 +116,7 @@ func TestFetch_APIError(t *testing.T) {
 	defer ts.Close()
 
 	c := newTestClient(ts.URL)
-	_, err := c.Fetch(context.Background(), FeedConfig{Type: FeedTypeUserModels, Identifier: "x"})
+	_, err := c.Fetch(context.Background(), &FeedConfig{Type: FeedTypeUserModels, Identifier: "x"})
 	if err == nil || !strings.Contains(err.Error(), "status 500") {
 		t.Fatalf("expected status 500 error, got: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestAuthToken(t *testing.T) {
 	defer ts.Close()
 
 	c := newTestClientWithToken(ts.URL, "hf_secret123")
-	c.Fetch(context.Background(), FeedConfig{Type: FeedTypeUserModels, Identifier: "u"})
+	c.Fetch(context.Background(), &FeedConfig{Type: FeedTypeUserModels, Identifier: "u"})
 	if gotAuth != "Bearer hf_secret123" {
 		t.Errorf("expected 'Bearer hf_secret123', got %q", gotAuth)
 	}
@@ -150,7 +150,7 @@ func TestDoRequest_UserAgent(t *testing.T) {
 	defer ts.Close()
 
 	c := newTestClient(ts.URL)
-	c.Fetch(context.Background(), FeedConfig{Type: FeedTypeUserModels, Identifier: "u"})
+	c.Fetch(context.Background(), &FeedConfig{Type: FeedTypeUserModels, Identifier: "u"})
 	if gotUA != "FeedReader/1.0" {
 		t.Errorf("expected User-Agent 'FeedReader/1.0', got %q", gotUA)
 	}
@@ -179,7 +179,7 @@ func TestFetchModels(t *testing.T) {
 	defer ts.Close()
 
 	c := newTestClient(ts.URL)
-	items, err := c.Fetch(context.Background(), FeedConfig{Type: FeedTypeUserModels, Identifier: "alice", Limit: 10})
+	items, err := c.Fetch(context.Background(), &FeedConfig{Type: FeedTypeUserModels, Identifier: "alice", Limit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +236,7 @@ func TestFetchModels_WithTagFilters(t *testing.T) {
 	c := newTestClient(ts.URL)
 
 	// Include only pytorch
-	items, err := c.Fetch(context.Background(), FeedConfig{
+	items, err := c.Fetch(context.Background(), &FeedConfig{
 		Type: FeedTypeUserModels, Identifier: "u", Limit: 10,
 		IncludeTags: []string{"pytorch"},
 	})
@@ -248,7 +248,7 @@ func TestFetchModels_WithTagFilters(t *testing.T) {
 	}
 
 	// Exclude deprecated
-	items, err = c.Fetch(context.Background(), FeedConfig{
+	items, err = c.Fetch(context.Background(), &FeedConfig{
 		Type: FeedTypeUserModels, Identifier: "u", Limit: 10,
 		ExcludeTags: []string{"deprecated"},
 	})
@@ -260,7 +260,7 @@ func TestFetchModels_WithTagFilters(t *testing.T) {
 	}
 
 	// Include pytorch AND exclude deprecated
-	items, err = c.Fetch(context.Background(), FeedConfig{
+	items, err = c.Fetch(context.Background(), &FeedConfig{
 		Type: FeedTypeUserModels, Identifier: "u", Limit: 10,
 		IncludeTags: []string{"pytorch"}, ExcludeTags: []string{"deprecated"},
 	})
@@ -297,7 +297,7 @@ func TestFetchCollection(t *testing.T) {
 	defer ts.Close()
 
 	c := newTestClient(ts.URL)
-	items, err := c.Fetch(context.Background(), FeedConfig{Type: FeedTypeCollection, Identifier: "bob/my-collection-abc123", Limit: 10})
+	items, err := c.Fetch(context.Background(), &FeedConfig{Type: FeedTypeCollection, Identifier: "bob/my-collection-abc123", Limit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,7 +376,7 @@ func TestFetchPosts(t *testing.T) {
 	defer ts.Close()
 
 	c := newTestClient(ts.URL)
-	items, err := c.Fetch(context.Background(), FeedConfig{Type: FeedTypeUserPosts, Identifier: "carol", Limit: 10})
+	items, err := c.Fetch(context.Background(), &FeedConfig{Type: FeedTypeUserPosts, Identifier: "carol", Limit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -438,7 +438,7 @@ func TestFetchDailyPapers(t *testing.T) {
 	defer ts.Close()
 
 	c := newTestClient(ts.URL)
-	items, err := c.Fetch(context.Background(), FeedConfig{Type: FeedTypeDailyPapers, Limit: 10})
+	items, err := c.Fetch(context.Background(), &FeedConfig{Type: FeedTypeDailyPapers, Limit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -481,7 +481,7 @@ func TestFetchDatasets(t *testing.T) {
 	defer ts.Close()
 
 	c := newTestClient(ts.URL)
-	items, err := c.Fetch(context.Background(), FeedConfig{Type: FeedTypeUserDatasets, Identifier: "dan", Limit: 10})
+	items, err := c.Fetch(context.Background(), &FeedConfig{Type: FeedTypeUserDatasets, Identifier: "dan", Limit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -526,7 +526,7 @@ func TestFetchSpaces(t *testing.T) {
 	defer ts.Close()
 
 	c := newTestClient(ts.URL)
-	items, err := c.Fetch(context.Background(), FeedConfig{Type: FeedTypeUserSpaces, Identifier: "eve", Limit: 10})
+	items, err := c.Fetch(context.Background(), &FeedConfig{Type: FeedTypeUserSpaces, Identifier: "eve", Limit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -581,7 +581,7 @@ func TestGetFeedName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := c.GetFeedName(ctx, tt.config)
+			got, err := c.GetFeedName(ctx, &tt.config)
 			if err != nil {
 				t.Fatal(err)
 			}

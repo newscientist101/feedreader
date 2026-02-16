@@ -9,7 +9,7 @@ import (
 )
 
 // FilterArticles applies exclusion rules to a list of articles
-func (s *Server) FilterArticles(ctx context.Context, articles []dbgen.ListUnreadArticlesRow, categoryID int64, userID int64) []dbgen.ListUnreadArticlesRow {
+func (s *Server) FilterArticles(ctx context.Context, articles []dbgen.ListUnreadArticlesRow, categoryID, userID int64) []dbgen.ListUnreadArticlesRow {
 	if categoryID == 0 {
 		return articles
 	}
@@ -24,9 +24,9 @@ func (s *Server) FilterArticles(ctx context.Context, articles []dbgen.ListUnread
 	}
 
 	var filtered []dbgen.ListUnreadArticlesRow
-	for _, article := range articles {
-		if !s.shouldExclude(article.Title, ptrToStr(article.Summary), ptrToStr(article.Author), exclusions) {
-			filtered = append(filtered, article)
+	for i := range articles {
+		if !s.shouldExclude(articles[i].Title, ptrToStr(articles[i].Summary), ptrToStr(articles[i].Author), exclusions) {
+			filtered = append(filtered, articles[i])
 		}
 	}
 	return filtered
@@ -66,25 +66,25 @@ func (s *Server) FilterAllUnreadArticles(ctx context.Context, articles []dbgen.L
 	}
 
 	var filtered []dbgen.ListUnreadArticlesRow
-	for _, article := range articles {
+	for i := range articles {
 		excluded := false
-		for _, catID := range feedCategories[article.FeedID] {
+		for _, catID := range feedCategories[articles[i].FeedID] {
 			if excls, ok := exclusionsByCategory[catID]; ok {
-				if s.shouldExclude(article.Title, ptrToStr(article.Summary), ptrToStr(article.Author), excls) {
+				if s.shouldExclude(articles[i].Title, ptrToStr(articles[i].Summary), ptrToStr(articles[i].Author), excls) {
 					excluded = true
 					break
 				}
 			}
 		}
 		if !excluded {
-			filtered = append(filtered, article)
+			filtered = append(filtered, articles[i])
 		}
 	}
 	return filtered
 }
 
 // FilterArticlesByFeed applies exclusion rules for feed articles
-func (s *Server) FilterArticlesByFeed(ctx context.Context, articles []dbgen.ListArticlesByFeedRow, feedID int64, userID int64) []dbgen.ListArticlesByFeedRow {
+func (s *Server) FilterArticlesByFeed(ctx context.Context, articles []dbgen.ListArticlesByFeedRow, feedID, userID int64) []dbgen.ListArticlesByFeedRow {
 	q := dbgen.New(s.DB)
 
 	// Get the category for this feed
@@ -103,16 +103,16 @@ func (s *Server) FilterArticlesByFeed(ctx context.Context, articles []dbgen.List
 	}
 
 	var filtered []dbgen.ListArticlesByFeedRow
-	for _, article := range articles {
-		if !s.shouldExclude(article.Title, ptrToStr(article.Summary), ptrToStr(article.Author), exclusions) {
-			filtered = append(filtered, article)
+	for i := range articles {
+		if !s.shouldExclude(articles[i].Title, ptrToStr(articles[i].Summary), ptrToStr(articles[i].Author), exclusions) {
+			filtered = append(filtered, articles[i])
 		}
 	}
 	return filtered
 }
 
 // FilterArticlesByCategory applies exclusion rules for category articles
-func (s *Server) FilterArticlesByCategory(ctx context.Context, articles []dbgen.ListUnreadArticlesByCategoryRow, categoryID int64, userID int64) []dbgen.ListUnreadArticlesByCategoryRow {
+func (s *Server) FilterArticlesByCategory(ctx context.Context, articles []dbgen.ListUnreadArticlesByCategoryRow, categoryID, userID int64) []dbgen.ListUnreadArticlesByCategoryRow {
 	q := dbgen.New(s.DB)
 	exclusions, err := q.ListExclusionsByCategory(ctx, dbgen.ListExclusionsByCategoryParams{
 		CategoryID: categoryID,
@@ -123,9 +123,9 @@ func (s *Server) FilterArticlesByCategory(ctx context.Context, articles []dbgen.
 	}
 
 	var filtered []dbgen.ListUnreadArticlesByCategoryRow
-	for _, article := range articles {
-		if !s.shouldExclude(article.Title, ptrToStr(article.Summary), ptrToStr(article.Author), exclusions) {
-			filtered = append(filtered, article)
+	for i := range articles {
+		if !s.shouldExclude(articles[i].Title, ptrToStr(articles[i].Summary), ptrToStr(articles[i].Author), exclusions) {
+			filtered = append(filtered, articles[i])
 		}
 	}
 	return filtered

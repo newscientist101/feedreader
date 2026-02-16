@@ -16,6 +16,13 @@ linters:
     - errorlint
     - bodyclose
 
+  settings:
+    gocritic:
+      enable-all: true
+      disabled-checks:
+        - whyNoLint
+        - unnamedResult
+
   exclusions:
     presets:
       - std-error-handling

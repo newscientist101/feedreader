@@ -324,16 +324,16 @@ func (s *Server) getCommonData(ctx context.Context) map[string]any {
 	}
 	userID := user.ID
 
-	feeds, _ := q.ListFeeds(ctx, &userID)
+	feedList, _ := q.ListFeeds(ctx, &userID)
 	unreadCount, _ := q.GetUnreadCount(ctx, &userID)
 	starredCount, _ := q.GetStarredCount(ctx, &userID)
 	queueCount, _ := q.GetQueueCount(ctx, userID)
 	categories, _ := q.ListCategories(ctx, &userID)
 
 	feedCounts := make(map[int64]int64)
-	for _, feed := range feeds {
-		count, _ := q.GetFeedUnreadCount(ctx, feed.ID)
-		feedCounts[feed.ID] = count
+	for i := range feedList {
+		count, _ := q.GetFeedUnreadCount(ctx, feedList[i].ID)
+		feedCounts[feedList[i].ID] = count
 	}
 
 	catCounts := make(map[int64]int64)
@@ -344,10 +344,10 @@ func (s *Server) getCommonData(ctx context.Context) map[string]any {
 
 	// Get feed-to-category mapping
 	feedCategories := make(map[int64]int64)
-	for _, feed := range feeds {
-		cats, _ := q.GetFeedCategories(ctx, feed.ID)
+	for i := range feedList {
+		cats, _ := q.GetFeedCategories(ctx, feedList[i].ID)
 		if len(cats) > 0 {
-			feedCategories[feed.ID] = cats[0].ID
+			feedCategories[feedList[i].ID] = cats[0].ID
 		}
 	}
 
@@ -363,7 +363,7 @@ func (s *Server) getCommonData(ctx context.Context) map[string]any {
 	}
 
 	return map[string]any{
-		"Feeds":          feeds,
+		"Feeds":          feedList,
 		"FeedCounts":     feedCounts,
 		"Categories":     categories,
 		"CategoryTree":   categoryTree,
@@ -640,7 +640,7 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 		var hfConfig huggingface.FeedConfig
 		if err := json.Unmarshal([]byte(req.ScraperConfig), &hfConfig); err == nil {
 			hfClient := huggingface.NewClient("")
-			if name, err := hfClient.GetFeedName(ctx, hfConfig); err == nil && name != "" {
+			if name, err := hfClient.GetFeedName(ctx, &hfConfig); err == nil && name != "" {
 				req.Name = name
 			}
 		}
@@ -688,7 +688,7 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 
 	// Trigger immediate fetch
 	go func() {
-		if err := s.Fetcher.FetchFeed(context.Background(), feed); err != nil {
+		if err := s.Fetcher.FetchFeed(context.Background(), &feed); err != nil {
 			slog.Warn("background feed fetch failed", "error", err, "feed_id", feed.ID)
 		}
 	}()
@@ -772,9 +772,9 @@ func (s *Server) apiUpdateFeed(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = feed.Name
 	}
-	url := req.URL
-	if url == "" {
-		url = feed.Url
+	reqURL := req.URL
+	if reqURL == "" {
+		reqURL = feed.Url
 	}
 	feedType := req.FeedType
 	if feedType == "" {
@@ -799,7 +799,7 @@ func (s *Server) apiUpdateFeed(w http.ResponseWriter, r *http.Request) {
 
 	if err := q.UpdateFeed(ctx, dbgen.UpdateFeedParams{
 		Name:                 name,
-		Url:                  url,
+		Url:                  reqURL,
 		FeedType:             feedType,
 		ScraperModule:        scraperModule,
 		ScraperConfig:        scraperConfig,
@@ -834,7 +834,7 @@ func (s *Server) apiRefreshFeed(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		slog.Info("starting manual feed refresh", "feed_id", feed.ID, "name", feed.Name)
-		if err := s.Fetcher.FetchFeed(context.Background(), feed); err != nil {
+		if err := s.Fetcher.FetchFeed(context.Background(), &feed); err != nil {
 			slog.Warn("manual feed refresh failed", "feed_id", feed.ID, "error", err)
 		} else {
 			slog.Info("manual feed refresh completed", "feed_id", feed.ID)
@@ -850,7 +850,7 @@ func (s *Server) apiGetCounts(w http.ResponseWriter, r *http.Request) {
 	q := dbgen.New(s.DB)
 	userID := user.ID
 
-	feeds, _ := q.ListFeeds(ctx, &userID)
+	feedList, _ := q.ListFeeds(ctx, &userID)
 	categories, _ := q.ListCategories(ctx, &userID)
 
 	unreadCount, _ := q.GetUnreadCount(ctx, &userID)
@@ -859,11 +859,11 @@ func (s *Server) apiGetCounts(w http.ResponseWriter, r *http.Request) {
 
 	feedCounts := make(map[int64]int64)
 	feedErrors := make(map[int64]string)
-	for _, feed := range feeds {
-		count, _ := q.GetFeedUnreadCount(ctx, feed.ID)
-		feedCounts[feed.ID] = count
-		if feed.LastError != nil && *feed.LastError != "" {
-			feedErrors[feed.ID] = *feed.LastError
+	for i := range feedList {
+		count, _ := q.GetFeedUnreadCount(ctx, feedList[i].ID)
+		feedCounts[feedList[i].ID] = count
+		if feedList[i].LastError != nil && *feedList[i].LastError != "" {
+			feedErrors[feedList[i].ID] = *feedList[i].LastError
 		}
 	}
 
@@ -1396,17 +1396,17 @@ func fetchSteamAppName(appID string) string {
 }
 
 // convertSteamNewsURL converts Steam store news URLs to their RSS feed equivalents
-func convertSteamNewsURL(url string) string {
+func convertSteamNewsURL(rawURL string) string {
 	// Match https://store.steampowered.com/news/app/DIGITS with optional trailing slash/params
 	steamNewsRe := regexp.MustCompile(`^(https?://store\.steampowered\.com)/news/(app/\d+)/?.*$`)
-	if m := steamNewsRe.FindStringSubmatch(url); m != nil {
+	if m := steamNewsRe.FindStringSubmatch(rawURL); m != nil {
 		return m[1] + "/feeds/news/" + m[2]
 	}
-	return url
+	return rawURL
 }
 
 // stripLeadingImage removes the first <img> tag from content if its src matches the given URL
-func stripLeadingImage(content string, imageURL string) string {
+func stripLeadingImage(content, imageURL string) string {
 	if imageURL == "" {
 		return content
 	}
@@ -1768,22 +1768,22 @@ func (s *Server) apiExportOPML(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
-	feeds, err := q.ListFeeds(ctx, &user.ID)
+	feedList, err := q.ListFeeds(ctx, &user.ID)
 	if err != nil {
 		jsonError(w, "Failed to list feeds", 500)
 		return
 	}
 
 	var exportFeeds []opml.ExportFeed
-	for _, feed := range feeds {
-		cats, _ := q.GetFeedCategories(ctx, feed.ID)
+	for i := range feedList {
+		cats, _ := q.GetFeedCategories(ctx, feedList[i].ID)
 		catName := ""
 		if len(cats) > 0 {
 			catName = cats[0].Name
 		}
 		exportFeeds = append(exportFeeds, opml.ExportFeed{
-			Name:     feed.Name,
-			URL:      feed.Url,
+			Name:     feedList[i].Name,
+			URL:      feedList[i].Url,
 			Category: catName,
 		})
 	}
@@ -1825,7 +1825,7 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 		reader = file
 	}
 
-	feeds, err := opml.Parse(reader)
+	opmlFeeds, err := opml.Parse(reader)
 	if err != nil {
 		jsonError(w, "Failed to parse OPML: "+err.Error(), 400)
 		return
@@ -1833,7 +1833,7 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 
 	var imported, skipped int
 	var importedFeeds []dbgen.Feed
-	for _, feed := range feeds {
+	for _, feed := range opmlFeeds {
 		// Get or create category
 		var catID int64
 		if feed.Category != "" {
@@ -1890,9 +1890,9 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 	// Queue fetches for all imported feeds
 	// Run in background so we can return the response immediately
 	go func() {
-		for _, feed := range importedFeeds {
-			if err := s.Fetcher.FetchFeed(context.Background(), feed); err != nil {
-				slog.Warn("import: background feed fetch failed", "error", err, "feed_id", feed.ID)
+		for i := range importedFeeds {
+			if err := s.Fetcher.FetchFeed(context.Background(), &importedFeeds[i]); err != nil {
+				slog.Warn("import: background feed fetch failed", "error", err, "feed_id", importedFeeds[i].ID)
 			}
 		}
 	}()
@@ -1900,7 +1900,7 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, map[string]any{
 		"imported": imported,
 		"skipped":  skipped,
-		"total":    len(feeds),
+		"total":    len(opmlFeeds),
 	})
 }
 

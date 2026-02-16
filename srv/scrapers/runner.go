@@ -60,13 +60,13 @@ func (r *Runner) Run(ctx context.Context, script, content, pageURL, config strin
 		if err := json.Unmarshal([]byte(script), &jsonConfig); err != nil {
 			return nil, fmt.Errorf("parse json scraper config: %w", err)
 		}
-		return r.runJSONScraper(jsonConfig, content, pageURL)
+		return r.runJSONScraper(&jsonConfig, content, pageURL)
 	case "html":
 		var scraperConfig ScraperConfig
 		if err := json.Unmarshal([]byte(script), &scraperConfig); err != nil {
 			return nil, fmt.Errorf("parse scraper config: %w", err)
 		}
-		return r.runConfigScraper(scraperConfig, content, pageURL)
+		return r.runConfigScraper(&scraperConfig, content, pageURL)
 	default:
 		return nil, fmt.Errorf("missing or unknown type: %q (must be \"html\" or \"json\")", probe.Type)
 	}
@@ -91,7 +91,7 @@ type ScraperConfig struct {
 	BaseURL string `json:"baseUrl"`
 }
 
-func (r *Runner) runConfigScraper(config ScraperConfig, html, pageURL string) ([]FeedItem, error) {
+func (r *Runner) runConfigScraper(config *ScraperConfig, html, pageURL string) ([]FeedItem, error) {
 	if config.ItemSelector == "" {
 		return nil, fmt.Errorf("itemSelector is required")
 	}

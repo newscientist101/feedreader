@@ -34,7 +34,7 @@ func integrationServer(t *testing.T) (*httptest.Server, *Server) {
 // authGet issues a GET with auth headers.
 func authGet(t *testing.T, ts *httptest.Server, path string) *http.Response {
 	t.Helper()
-	req, _ := http.NewRequest("GET", ts.URL+path, nil)
+	req, _ := http.NewRequest("GET", ts.URL+path, http.NoBody)
 	req.Header.Set("X-Exedev-Userid", "integ-user")
 	req.Header.Set("X-Exedev-Email", "integ@test.com")
 	resp, err := http.DefaultClient.Do(req)
