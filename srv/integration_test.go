@@ -17,7 +17,7 @@ import (
 // integrationServer creates a full httptest.Server running the real mux,
 // auth middleware, and gzip — the same stack as production.
 // Requests must include X-Exedev-Userid and X-Exedev-Email headers.
-func integrationServer(t *testing.T) (*httptest.Server, *Server) {
+func integrationServer(t *testing.T) (ts *httptest.Server, srv *Server) {
 	t.Helper()
 	s := testServer(t)
 	_, thisFile, _, _ := runtime.Caller(0)
@@ -26,7 +26,7 @@ func integrationServer(t *testing.T) (*httptest.Server, *Server) {
 	s.StaticDir = filepath.Join(baseDir, "static")
 	s.Fetcher = feeds.NewFetcher(s.DB, s.ScraperRunner)
 
-	ts := httptest.NewServer(s.Handler())
+	ts = httptest.NewServer(s.Handler())
 	t.Cleanup(ts.Close)
 	return ts, s
 }

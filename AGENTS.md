@@ -104,7 +104,7 @@ Other useful targets:
 ### Linting details
 
 - **Go** (`.golangci.yml`): errcheck, govet, staticcheck, gocritic
-  (all checks enabled, except `whyNoLint` and `unnamedResult`),
+  (all checks enabled),
   misspell, nilerr, errorlint, bodyclose, ineffassign, unused.
   `errcheck`/`bodyclose`/`unused` are suppressed in test files.
   Generated `db/dbgen/` is excluded entirely.
