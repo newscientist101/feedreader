@@ -110,6 +110,9 @@ Other useful targets:
 - **JS** (`eslint.config.mjs`): no-undef, no-unused-vars, eqeqeq, no-eval,
   etc. Functions called from HTML `onclick` attributes are whitelisted in
   `varsIgnorePattern`.
+- **Templates** (`cmd/lint-templates/`): Validates Go html/template files
+  parse correctly with base.html, checks for mismatched `{{ }}`
+  delimiters, unclosed HTML tags, and mismatched open/close tags.
 
 ### Fixing formatting
 
