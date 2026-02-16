@@ -204,7 +204,6 @@ func (s *Server) renderTemplate(w http.ResponseWriter, name string, data any) er
 		"timeAgo":     timeAgo,
 		"formatDate":  formatDate,
 		"truncate":    truncate,
-		"stripHTML":   stripHTML,
 		"previewText": previewText,
 		"deref":       deref,
 		"safeHTML":    safeHTML,
@@ -212,9 +211,7 @@ func (s *Server) renderTemplate(w http.ResponseWriter, name string, data any) er
 			b, _ := json.Marshal(v)
 			return template.JS(b)
 		},
-		"stripLeadingImage": stripLeadingImage,
-		"multiply":          func(a, b int) int { return a * b },
-		"faviconURL":        faviconURL,
+		"faviconURL": faviconURL,
 		"staticPath": func(name string) string {
 			if h, ok := s.StaticHashes[name]; ok {
 				return "/static/" + name + "?v=" + h

@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"text/template/parse"
 
 	"golang.org/x/net/html"
 )
@@ -22,19 +23,16 @@ import (
 // templates parse without "function … not defined" errors.  The function
 // bodies are irrelevant — only the names matter for parsing.
 var stubFuncMap = template.FuncMap{
-	"timeAgo":           func() string { return "" },
-	"formatDate":        func() string { return "" },
-	"truncate":          func() string { return "" },
-	"stripHTML":         func() string { return "" },
-	"previewText":       func() string { return "" },
-	"deref":             func() string { return "" },
-	"safeHTML":          func() template.HTML { return "" },
-	"toJSON":            func() template.JS { return "" },
-	"stripLeadingImage": func() string { return "" },
-	"multiply":          func() int { return 0 },
-	"faviconURL":        func() string { return "" },
-	"staticPath":        func() string { return "" },
-	"dict":              func() map[string]any { return nil },
+	"timeAgo":     func() string { return "" },
+	"formatDate":  func() string { return "" },
+	"truncate":    func() string { return "" },
+	"previewText": func() string { return "" },
+	"deref":       func() string { return "" },
+	"safeHTML":    func() template.HTML { return "" },
+	"toJSON":      func() template.JS { return "" },
+	"faviconURL":  func() string { return "" },
+	"staticPath":  func() string { return "" },
+	"dict":        func() map[string]any { return nil },
 }
 
 func main() {
@@ -58,22 +56,27 @@ func main() {
 	sort.Strings(files)
 
 	var problems []string
+	invokedFuncs := make(map[string]bool)
 
 	for _, f := range files {
 		name := filepath.Base(f)
 
 		// Parse check: every template must parse with base.html.
 		if name != "base.html" {
-			_, parseErr := template.New("base.html").Funcs(stubFuncMap).ParseFiles(basePath, f)
+			tmpl, parseErr := template.New("base.html").Funcs(stubFuncMap).ParseFiles(basePath, f)
 			if parseErr != nil {
 				problems = append(problems, fmt.Sprintf("%s: template parse error: %v", name, parseErr))
 				continue // can't do HTML checks on broken template
 			}
+			collectInvokedFuncs(tmpl, invokedFuncs)
 		}
 
 		// HTML well-formedness checks on the raw source.
 		problems = append(problems, checkHTML(f)...)
 	}
+
+	// Check for unused FuncMap entries across all templates.
+	problems = append(problems, checkUnusedFuncs(invokedFuncs)...)
 
 	if len(problems) > 0 {
 		fmt.Fprintf(os.Stderr, "Template lint found %d problem(s):\n", len(problems))
@@ -84,6 +87,77 @@ func main() {
 	}
 
 	fmt.Printf("All %d template(s) OK\n", len(files))
+}
+
+// collectInvokedFuncs walks all parsed template trees and records any
+// IdentifierNode names (these are function calls in template actions).
+func collectInvokedFuncs(tmpl *template.Template, out map[string]bool) {
+	for _, t := range tmpl.Templates() {
+		if t.Tree == nil {
+			continue
+		}
+		walkTree(t.Tree.Root, out)
+	}
+}
+
+func walkTree(node parse.Node, out map[string]bool) {
+	if node == nil {
+		return
+	}
+	switch n := node.(type) {
+	case *parse.ListNode:
+		if n == nil {
+			return
+		}
+		for _, child := range n.Nodes {
+			walkTree(child, out)
+		}
+	case *parse.ActionNode:
+		walkTree(n.Pipe, out)
+	case *parse.PipeNode:
+		if n == nil {
+			return
+		}
+		for _, cmd := range n.Cmds {
+			walkTree(cmd, out)
+		}
+	case *parse.CommandNode:
+		for _, arg := range n.Args {
+			walkTree(arg, out)
+		}
+	case *parse.IdentifierNode:
+		out[n.Ident] = true
+	case *parse.IfNode:
+		walkTree(n.Pipe, out)
+		walkTree(n.List, out)
+		walkTree(n.ElseList, out)
+	case *parse.RangeNode:
+		walkTree(n.Pipe, out)
+		walkTree(n.List, out)
+		walkTree(n.ElseList, out)
+	case *parse.WithNode:
+		walkTree(n.Pipe, out)
+		walkTree(n.List, out)
+		walkTree(n.ElseList, out)
+	case *parse.TemplateNode:
+		walkTree(n.Pipe, out)
+	}
+}
+
+// checkUnusedFuncs reports FuncMap entries never invoked in any template.
+func checkUnusedFuncs(invoked map[string]bool) []string {
+	var unused []string
+	for name := range stubFuncMap {
+		if !invoked[name] {
+			unused = append(unused, name)
+		}
+	}
+	sort.Strings(unused)
+	var problems []string
+	for _, name := range unused {
+		problems = append(problems, fmt.Sprintf("unused template func %q in FuncMap (not called in any template)", name))
+	}
+	return problems
 }
 
 // templateActionRe matches Go template actions: {{ ... }}

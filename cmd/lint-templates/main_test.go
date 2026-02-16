@@ -1,6 +1,9 @@
 package main
 
 import (
+	"html/template"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -179,5 +182,73 @@ func TestCheckTagBalance_MultipleUnclosed(t *testing.T) {
 	}
 	if !hasSpan || !hasDiv {
 		t.Errorf("expected both <span> and <div> unclosed, got: %v", problems)
+	}
+}
+
+func TestCheckUnusedFuncs(t *testing.T) {
+	// All funcs invoked → no problems.
+	invoked := make(map[string]bool)
+	for name := range stubFuncMap {
+		invoked[name] = true
+	}
+	problems := checkUnusedFuncs(invoked)
+	if len(problems) > 0 {
+		t.Errorf("expected no problems when all funcs used, got: %v", problems)
+	}
+
+	// Remove one → should report it unused.
+	var anyFunc string
+	for name := range stubFuncMap {
+		anyFunc = name
+		break
+	}
+	partial := make(map[string]bool)
+	for name := range stubFuncMap {
+		if name != anyFunc {
+			partial[name] = true
+		}
+	}
+	problems = checkUnusedFuncs(partial)
+	if len(problems) != 1 {
+		t.Fatalf("expected 1 problem, got %d: %v", len(problems), problems)
+	}
+	if !strings.Contains(problems[0], anyFunc) {
+		t.Errorf("expected problem about %q, got: %s", anyFunc, problems[0])
+	}
+}
+
+func TestCollectInvokedFuncs(t *testing.T) {
+	// Create a temp dir with base.html and a page template.
+	dir := t.TempDir()
+
+	base := `<!DOCTYPE html><html><body>{{block "content" .}}{{end}}</body></html>`
+	page := `{{define "content"}}<p>{{timeAgo .T}} - {{formatDate .D}}</p>{{end}}`
+
+	if err := os.WriteFile(filepath.Join(dir, "base.html"), []byte(base), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "page.html"), []byte(page), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tmpl, err := template.New("base.html").Funcs(stubFuncMap).ParseFiles(
+		filepath.Join(dir, "base.html"),
+		filepath.Join(dir, "page.html"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	invoked := make(map[string]bool)
+	collectInvokedFuncs(tmpl, invoked)
+
+	for _, want := range []string{"timeAgo", "formatDate"} {
+		if !invoked[want] {
+			t.Errorf("expected %q to be in invoked set", want)
+		}
+	}
+	// "truncate" is not in the template, should not appear.
+	if invoked["truncate"] {
+		t.Error("did not expect 'truncate' in invoked set")
 	}
 }
