@@ -44,7 +44,7 @@ func (g *ShelleyScraperGenerator) IsAvailable() bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return resp.StatusCode == 200
 }
 
@@ -82,7 +82,7 @@ func (g *ShelleyScraperGenerator) Generate(ctx context.Context, req GenerateRequ
 	if err != nil {
 		return nil, fmt.Errorf("failed to contact Shelley: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(resp.Body)
@@ -167,10 +167,10 @@ func (g *ShelleyScraperGenerator) waitForResponse(ctx context.Context, conversat
 				Working        bool   `json:"working"`
 			}
 			if err := json.NewDecoder(resp.Body).Decode(&convs); err != nil {
-				resp.Body.Close()
+				_ = resp.Body.Close()
 				continue
 			}
-			resp.Body.Close()
+			_ = resp.Body.Close()
 
 			working := true
 			for _, c := range convs {
@@ -193,7 +193,7 @@ func (g *ShelleyScraperGenerator) getResponseFromDB(ctx context.Context, convers
 	if err != nil {
 		return "", fmt.Errorf("failed to open Shelley DB: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Get all agent messages and concatenate text
 	rows, err := db.QueryContext(ctx,
@@ -204,7 +204,7 @@ func (g *ShelleyScraperGenerator) getResponseFromDB(ctx context.Context, convers
 	if err != nil {
 		return "", fmt.Errorf("failed to get response: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var allText strings.Builder
 	for rows.Next() {

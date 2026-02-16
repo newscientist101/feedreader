@@ -1379,7 +1379,7 @@ func fetchSteamAppName(appID string) string {
 	if err != nil {
 		return ""
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var result map[string]struct {
 		Success bool `json:"success"`
 		Data    struct {
@@ -1821,7 +1821,7 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "No file uploaded", 400)
 			return
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 		reader = file
 	}
 
@@ -2200,7 +2200,7 @@ func gzipMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		defer gz.Close()
+		defer func() { _ = gz.Close() }()
 		w.Header().Set("Content-Encoding", "gzip")
 		w.Header().Del("Content-Length")
 		next.ServeHTTP(&gzipResponseWriter{ResponseWriter: w, gz: gz}, r)

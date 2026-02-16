@@ -221,7 +221,7 @@ func (f *Fetcher) fetchRSSFeed(ctx context.Context, url string) ([]FeedItem, str
 	if err != nil {
 		return nil, "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, "", fmt.Errorf("HTTP %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), httpErrorDescription(resp.StatusCode))
@@ -234,7 +234,7 @@ func (f *Fetcher) fetchRSSFeed(ctx context.Context, url string) ([]FeedItem, str
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to decompress gzip response: %w", err)
 		}
-		defer gzReader.Close()
+		defer func() { _ = gzReader.Close() }()
 		reader = gzReader
 	}
 
@@ -268,7 +268,7 @@ func (f *Fetcher) fetchWithScraper(ctx context.Context, feed *dbgen.Feed) ([]Fee
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	buf := new(bytes.Buffer)
 	if _, err := buf.ReadFrom(resp.Body); err != nil {

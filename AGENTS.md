@@ -106,7 +106,8 @@ Other useful targets:
 - **Go** (`.golangci.yml`): errcheck, govet, staticcheck, gocritic
   (all checks enabled),
   misspell, nilerr, errorlint, bodyclose, ineffassign, unused.
-  `errcheck`/`bodyclose`/`unused` are suppressed in test files.
+  `errcheck`/`bodyclose`/`unused` are suppressed in test files;
+  the `std-error-handling` exclusion preset has been removed.
   Generated `db/dbgen/` is excluded entirely.
 - **JS** (`eslint.config.mjs`): no-undef, no-unused-vars, eqeqeq, no-eval,
   etc. Functions called from HTML `onclick` attributes are whitelisted in

@@ -77,7 +77,7 @@ func runMigrations(db *sql.DB, mfs fs.ReadFileFS) error {
 		if err != nil {
 			return fmt.Errorf("query executed migrations: %w", err)
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 		for rows.Next() {
 			var n int
 			if err := rows.Scan(&n); err != nil {
