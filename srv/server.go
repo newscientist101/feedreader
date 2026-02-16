@@ -429,8 +429,9 @@ func (s *Server) handleFeeds(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleStarred(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	q := dbgen.New(s.DB)
+	user := GetUser(ctx)
 
-	articles, _ := q.ListStarredArticles(ctx, dbgen.ListStarredArticlesParams{Limit: 50, Offset: 0})
+	articles, _ := q.ListStarredArticles(ctx, dbgen.ListStarredArticlesParams{UserID: &user.ID, Limit: 50, Offset: 0})
 
 	data := s.getCommonData(ctx)
 	data["Title"] = "Starred"
