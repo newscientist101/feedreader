@@ -19,7 +19,7 @@ function renderArticleActions(a) {
     const readBtn = `<button onclick="${a.is_read ? 'markUnread' : 'markRead'}(event, ${a.id})" class="btn-icon btn-read-toggle" title="${a.is_read ? 'Mark unread' : 'Mark read'}">
         ${a.is_read ? SVG_MARK_UNREAD : SVG_MARK_READ}
     </button>`;
-    const starBtn = `<button onclick="toggleStar(${a.id})" class="btn-icon ${a.is_starred ? 'starred' : ''}" title="Star">
+    const starBtn = `<button onclick="toggleStar(event, ${a.id})" class="btn-icon ${a.is_starred ? 'starred' : ''}" title="Star">
         ${a.is_starred ? SVG_STAR_FILLED : SVG_STAR_EMPTY}
     </button>`;
     const queueBtn = `<button onclick="toggleQueue(event, ${a.id})" class="btn-icon btn-queue-toggle ${a.is_queued ? 'queued' : ''}" title="${a.is_queued ? 'Remove from queue' : 'Add to queue'}">
@@ -734,7 +734,7 @@ async function toggleStar(event, id) {
     try {
         await api('POST', `/api/articles/${id}/star`);
         // Toggle star button appearance
-        const btns = document.querySelectorAll(`[onclick="toggleStar(${id})"], [onclick="toggleStar(event, ${id})"]`);
+        const btns = document.querySelectorAll(`[onclick="toggleStar(event, ${id})"]`);
         btns.forEach(btn => btn.classList.toggle('starred'));
         updateCounts();
     } catch (e) {
