@@ -529,7 +529,7 @@ function getViewScope() {
     return view.dataset.viewScope || 'all';
 }
 
-function setView(view) {
+function setView(view, { save = true } = {}) {
     // Compact view was removed; fall back to list
     if (view === 'compact') view = 'list';
 
@@ -547,13 +547,15 @@ function setView(view) {
     });
 
     // Save preference (scope-aware)
-    const scope = getViewScope();
-    if (scope === 'folder') {
-        saveSetting('defaultFolderView', view);
-    } else if (scope === 'feed') {
-        saveSetting('defaultFeedView', view);
-    } else {
-        saveSetting('defaultView', view);
+    if (save) {
+        const scope = getViewScope();
+        if (scope === 'folder') {
+            saveSetting('defaultFolderView', view);
+        } else if (scope === 'feed') {
+            saveSetting('defaultFeedView', view);
+        } else {
+            saveSetting('defaultView', view);
+        }
     }
 }
 
@@ -591,7 +593,7 @@ function getDefaultViewForScope(scope) {
 
 function applyDefaultViewForScope(scope) {
     const savedView = getDefaultViewForScope(scope);
-    setView(savedView);
+    setView(savedView, { save: false });
 }
 
 // Initialize view on page load
