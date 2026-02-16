@@ -1,4 +1,4 @@
-.PHONY: build clean stop start restart test lint lint-go lint-js lint-templates fmt fmt-check vulncheck check
+.PHONY: build clean stop start restart test lint lint-go lint-js lint-templates lint-html fmt fmt-check vulncheck check
 
 build:
 	go build -o feedreader ./cmd/srv
@@ -9,7 +9,7 @@ clean:
 test:
 	go test ./...
 
-lint: lint-go lint-js lint-templates
+lint: lint-go lint-js lint-templates lint-html
 
 lint-go:
 	golangci-lint run ./...
@@ -19,6 +19,9 @@ lint-js:
 
 lint-templates:
 	go run ./cmd/lint-templates/ srv/templates/
+
+lint-html:
+	djlint srv/templates/ --lint
 
 fmt:
 	goimports -w .

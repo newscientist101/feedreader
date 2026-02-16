@@ -90,7 +90,7 @@ Run `make check` before committing. It runs all validation steps in order:
 |------------------|----------------------------------------------------|
 | `make check`     | **Run all four steps below in sequence**            |
 | `make fmt-check` | Fail if any Go files need `goimports` formatting    |
-| `make lint`      | `golangci-lint` (Go) + `eslint` (JS)                |
+| `make lint`      | `golangci-lint` (Go) + `eslint` (JS) + template lint + `djlint` (HTML) |
 | `make test`      | `go test ./...`                                     |
 | `make vulncheck` | `govulncheck` — scan deps for known vulnerabilities |
 
@@ -112,7 +112,12 @@ Other useful targets:
   `varsIgnorePattern`.
 - **Templates** (`cmd/lint-templates/`): Validates Go html/template files
   parse correctly with base.html, checks for mismatched `{{ }}`
-  delimiters, unclosed HTML tags, and mismatched open/close tags.
+  delimiters, unclosed HTML tags, mismatched open/close tags, and
+  unused FuncMap entries.
+- **HTML** (`djlint`, `.djlintrc`): HTML linting for template files with
+  Go template profile. Configured to ignore H006 (img dimensions),
+  H019 (javascript: hrefs), H021 (inline styles), H023 (entity refs),
+  H031 (meta keywords).
 
 ### Fixing formatting
 

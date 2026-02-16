@@ -1,0 +1,5 @@
+{
+    "profile": "golang",
+    "ignore": "H006,H019,H021,H023,H031",
+    "indent": 4
+}
