@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -2181,13 +2182,7 @@ func (s *Server) apiUpdateSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(allowed) > 0 {
-			valid := false
-			for _, v := range allowed {
-				if v == value {
-					valid = true
-					break
-				}
-			}
+			valid := slices.Contains(allowed, value)
 			if !valid {
 				jsonError(w, "Invalid value for "+key, 400)
 				return

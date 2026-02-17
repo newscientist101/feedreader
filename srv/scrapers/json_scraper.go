@@ -233,8 +233,8 @@ func splitSentences(text string) []string {
 			continue
 		}
 		// Split on single newlines within paragraphs
-		lines := strings.Split(para, "\n")
-		for _, line := range lines {
+		lines := strings.SplitSeq(para, "\n")
+		for line := range lines {
 			line = strings.TrimSpace(line)
 			if line != "" {
 				sentences = append(sentences, line)

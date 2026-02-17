@@ -591,7 +591,7 @@ func TestIntegration_BatchMarkRead(t *testing.T) {
 	s.DB.QueryRow("SELECT id FROM feeds WHERE name = 'Batch Feed'").Scan(&feedID)
 
 	var artIDs []int64
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		_, err := s.DB.Exec(`INSERT INTO articles (feed_id, guid, title, url) VALUES (?, ?, ?, ?)`,
 			feedID, fmt.Sprintf("batch-guid-%d", i), fmt.Sprintf("Article %d", i),
 			fmt.Sprintf("http://batch.example.com/%d", i))

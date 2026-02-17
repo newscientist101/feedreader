@@ -467,7 +467,7 @@ func TestArticles_ListAndFilter(t *testing.T) {
 	u := createTestUser(t, q, "ext-al", "al@example.com")
 	f := createTestFeed(t, q, "Feed", "https://f.com/rss", u.ID)
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		createTestArticle(t, q, f.ID, fmt.Sprintf("g-%d", i), fmt.Sprintf("Article %d", i))
 	}
 
@@ -959,7 +959,7 @@ func TestExclusions_DeleteByCategory(t *testing.T) {
 	u := createTestUser(t, q, "ext-exd", "exd@example.com")
 	cat, _ := q.CreateCategory(ctx, dbgen.CreateCategoryParams{Name: "Bulk", UserID: &u.ID})
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		_, err := q.CreateExclusion(ctx, dbgen.CreateExclusionParams{
 			CategoryID: cat.ID, ExclusionType: "title",
 			Pattern: fmt.Sprintf("pattern-%d", i), IsRegex: ptr(int64(0)),

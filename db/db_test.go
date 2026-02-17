@@ -312,7 +312,7 @@ func TestOpen_PragmasApplied(t *testing.T) {
 	d.SetMaxOpenConns(4)
 
 	// Verify pragmas on several connections (grab them in parallel)
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		var timeout int
 		if err := d.QueryRow("PRAGMA busy_timeout").Scan(&timeout); err != nil {
 			t.Fatal(err)
