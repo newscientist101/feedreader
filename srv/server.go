@@ -176,6 +176,7 @@ func (s *Server) Handler() http.Handler {
 
 	// AI scraper generation
 	mux.HandleFunc("GET /api/ai/status", s.apiAIStatus)
+	mux.HandleFunc("GET /api/favicon", s.apiFavicon)
 	mux.HandleFunc("POST /api/ai/generate-scraper", s.apiGenerateScraper)
 
 	// Exclusion rules endpoints
@@ -1375,11 +1376,8 @@ func deref(p any) any {
 	}
 }
 
-// faviconURL returns a Google S2 favicon URL for the given feed.
-// It prefers siteURL (the feed's declared website) over the feed URL,
-// and strips common feed-specific subdomains as a fallback.
-func faviconURL(siteURL, feedURL string) string {
-	// Prefer the site URL if available
+// faviconDomain extracts the domain to use for a favicon lookup.
+func faviconDomain(siteURL, feedURL string) string {
 	src := siteURL
 	if src == "" {
 		src = feedURL
@@ -1389,7 +1387,6 @@ func faviconURL(siteURL, feedURL string) string {
 		return ""
 	}
 	host := u.Host
-	// Strip common feed-specific subdomains to get the main site domain.
 	parts := strings.Split(host, ".")
 	if len(parts) > 2 {
 		sub := strings.ToLower(parts[0])
@@ -1397,7 +1394,58 @@ func faviconURL(siteURL, feedURL string) string {
 			host = strings.Join(parts[1:], ".")
 		}
 	}
-	return "https://www.google.com/s2/favicons?domain=" + url.QueryEscape(host) + "&sz=32"
+	return host
+}
+
+// faviconURL returns a local proxy URL for the favicon.
+func faviconURL(siteURL, feedURL string) string {
+	host := faviconDomain(siteURL, feedURL)
+	if host == "" {
+		return ""
+	}
+	return "/api/favicon?domain=" + url.QueryEscape(host)
+}
+
+// transparentPixel is a 1x1 transparent GIF returned when a favicon cannot be fetched.
+var transparentPixel = []byte{
+	0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00,
+	0x80, 0x00, 0x00, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x21,
+	0xf9, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x2c, 0x00, 0x00,
+	0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x02, 0x02, 0x44,
+	0x01, 0x00, 0x3b,
+}
+
+var faviconClient = &http.Client{Timeout: 4 * time.Second}
+
+func (s *Server) apiFavicon(w http.ResponseWriter, r *http.Request) {
+	domain := r.URL.Query().Get("domain")
+	if domain == "" {
+		w.Header().Set("Content-Type", "image/gif")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		_, _ = w.Write(transparentPixel)
+		return
+	}
+
+	upstream := "https://www.google.com/s2/favicons?domain=" + url.QueryEscape(domain) + "&sz=32"
+	resp, err := faviconClient.Get(upstream)
+	if err != nil || resp.StatusCode != 200 {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		w.Header().Set("Content-Type", "image/gif")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		_, _ = w.Write(transparentPixel)
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	ct := resp.Header.Get("Content-Type")
+	if ct == "" {
+		ct = "image/png"
+	}
+	w.Header().Set("Content-Type", ct)
+	w.Header().Set("Cache-Control", "public, max-age=604800")
+	_, _ = io.Copy(w, resp.Body)
 }
 
 func safeHTML(s string) template.HTML {
