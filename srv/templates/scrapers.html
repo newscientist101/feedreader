@@ -205,7 +205,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (data.available) {
             statusEl.className = 'ai-status available';
             statusEl.querySelector('.status-text').textContent = 'Shelley is available';
-            document.getElementById('ai-generate-form').style.display = 'block';
+
         } else {
             statusEl.className = 'ai-status unavailable';
             statusEl.querySelector('.status-text').textContent = 'Shelley is not running';
