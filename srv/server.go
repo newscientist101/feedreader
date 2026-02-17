@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -1407,23 +1408,23 @@ func faviconURL(siteURL, feedURL string) string {
 	return "/api/favicon?domain=" + url.QueryEscape(host)
 }
 
-// transparentPixel is a 1x1 transparent GIF returned when a favicon cannot be fetched.
-var transparentPixel = []byte{
-	0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00,
-	0x80, 0x00, 0x00, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x21,
-	0xf9, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x2c, 0x00, 0x00,
-	0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x02, 0x02, 0x44,
-	0x01, 0x00, 0x3b,
-}
+// fallbackFavicon is the app's own SVG icon, served when a feed favicon cannot be fetched.
+//
+//go:embed static/icons/icon.svg
+var fallbackFavicon []byte
 
 var faviconClient = &http.Client{Timeout: 4 * time.Second}
+
+func (s *Server) serveFallbackFavicon(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "image/svg+xml")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	_, _ = w.Write(fallbackFavicon)
+}
 
 func (s *Server) apiFavicon(w http.ResponseWriter, r *http.Request) {
 	domain := r.URL.Query().Get("domain")
 	if domain == "" {
-		w.Header().Set("Content-Type", "image/gif")
-		w.Header().Set("Cache-Control", "public, max-age=86400")
-		_, _ = w.Write(transparentPixel)
+		s.serveFallbackFavicon(w)
 		return
 	}
 
@@ -1437,9 +1438,7 @@ func (s *Server) apiFavicon(w http.ResponseWriter, r *http.Request) {
 		if resp != nil {
 			_ = resp.Body.Close()
 		}
-		w.Header().Set("Content-Type", "image/gif")
-		w.Header().Set("Cache-Control", "public, max-age=86400")
-		_, _ = w.Write(transparentPixel)
+		s.serveFallbackFavicon(w)
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()

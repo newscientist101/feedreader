@@ -1,6 +1,7 @@
 package srv
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -73,14 +74,14 @@ func TestApiFavicon_EmptyDomain(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
-	if ct := w.Header().Get("Content-Type"); ct != "image/gif" {
-		t.Errorf("Content-Type = %q, want image/gif", ct)
+	if ct := w.Header().Get("Content-Type"); ct != "image/svg+xml" {
+		t.Errorf("Content-Type = %q, want image/svg+xml", ct)
 	}
 	if cc := w.Header().Get("Cache-Control"); cc != "public, max-age=86400" {
 		t.Errorf("Cache-Control = %q", cc)
 	}
-	if !isTransparentGIF(w.Body.Bytes()) {
-		t.Error("expected transparent GIF body")
+	if !isFallbackFavicon(w.Body.Bytes()) {
+		t.Error("expected fallback favicon body")
 	}
 }
 
@@ -163,16 +164,16 @@ func TestApiFavicon_Upstream404(t *testing.T) {
 	ctx := context.Background()
 	w := serveAPI(t, s.apiFavicon, "GET", "/api/favicon?domain=unknown.example", "", ctx)
 	if w.Code != 200 {
-		t.Fatalf("expected 200 (transparent fallback), got %d", w.Code)
+		t.Fatalf("expected 200 (fallback), got %d", w.Code)
 	}
-	if ct := w.Header().Get("Content-Type"); ct != "image/gif" {
-		t.Errorf("Content-Type = %q, want image/gif", ct)
+	if ct := w.Header().Get("Content-Type"); ct != "image/svg+xml" {
+		t.Errorf("Content-Type = %q, want image/svg+xml", ct)
 	}
 	if cc := w.Header().Get("Cache-Control"); cc != "public, max-age=86400" {
 		t.Errorf("Cache-Control = %q, want 1-day cache", cc)
 	}
-	if !isTransparentGIF(w.Body.Bytes()) {
-		t.Error("expected transparent GIF body")
+	if !isFallbackFavicon(w.Body.Bytes()) {
+		t.Error("expected fallback favicon body")
 	}
 }
 
@@ -190,10 +191,10 @@ func TestApiFavicon_Upstream500(t *testing.T) {
 	ctx := context.Background()
 	w := serveAPI(t, s.apiFavicon, "GET", "/api/favicon?domain=broken.example", "", ctx)
 	if w.Code != 200 {
-		t.Fatalf("expected 200 (transparent fallback), got %d", w.Code)
+		t.Fatalf("expected 200 (fallback), got %d", w.Code)
 	}
-	if !isTransparentGIF(w.Body.Bytes()) {
-		t.Error("expected transparent GIF body")
+	if !isFallbackFavicon(w.Body.Bytes()) {
+		t.Error("expected fallback favicon body")
 	}
 }
 
@@ -207,13 +208,13 @@ func TestApiFavicon_UpstreamUnreachable(t *testing.T) {
 	ctx := context.Background()
 	w := serveAPI(t, s.apiFavicon, "GET", "/api/favicon?domain=example.com", "", ctx)
 	if w.Code != 200 {
-		t.Fatalf("expected 200 (transparent fallback), got %d", w.Code)
+		t.Fatalf("expected 200 (fallback), got %d", w.Code)
 	}
-	if ct := w.Header().Get("Content-Type"); ct != "image/gif" {
-		t.Errorf("Content-Type = %q, want image/gif", ct)
+	if ct := w.Header().Get("Content-Type"); ct != "image/svg+xml" {
+		t.Errorf("Content-Type = %q, want image/svg+xml", ct)
 	}
-	if !isTransparentGIF(w.Body.Bytes()) {
-		t.Error("expected transparent GIF body")
+	if !isFallbackFavicon(w.Body.Bytes()) {
+		t.Error("expected fallback favicon body")
 	}
 }
 
@@ -239,15 +240,7 @@ func TestApiFavicon_PreservesUpstreamContentType(t *testing.T) {
 	}
 }
 
-// isTransparentGIF checks if the bytes match the known transparent pixel GIF.
-func isTransparentGIF(b []byte) bool {
-	if len(b) != len(transparentPixel) {
-		return false
-	}
-	for i := range b {
-		if b[i] != transparentPixel[i] {
-			return false
-		}
-	}
-	return true
+// isFallbackFavicon checks if the bytes match the embedded app icon SVG.
+func isFallbackFavicon(b []byte) bool {
+	return bytes.Equal(b, fallbackFavicon)
 }
