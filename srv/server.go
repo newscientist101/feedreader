@@ -41,6 +41,7 @@ type Server struct {
 	ScraperRunner    *scrapers.Runner
 	RetentionManager *RetentionManager
 	ShelleyGenerator *ShelleyScraperGenerator
+	FaviconBaseURL   string // upstream favicon service; default Google S2
 }
 
 func New(dbPath, hostname string) (*Server, error) {
@@ -1426,7 +1427,11 @@ func (s *Server) apiFavicon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	upstream := "https://www.google.com/s2/favicons?domain=" + url.QueryEscape(domain) + "&sz=32"
+	baseURL := s.FaviconBaseURL
+	if baseURL == "" {
+		baseURL = "https://www.google.com/s2/favicons"
+	}
+	upstream := baseURL + "?domain=" + url.QueryEscape(domain) + "&sz=32"
 	resp, err := faviconClient.Get(upstream)
 	if err != nil || resp.StatusCode != 200 {
 		if resp != nil {

@@ -113,31 +113,7 @@ func TestDeref(t *testing.T) {
 	}
 }
 
-func TestFaviconURL(t *testing.T) {
-	tests := []struct {
-		name, siteURL, feedURL, wantContains string
-	}{
-		{"uses site url", "https://example.com", "https://feeds.example.com/rss", "domain=example.com"},
-		{"falls back to feed url", "", "https://example.com/feed", "domain=example.com"},
-		{"strips feeds subdomain", "", "https://feeds.example.com/rss", "domain=example.com"},
-		{"strips rss subdomain", "", "https://rss.example.com/feed", "domain=example.com"},
-		{"keeps normal subdomain", "", "https://blog.example.com/feed", "domain=blog.example.com"},
-		{"empty urls", "", "", ""},
-		{"invalid url", "", "not-a-url", ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := faviconURL(tt.siteURL, tt.feedURL)
-			if tt.wantContains == "" {
-				if got != "" {
-					t.Errorf("faviconURL = %q, want empty", got)
-				}
-			} else if !contains(got, tt.wantContains) {
-				t.Errorf("faviconURL = %q, want to contain %q", got, tt.wantContains)
-			}
-		})
-	}
-}
+// TestFaviconURL and TestFaviconDomain are in favicon_test.go
 
 func TestConvertSteamNewsURL(t *testing.T) {
 	tests := []struct {
