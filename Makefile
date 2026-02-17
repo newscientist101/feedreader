@@ -1,4 +1,4 @@
-.PHONY: build clean stop start restart test lint lint-go lint-js lint-templates lint-html fmt fmt-check vulncheck check
+.PHONY: build clean stop start restart test lint lint-go lint-js lint-templates lint-html fmt fmt-check fix-check vulncheck check
 
 build:
 	go build -o feedreader ./cmd/srv
@@ -29,7 +29,10 @@ fmt:
 fmt-check:
 	@test -z "$$(goimports -l .)" || (echo "goimports needed on:"; goimports -l .; exit 1)
 
+fix-check:
+	@test -z "$$(go fix -diff ./... 2>&1)" || (echo "go fix has suggestions:"; go fix -diff ./...; exit 1)
+
 vulncheck:
 	govulncheck ./...
 
-check: fmt-check lint test vulncheck
+check: fmt-check fix-check lint test vulncheck

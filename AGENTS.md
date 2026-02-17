@@ -88,8 +88,9 @@ Run `make check` before committing. It runs all validation steps in order:
 
 | Command          | What it does                                       |
 |------------------|----------------------------------------------------|
-| `make check`     | **Run all four steps below in sequence**            |
+| `make check`     | **Run all five steps below in sequence**             |
 | `make fmt-check` | Fail if any Go files need `goimports` formatting    |
+| `make fix-check` | Fail if `go fix` has unapplied modernizations       |
 | `make lint`      | `golangci-lint` (Go) + `eslint` (JS) + template lint + `djlint` (HTML) |
 | `make test`      | `go test ./...`                                     |
 | `make vulncheck` | `govulncheck` — scan deps for known vulnerabilities |
