@@ -565,6 +565,74 @@ func TestIntegration_CategoryHierarchy(t *testing.T) {
 	resp.Body.Close()
 }
 
+// ---------- Batch mark-read ----------
+
+func TestIntegration_BatchMarkRead(t *testing.T) {
+	t.Parallel()
+	ts, s := integrationServer(t)
+
+	// Ensure user exists
+	resp := authGet(t, ts, "/api/counts")
+	resp.Body.Close()
+
+	var userID int64
+	s.DB.QueryRow("SELECT id FROM users WHERE external_id = 'integ-user'").Scan(&userID)
+	if userID == 0 {
+		t.Fatal("user not created")
+	}
+
+	// Insert test articles
+	_, err := s.DB.Exec(`INSERT INTO feeds (name, url, feed_type, user_id) VALUES (?, ?, ?, ?)`,
+		"Batch Feed", "http://batch.example.com/rss", "rss", userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var feedID int64
+	s.DB.QueryRow("SELECT id FROM feeds WHERE name = 'Batch Feed'").Scan(&feedID)
+
+	var artIDs []int64
+	for i := 0; i < 5; i++ {
+		_, err := s.DB.Exec(`INSERT INTO articles (feed_id, guid, title, url) VALUES (?, ?, ?, ?)`,
+			feedID, fmt.Sprintf("batch-guid-%d", i), fmt.Sprintf("Article %d", i),
+			fmt.Sprintf("http://batch.example.com/%d", i))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var id int64
+		s.DB.QueryRow("SELECT id FROM articles WHERE guid = ?", fmt.Sprintf("batch-guid-%d", i)).Scan(&id)
+		artIDs = append(artIDs, id)
+	}
+
+	// Batch mark read
+	idsJSON := fmt.Sprintf(`{"ids":[%d,%d,%d,%d,%d]}`, artIDs[0], artIDs[1], artIDs[2], artIDs[3], artIDs[4])
+	resp = authPost(t, ts, "/api/articles/batch-read", idsJSON)
+	if resp.StatusCode != 200 {
+		t.Fatalf("batch-read: %d", resp.StatusCode)
+	}
+	m := readJSON(t, resp)
+	if m["status"] != "ok" {
+		t.Fatalf("expected ok, got %v", m)
+	}
+
+	// Verify all are read
+	for _, id := range artIDs {
+		var isRead bool
+		if err := s.DB.QueryRow("SELECT is_read FROM articles WHERE id = ?", id).Scan(&isRead); err != nil {
+			t.Fatal(err)
+		}
+		if !isRead {
+			t.Errorf("article %d should be read", id)
+		}
+	}
+
+	// Verify counts updated
+	resp = authGet(t, ts, "/api/counts")
+	if resp.StatusCode != 200 {
+		t.Fatalf("counts: %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
 // ---------- Pages render for fresh user (no data) ----------
 
 func TestIntegration_EmptyStatePages(t *testing.T) {

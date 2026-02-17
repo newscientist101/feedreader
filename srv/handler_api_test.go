@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"srv.exe.dev/db/dbgen"
@@ -33,6 +34,125 @@ func TestHandlerMarkRead(t *testing.T) {
 		"POST", "/api/articles/abc/read", "", ctx)
 	if w.Code != 400 {
 		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandlerBatchMarkRead(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	ctx, user := testUser(t, s)
+	feed := createFeed(t, s, user.ID, "f", "http://f")
+	art1 := createArticle(t, s, feed.ID, "a1", "g1")
+	art2 := createArticle(t, s, feed.ID, "a2", "g2")
+	art3 := createArticle(t, s, feed.ID, "a3", "g3")
+
+	// Batch mark multiple articles read
+	body := fmt.Sprintf(`{"ids":[%d,%d,%d]}`, art1.ID, art2.ID, art3.ID)
+	w := serveAPI(t, s.apiBatchMarkRead, "POST", "/api/articles/batch-read", body, ctx)
+	if w.Code != 200 {
+		t.Fatalf("got %d: %s", w.Code, w.Body.String())
+	}
+	if m := jsonBody(t, w); m["status"] != "ok" {
+		t.Fatalf("body: %v", m)
+	}
+
+	// Verify articles are actually marked read
+	for _, artID := range []int64{art1.ID, art2.ID, art3.ID} {
+		var isRead bool
+		if err := s.DB.QueryRow("SELECT is_read FROM articles WHERE id = ?", artID).Scan(&isRead); err != nil {
+			t.Fatal(err)
+		}
+		if !isRead {
+			t.Errorf("article %d should be read", artID)
+		}
+	}
+}
+
+func TestHandlerBatchMarkRead_EmptyIDs(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	ctx, _ := testUser(t, s)
+
+	w := serveAPI(t, s.apiBatchMarkRead, "POST", "/api/articles/batch-read", `{"ids":[]}`, ctx)
+	if w.Code != 200 {
+		t.Fatalf("got %d", w.Code)
+	}
+	if m := jsonBody(t, w); m["status"] != "ok" {
+		t.Fatalf("body: %v", m)
+	}
+}
+
+func TestHandlerBatchMarkRead_TooManyIDs(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	ctx, _ := testUser(t, s)
+
+	// Build a list of 201 IDs
+	ids := make([]string, 201)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("%d", i+1)
+	}
+	body := `{"ids":[` + strings.Join(ids, ",") + `]}`
+	w := serveAPI(t, s.apiBatchMarkRead, "POST", "/api/articles/batch-read", body, ctx)
+	if w.Code != 400 {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestHandlerBatchMarkRead_BadJSON(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	ctx, _ := testUser(t, s)
+
+	w := serveAPI(t, s.apiBatchMarkRead, "POST", "/api/articles/batch-read", `not json`, ctx)
+	if w.Code != 400 {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandlerBatchMarkRead_IgnoresOtherUsersArticles(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	ctx, user := testUser(t, s)
+
+	// Create a feed owned by user
+	feed := createFeed(t, s, user.ID, "f", "http://f")
+	art := createArticle(t, s, feed.ID, "a1", "g1")
+
+	// Create a second user with their own feed/article
+	q := dbgen.New(s.DB)
+	user2, err := q.GetOrCreateUser(context.Background(), dbgen.GetOrCreateUserParams{
+		ExternalID: "other-user",
+		Email:      "other@example.com",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	feed2 := createFeed(t, s, user2.ID, "f2", "http://f2")
+	art2 := createArticle(t, s, feed2.ID, "a2", "g2")
+
+	// User 1 tries to batch-mark both articles
+	body := fmt.Sprintf(`{"ids":[%d,%d]}`, art.ID, art2.ID)
+	w := serveAPI(t, s.apiBatchMarkRead, "POST", "/api/articles/batch-read", body, ctx)
+	if w.Code != 200 {
+		t.Fatalf("got %d", w.Code)
+	}
+
+	// User 1's article should be read
+	var isRead bool
+	if err := s.DB.QueryRow("SELECT is_read FROM articles WHERE id = ?", art.ID).Scan(&isRead); err != nil {
+		t.Fatal(err)
+	}
+	if !isRead {
+		t.Error("own article should be marked read")
+	}
+
+	// User 2's article should NOT be read (query scopes by user_id)
+	if err := s.DB.QueryRow("SELECT is_read FROM articles WHERE id = ?", art2.ID).Scan(&isRead); err != nil {
+		t.Fatal(err)
+	}
+	if isRead {
+		t.Error("other user's article should NOT be marked read")
 	}
 }
 

@@ -290,3 +290,51 @@ ALTER TABLE parent_new RENAME TO parent;
 		t.Fatal("foreign keys should be re-enabled after migration")
 	}
 }
+
+func TestOpen_PragmasApplied(t *testing.T) {
+	// Open a real (temp-file) database via Open() and verify that
+	// the _pragma DSN parameters are applied on every connection.
+	tmpDir := t.TempDir()
+	dbPath := tmpDir + "/test.db"
+
+	d, err := Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+
+	// Run migrations so tables exist
+	if err := RunMigrations(d); err != nil {
+		t.Fatal(err)
+	}
+
+	// Force multiple connections by setting pool size > 1
+	d.SetMaxOpenConns(4)
+
+	// Verify pragmas on several connections (grab them in parallel)
+	for i := 0; i < 4; i++ {
+		var timeout int
+		if err := d.QueryRow("PRAGMA busy_timeout").Scan(&timeout); err != nil {
+			t.Fatal(err)
+		}
+		if timeout != 5000 {
+			t.Errorf("connection %d: busy_timeout = %d, want 5000", i, timeout)
+		}
+
+		var journal string
+		if err := d.QueryRow("PRAGMA journal_mode").Scan(&journal); err != nil {
+			t.Fatal(err)
+		}
+		if journal != "wal" {
+			t.Errorf("connection %d: journal_mode = %q, want wal", i, journal)
+		}
+
+		var fk int
+		if err := d.QueryRow("PRAGMA foreign_keys").Scan(&fk); err != nil {
+			t.Fatal(err)
+		}
+		if fk != 1 {
+			t.Errorf("connection %d: foreign_keys = %d, want 1", i, fk)
+		}
+	}
+}
