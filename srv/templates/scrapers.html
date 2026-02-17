@@ -4,7 +4,22 @@
         <h1>Scraper Modules</h1>
     </header>
 
-    <section class="ai-scraper-section">
+    <div class="scraper-tabs">
+        <button class="scraper-tab active" data-tab="ai" onclick="switchScraperTab('ai')">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+            </svg>
+            Shelley-Powered
+        </button>
+        <button class="scraper-tab" data-tab="manual" onclick="switchScraperTab('manual')">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/>
+            </svg>
+            Manual Config
+        </button>
+    </div>
+
+    <section class="ai-scraper-section scraper-panel active" data-panel="ai">
         <h2>
             <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
@@ -39,25 +54,9 @@
                 Generate Scraper Config
             </button>
         </form>
-
-        <div id="ai-result" class="ai-result" style="display: none;">
-            <h3>Generated Configuration</h3>
-            <div class="result-name">
-                <label>Suggested Name:</label>
-                <input type="text" id="ai-result-name" readonly>
-            </div>
-            <div class="result-config">
-                <label>Configuration:</label>
-                <pre id="ai-result-config"></pre>
-            </div>
-            <div class="result-actions">
-                <button onclick="useGeneratedConfig()" class="btn btn-primary">Use This Config</button>
-                <button onclick="hideAIResult()" class="btn btn-secondary">Dismiss</button>
-            </div>
-        </div>
     </section>
 
-    <section class="manual-scraper-section">
+    <section class="manual-scraper-section scraper-panel" data-panel="manual">
         <h2>Create Scraper Manually</h2>
         <form id="add-scraper-form" class="scraper-form">
             <div class="form-row">
@@ -231,9 +230,9 @@ document.getElementById('ai-generate-form').addEventListener('submit', async (e)
 
     try {
         const data = await api('POST', '/api/ai/generate-scraper', { url, description });
-        document.getElementById('ai-result-name').value = data.name || 'Custom Scraper';
-        document.getElementById('ai-result-config').textContent = data.config;
-        document.getElementById('ai-result').style.display = 'block';
+        document.getElementById('scraper-name').value = data.name || 'Custom Scraper';
+        document.getElementById('scraper-script').value = data.config;
+        switchScraperTab('manual');
     } catch (err) {
         alert('Failed to generate: ' + err.message);
     } finally {
@@ -242,15 +241,9 @@ document.getElementById('ai-generate-form').addEventListener('submit', async (e)
     }
 });
 
-function useGeneratedConfig() {
-    document.getElementById('scraper-name').value = document.getElementById('ai-result-name').value;
-    document.getElementById('scraper-script').value = document.getElementById('ai-result-config').textContent;
-    document.getElementById('ai-result').style.display = 'none';
-    document.querySelector('.manual-scraper-section').scrollIntoView({ behavior: 'smooth' });
-}
-
-function hideAIResult() {
-    document.getElementById('ai-result').style.display = 'none';
+function switchScraperTab(tab) {
+    document.querySelectorAll('.scraper-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+    document.querySelectorAll('.scraper-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === tab));
 }
 
 async function editScraper(id) {

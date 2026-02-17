@@ -2149,10 +2149,54 @@ th {
 }
 
 /* AI Scraper Section */
+.scraper-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 0;
+}
+
+.scraper-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    border-radius: var(--card-radius) var(--card-radius) 0 0;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    position: relative;
+    bottom: -1px;
+}
+
+.scraper-tab:hover {
+    color: var(--text-primary);
+    background: rgba(100, 255, 218, 0.05);
+}
+
+.scraper-tab.active {
+    background: var(--bg-card);
+    color: var(--accent);
+    border-color: rgba(100, 255, 218, 0.2);
+    z-index: 1;
+}
+
+.scraper-panel {
+    display: none;
+}
+
+.scraper-panel.active {
+    display: block;
+}
+
 .ai-scraper-section {
     background: linear-gradient(135deg, var(--bg-card) 0%, rgba(100, 255, 218, 0.05) 100%);
     border: 1px solid rgba(100, 255, 218, 0.2);
-    border-radius: var(--card-radius);
+    border-radius: 0 var(--card-radius) var(--card-radius) var(--card-radius);
     padding: var(--card-padding);
     margin-bottom: var(--space-2xl);
 }
@@ -2249,6 +2293,11 @@ th {
 .result-actions {
     display: flex;
     gap: 10px;
+}
+
+.manual-scraper-section {
+    border: 1px solid rgba(100, 255, 218, 0.2);
+    border-radius: 0 var(--card-radius) var(--card-radius) var(--card-radius);
 }
 
 .manual-scraper-section h2,
