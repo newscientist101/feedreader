@@ -75,11 +75,17 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 		ctx := r.Context()
 		q := dbgen.New(s.DB)
 
-		dbUser, err := q.GetOrCreateUser(ctx, dbgen.GetOrCreateUserParams{
+		params := dbgen.GetOrCreateUserParams{
 			ExternalID: externalID,
 			Email:      email,
-		})
+		}
+		dbUser, err := q.GetOrCreateUser(ctx, params)
 		if err != nil {
+			// Retry once — transient SQLite busy/locked errors
+			dbUser, err = q.GetOrCreateUser(ctx, params)
+		}
+		if err != nil {
+			slog.Error("auth: GetOrCreateUser failed", "error", err, "external_id", externalID)
 			http.Error(w, "Failed to authenticate user", http.StatusInternalServerError)
 			return
 		}
