@@ -13,9 +13,6 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// ptr returns a pointer to the given value.
-func ptr[T any](v T) *T { return &v }
-
 // setupTestDB opens an in-memory SQLite DB, runs migrations, and returns
 // a *dbgen.Queries ready for use.
 func setupTestDB(t *testing.T) (*sql.DB, *dbgen.Queries) {
@@ -66,8 +63,8 @@ func createTestArticle(t *testing.T, q *dbgen.Queries, feedID int64, guid, title
 		FeedID:  feedID,
 		Guid:    guid,
 		Title:   title,
-		Url:     ptr("https://example.com/" + guid),
-		Content: ptr("Content of " + title),
+		Url:     new("https://example.com/" + guid),
+		Content: new("Content of " + title),
 	})
 	if err != nil {
 		t.Fatalf("CreateArticle(%s): %v", guid, err)
@@ -300,7 +297,7 @@ func TestCategories_CRUD(t *testing.T) {
 
 	// UpdateCategorySortOrder
 	err = q.UpdateCategorySortOrder(ctx, dbgen.UpdateCategorySortOrderParams{
-		SortOrder: ptr(int64(5)), ID: cat.ID, UserID: &u.ID,
+		SortOrder: new(int64(5)), ID: cat.ID, UserID: &u.ID,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -389,7 +386,7 @@ func TestChildCategories(t *testing.T) {
 	child, _ := q.CreateCategory(ctx, dbgen.CreateCategoryParams{Name: "Child", UserID: &u.ID})
 
 	err := q.UpdateCategoryParent(ctx, dbgen.UpdateCategoryParentParams{
-		ParentID: &parent.ID, SortOrder: ptr(int64(1)),
+		ParentID: &parent.ID, SortOrder: new(int64(1)),
 		ID: child.ID, UserID: &u.ID,
 	})
 	if err != nil {
@@ -447,7 +444,7 @@ func TestArticles_CreateAndGet(t *testing.T) {
 	// CreateArticle upsert: same feed+guid should update title
 	a2, err := q.CreateArticle(ctx, dbgen.CreateArticleParams{
 		FeedID: f.ID, Guid: "guid-1", Title: "Updated First Post",
-		Url: ptr("https://example.com/guid-1"),
+		Url: new("https://example.com/guid-1"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -885,7 +882,7 @@ func TestExclusions_CRUD(t *testing.T) {
 	// CreateExclusion
 	excl, err := q.CreateExclusion(ctx, dbgen.CreateExclusionParams{
 		CategoryID: cat.ID, ExclusionType: "title",
-		Pattern: "spam", IsRegex: ptr(int64(0)),
+		Pattern: "spam", IsRegex: new(int64(0)),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -928,7 +925,7 @@ func TestExclusions_CRUD(t *testing.T) {
 
 	// UpdateExclusion
 	err = q.UpdateExclusion(ctx, dbgen.UpdateExclusionParams{
-		Pattern: "ads.*", IsRegex: ptr(int64(1)),
+		Pattern: "ads.*", IsRegex: new(int64(1)),
 		ID: excl.ID, UserID: &u.ID,
 	})
 	if err != nil {
@@ -962,7 +959,7 @@ func TestExclusions_DeleteByCategory(t *testing.T) {
 	for i := range 3 {
 		_, err := q.CreateExclusion(ctx, dbgen.CreateExclusionParams{
 			CategoryID: cat.ID, ExclusionType: "title",
-			Pattern: fmt.Sprintf("pattern-%d", i), IsRegex: ptr(int64(0)),
+			Pattern: fmt.Sprintf("pattern-%d", i), IsRegex: new(int64(0)),
 		})
 		if err != nil {
 			t.Fatal(err)

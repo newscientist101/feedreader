@@ -1,9 +1,10 @@
 module srv.exe.dev
 
-go 1.25.7
+go 1.26.0
 
 require (
 	github.com/PuerkitoBio/goquery v1.11.0
+	golang.org/x/net v0.47.0
 	modernc.org/sqlite v1.39.0
 )
 
@@ -46,7 +47,6 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/crypto v0.44.0 // indirect
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
-	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.31.0 // indirect

@@ -5,8 +5,6 @@ import (
 	"time"
 )
 
-func tp(t time.Time) *time.Time { return &t }
-
 func TestTimeAgo(t *testing.T) {
 	now := time.Now()
 	tests := []struct {
@@ -15,14 +13,14 @@ func TestTimeAgo(t *testing.T) {
 		want  string
 	}{
 		{"nil", nil, ""},
-		{"seconds", tp(now.Add(-30 * time.Second)), "30 sec ago"},
-		{"1 min", tp(now.Add(-1 * time.Minute)), "1 min ago"},
-		{"minutes", tp(now.Add(-5 * time.Minute)), "5 min ago"},
-		{"1 hr", tp(now.Add(-1 * time.Hour)), "1 hr ago"},
-		{"hours", tp(now.Add(-3 * time.Hour)), "3 hr ago"},
-		{"1 day", tp(now.Add(-24 * time.Hour)), "1 day ago"},
-		{"days", tp(now.Add(-2 * 24 * time.Hour)), "2 days ago"},
-		{"old", tp(now.Add(-30 * 24 * time.Hour)), now.Add(-30 * 24 * time.Hour).Format("Jan 2, 2006")},
+		{"seconds", new(now.Add(-30 * time.Second)), "30 sec ago"},
+		{"1 min", new(now.Add(-1 * time.Minute)), "1 min ago"},
+		{"minutes", new(now.Add(-5 * time.Minute)), "5 min ago"},
+		{"1 hr", new(now.Add(-1 * time.Hour)), "1 hr ago"},
+		{"hours", new(now.Add(-3 * time.Hour)), "3 hr ago"},
+		{"1 day", new(now.Add(-24 * time.Hour)), "1 day ago"},
+		{"days", new(now.Add(-2 * 24 * time.Hour)), "2 days ago"},
+		{"old", new(now.Add(-30 * 24 * time.Hour)), now.Add(-30 * 24 * time.Hour).Format("Jan 2, 2006")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -6,8 +6,6 @@ import (
 	"srv.exe.dev/db/dbgen"
 )
 
-func int64Ptr(v int64) *int64 { return &v }
-
 // ---------------------------------------------------------------------------
 // BuildCategoryTree
 // ---------------------------------------------------------------------------
@@ -21,9 +19,9 @@ func TestBuildCategoryTree_Empty(t *testing.T) {
 
 func TestBuildCategoryTree_FlatList(t *testing.T) {
 	cats := []dbgen.Category{
-		{ID: 1, Name: "Alpha", SortOrder: int64Ptr(2)},
-		{ID: 2, Name: "Beta", SortOrder: int64Ptr(1)},
-		{ID: 3, Name: "Gamma", SortOrder: int64Ptr(3)},
+		{ID: 1, Name: "Alpha", SortOrder: new(int64(2))},
+		{ID: 2, Name: "Beta", SortOrder: new(int64(1))},
+		{ID: 3, Name: "Gamma", SortOrder: new(int64(3))},
 	}
 
 	roots := BuildCategoryTree(cats)
@@ -45,9 +43,9 @@ func TestBuildCategoryTree_FlatList(t *testing.T) {
 
 func TestBuildCategoryTree_NestedWithDepths(t *testing.T) {
 	cats := []dbgen.Category{
-		{ID: 1, Name: "Root", SortOrder: int64Ptr(0)},
-		{ID: 2, Name: "Child", ParentID: int64Ptr(1), SortOrder: int64Ptr(0)},
-		{ID: 3, Name: "Grandchild", ParentID: int64Ptr(2), SortOrder: int64Ptr(0)},
+		{ID: 1, Name: "Root", SortOrder: new(int64(0))},
+		{ID: 2, Name: "Child", ParentID: new(int64(1)), SortOrder: new(int64(0))},
+		{ID: 3, Name: "Grandchild", ParentID: new(int64(2)), SortOrder: new(int64(0))},
 	}
 
 	roots := BuildCategoryTree(cats)
@@ -83,8 +81,8 @@ func TestBuildCategoryTree_NestedWithDepths(t *testing.T) {
 func TestBuildCategoryTree_OrphanTreatedAsRoot(t *testing.T) {
 	// Parent ID 999 doesn't exist — should become a root
 	cats := []dbgen.Category{
-		{ID: 1, Name: "Normal", SortOrder: int64Ptr(0)},
-		{ID: 2, Name: "Orphan", ParentID: int64Ptr(999), SortOrder: int64Ptr(1)},
+		{ID: 1, Name: "Normal", SortOrder: new(int64(0))},
+		{ID: 2, Name: "Orphan", ParentID: new(int64(999)), SortOrder: new(int64(1))},
 	}
 
 	roots := BuildCategoryTree(cats)
@@ -95,9 +93,9 @@ func TestBuildCategoryTree_OrphanTreatedAsRoot(t *testing.T) {
 
 func TestBuildCategoryTree_SortByNameWhenSameOrder(t *testing.T) {
 	cats := []dbgen.Category{
-		{ID: 1, Name: "Zebra", SortOrder: int64Ptr(0)},
-		{ID: 2, Name: "Apple", SortOrder: int64Ptr(0)},
-		{ID: 3, Name: "Mango", SortOrder: int64Ptr(0)},
+		{ID: 1, Name: "Zebra", SortOrder: new(int64(0))},
+		{ID: 2, Name: "Apple", SortOrder: new(int64(0))},
+		{ID: 3, Name: "Mango", SortOrder: new(int64(0))},
 	}
 
 	roots := BuildCategoryTree(cats)
@@ -125,9 +123,9 @@ func TestBuildCategoryTree_NilSortOrder(t *testing.T) {
 
 func TestBuildCategoryTree_ChildrenSorted(t *testing.T) {
 	cats := []dbgen.Category{
-		{ID: 1, Name: "Root", SortOrder: int64Ptr(0)},
-		{ID: 2, Name: "Z-Child", ParentID: int64Ptr(1), SortOrder: int64Ptr(2)},
-		{ID: 3, Name: "A-Child", ParentID: int64Ptr(1), SortOrder: int64Ptr(1)},
+		{ID: 1, Name: "Root", SortOrder: new(int64(0))},
+		{ID: 2, Name: "Z-Child", ParentID: new(int64(1)), SortOrder: new(int64(2))},
+		{ID: 3, Name: "A-Child", ParentID: new(int64(1)), SortOrder: new(int64(1))},
 	}
 
 	roots := BuildCategoryTree(cats)
@@ -149,10 +147,10 @@ func TestBuildCategoryTree_ChildrenSorted(t *testing.T) {
 
 func TestFlattenCategoryTree(t *testing.T) {
 	cats := []dbgen.Category{
-		{ID: 1, Name: "Root", SortOrder: int64Ptr(0)},
-		{ID: 2, Name: "Child", ParentID: int64Ptr(1), SortOrder: int64Ptr(0)},
-		{ID: 3, Name: "Grandchild", ParentID: int64Ptr(2), SortOrder: int64Ptr(0)},
-		{ID: 4, Name: "Sibling", SortOrder: int64Ptr(1)},
+		{ID: 1, Name: "Root", SortOrder: new(int64(0))},
+		{ID: 2, Name: "Child", ParentID: new(int64(1)), SortOrder: new(int64(0))},
+		{ID: 3, Name: "Grandchild", ParentID: new(int64(2)), SortOrder: new(int64(0))},
+		{ID: 4, Name: "Sibling", SortOrder: new(int64(1))},
 	}
 
 	roots := BuildCategoryTree(cats)

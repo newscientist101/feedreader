@@ -79,8 +79,6 @@ func createTestUser(t *testing.T, q *dbgen.Queries) dbgen.User {
 	return u
 }
 
-func ptr[T any](v T) *T { return &v }
-
 // validRSSBody returns a minimal valid RSS feed XML.
 func validRSSBody(title, guid, link string) string {
 	return fmt.Sprintf(`<?xml version="1.0"?>
@@ -482,7 +480,7 @@ func TestFetchFeed_ScraperNoRunner(t *testing.T) {
 		Name:          "Scraper",
 		Url:           "http://example.com",
 		FeedType:      "scraper",
-		ScraperModule: ptr("some-module"),
+		ScraperModule: new("some-module"),
 		UserID:        &user.ID,
 	})
 
@@ -525,7 +523,7 @@ func TestFetchFeed_HuggingFaceBadConfig(t *testing.T) {
 		Name:          "HF",
 		Url:           "http://hf.example.com",
 		FeedType:      "huggingface",
-		ScraperConfig: ptr("not json"),
+		ScraperConfig: new("not json"),
 		UserID:        &user.ID,
 	})
 
