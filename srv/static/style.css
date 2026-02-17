@@ -2292,6 +2292,10 @@ th {
     resize: vertical;
 }
 
+.ai-form button {
+    width: fit-content;
+}
+
 .ai-result {
     margin-top: 20px;
     padding: 20px;
