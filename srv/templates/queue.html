@@ -5,7 +5,7 @@
         <div class="queue-position">
             <span class="queue-counter">1 of {{len .QueueArticles}}</span>
         </div>
-        <div style="display:flex; align-items:center; gap:10px;">
+        <div class="flex-row">
             <div class="article-actions-placeholder"
                 data-article-id="{{.Article.ID}}"
                 data-is-read="{{if and .Article.IsRead (ne (deref .Article.IsRead) 0)}}1{{else}}0{{end}}"
@@ -44,7 +44,7 @@
 
     {{else}}
     <div class="empty-state">
-        <svg viewBox="0 0 24 24" width="64" height="64" fill="currentColor" style="opacity: 0.3;">
+        <svg viewBox="0 0 24 24" width="64" height="64" fill="currentColor" class="muted-icon">
             <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/>
         </svg>
         <h2>Queue is empty</h2>

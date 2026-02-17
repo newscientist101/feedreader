@@ -1056,6 +1056,39 @@ body {
     color: var(--danger);
 }
 
+/* Utility classes */
+.clickable {
+    cursor: pointer;
+}
+
+.flex-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.flex-1 {
+    flex: 1;
+}
+
+.flex-2 {
+    flex: 2;
+}
+
+.muted-icon {
+    opacity: 0.3;
+}
+
+.reddit-options {
+    display: flex;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.mt-sm {
+    margin-top: 10px;
+}
+
 /* Forms */
 .form-row {
     display: flex;

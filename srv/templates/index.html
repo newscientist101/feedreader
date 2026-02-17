@@ -85,7 +85,7 @@
                 </svg>
             </div>
             {{end}}
-            <div class="article-body" onclick="openArticle({{.ID}})" style="cursor: pointer;">
+            <div class="article-body clickable" onclick="openArticle({{.ID}})">
                 <div class="article-meta">
                     <a class="feed-name" href="/feed/{{.FeedID}}" onclick="event.stopPropagation();">{{.FeedName}}</a>
                     {{if .Author}}<span class="article-author">{{deref .Author}}</span>{{end}}
