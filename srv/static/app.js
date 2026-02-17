@@ -177,23 +177,35 @@ function initAutoMarkRead() {
     });
 }
 
+// Batched mark-read for auto-mark feature
+let _markReadQueue = [];
+let _markReadTimer = null;
+
+function flushMarkReadQueue() {
+    _markReadTimer = null;
+    if (_markReadQueue.length === 0) return;
+    const ids = _markReadQueue.slice();
+    _markReadQueue = [];
+    api('POST', '/api/articles/batch-read', { ids })
+        .then(() => updateCounts())
+        .catch(e => console.error('Failed to batch mark read:', e));
+}
+
 // Mark as read without page reload (for auto-mark feature)
-async function markReadSilent(id) {
-    try {
-        await api('POST', `/api/articles/${id}/read`);
-        const card = document.querySelector(`.article-card[data-id="${id}"]`);
-        if (card) {
-            card.classList.add('read');
-            updateReadButton(card, true);
-        }
-        updateCounts();
-    } catch (e) {
-        console.error('Failed to mark article read:', e);
+function markReadSilent(id) {
+    const card = document.querySelector(`.article-card[data-id="${id}"]`);
+    if (card) {
+        card.classList.add('read');
+        updateReadButton(card, true);
     }
+    _markReadQueue.push(Number(id));
+    if (_markReadTimer) clearTimeout(_markReadTimer);
+    _markReadTimer = setTimeout(flushMarkReadQueue, 500);
 }
 
 function openArticle(id) {
     markReadSilent(id);
+    flushMarkReadQueue();
     window.location = `/article/${id}`;
 }
 

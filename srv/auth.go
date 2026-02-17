@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sync"
+	"time"
 
 	"srv.exe.dev/db/dbgen"
 )
@@ -38,10 +40,18 @@ func isDevelopment() bool {
 	return false
 }
 
+type cachedUser struct {
+	user     User
+	lastSeen time.Time
+}
+
 // AuthMiddleware extracts user from exe.dev headers and ensures authentication
 func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Get exe.dev auth headers
+	var (
+		mu    sync.RWMutex
+		cache = make(map[string]*cachedUser)
+	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { // Get exe.dev auth headers
 		externalID := r.Header.Get("X-Exedev-Userid")
 		email := r.Header.Get("X-Exedev-Email")
 
@@ -71,19 +81,38 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Get or create user
+		// Fast path: serve from in-memory cache (no DB hit)
+		mu.RLock()
+		cached := cache[externalID]
+		mu.RUnlock()
+		if cached != nil {
+			ctx := context.WithValue(r.Context(), userContextKey, &cached.user)
+			// Update last_seen_at in DB at most once per minute
+			if time.Since(cached.lastSeen) > time.Minute {
+				cached.lastSeen = time.Now()
+				go func() {
+					q := dbgen.New(s.DB)
+					_ = q.UpdateUserLastSeen(context.Background(), dbgen.UpdateUserLastSeenParams{
+						Email: email,
+						ID:    cached.user.ID,
+					})
+				}()
+			}
+			if r.Method == "POST" {
+				slog.Info("POST request", "path", r.URL.Path, "remote", r.RemoteAddr, "request_id", r.Header.Get("X-Request-Id"), "content_type", r.Header.Get("Content-Type"))
+			}
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+
+		// Slow path: get or create user in DB
 		ctx := r.Context()
 		q := dbgen.New(s.DB)
 
-		params := dbgen.GetOrCreateUserParams{
+		dbUser, err := q.GetOrCreateUser(ctx, dbgen.GetOrCreateUserParams{
 			ExternalID: externalID,
 			Email:      email,
-		}
-		dbUser, err := q.GetOrCreateUser(ctx, params)
-		if err != nil {
-			// Retry once — transient SQLite busy/locked errors
-			dbUser, err = q.GetOrCreateUser(ctx, params)
-		}
+		})
 		if err != nil {
 			slog.Error("auth: GetOrCreateUser failed", "error", err, "external_id", externalID)
 			http.Error(w, "Failed to authenticate user", http.StatusInternalServerError)
@@ -95,6 +124,11 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 			ExternalID: dbUser.ExternalID,
 			Email:      dbUser.Email,
 		}
+
+		// Cache for subsequent requests
+		mu.Lock()
+		cache[externalID] = &cachedUser{user: *user, lastSeen: time.Now()}
+		mu.Unlock()
 
 		// Add user to context
 		ctx = context.WithValue(ctx, userContextKey, user)

@@ -22,24 +22,16 @@ var migrationFS embed.FS
 
 // Open opens an sqlite database and prepares pragmas suitable for a small web app.
 func Open(path string) (*sql.DB, error) {
-	// Use _time_format=sqlite to handle time scanning properly
-	// Use WAL mode for better concurrent write support
-	db, err := sql.Open("sqlite", path+"?_time_format=sqlite&_journal_mode=WAL&_busy_timeout=5000")
+	// _pragma is applied by modernc.org/sqlite on every new connection,
+	// ensuring all pool connections share the same settings.
+	dsn := path +
+		"?_time_format=sqlite" +
+		"&_pragma=journal_mode(wal)" +
+		"&_pragma=busy_timeout(5000)" +
+		"&_pragma=foreign_keys(on)"
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
-	}
-	// Light pragmas similar
-	if _, err := db.Exec("PRAGMA foreign_keys=ON;"); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("enable foreign keys: %w", err)
-	}
-	if _, err := db.Exec("PRAGMA journal_mode=wal;"); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("set WAL: %w", err)
-	}
-	if _, err := db.Exec("PRAGMA busy_timeout=5000;"); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("set busy_timeout: %w", err)
 	}
 	return db, nil
 }

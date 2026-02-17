@@ -138,6 +138,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/feeds/{id}/articles", s.apiGetFeedArticles)
 	mux.HandleFunc("POST /api/feeds/{id}/refresh", s.apiRefreshFeed)
 	mux.HandleFunc("POST /api/articles/{id}/read", s.apiMarkRead)
+	mux.HandleFunc("POST /api/articles/batch-read", s.apiBatchMarkRead)
 	mux.HandleFunc("POST /api/articles/{id}/unread", s.apiMarkUnread)
 	mux.HandleFunc("POST /api/articles/{id}/star", s.apiToggleStar)
 	mux.HandleFunc("POST /api/articles/{id}/queue", s.apiToggleQueue)
@@ -931,6 +932,36 @@ func (s *Server) apiMarkRead(w http.ResponseWriter, r *http.Request) {
 		slog.Error("failed to mark article read", "article_id", articleID, "user_id", user.ID, "error", err)
 		jsonError(w, "Failed to mark read", 500)
 		return
+	}
+
+	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) apiBatchMarkRead(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	var req struct {
+		IDs []int64 `json:"ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request body", 400)
+		return
+	}
+	if len(req.IDs) == 0 {
+		jsonResponse(w, map[string]string{"status": "ok"})
+		return
+	}
+	if len(req.IDs) > 200 {
+		jsonError(w, "Too many IDs (max 200)", 400)
+		return
+	}
+
+	for _, id := range req.IDs {
+		if err := q.MarkArticleRead(ctx, dbgen.MarkArticleReadParams{ID: id, UserID: &user.ID}); err != nil {
+			slog.Error("failed to mark article read (batch)", "article_id", id, "user_id", user.ID, "error", err)
+		}
 	}
 
 	jsonResponse(w, map[string]string{"status": "ok"})
