@@ -2287,6 +2287,10 @@ th {
     margin-bottom: 0;
 }
 
+.scraper-form button {
+    width: fit-content;
+}
+
 .ai-form.disabled {
     opacity: 0.5;
     pointer-events: none;
