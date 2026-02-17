@@ -2249,6 +2249,11 @@ th {
     gap: 15px;
 }
 
+.ai-form.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
 .ai-form textarea {
     min-height: 80px;
     resize: vertical;

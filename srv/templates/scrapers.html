@@ -209,7 +209,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             statusEl.className = 'ai-status unavailable';
             statusEl.querySelector('.status-text').textContent = 'Shelley is not running';
-            document.getElementById('ai-generate-form').style.opacity = '0.5';
+            document.getElementById('ai-generate-form').classList.add('disabled');
             document.getElementById('ai-generate-btn').disabled = true;
         }
     } catch (err) {
