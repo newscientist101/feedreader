@@ -2276,10 +2276,15 @@ th {
     background: var(--accent-red);
 }
 
-.ai-form {
+.ai-form,
+.scraper-form {
     display: flex;
     flex-direction: column;
     gap: 15px;
+}
+
+.scraper-form .form-row {
+    margin-bottom: 0;
 }
 
 .ai-form.disabled {
