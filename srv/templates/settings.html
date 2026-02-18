@@ -122,6 +122,38 @@
     </section>
 
     <section class="settings-section">
+        <h2>Email Newsletters</h2>
+        <p class="section-description">
+            Receive email newsletters directly in your feed reader. Subscribe to newsletters using your personal address below.
+        </p>
+
+        <div class="newsletter-address-container" id="newsletter-container">
+            <div id="newsletter-no-address">
+                <p>Generate a unique email address to start receiving newsletters.</p>
+                <button onclick="generateNewsletterAddress()" class="btn btn-secondary">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                        <polyline points="22,6 12,13 2,6"/>
+                    </svg>
+                    Generate Email Address
+                </button>
+            </div>
+            <div id="newsletter-has-address" style="display:none">
+                <div class="newsletter-address-display">
+                    <code id="newsletter-address" class="newsletter-email"></code>
+                    <button onclick="copyNewsletterAddress()" class="btn btn-icon" title="Copy to clipboard">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                        </svg>
+                    </button>
+                </div>
+                <p class="preference-description">Use this address when subscribing to email newsletters. Each sender will automatically create a new feed.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="settings-section">
         <h2>Data Management</h2>
         
         <div class="data-actions">

@@ -14,8 +14,9 @@ SELECT * FROM feeds WHERE user_id = ? ORDER BY name;
 
 -- name: ListFeedsToFetch :many
 SELECT * FROM feeds 
-WHERE last_fetched_at IS NULL 
-   OR datetime(last_fetched_at, '+' || fetch_interval_minutes || ' minutes') < datetime('now')
+WHERE feed_type != 'newsletter'
+  AND (last_fetched_at IS NULL 
+   OR datetime(last_fetched_at, '+' || fetch_interval_minutes || ' minutes') < datetime('now'))
 ORDER BY last_fetched_at NULLS FIRST;
 
 -- name: UpdateFeedLastFetched :exec

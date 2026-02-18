@@ -1902,6 +1902,63 @@ function initSettingsPage() {
     const feedView = getSetting('defaultFeedView') || 'card';
     const feedRadio = document.querySelector(`input[name="feed-view"][value="${feedView}"]`);
     if (feedRadio) feedRadio.checked = true;
+
+    // Load newsletter address
+    loadNewsletterAddress();
+}
+
+async function loadNewsletterAddress() {
+    const container = document.getElementById('newsletter-container');
+    if (!container) return;
+    try {
+        const data = await api('GET', '/api/newsletter/address');
+        if (data.address) {
+            showNewsletterAddress(data.address);
+        }
+    } catch {
+        // No address yet, show generate button
+    }
+}
+
+async function generateNewsletterAddress() {
+    try {
+        const data = await api('POST', '/api/newsletter/generate-address');
+        if (data.address) {
+            showNewsletterAddress(data.address);
+        }
+    } catch (e) {
+        alert('Failed to generate address: ' + e.message);
+    }
+}
+
+function showNewsletterAddress(address) {
+    const noAddr = document.getElementById('newsletter-no-address');
+    const hasAddr = document.getElementById('newsletter-has-address');
+    const addrEl = document.getElementById('newsletter-address');
+    if (noAddr) noAddr.style.display = 'none';
+    if (hasAddr) hasAddr.style.display = '';
+    if (addrEl) addrEl.textContent = address;
+}
+
+async function copyNewsletterAddress() {
+    const addrEl = document.getElementById('newsletter-address');
+    if (!addrEl) return;
+    try {
+        await navigator.clipboard.writeText(addrEl.textContent);
+        const btn = addrEl.nextElementSibling;
+        if (btn) {
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
+            setTimeout(() => { btn.innerHTML = orig; }, 1500);
+        }
+    } catch {
+        // Fallback: select the text
+        const range = document.createRange();
+        range.selectNodeContents(addrEl);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
 }
 
 function updateEndOfArticlesIndicator() {

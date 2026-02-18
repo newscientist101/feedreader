@@ -27,6 +27,7 @@ import (
 
 	"srv.exe.dev/db"
 	"srv.exe.dev/db/dbgen"
+	"srv.exe.dev/srv/email"
 	"srv.exe.dev/srv/feeds"
 	"srv.exe.dev/srv/huggingface"
 	"srv.exe.dev/srv/opml"
@@ -43,6 +44,7 @@ type Server struct {
 	ScraperRunner    *scrapers.Runner
 	RetentionManager *RetentionManager
 	ShelleyGenerator *ShelleyScraperGenerator
+	EmailWatcher     *email.Watcher
 	FaviconBaseURL   string // upstream favicon service; default Google S2
 }
 
@@ -108,6 +110,11 @@ func (s *Server) Serve(addr string) error {
 	s.RetentionManager = NewRetentionManager(s, 30)
 	s.RetentionManager.Start()
 	defer s.RetentionManager.Stop()
+
+	// Start email newsletter watcher
+	s.EmailWatcher = email.NewWatcher(s.DB, s.Hostname)
+	s.EmailWatcher.Start(10 * time.Second)
+	defer s.EmailWatcher.Stop()
 
 	// Initialize Shelley scraper generator
 	s.ShelleyGenerator = NewShelleyScraperGenerator()
@@ -179,6 +186,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/settings", s.apiGetSettings)
 	mux.HandleFunc("PUT /api/settings", s.apiUpdateSettings)
 	mux.HandleFunc("GET /settings", s.handleSettings)
+
+	// Newsletter email
+	mux.HandleFunc("POST /api/newsletter/generate-address", s.apiGenerateNewsletterAddress)
+	mux.HandleFunc("GET /api/newsletter/address", s.apiGetNewsletterAddress)
 
 	// AI scraper generation
 	mux.HandleFunc("GET /api/ai/status", s.apiAIStatus)
@@ -2301,6 +2312,52 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("render template", "error", err)
 		http.Error(w, "Internal Server Error", 500)
 	}
+}
+
+// Newsletter API handlers
+
+func (s *Server) apiGetNewsletterAddress(w http.ResponseWriter, r *http.Request) {
+	user := GetUser(r.Context())
+	q := dbgen.New(s.DB)
+
+	token, err := q.GetNewsletterToken(r.Context(), user.ID)
+	if err != nil {
+		jsonResponse(w, map[string]any{"address": nil})
+		return
+	}
+
+	addr := email.EmailAddress(token, s.Hostname)
+	jsonResponse(w, map[string]any{"address": addr})
+}
+
+func (s *Server) apiGenerateNewsletterAddress(w http.ResponseWriter, r *http.Request) {
+	user := GetUser(r.Context())
+	q := dbgen.New(s.DB)
+
+	// Check if token already exists
+	if token, err := q.GetNewsletterToken(r.Context(), user.ID); err == nil {
+		addr := email.EmailAddress(token, s.Hostname)
+		jsonResponse(w, map[string]any{"address": addr})
+		return
+	}
+
+	token, err := email.GenerateToken()
+	if err != nil {
+		jsonError(w, "Failed to generate token", 500)
+		return
+	}
+
+	if err := q.SetNewsletterToken(r.Context(), dbgen.SetNewsletterTokenParams{
+		UserID: user.ID,
+		Value:  token,
+	}); err != nil {
+		jsonError(w, "Failed to save token", 500)
+		return
+	}
+
+	addr := email.EmailAddress(token, s.Hostname)
+	slog.Info("generated newsletter address", "user_id", user.ID, "address", addr)
+	jsonResponse(w, map[string]any{"address": addr})
 }
 
 // AI Scraper API handlers

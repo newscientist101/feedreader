@@ -2802,6 +2802,26 @@ th {
     white-space: nowrap;
 }
 
+/* Newsletter email address */
+.newsletter-address-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.newsletter-email {
+    display: inline-block;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 0.95rem;
+    color: var(--accent-color);
+    word-break: break-all;
+    user-select: all;
+}
+
 /* End of articles indicator */
 .end-of-articles {
     display: none;

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"srv.exe.dev/srv"
 )
@@ -31,6 +32,11 @@ func initServer(dbPath string) (*srv.Server, error) {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "unknown"
+	}
+	// The OS hostname is short (e.g. "lynx-fairy"); the exe.dev
+	// email domain requires the full ".exe.xyz" suffix.
+	if !strings.Contains(hostname, ".") {
+		hostname += ".exe.xyz"
 	}
 	server, err := srv.New(dbPath, hostname)
 	if err != nil {

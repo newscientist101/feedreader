@@ -73,6 +73,13 @@ type FeedCategory struct {
 	CategoryID int64 `json:"category_id"`
 }
 
+type HistoryArticle struct {
+	ID        int64     `json:"id"`
+	UserID    int64     `json:"user_id"`
+	ArticleID int64     `json:"article_id"`
+	ViewedAt  time.Time `json:"viewed_at"`
+}
+
 type Migration struct {
 	MigrationNumber int64     `json:"migration_number"`
 	MigrationName   string    `json:"migration_name"`

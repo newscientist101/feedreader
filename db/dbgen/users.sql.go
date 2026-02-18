@@ -33,6 +33,17 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const getNewsletterToken = `-- name: GetNewsletterToken :one
+SELECT value FROM user_settings WHERE user_id = ? AND key = 'newsletter_token'
+`
+
+func (q *Queries) GetNewsletterToken(ctx context.Context, userID int64) (string, error) {
+	row := q.db.QueryRowContext(ctx, getNewsletterToken, userID)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const getOrCreateUser = `-- name: GetOrCreateUser :one
 INSERT INTO users (external_id, email)
 VALUES (?, ?)
@@ -75,6 +86,32 @@ func (q *Queries) GetUserByExternalID(ctx context.Context, externalID string) (U
 		&i.LastSeenAt,
 	)
 	return i, err
+}
+
+const getUserIDByNewsletterToken = `-- name: GetUserIDByNewsletterToken :one
+SELECT user_id FROM user_settings WHERE key = 'newsletter_token' AND value = ?
+`
+
+func (q *Queries) GetUserIDByNewsletterToken(ctx context.Context, value string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getUserIDByNewsletterToken, value)
+	var user_id int64
+	err := row.Scan(&user_id)
+	return user_id, err
+}
+
+const setNewsletterToken = `-- name: SetNewsletterToken :exec
+INSERT INTO user_settings (user_id, key, value) VALUES (?, 'newsletter_token', ?)
+ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value
+`
+
+type SetNewsletterTokenParams struct {
+	UserID int64  `json:"user_id"`
+	Value  string `json:"value"`
+}
+
+func (q *Queries) SetNewsletterToken(ctx context.Context, arg SetNewsletterTokenParams) error {
+	_, err := q.db.ExecContext(ctx, setNewsletterToken, arg.UserID, arg.Value)
+	return err
 }
 
 const updateUserLastSeen = `-- name: UpdateUserLastSeen :exec

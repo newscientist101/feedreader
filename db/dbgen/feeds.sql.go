@@ -506,8 +506,9 @@ func (q *Queries) ListFeedsByCategory(ctx context.Context, arg ListFeedsByCatego
 
 const listFeedsToFetch = `-- name: ListFeedsToFetch :many
 SELECT id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id, content_filters, site_url FROM feeds 
-WHERE last_fetched_at IS NULL 
-   OR datetime(last_fetched_at, '+' || fetch_interval_minutes || ' minutes') < datetime('now')
+WHERE feed_type != 'newsletter'
+  AND (last_fetched_at IS NULL 
+   OR datetime(last_fetched_at, '+' || fetch_interval_minutes || ' minutes') < datetime('now'))
 ORDER BY last_fetched_at NULLS FIRST
 `
 
