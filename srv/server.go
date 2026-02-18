@@ -331,6 +331,27 @@ func truncate(s string, n int) string {
 }
 
 func stripHTML(s string) string {
+	// Remove <style> and <script> blocks entirely before stripping tags.
+	for _, tag := range []string{"style", "script"} {
+		for {
+			open := strings.Index(strings.ToLower(s), "<"+tag)
+			if open < 0 {
+				break
+			}
+			closeIdx := strings.Index(strings.ToLower(s[open:]), "</"+tag)
+			if closeIdx < 0 {
+				s = s[:open]
+				break
+			}
+			end := strings.IndexByte(s[open+closeIdx:], '>')
+			if end < 0 {
+				s = s[:open]
+				break
+			}
+			s = s[:open] + s[open+closeIdx+end+1:]
+		}
+	}
+
 	var result strings.Builder
 	inTag := false
 	for _, r := range s {
