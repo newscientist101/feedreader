@@ -875,7 +875,8 @@ body {
     color: var(--accent);
 }
 
-.article-body img {
+.article-body img,
+.article-body video {
     max-width: 100%;
     height: auto !important;
     border-radius: var(--radius-lg);
