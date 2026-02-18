@@ -15,19 +15,19 @@
             <div class="view-toggle">
                 <button onclick="setView('card')" data-view="card" title="Card View">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 5v13h17V5H4zm10 2v3h-3V7h3zM6 7h3v3H6V7zm0 9v-3h3v3H6zm5 0v-3h3v3h-3zm8 0h-3v-3h3v3zm0-5h-3V7h3v3z"/></svg>
-                    <span>Cards</span>
+                    <span class="view-label">Cards</span>
                 </button>
                 <button onclick="setView('list')" data-view="list" title="List View">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
-                    <span>List</span>
+                    <span class="view-label">List</span>
                 </button>
                 <button onclick="setView('magazine')" data-view="magazine" title="Magazine View">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zm-9 9h7v7H4v-7zm9 0h7v7h-7v-7z"/></svg>
-                    <span>Magazine</span>
+                    <span class="view-label">Magazine</span>
                 </button>
                 <button onclick="setView('expanded')" data-view="expanded" title="Expanded View">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v2H4V4zm0 4h16v12H4V8zm2 2v8h12v-8H6z"/></svg>
-                    <span>Expanded</span>
+                    <span class="view-label">Expanded</span>
                 </button>
             </div>
             <div class="search-box">
@@ -51,8 +51,14 @@
                 </div>
             </div>
             {{if .CurrentFeed}}
-            <button onclick="editFeed({{.CurrentFeed.ID}})" class="btn btn-secondary" data-feed-action="edit">Edit</button>
-            <button onclick="refreshFeed({{.CurrentFeed.ID}})" class="btn btn-warning" data-feed-id="{{.CurrentFeed.ID}}" data-feed-action="refresh">Refresh</button>
+            <button onclick="editFeed({{.CurrentFeed.ID}})" class="btn btn-secondary" data-feed-action="edit" title="Edit Feed">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                <span class="btn-label">Edit</span>
+            </button>
+            <button onclick="refreshFeed({{.CurrentFeed.ID}})" class="btn btn-warning" data-feed-id="{{.CurrentFeed.ID}}" data-feed-action="refresh" title="Refresh Feed">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                <span class="btn-label">Refresh</span>
+            </button>
             {{end}}
             {{end}}
         </div>

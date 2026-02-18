@@ -1444,6 +1444,15 @@ th {
     .view-list .article-meta .article-date {
         display: none;
     }
+
+    .btn-label,
+    .view-label {
+        display: none;
+    }
+
+    .search-box {
+        min-width: 80px;
+    }
 }
 
 /* Responsive - Mobile */
