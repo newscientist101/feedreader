@@ -344,8 +344,8 @@ body {
 }
 
 .search-box {
-    flex: 1 1 auto;
-    min-width: 120px;
+    flex: 0 1 200px;
+    min-width: 100px;
 }
 
 .search-box input {
@@ -1474,7 +1474,7 @@ th {
 }
 
 /* Responsive - Tablet */
-@media (max-width: 1024px) {
+@media (max-width: 900px) {
     .sidebar {
         width: 220px;
     }
