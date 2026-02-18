@@ -740,6 +740,41 @@ func TestHandlerExclusions(t *testing.T) {
 	}
 }
 
+func TestHandlerCreateExclusion_MarksExistingArticlesRead(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	ctx, user := testUser(t, s)
+	q := dbgen.New(s.DB)
+
+	// Create category and feed
+	cat, _ := q.CreateCategory(ctx, dbgen.CreateCategoryParams{Name: "News", UserID: &user.ID})
+	feed := createFeed(t, s, user.ID, "Feed", "https://example.com/feed")
+	q.AddFeedToCategory(ctx, dbgen.AddFeedToCategoryParams{FeedID: feed.ID, CategoryID: cat.ID})
+
+	// Create articles before the exclusion rule exists
+	good := createArticle(t, s, feed.ID, "Good article", "g1")
+	bad := createArticle(t, s, feed.ID, "Open Thread", "g2")
+
+	// Create exclusion via API
+	w := serveMux(t, "POST /api/categories/{id}/exclusions", s.apiCreateExclusion,
+		"POST", fmt.Sprintf("/api/categories/%d/exclusions", cat.ID),
+		`{"type":"keyword","pattern":"open thread","isRegex":false}`, ctx)
+	if w.Code != 200 {
+		t.Fatalf("create exclusion got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify: matching article is now read, non-matching is still unread
+	artGood, _ := q.GetArticle(ctx, dbgen.GetArticleParams{ID: good.ID, UserID: &user.ID})
+	artBad, _ := q.GetArticle(ctx, dbgen.GetArticleParams{ID: bad.ID, UserID: &user.ID})
+
+	if isRead(artGood.IsRead) != 0 {
+		t.Error("non-matching article should still be unread")
+	}
+	if isRead(artBad.IsRead) != 1 {
+		t.Error("matching article should be marked read after exclusion creation")
+	}
+}
+
 // --------------- AI Status ---------------
 
 func TestHandlerAIStatus(t *testing.T) {

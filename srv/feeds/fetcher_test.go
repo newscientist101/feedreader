@@ -634,3 +634,98 @@ func TestFetchFeed_SkipsEmptyGUID(t *testing.T) {
 		t.Error("expected at least 1 article")
 	}
 }
+
+// --- OnFeedFetched callback ---
+
+func TestFetchFeed_CallsOnFeedFetched(t *testing.T) {
+	t.Parallel()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, validRSSBody("Callback Test", "cb-guid-1", "https://example.com/cb"))
+	}))
+	defer ts.Close()
+
+	sqlDB, q := setupTestDB(t)
+	user := createTestUser(t, q)
+
+	feed, _ := q.CreateFeed(context.Background(), dbgen.CreateFeedParams{
+		Name: "CB Test", Url: ts.URL, FeedType: "rss", UserID: &user.ID,
+	})
+
+	var calledWith int64
+	f := &Fetcher{
+		DB:     sqlDB,
+		Client: ts.Client(),
+		OnFeedFetched: func(ctx context.Context, feedID int64) {
+			calledWith = feedID
+		},
+	}
+
+	if err := f.FetchFeed(context.Background(), &feed); err != nil {
+		t.Fatalf("FetchFeed: %v", err)
+	}
+
+	if calledWith != feed.ID {
+		t.Errorf("OnFeedFetched called with feed_id=%d, want %d", calledWith, feed.ID)
+	}
+}
+
+func TestFetchFeed_DoesNotCallOnFeedFetched_WhenNoItems(t *testing.T) {
+	t.Parallel()
+	// RSS feed with no items
+	emptyRSS := `<?xml version="1.0"?>
+<rss version="2.0">
+  <channel>
+    <title>Empty Feed</title>
+    <link>https://example.com</link>
+  </channel>
+</rss>`
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, emptyRSS)
+	}))
+	defer ts.Close()
+
+	sqlDB, q := setupTestDB(t)
+	user := createTestUser(t, q)
+
+	feed, _ := q.CreateFeed(context.Background(), dbgen.CreateFeedParams{
+		Name: "Empty", Url: ts.URL, FeedType: "rss", UserID: &user.ID,
+	})
+
+	called := false
+	f := &Fetcher{
+		DB:     sqlDB,
+		Client: ts.Client(),
+		OnFeedFetched: func(ctx context.Context, feedID int64) {
+			called = true
+		},
+	}
+
+	if err := f.FetchFeed(context.Background(), &feed); err != nil {
+		t.Fatalf("FetchFeed: %v", err)
+	}
+
+	if called {
+		t.Error("OnFeedFetched should not be called when no items inserted")
+	}
+}
+
+func TestFetchFeed_NilOnFeedFetched_NoPanic(t *testing.T) {
+	t.Parallel()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, validRSSBody("No Panic", "np-guid", "https://example.com/np"))
+	}))
+	defer ts.Close()
+
+	sqlDB, q := setupTestDB(t)
+	user := createTestUser(t, q)
+
+	feed, _ := q.CreateFeed(context.Background(), dbgen.CreateFeedParams{
+		Name: "No Panic", Url: ts.URL, FeedType: "rss", UserID: &user.ID,
+	})
+
+	f := &Fetcher{DB: sqlDB, Client: ts.Client(), OnFeedFetched: nil}
+	if err := f.FetchFeed(context.Background(), &feed); err != nil {
+		t.Fatalf("FetchFeed: %v", err)
+	}
+}
