@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"html"
 	"io"
 	"log/slog"
 	"mime"
@@ -18,6 +19,7 @@ import (
 	"net/mail"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -150,11 +152,31 @@ func (w *Watcher) processFile(path string) error {
 		return fmt.Errorf("unknown newsletter token %q: %w", token, err)
 	}
 
-	// Extract sender info
+	// Extract body first — needed for forwarded message detection
+	htmlContent, textContent := extractBody(msg)
+
+	// Extract sender info, checking for forwarded messages
 	fromHeader := msg.Header.Get("From")
 	senderName, senderEmail := parseSender(fromHeader)
+
+	subject := decodeHeader(msg.Header.Get("Subject"))
+
+	// Detect forwarded messages and extract original sender
+	if isForwarded(subject, textContent, htmlContent) {
+		if origName, origEmail := extractForwardedSender(textContent, htmlContent); origEmail != "" {
+			slog.Info("email: detected forwarded newsletter", "original_sender", origEmail, "forwarder", senderEmail)
+			senderName = origName
+			senderEmail = origEmail
+		}
+		subject = stripForwardPrefix(subject)
+	}
+
 	if senderName == "" {
 		senderName = senderEmail
+	}
+
+	if subject == "" {
+		subject = "(no subject)"
 	}
 
 	// Find or create a feed for this sender
@@ -178,14 +200,6 @@ func (w *Watcher) processFile(path string) error {
 		}
 		slog.Info("email: created newsletter feed", "feed_id", feed.ID, "sender", senderName, "user_id", userID)
 	}
-
-	// Extract article content
-	subject := decodeHeader(msg.Header.Get("Subject"))
-	if subject == "" {
-		subject = "(no subject)"
-	}
-
-	htmlContent, textContent := extractBody(msg)
 
 	content := htmlContent
 	if content == "" {
@@ -236,6 +250,101 @@ func (w *Watcher) processFile(path string) error {
 	return nil
 }
 
+// fwdSubjectRe matches common forwarded-email subject prefixes.
+var fwdSubjectRe = regexp.MustCompile(`(?i)^(fwd?|wg|rv|vs|tr|enc|doorst):\s*`)
+
+// isForwarded detects whether an email is a forwarded message.
+func isForwarded(subject, text, htmlBody string) bool {
+	if fwdSubjectRe.MatchString(subject) {
+		return true
+	}
+	body := text
+	if body == "" {
+		body = htmlBody
+	}
+	for _, marker := range []string{
+		"---------- Forwarded message",
+		"Begin forwarded message",
+		"-------- Original Message",
+		"Forwarded message",
+	} {
+		if strings.Contains(body, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// stripForwardPrefix removes "Fwd:", "Fw:", etc. from a subject line.
+func stripForwardPrefix(subject string) string {
+	for fwdSubjectRe.MatchString(subject) {
+		subject = fwdSubjectRe.ReplaceAllString(subject, "")
+	}
+	return strings.TrimSpace(subject)
+}
+
+// fwdFromRe matches "From: ..." lines in forwarded message blocks.
+// It captures the full value after "From:" up to end of line.
+var fwdFromRe = regexp.MustCompile(`(?m)^\s*From:\s*(.+)$`)
+
+// extractForwardedSender tries to find the original sender in a
+// forwarded message's body text. It looks for "From:" lines that
+// appear after common forward markers.
+func extractForwardedSender(text, htmlBody string) (name, email string) {
+	// Prefer plain text; fall back to HTML with tags stripped.
+	body := text
+	if body == "" {
+		body = stripHTMLSimple(htmlBody)
+	}
+
+	// Find the forwarded block, then look for "From:" within it.
+	markers := []string{
+		"---------- Forwarded message",
+		"Begin forwarded message",
+		"-------- Original Message",
+		"Forwarded message",
+	}
+	block := ""
+	for _, m := range markers {
+		if idx := strings.Index(body, m); idx >= 0 {
+			block = body[idx:]
+			break
+		}
+	}
+
+	// If no explicit marker, search the whole body (some clients
+	// only add "From:" with no marker).
+	if block == "" {
+		block = body
+	}
+
+	matches := fwdFromRe.FindStringSubmatch(block)
+	if len(matches) < 2 {
+		return "", ""
+	}
+
+	fromValue := strings.TrimSpace(matches[1])
+	return parseSender(fromValue)
+}
+
+// stripHTMLSimple is a minimal tag stripper for forwarded message detection.
+func stripHTMLSimple(s string) string {
+	var b strings.Builder
+	inTag := false
+	for _, r := range s {
+		switch {
+		case r == '<':
+			inTag = true
+		case r == '>':
+			inTag = false
+		case !inTag:
+			b.WriteRune(r)
+		}
+	}
+	// Unescape HTML entities so "From: Name &lt;addr&gt;" becomes parseable.
+	return html.UnescapeString(b.String())
+}
+
 // parseSender extracts name and email from a From header.
 func parseSender(from string) (name, email string) {
 	addr, err := mail.ParseAddress(from)
@@ -257,7 +366,7 @@ func decodeHeader(s string) string {
 }
 
 // extractBody extracts HTML and plain text content from an email message.
-func extractBody(msg *mail.Message) (html, text string) {
+func extractBody(msg *mail.Message) (htmlBody, text string) {
 	contentType := msg.Header.Get("Content-Type")
 	if contentType == "" {
 		contentType = "text/plain"
@@ -349,10 +458,7 @@ func decodeBodyText(s, encoding string) string {
 }
 
 func escapeHTML(s string) string {
-	s = strings.ReplaceAll(s, "&", "&amp;")
-	s = strings.ReplaceAll(s, "<", "&lt;")
-	s = strings.ReplaceAll(s, ">", "&gt;")
-	return s
+	return html.EscapeString(s)
 }
 
 // GenerateToken creates a random token for newsletter email addresses.

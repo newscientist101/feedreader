@@ -131,3 +131,121 @@ func TestEmailAddress(t *testing.T) {
 		t.Errorf("got %q, want 'nl-abc123@lynx-fairy.exe.xyz'", addr)
 	}
 }
+
+func TestIsForwarded(t *testing.T) {
+	tests := []struct {
+		subject string
+		text    string
+		want    bool
+	}{
+		{"Fwd: Weekly Newsletter", "", true},
+		{"Fw: Update", "", true},
+		{"fwd: lower case", "", true},
+		{"FW: upper case", "", true},
+		{"Wg: German forward", "", true},
+		{"Regular Subject", "", false},
+		{"Regular Subject", "---------- Forwarded message ---------", true},
+		{"Regular Subject", "Begin forwarded message:", true},
+		{"Regular Subject", "-------- Original Message --------", true},
+	}
+	for _, tt := range tests {
+		got := isForwarded(tt.subject, tt.text, "")
+		if got != tt.want {
+			t.Errorf("isForwarded(%q, %q) = %v, want %v", tt.subject, tt.text, got, tt.want)
+		}
+	}
+}
+
+func TestStripForwardPrefix(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"Fwd: Weekly Newsletter", "Weekly Newsletter"},
+		{"Fw: Update", "Update"},
+		{"FW: FW: Double forward", "Double forward"},
+		{"Fwd: Fwd: Triple", "Triple"},
+		{"Regular Subject", "Regular Subject"},
+	}
+	for _, tt := range tests {
+		got := stripForwardPrefix(tt.input)
+		if got != tt.want {
+			t.Errorf("stripForwardPrefix(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestExtractForwardedSender(t *testing.T) {
+	// Gmail format
+	gmail := `Some preamble text
+
+---------- Forwarded message ---------
+From: Weekly Digest <digest@example.com>
+Date: Wed, Feb 18, 2026 at 10:00 AM
+Subject: This Week
+To: user@gmail.com
+
+Newsletter content here.`
+
+	name, email := extractForwardedSender(gmail, "")
+	if name != "Weekly Digest" || email != "digest@example.com" {
+		t.Errorf("gmail: got (%q, %q), want ('Weekly Digest', 'digest@example.com')", name, email)
+	}
+
+	// Outlook format
+	outlook := `
+________________________________
+From: Tech News <news@techsite.com>
+Sent: Wednesday, February 18, 2026 10:00 AM
+To: user@outlook.com
+Subject: Daily Digest
+
+Content here.`
+
+	name, email = extractForwardedSender(outlook, "")
+	if name != "Tech News" || email != "news@techsite.com" {
+		t.Errorf("outlook: got (%q, %q), want ('Tech News', 'news@techsite.com')", name, email)
+	}
+
+	// Apple Mail format
+	apple := `
+Begin forwarded message:
+
+From: Apple News <apple@news.com>
+Subject: Weekly Update
+Date: February 18, 2026
+
+Content.`
+
+	name, email = extractForwardedSender(apple, "")
+	if name != "Apple News" || email != "apple@news.com" {
+		t.Errorf("apple: got (%q, %q), want ('Apple News', 'apple@news.com')", name, email)
+	}
+
+	// Bare email (no name)
+	bare := `---------- Forwarded message ---------
+From: newsletter@example.com
+Subject: Update
+`
+	name, email = extractForwardedSender(bare, "")
+	if email != "newsletter@example.com" {
+		t.Errorf("bare: got (%q, %q), want ('', 'newsletter@example.com')", name, email)
+	}
+
+	// HTML-only body
+	htmlBody := `<div>---------- Forwarded message ---------<br>
+<b>From:</b> HTML News &lt;html@news.com&gt;<br>
+<b>Subject:</b> Test</div>`
+
+	name, email = extractForwardedSender("", htmlBody)
+	if email != "html@news.com" {
+		t.Errorf("html: got (%q, %q), want ('HTML News', 'html@news.com')", name, email)
+	}
+
+	// No From: line
+	noFrom := "---------- Forwarded message ---------\nSubject: Test"
+	name, email = extractForwardedSender(noFrom, "")
+	if email != "" {
+		t.Errorf("noFrom: got (%q, %q), want ('', '')", name, email)
+	}
+}
