@@ -246,6 +246,14 @@ func (w *Watcher) processFile(path string) error {
 		return fmt.Errorf("create article: %w", err)
 	}
 
+	// Mark the feed as fetched so it doesn't show as "pending" in the sidebar
+	// and obeys the "hide empty feeds" setting when all articles are read.
+	now := time.Now()
+	_ = q.UpdateFeedLastFetched(ctx, dbgen.UpdateFeedLastFetchedParams{
+		LastFetchedAt: &now,
+		ID:            feed.ID,
+	})
+
 	slog.Info("email: processed newsletter", "from", senderName, "subject", subject, "feed_id", feed.ID)
 	return nil
 }
