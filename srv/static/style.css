@@ -345,7 +345,6 @@ body {
 
 .search-box {
     flex: 1 1 200px;
-    max-width: 300px;
     min-width: 100px;
 }
 
