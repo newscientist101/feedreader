@@ -59,6 +59,7 @@ func New(dbPath, hostname string) (*Server, error) {
 		return nil, err
 	}
 	srv.Fetcher = feeds.NewFetcher(srv.DB, srv.ScraperRunner)
+	srv.Fetcher.OnFeedFetched = srv.MarkExcludedArticlesReadForFeed
 	srv.StaticHashes = hashStaticFiles(srv.StaticDir)
 	return srv, nil
 }
@@ -2060,6 +2061,7 @@ func (s *Server) apiListExclusions(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) apiCreateExclusion(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	catID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -2102,6 +2104,9 @@ func (s *Server) apiCreateExclusion(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Failed to create exclusion: "+err.Error(), 500)
 		return
 	}
+
+	// Mark existing unread articles matching the new rule as read
+	s.MarkExcludedArticlesReadForCategory(ctx, catID, user.ID)
 
 	jsonResponse(w, exclusion)
 }

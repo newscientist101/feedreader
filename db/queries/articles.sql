@@ -185,3 +185,17 @@ WHERE is_starred = 0
 
 -- name: GetOldestArticleDateGlobal :one
 SELECT MIN(fetched_at) FROM articles WHERE is_starred = 0;
+
+-- name: ListUnreadArticlesByFeedInternal :many
+-- Used internally (no user_id check) to apply exclusion rules after fetch
+SELECT id, title, summary, author FROM articles
+WHERE feed_id = ? AND is_read = 0;
+
+-- name: MarkArticleReadInternal :exec
+-- Mark a single article read without user_id check (for exclusion auto-marking)
+UPDATE articles SET is_read = 1 WHERE id = ?;
+-- name: ListUnreadArticlesByCategoryInternal :many
+-- Used internally to apply exclusion rules when a new rule is created
+SELECT a.id, a.title, a.summary, a.author FROM articles a
+JOIN feed_categories fc ON a.feed_id = fc.feed_id
+WHERE fc.category_id = ? AND a.is_read = 0;

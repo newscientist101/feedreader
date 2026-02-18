@@ -2,6 +2,7 @@ package srv
 
 import (
 	"context"
+	"log/slog"
 	"regexp"
 	"strings"
 
@@ -166,6 +167,76 @@ func matchesPattern(text, pattern string, isRegex bool) bool {
 
 	// Case-insensitive substring match
 	return strings.Contains(strings.ToLower(text), strings.ToLower(pattern))
+}
+
+// MarkExcludedArticlesReadForFeed marks unread articles in the given feed as read
+// if they match any exclusion rules from the feed's categories.
+func (s *Server) MarkExcludedArticlesReadForFeed(ctx context.Context, feedID int64) {
+	q := dbgen.New(s.DB)
+
+	// Get categories for this feed
+	cats, err := q.GetFeedCategories(ctx, feedID)
+	if err != nil || len(cats) == 0 {
+		return
+	}
+
+	// Collect all exclusions from all categories this feed belongs to
+	var allExclusions []dbgen.CategoryExclusion
+	for _, cat := range cats {
+		// Use the category's user_id to list exclusions
+		exclusions, err := q.ListExclusionsByCategory(ctx, dbgen.ListExclusionsByCategoryParams{
+			CategoryID: cat.ID,
+			UserID:     cat.UserID,
+		})
+		if err != nil {
+			continue
+		}
+		allExclusions = append(allExclusions, exclusions...)
+	}
+	if len(allExclusions) == 0 {
+		return
+	}
+
+	// Get unread articles for this feed
+	articles, err := q.ListUnreadArticlesByFeedInternal(ctx, feedID)
+	if err != nil {
+		return
+	}
+
+	for _, a := range articles {
+		if s.shouldExclude(a.Title, ptrToStr(a.Summary), ptrToStr(a.Author), allExclusions) {
+			if err := q.MarkArticleReadInternal(ctx, a.ID); err != nil {
+				slog.Warn("failed to auto-mark excluded article as read", "article_id", a.ID, "error", err)
+			}
+		}
+	}
+}
+
+// MarkExcludedArticlesReadForCategory marks all unread articles in feeds
+// belonging to the given category as read if they match the category's exclusion rules.
+func (s *Server) MarkExcludedArticlesReadForCategory(ctx context.Context, categoryID, userID int64) {
+	q := dbgen.New(s.DB)
+
+	exclusions, err := q.ListExclusionsByCategory(ctx, dbgen.ListExclusionsByCategoryParams{
+		CategoryID: categoryID,
+		UserID:     &userID,
+	})
+	if err != nil || len(exclusions) == 0 {
+		return
+	}
+
+	articles, err := q.ListUnreadArticlesByCategoryInternal(ctx, categoryID)
+	if err != nil {
+		return
+	}
+
+	for _, a := range articles {
+		if s.shouldExclude(a.Title, ptrToStr(a.Summary), ptrToStr(a.Author), exclusions) {
+			if err := q.MarkArticleReadInternal(ctx, a.ID); err != nil {
+				slog.Warn("failed to auto-mark excluded article as read", "article_id", a.ID, "error", err)
+			}
+		}
+	}
 }
 
 func ptrToStr(p *string) string {

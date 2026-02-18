@@ -25,6 +25,7 @@ type Fetcher struct {
 	DB            *sql.DB
 	Client        *http.Client
 	ScraperRunner *scrapers.Runner
+	OnFeedFetched func(ctx context.Context, feedID int64) // called after articles are inserted
 	mu            sync.Mutex
 	running       bool
 	stopCh        chan struct{}
@@ -197,6 +198,11 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed *dbgen.Feed) error {
 	}
 
 	slog.Info("fetched feed", "feed_id", feed.ID, "name", feed.Name, "items", len(items), "inserted", inserted)
+
+	if inserted > 0 && f.OnFeedFetched != nil {
+		f.OnFeedFetched(ctx, feed.ID)
+	}
+
 	return nil
 }
 

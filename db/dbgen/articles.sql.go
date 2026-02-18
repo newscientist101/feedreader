@@ -698,6 +698,89 @@ func (q *Queries) ListUnreadArticlesByCategory(ctx context.Context, arg ListUnre
 	return items, nil
 }
 
+const listUnreadArticlesByCategoryInternal = `-- name: ListUnreadArticlesByCategoryInternal :many
+SELECT a.id, a.title, a.summary, a.author FROM articles a
+JOIN feed_categories fc ON a.feed_id = fc.feed_id
+WHERE fc.category_id = ? AND a.is_read = 0
+`
+
+type ListUnreadArticlesByCategoryInternalRow struct {
+	ID      int64   `json:"id"`
+	Title   string  `json:"title"`
+	Summary *string `json:"summary"`
+	Author  *string `json:"author"`
+}
+
+// Used internally to apply exclusion rules when a new rule is created
+func (q *Queries) ListUnreadArticlesByCategoryInternal(ctx context.Context, categoryID int64) ([]ListUnreadArticlesByCategoryInternalRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUnreadArticlesByCategoryInternal, categoryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUnreadArticlesByCategoryInternalRow{}
+	for rows.Next() {
+		var i ListUnreadArticlesByCategoryInternalRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Summary,
+			&i.Author,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUnreadArticlesByFeedInternal = `-- name: ListUnreadArticlesByFeedInternal :many
+SELECT id, title, summary, author FROM articles
+WHERE feed_id = ? AND is_read = 0
+`
+
+type ListUnreadArticlesByFeedInternalRow struct {
+	ID      int64   `json:"id"`
+	Title   string  `json:"title"`
+	Summary *string `json:"summary"`
+	Author  *string `json:"author"`
+}
+
+// Used internally (no user_id check) to apply exclusion rules after fetch
+func (q *Queries) ListUnreadArticlesByFeedInternal(ctx context.Context, feedID int64) ([]ListUnreadArticlesByFeedInternalRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUnreadArticlesByFeedInternal, feedID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUnreadArticlesByFeedInternalRow{}
+	for rows.Next() {
+		var i ListUnreadArticlesByFeedInternalRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Summary,
+			&i.Author,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markAllArticlesRead = `-- name: MarkAllArticlesRead :exec
 UPDATE articles SET is_read = 1 
 WHERE is_read = 0 AND feed_id IN (SELECT id FROM feeds WHERE user_id = ?)
@@ -747,6 +830,16 @@ type MarkArticleReadParams struct {
 
 func (q *Queries) MarkArticleRead(ctx context.Context, arg MarkArticleReadParams) error {
 	_, err := q.db.ExecContext(ctx, markArticleRead, arg.ID, arg.UserID)
+	return err
+}
+
+const markArticleReadInternal = `-- name: MarkArticleReadInternal :exec
+UPDATE articles SET is_read = 1 WHERE id = ?
+`
+
+// Mark a single article read without user_id check (for exclusion auto-marking)
+func (q *Queries) MarkArticleReadInternal(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, markArticleReadInternal, id)
 	return err
 }
 
