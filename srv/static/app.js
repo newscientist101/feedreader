@@ -507,6 +507,7 @@ async function renderArticles(articles) {
             </div>
         `;
         paginationDone = true;
+        updateEndOfArticlesIndicator();
         return;
     }
 
@@ -521,6 +522,7 @@ async function renderArticles(articles) {
     
     // Re-apply user preferences (hide read, etc.)
     applyUserPreferences();
+    updateEndOfArticlesIndicator();
 }
 
 function formatTimeAgo(dateStr) {
@@ -679,6 +681,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (initialArticles.length > 0 && initialArticles.length < PAGE_SIZE) {
         paginationDone = true;
     }
+    updateEndOfArticlesIndicator();
     
     // Poll for count updates every 60 seconds (catches new articles from background fetches)
     setInterval(updateCounts, 60000);
@@ -1901,6 +1904,13 @@ function initSettingsPage() {
     if (feedRadio) feedRadio.checked = true;
 }
 
+function updateEndOfArticlesIndicator() {
+    const el = document.getElementById('end-of-articles');
+    if (!el) return;
+    const hasArticles = document.querySelectorAll('#articles-list .article-card').length > 0;
+    el.classList.toggle('visible', paginationDone && hasArticles);
+}
+
 // Infinite scroll: load more articles when near the bottom
 function getPaginationUrl() {
     const path = window.location.pathname;
@@ -1947,6 +1957,7 @@ async function loadMoreArticles() {
         console.error('Failed to load more articles:', e);
     } finally {
         paginationLoading = false;
+        updateEndOfArticlesIndicator();
     }
 }
 
