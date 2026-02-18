@@ -147,6 +147,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/articles/{id}/queue", s.apiToggleQueue)
 	mux.HandleFunc("DELETE /api/articles/{id}/queue", s.apiRemoveFromQueue)
 	mux.HandleFunc("GET /api/queue", s.apiListQueue)
+	mux.HandleFunc("GET /api/articles/unread", s.apiGetUnreadArticles)
 	mux.HandleFunc("POST /api/feeds/{id}/read-all", s.apiMarkFeedRead)
 	mux.HandleFunc("POST /api/articles/read-all", s.apiMarkAllRead)
 	mux.HandleFunc("GET /api/scrapers/{id}", s.apiGetScraper)
@@ -288,9 +289,21 @@ func formatDate(t *time.Time) string {
 	return t.UTC().Format(time.RFC3339)
 }
 
+// articlePageSize is the number of articles returned per page.
+const articlePageSize = 50
+
 // previewTextLimit caps how much text goes into article preview DOM elements.
 // Keep in sync with PREVIEW_TEXT_LIMIT in static/app.js.
 const previewTextLimit = 500
+
+// parseOffset extracts a non-negative integer "offset" query parameter.
+func parseOffset(r *http.Request) int64 {
+	v, err := strconv.ParseInt(r.URL.Query().Get("offset"), 10, 64)
+	if err != nil || v < 0 {
+		return 0
+	}
+	return v
+}
 
 func previewText(s string) string {
 	return truncate(stripHTML(s), previewTextLimit)
@@ -389,12 +402,12 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(ctx)
 
 	userID := user.ID
-	articles, _ := q.ListUnreadArticles(ctx, dbgen.ListUnreadArticlesParams{UserID: &userID, Limit: 100, Offset: 0})
+	articles, _ := q.ListUnreadArticles(ctx, dbgen.ListUnreadArticlesParams{UserID: &userID, Limit: articlePageSize * 2, Offset: 0})
 
 	// Apply folder exclusion filters
 	articles = s.FilterAllUnreadArticles(ctx, articles, userID)
-	if len(articles) > 50 {
-		articles = articles[:50]
+	if len(articles) > articlePageSize {
+		articles = articles[:articlePageSize]
 	}
 
 	data := s.getCommonData(ctx)
@@ -503,10 +516,13 @@ func (s *Server) handleFeedArticles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	articles, _ := q.ListArticlesByFeed(ctx, dbgen.ListArticlesByFeedParams{FeedID: feedID, UserID: &user.ID, Limit: 100, Offset: 0})
+	articles, _ := q.ListArticlesByFeed(ctx, dbgen.ListArticlesByFeedParams{FeedID: feedID, UserID: &user.ID, Limit: articlePageSize * 2, Offset: 0})
 
 	// Apply exclusion filters based on feed's category
 	filteredArticles := s.FilterArticlesByFeed(ctx, articles, feedID, user.ID)
+	if len(filteredArticles) > articlePageSize {
+		filteredArticles = filteredArticles[:articlePageSize]
+	}
 
 	data := s.getCommonData(ctx)
 	data["Title"] = feed.Name
@@ -919,6 +935,28 @@ func (s *Server) apiGetFeedStatus(w http.ResponseWriter, r *http.Request) {
 		"lastFetched": lastFetched,
 		"lastError":   lastError,
 	})
+}
+
+func (s *Server) apiGetUnreadArticles(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	offset := parseOffset(r)
+	userID := user.ID
+	// Fetch extra to account for exclusion filtering
+	articles, _ := q.ListUnreadArticles(ctx, dbgen.ListUnreadArticlesParams{
+		UserID: &userID,
+		Limit:  articlePageSize * 2,
+		Offset: offset,
+	})
+
+	articles = s.FilterAllUnreadArticles(ctx, articles, userID)
+	if len(articles) > articlePageSize {
+		articles = articles[:articlePageSize]
+	}
+
+	jsonResponse(w, map[string]any{"articles": articles})
 }
 
 func (s *Server) apiMarkRead(w http.ResponseWriter, r *http.Request) {
@@ -1539,12 +1577,15 @@ func (s *Server) handleCategoryArticles(w http.ResponseWriter, r *http.Request) 
 	articles, _ := q.ListUnreadArticlesByCategory(ctx, dbgen.ListUnreadArticlesByCategoryParams{
 		CategoryID: catID,
 		UserID:     &user.ID,
-		Limit:      100, // Fetch more to account for filtering
+		Limit:      articlePageSize * 2,
 		Offset:     0,
 	})
 
 	// Apply exclusion filters
 	filteredArticles := s.FilterArticlesByCategory(ctx, articles, catID, user.ID)
+	if len(filteredArticles) > articlePageSize {
+		filteredArticles = filteredArticles[:articlePageSize]
+	}
 
 	data := s.getCommonData(ctx)
 	data["Title"] = category.Name
@@ -1584,15 +1625,19 @@ func (s *Server) apiGetCategoryArticles(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	offset := parseOffset(r)
 	articles, _ := q.ListUnreadArticlesByCategory(ctx, dbgen.ListUnreadArticlesByCategoryParams{
 		CategoryID: catID,
 		UserID:     &user.ID,
-		Limit:      100,
-		Offset:     0,
+		Limit:      articlePageSize * 2,
+		Offset:     offset,
 	})
 
 	// Apply exclusion filters
 	filteredArticles := s.FilterArticlesByCategory(ctx, articles, catID, user.ID)
+	if len(filteredArticles) > articlePageSize {
+		filteredArticles = filteredArticles[:articlePageSize]
+	}
 
 	jsonResponse(w, map[string]any{
 		"category": category,
@@ -1617,10 +1662,14 @@ func (s *Server) apiGetFeedArticles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	articles, _ := q.ListArticlesByFeed(ctx, dbgen.ListArticlesByFeedParams{FeedID: feedID, UserID: &user.ID, Limit: 100, Offset: 0})
+	offset := parseOffset(r)
+	articles, _ := q.ListArticlesByFeed(ctx, dbgen.ListArticlesByFeedParams{FeedID: feedID, UserID: &user.ID, Limit: articlePageSize * 2, Offset: offset})
 
 	// Apply exclusion filters based on feed's category
 	filteredArticles := s.FilterArticlesByFeed(ctx, articles, feedID, user.ID)
+	if len(filteredArticles) > articlePageSize {
+		filteredArticles = filteredArticles[:articlePageSize]
+	}
 
 	jsonResponse(w, map[string]any{
 		"feed":     feed,

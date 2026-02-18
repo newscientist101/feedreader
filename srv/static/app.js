@@ -3,6 +3,12 @@
 // Keep in sync with previewTextLimit in server.go.
 const PREVIEW_TEXT_LIMIT = 500;
 
+// Pagination state for infinite scroll.
+const PAGE_SIZE = 50;
+let paginationOffset = PAGE_SIZE; // first page is server-rendered
+let paginationLoading = false;
+let paginationDone = false;
+
 // SVG icons
 const SVG_MARK_READ = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/></svg>';
 const SVG_MARK_UNREAD = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V8l8 5 8-5v10zm-8-7L4 6h16l-8 5z"/></svg>';
@@ -455,25 +461,7 @@ async function loadFeedArticles(feedId, feedName) {
     }
 }
 
-async function renderArticles(articles) {
-    await queuedIdsReady;
-    const list = document.getElementById('articles-list');
-    if (!list) return;
-    
-    if (!articles || articles.length === 0) {
-        list.innerHTML = `
-            <div class="empty-state">
-                <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" opacity="0.3">
-                    <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>
-                </svg>
-                <p>No articles to show</p>
-            </div>
-        `;
-        return;
-    }
-    
-    // Build HTML in chunks to avoid UI blocking
-    const html = articles.map(a => {
+function buildArticleCardHtml(a) {
     a.is_queued = queuedArticleIds.has(a.id);
     return `
         <article class="article-card ${a.is_read ? 'read' : ''}${a.image_url ? ' has-image' : ''}" data-id="${a.id}">
@@ -482,7 +470,7 @@ async function renderArticles(articles) {
                     <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
                 </svg>
             </div>`}
-            <div class="article-body" onclick="openArticle(${a.id})" style="cursor: pointer;">
+            <div class="article-body clickable" onclick="openArticle(${a.id})">
                 <div class="article-meta">
                     <a class="feed-name" href="/feed/${a.feed_id}" onclick="event.stopPropagation();">${a.feed_name || ''}</a>
                     ${a.author ? `<span class="article-author">${a.author}</span>` : ''}
@@ -496,9 +484,37 @@ async function renderArticles(articles) {
                 ${renderArticleActions(a)}
             </div>
         </article>
-    `}).join('');
+    `;
+}
+
+async function renderArticles(articles) {
+    await queuedIdsReady;
+    const list = document.getElementById('articles-list');
+    if (!list) return;
+
+    // Reset pagination for fresh render
+    paginationOffset = PAGE_SIZE;
+    paginationDone = false;
+    paginationLoading = false;
     
-    list.innerHTML = html;
+    if (!articles || articles.length === 0) {
+        list.innerHTML = `
+            <div class="empty-state">
+                <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" opacity="0.3">
+                    <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>
+                </svg>
+                <p>No articles to show</p>
+            </div>
+        `;
+        paginationDone = true;
+        return;
+    }
+
+    if (articles.length < PAGE_SIZE) {
+        paginationDone = true;
+    }
+    
+    list.innerHTML = articles.map(buildArticleCardHtml).join('');
     
     // Process embeds in expanded view content previews
     list.querySelectorAll('.article-content-preview').forEach(el => processEmbeds(el));
@@ -657,6 +673,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Apply user preferences
     applyUserPreferences();
+
+    // Initialize pagination from server-rendered articles
+    const initialArticles = document.querySelectorAll('#articles-list .article-card');
+    if (initialArticles.length > 0 && initialArticles.length < PAGE_SIZE) {
+        paginationDone = true;
+    }
     
     // Poll for count updates every 60 seconds (catches new articles from background fetches)
     setInterval(updateCounts, 60000);
@@ -1878,3 +1900,60 @@ function initSettingsPage() {
     const feedRadio = document.querySelector(`input[name="feed-view"][value="${feedView}"]`);
     if (feedRadio) feedRadio.checked = true;
 }
+
+// Infinite scroll: load more articles when near the bottom
+function getPaginationUrl() {
+    const path = window.location.pathname;
+    const feedMatch = path.match(/^\/feed\/(\d+)/);
+    if (feedMatch) return `/api/feeds/${feedMatch[1]}/articles`;
+    const catMatch = path.match(/^\/category\/(\d+)/);
+    if (catMatch) return `/api/categories/${catMatch[1]}/articles`;
+    if (path === '/') return '/api/articles/unread';
+    return null;
+}
+
+async function loadMoreArticles() {
+    if (paginationLoading || paginationDone) return;
+    const url = getPaginationUrl();
+    if (!url) return;
+
+    paginationLoading = true;
+    try {
+        const data = await api('GET', `${url}?offset=${paginationOffset}`);
+        const articles = data.articles || [];
+        if (articles.length === 0) {
+            paginationDone = true;
+            return;
+        }
+        if (articles.length < PAGE_SIZE) {
+            paginationDone = true;
+        }
+        paginationOffset += articles.length;
+
+        await queuedIdsReady;
+        const list = document.getElementById('articles-list');
+        if (!list) return;
+
+        const fragment = document.createDocumentFragment();
+        const temp = document.createElement('div');
+        temp.innerHTML = articles.map(buildArticleCardHtml).join('');
+        temp.querySelectorAll('.article-content-preview').forEach(el => processEmbeds(el));
+        while (temp.firstChild) {
+            fragment.appendChild(temp.firstChild);
+        }
+        list.appendChild(fragment);
+        applyUserPreferences();
+    } catch (e) {
+        console.error('Failed to load more articles:', e);
+    } finally {
+        paginationLoading = false;
+    }
+}
+
+window.addEventListener('scroll', () => {
+    if (paginationDone || paginationLoading) return;
+    const scrollBottom = window.innerHeight + window.scrollY;
+    if (scrollBottom >= document.body.offsetHeight - 600) {
+        loadMoreArticles();
+    }
+});
