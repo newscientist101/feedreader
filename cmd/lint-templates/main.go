@@ -32,6 +32,7 @@ var stubFuncMap = template.FuncMap{
 	"toJSON":      func() template.JS { return "" },
 	"faviconURL":  func() string { return "" },
 	"staticPath":  func() string { return "" },
+	"add":         func() int64 { return 0 },
 	"dict":        func() map[string]any { return nil },
 }
 

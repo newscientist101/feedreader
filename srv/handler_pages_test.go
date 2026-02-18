@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"srv.exe.dev/db/dbgen"
 )
 
 // testServerWithTemplates returns a test server configured to render real templates.
@@ -66,6 +68,17 @@ func TestHandleQueue(t *testing.T) {
 	}
 }
 
+func TestHandleHistory(t *testing.T) {
+	t.Parallel()
+	s := testServerWithTemplates(t)
+	ctx, _ := testUser(t, s)
+
+	w := serveAPI(t, s.handleHistory, "GET", "/history", "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("got %d", w.Code)
+	}
+}
+
 func TestHandleScrapers(t *testing.T) {
 	t.Parallel()
 	s := testServerWithTemplates(t)
@@ -120,6 +133,53 @@ func TestHandleArticle(t *testing.T) {
 		"GET", "/articles/99999", "", ctx)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", w.Code)
+	}
+}
+
+func TestHandleArticle_AddsToHistory(t *testing.T) {
+	t.Parallel()
+	s := testServerWithTemplates(t)
+	ctx, user := testUser(t, s)
+	q := dbgen.New(s.DB)
+	feed := createFeed(t, s, user.ID, "f", "http://f.com/feed")
+	art := createArticle(t, s, feed.ID, "history-art", "hg1")
+
+	// Verify no history initially
+	count, _ := q.GetHistoryCount(ctx, user.ID)
+	if count != 0 {
+		t.Fatalf("expected 0 history entries, got %d", count)
+	}
+
+	// View the article
+	w := serveMux(t, "GET /articles/{id}", s.handleArticle,
+		"GET", fmt.Sprintf("/articles/%d", art.ID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("got %d", w.Code)
+	}
+
+	// Verify it was added to history
+	count, _ = q.GetHistoryCount(ctx, user.ID)
+	if count != 1 {
+		t.Fatalf("expected 1 history entry, got %d", count)
+	}
+
+	history, _ := q.ListHistoryArticles(ctx, dbgen.ListHistoryArticlesParams{
+		UserID: user.ID, Limit: 10, Offset: 0,
+	})
+	if len(history) != 1 || history[0].ID != art.ID {
+		t.Errorf("history entry mismatch: got %+v", history)
+	}
+
+	// View same article again — should update timestamp, not duplicate
+	w = serveMux(t, "GET /articles/{id}", s.handleArticle,
+		"GET", fmt.Sprintf("/articles/%d", art.ID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("got %d", w.Code)
+	}
+
+	count, _ = q.GetHistoryCount(ctx, user.ID)
+	if count != 1 {
+		t.Fatalf("expected still 1 history entry after re-view, got %d", count)
 	}
 }
 

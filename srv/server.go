@@ -128,6 +128,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /feeds", s.handleFeeds)
 	mux.HandleFunc("GET /starred", s.handleStarred)
 	mux.HandleFunc("GET /queue", s.handleQueue)
+	mux.HandleFunc("GET /history", s.handleHistory)
 	mux.HandleFunc("GET /feed/{id}", s.handleFeedArticles)
 	mux.HandleFunc("GET /article/{id}", s.handleArticle)
 	mux.HandleFunc("GET /scrapers", s.handleScrapers)
@@ -225,6 +226,7 @@ func (s *Server) renderTemplate(w http.ResponseWriter, name string, data any) er
 			}
 			return "/static/" + name
 		},
+		"add": func(a, b int64) int64 { return a + b },
 		"dict": func(pairs ...any) map[string]any {
 			m := make(map[string]any, len(pairs)/2)
 			for i := 0; i+1 < len(pairs); i += 2 {
@@ -538,6 +540,32 @@ func (s *Server) handleFeedArticles(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+	user := GetUser(ctx)
+
+	offset := parseOffset(r)
+	articles, _ := q.ListHistoryArticles(ctx, dbgen.ListHistoryArticlesParams{
+		UserID: user.ID,
+		Limit:  articlePageSize,
+		Offset: int64(offset),
+	})
+
+	data := s.getCommonData(ctx)
+	data["Title"] = "History"
+	data["ActiveView"] = "history"
+	data["HistoryArticles"] = articles
+	data["Offset"] = offset
+	data["HasMore"] = len(articles) == articlePageSize
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.renderTemplate(w, "history.html", data); err != nil {
+		slog.Warn("render template", "error", err)
+		http.Error(w, "Internal Server Error", 500)
+	}
+}
+
 func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	q := dbgen.New(s.DB)
@@ -558,6 +586,11 @@ func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 	// Mark as read
 	if err := q.MarkArticleRead(ctx, dbgen.MarkArticleReadParams{ID: articleID, UserID: &user.ID}); err != nil {
 		slog.Warn("failed to mark article read", "error", err)
+	}
+
+	// Add to history
+	if err := q.AddToHistory(ctx, dbgen.AddToHistoryParams{UserID: user.ID, ArticleID: articleID}); err != nil {
+		slog.Warn("failed to add article to history", "error", err)
 	}
 
 	feed, _ := q.GetFeed(ctx, dbgen.GetFeedParams{ID: article.FeedID, UserID: &user.ID})

@@ -781,10 +781,65 @@ body {
 .articles-view,
 .feeds-view,
 .queue-view,
+.history-view,
 .scrapers-view,
 .settings-view {
     max-width: 1100px;
     margin: 0 auto;
+}
+
+/* === HISTORY VIEW === */
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.history-list .article-row {
+    display: block;
+    padding: 12px 16px;
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    color: var(--text);
+    transition: var(--transition-fast);
+    border: 1px solid transparent;
+}
+
+.history-list .article-row:hover {
+    border-color: var(--border);
+}
+
+.history-list .article-row.read {
+    opacity: 0.75;
+}
+
+.history-list .article-row:hover {
+    opacity: 1;
+}
+
+.history-list .article-row-title {
+    font-size: 1rem;
+    font-weight: 500;
+    margin-bottom: 4px;
+    color: var(--text);
+}
+
+.history-list .article-row-meta {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.history-list .article-row-meta .feed-name {
+    color: var(--link);
+}
+
+.load-more {
+    text-align: center;
+    padding: 20px 0;
 }
 
 .queue-position {
