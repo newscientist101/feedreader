@@ -313,3 +313,75 @@ func TestFilterAllUnreadArticles_SummaryMatch(t *testing.T) {
 		t.Errorf("expected 'Clean article', got %q", got[0].Title)
 	}
 }
+
+func TestFilterAllArticles_NoExclusions(t *testing.T) {
+	s := testServer(t)
+	ctx, user := testUser(t, s)
+
+	articles := []dbgen.ListArticlesRow{
+		{Title: "One"},
+		{Title: "Two"},
+	}
+	got := s.FilterAllArticles(ctx, articles, user.ID)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 articles, got %d", len(got))
+	}
+}
+
+func TestFilterAllArticles_FiltersAcrossCategories(t *testing.T) {
+	s := testServer(t)
+	ctx, user := testUser(t, s)
+	q := dbgen.New(s.DB)
+
+	cat, _ := q.CreateCategory(ctx, dbgen.CreateCategoryParams{Name: "News", UserID: &user.ID})
+	var zero int64
+	q.CreateExclusion(ctx, dbgen.CreateExclusionParams{
+		CategoryID: cat.ID, ExclusionType: "keyword", Pattern: "sponsored", IsRegex: &zero,
+	})
+
+	feed := createFeed(t, s, user.ID, "BBC", "https://bbc.co.uk/feed")
+	q.AddFeedToCategory(ctx, dbgen.AddFeedToCategoryParams{FeedID: feed.ID, CategoryID: cat.ID})
+
+	articles := []dbgen.ListArticlesRow{
+		{Title: "Good article", FeedID: feed.ID},
+		{Title: "Sponsored post", FeedID: feed.ID},
+		{Title: "Another good one", FeedID: feed.ID},
+	}
+
+	got := s.FilterAllArticles(ctx, articles, user.ID)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 articles after filtering, got %d", len(got))
+	}
+	if got[0].Title != "Good article" {
+		t.Errorf("got[0] = %q, want 'Good article'", got[0].Title)
+	}
+	if got[1].Title != "Another good one" {
+		t.Errorf("got[1] = %q, want 'Another good one'", got[1].Title)
+	}
+}
+
+func TestFilterArticlesByCategoryAll(t *testing.T) {
+	s := testServer(t)
+	ctx, user := testUser(t, s)
+	q := dbgen.New(s.DB)
+
+	cat, _ := q.CreateCategory(ctx, dbgen.CreateCategoryParams{Name: "Tech", UserID: &user.ID})
+	var zero int64
+	q.CreateExclusion(ctx, dbgen.CreateExclusionParams{
+		CategoryID: cat.ID, ExclusionType: "author", Pattern: "spammer", IsRegex: &zero,
+	})
+
+	spammer := "spammer"
+	articles := []dbgen.ListArticlesByCategoryRow{
+		{Title: "Good"},
+		{Title: "Bad", Author: &spammer},
+	}
+
+	got := s.FilterArticlesByCategoryAll(ctx, articles, cat.ID, user.ID)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 article, got %d", len(got))
+	}
+	if got[0].Title != "Good" {
+		t.Errorf("got %q, want 'Good'", got[0].Title)
+	}
+}

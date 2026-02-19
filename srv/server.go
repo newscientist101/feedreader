@@ -237,13 +237,8 @@ func (s *Server) renderTemplate(w http.ResponseWriter, name string, data any) er
 			}
 			return "/static/" + name
 		},
-		"add": func(a, b int64) int64 { return a + b },
-		"sortTime": func(publishedAt *time.Time, fetchedAt time.Time) string {
-			if publishedAt != nil {
-				return publishedAt.Format(time.RFC3339Nano)
-			}
-			return fetchedAt.Format(time.RFC3339Nano)
-		},
+		"add":      func(a, b int64) int64 { return a + b },
+		"sortTime": sortTimeFunc,
 		"dict": func(pairs ...any) map[string]any {
 			m := make(map[string]any, len(pairs)/2)
 			for i := 0; i+1 < len(pairs); i += 2 {
@@ -342,6 +337,15 @@ func parseCursor(r *http.Request) (*time.Time, int64, bool) {
 		return nil, 0, false
 	}
 	return &t, id, true
+}
+
+// sortTimeFunc returns the article sort key as an RFC3339Nano string.
+// It mirrors the SQL: COALESCE(published_at, fetched_at).
+func sortTimeFunc(publishedAt *time.Time, fetchedAt time.Time) string {
+	if publishedAt != nil {
+		return publishedAt.Format(time.RFC3339Nano)
+	}
+	return fetchedAt.Format(time.RFC3339Nano)
 }
 
 func previewText(s string) string {

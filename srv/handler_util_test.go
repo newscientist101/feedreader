@@ -1,6 +1,8 @@
 package srv
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 )
@@ -154,5 +156,63 @@ func TestSafeHTML(t *testing.T) {
 	got := safeHTML("<b>bold</b>")
 	if string(got) != "<b>bold</b>" {
 		t.Errorf("safeHTML = %q", got)
+	}
+}
+
+func TestParseCursor(t *testing.T) {
+	tests := []struct {
+		name     string
+		query    string
+		wantOK   bool
+		wantID   int64
+		wantYear int // 0 = don't check
+	}{
+		{"valid", "?before_time=2026-01-15T14:30:00Z&before_id=42", true, 42, 2026},
+		{"nano", "?before_time=2026-01-15T14:30:00.123456789Z&before_id=7", true, 7, 2026},
+		{"missing time", "?before_id=42", false, 0, 0},
+		{"missing id", "?before_time=2026-01-15T14:30:00Z", false, 0, 0},
+		{"bad time", "?before_time=not-a-time&before_id=42", false, 0, 0},
+		{"bad id", "?before_time=2026-01-15T14:30:00Z&before_id=abc", false, 0, 0},
+		{"both empty", "", false, 0, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := httptest.NewRequest("GET", "/test"+tt.query, http.NoBody)
+			bt, id, ok := parseCursor(r)
+			if ok != tt.wantOK {
+				t.Fatalf("parseCursor ok = %v, want %v", ok, tt.wantOK)
+			}
+			if !ok {
+				return
+			}
+			if id != tt.wantID {
+				t.Errorf("before_id = %d, want %d", id, tt.wantID)
+			}
+			if bt == nil {
+				t.Fatal("before_time is nil")
+			}
+			if tt.wantYear != 0 && bt.Year() != tt.wantYear {
+				t.Errorf("year = %d, want %d", bt.Year(), tt.wantYear)
+			}
+		})
+	}
+}
+
+func TestSortTime(t *testing.T) {
+	pub := time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC)
+	fetch := time.Date(2026, 3, 16, 10, 0, 0, 0, time.UTC)
+
+	// With published_at set, should use it
+	got := sortTimeFunc(&pub, fetch)
+	want := pub.Format(time.RFC3339Nano)
+	if got != want {
+		t.Errorf("sortTime(pub, fetch) = %q, want %q", got, want)
+	}
+
+	// With nil published_at, should fall back to fetched_at
+	got = sortTimeFunc(nil, fetch)
+	want = fetch.Format(time.RFC3339Nano)
+	if got != want {
+		t.Errorf("sortTime(nil, fetch) = %q, want %q", got, want)
 	}
 }

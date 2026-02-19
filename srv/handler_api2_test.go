@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"srv.exe.dev/db/dbgen"
 	"srv.exe.dev/srv/feeds"
@@ -809,5 +810,154 @@ func TestGzipMiddleware(t *testing.T) {
 	}
 	if w.Body.String() != "hello world" {
 		t.Errorf("body = %q", w.Body.String())
+	}
+}
+
+// createArticleAt is like createArticle but with a specific published_at time.
+func createArticleAt(t *testing.T, s *Server, feedID int64, title, guid string, pub time.Time) dbgen.Article {
+	t.Helper()
+	q := dbgen.New(s.DB)
+	url := "https://example.com/" + guid
+	art, err := q.CreateArticle(context.Background(), dbgen.CreateArticleParams{
+		FeedID: feedID, Title: title, Guid: guid, Url: &url, PublishedAt: &pub,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return art
+}
+
+func TestHandlerGetUnreadArticles_CursorPagination(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	ctx, user := testUser(t, s)
+	feed := createFeed(t, s, user.ID, "f", "http://f")
+
+	now := time.Now().UTC().Truncate(time.Second)
+	var arts [3]dbgen.Article
+	for i := range arts {
+		pub := now.Add(time.Duration(-i) * time.Hour)
+		arts[i] = createArticleAt(t, s, feed.ID, fmt.Sprintf("art%d", i), fmt.Sprintf("g%d", i), pub)
+	}
+
+	// First request without cursor — should get all 3
+	w := serveMux(t, "GET /api/articles/unread", s.apiGetUnreadArticles,
+		"GET", "/api/articles/unread", "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("got %d: %s", w.Code, w.Body.String())
+	}
+	body := jsonBody(t, w)
+	articles := body["articles"].([]any)
+	if len(articles) != 3 {
+		t.Fatalf("expected 3 articles, got %d", len(articles))
+	}
+
+	// Cursor request: get articles before the 2nd one (now-1h)
+	before := now.Add(-30 * time.Minute).Format(time.RFC3339Nano)
+	url := fmt.Sprintf("/api/articles/unread?before_time=%s&before_id=%d", before, 999999)
+	w = serveMux(t, "GET /api/articles/unread", s.apiGetUnreadArticles,
+		"GET", url, "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("cursor got %d: %s", w.Code, w.Body.String())
+	}
+	body = jsonBody(t, w)
+	articles = body["articles"].([]any)
+	if len(articles) != 2 {
+		t.Fatalf("cursor: expected 2 articles, got %d", len(articles))
+	}
+}
+
+func TestHandlerGetCategoryArticles_CursorPagination(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	ctx, user := testUser(t, s)
+	cat := createCategory(t, s, user.ID, "CursorCat")
+	feed := createFeed(t, s, user.ID, "f", "http://f")
+	q := dbgen.New(s.DB)
+	q.AddFeedToCategory(context.Background(), dbgen.AddFeedToCategoryParams{FeedID: feed.ID, CategoryID: cat.ID})
+
+	now := time.Now().UTC().Truncate(time.Second)
+	for i := range 3 {
+		pub := now.Add(time.Duration(-i) * time.Hour)
+		createArticleAt(t, s, feed.ID, fmt.Sprintf("art%d", i), fmt.Sprintf("g%d", i), pub)
+	}
+
+	// No cursor
+	w := serveMux(t, "GET /api/categories/{id}/articles", s.apiGetCategoryArticles,
+		"GET", fmt.Sprintf("/api/categories/%d/articles", cat.ID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("got %d", w.Code)
+	}
+	body := jsonBody(t, w)
+	if len(body["articles"].([]any)) != 3 {
+		t.Fatalf("expected 3, got %d", len(body["articles"].([]any)))
+	}
+
+	// With cursor
+	before := now.Add(-30 * time.Minute).Format(time.RFC3339Nano)
+	url := fmt.Sprintf("/api/categories/%d/articles?before_time=%s&before_id=%d", cat.ID, before, 999999)
+	w = serveMux(t, "GET /api/categories/{id}/articles", s.apiGetCategoryArticles,
+		"GET", url, "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("cursor got %d", w.Code)
+	}
+	body = jsonBody(t, w)
+	if len(body["articles"].([]any)) != 2 {
+		t.Fatalf("cursor: expected 2, got %d", len(body["articles"].([]any)))
+	}
+}
+
+func TestHandlerGetFeedArticles_CursorPagination(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	ctx, user := testUser(t, s)
+	feed := createFeed(t, s, user.ID, "f", "http://f")
+
+	now := time.Now().UTC().Truncate(time.Second)
+	for i := range 3 {
+		pub := now.Add(time.Duration(-i) * time.Hour)
+		createArticleAt(t, s, feed.ID, fmt.Sprintf("art%d", i), fmt.Sprintf("g%d", i), pub)
+	}
+
+	// With cursor
+	before := now.Add(-30 * time.Minute).Format(time.RFC3339Nano)
+	url := fmt.Sprintf("/api/feeds/%d/articles?before_time=%s&before_id=%d", feed.ID, before, 999999)
+	w := serveMux(t, "GET /api/feeds/{id}/articles", s.apiGetFeedArticles,
+		"GET", url, "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("got %d: %s", w.Code, w.Body.String())
+	}
+	body := jsonBody(t, w)
+	if len(body["articles"].([]any)) != 2 {
+		t.Fatalf("expected 2, got %d", len(body["articles"].([]any)))
+	}
+}
+
+func TestHandlerGetUnreadArticles_IncludeRead(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	ctx, user := testUser(t, s)
+	feed := createFeed(t, s, user.ID, "f", "http://f")
+	art := createArticle(t, s, feed.ID, "read-article", "g-read")
+	createArticle(t, s, feed.ID, "unread-article", "g-unread")
+
+	// Mark one as read
+	q := dbgen.New(s.DB)
+	q.MarkArticleRead(context.Background(), dbgen.MarkArticleReadParams{ID: art.ID, UserID: &user.ID})
+
+	// Without include_read: only unread
+	w := serveMux(t, "GET /api/articles/unread", s.apiGetUnreadArticles,
+		"GET", "/api/articles/unread", "", ctx)
+	body := jsonBody(t, w)
+	if len(body["articles"].([]any)) != 1 {
+		t.Fatalf("expected 1 unread, got %d", len(body["articles"].([]any)))
+	}
+
+	// With include_read: both
+	w = serveMux(t, "GET /api/articles/unread", s.apiGetUnreadArticles,
+		"GET", "/api/articles/unread?include_read=1", "", ctx)
+	body = jsonBody(t, w)
+	if len(body["articles"].([]any)) != 2 {
+		t.Fatalf("expected 2 with include_read, got %d", len(body["articles"].([]any)))
 	}
 }

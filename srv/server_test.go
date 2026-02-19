@@ -59,14 +59,12 @@ func getSchema(t *testing.T) string {
 func testServer(t *testing.T) *Server {
 	t.Helper()
 	schema := getSchema(t)
-	sqlDB, err := sql.Open("sqlite", ":memory:")
+	// Use db.Open so _time_format=sqlite is applied, matching production.
+	sqlDB, err := db.Open(":memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { sqlDB.Close() })
-	if _, err := sqlDB.Exec("PRAGMA foreign_keys=ON"); err != nil {
-		t.Fatal(err)
-	}
 	if _, err := sqlDB.Exec(schema); err != nil {
 		t.Fatal(err)
 	}

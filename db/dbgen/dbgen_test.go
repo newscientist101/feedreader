@@ -1165,3 +1165,131 @@ func TestListFeedsToFetch(t *testing.T) {
 		t.Fatalf("ListFeedsToFetch count = %d, want >= 1", len(feeds))
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Cursor-based pagination queries
+// ---------------------------------------------------------------------------
+
+func TestArticles_CursorPagination(t *testing.T) {
+	_, q := setupTestDB(t)
+	ctx := context.Background()
+
+	u := createTestUser(t, q, "ext-cursor", "cursor@example.com")
+	f := createTestFeed(t, q, "CursorFeed", "https://cursor.com/rss", u.ID)
+
+	// Create articles with staggered published_at times
+	now := time.Now().UTC().Truncate(time.Second)
+	for i := range 5 {
+		pub := now.Add(time.Duration(-i) * time.Hour)
+		_, err := q.CreateArticle(ctx, dbgen.CreateArticleParams{
+			FeedID:      f.ID,
+			Guid:        fmt.Sprintf("cursor-guid-%d", i),
+			Title:       fmt.Sprintf("Article %d", i),
+			PublishedAt: &pub,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// ListArticlesCursor: get articles before the 3rd oldest (index 2 = now-2h)
+	before := now.Add(-1 * time.Hour).Add(-time.Second) // between index 1 and 2
+	rows, err := q.ListArticlesCursor(ctx, dbgen.ListArticlesCursorParams{
+		UserID: &u.ID, BeforeTime: &before, BeforeTimeEq: &before, BeforeID: 999999, Limit: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Should get articles 2, 3, 4 (published at now-2h, now-3h, now-4h)
+	if len(rows) != 3 {
+		t.Fatalf("ListArticlesCursor: got %d rows, want 3", len(rows))
+	}
+
+	// ListUnreadArticlesCursor: same thing but only unread
+	// Mark article 3 as read
+	q.MarkArticleRead(ctx, dbgen.MarkArticleReadParams{ID: rows[1].ID, UserID: &u.ID})
+
+	unreadRows, err := q.ListUnreadArticlesCursor(ctx, dbgen.ListUnreadArticlesCursorParams{
+		UserID: &u.ID, BeforeTime: &before, BeforeTimeEq: &before, BeforeID: 999999, Limit: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unreadRows) != 2 {
+		t.Fatalf("ListUnreadArticlesCursor: got %d rows, want 2", len(unreadRows))
+	}
+
+	// ListArticlesByFeedCursor
+	feedRows, err := q.ListArticlesByFeedCursor(ctx, dbgen.ListArticlesByFeedCursorParams{
+		FeedID: f.ID, UserID: &u.ID, BeforeTime: &before, BeforeTimeEq: &before, BeforeID: 999999, Limit: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(feedRows) != 3 {
+		t.Fatalf("ListArticlesByFeedCursor: got %d rows, want 3", len(feedRows))
+	}
+}
+
+func TestArticles_CursorPaginationByCategory(t *testing.T) {
+	_, q := setupTestDB(t)
+	ctx := context.Background()
+
+	u := createTestUser(t, q, "ext-catcur", "catcur@example.com")
+	f := createTestFeed(t, q, "CatCursorFeed", "https://catcursor.com/rss", u.ID)
+	cat, err := q.CreateCategory(ctx, dbgen.CreateCategoryParams{Name: "CursorCat", UserID: &u.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	q.AddFeedToCategory(ctx, dbgen.AddFeedToCategoryParams{FeedID: f.ID, CategoryID: cat.ID})
+
+	now := time.Now().UTC().Truncate(time.Second)
+	for i := range 4 {
+		pub := now.Add(time.Duration(-i) * time.Hour)
+		_, err := q.CreateArticle(ctx, dbgen.CreateArticleParams{
+			FeedID:      f.ID,
+			Guid:        fmt.Sprintf("catcur-guid-%d", i),
+			Title:       fmt.Sprintf("CatArticle %d", i),
+			PublishedAt: &pub,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	before := now.Add(-1 * time.Hour).Add(-time.Second)
+
+	// ListArticlesByCategoryCursor
+	catRows, err := q.ListArticlesByCategoryCursor(ctx, dbgen.ListArticlesByCategoryCursorParams{
+		CategoryID: cat.ID, UserID: &u.ID, BeforeTime: &before, BeforeTimeEq: &before, BeforeID: 999999, Limit: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(catRows) != 2 {
+		t.Fatalf("ListArticlesByCategoryCursor: got %d rows, want 2", len(catRows))
+	}
+
+	// ListUnreadArticlesByCategoryCursor
+	unreadCatRows, err := q.ListUnreadArticlesByCategoryCursor(ctx, dbgen.ListUnreadArticlesByCategoryCursorParams{
+		CategoryID: cat.ID, UserID: &u.ID, BeforeTime: &before, BeforeTimeEq: &before, BeforeID: 999999, Limit: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unreadCatRows) != 2 {
+		t.Fatalf("ListUnreadArticlesByCategoryCursor: got %d rows, want 2", len(unreadCatRows))
+	}
+
+	// Mark one as read and verify unread cursor excludes it
+	q.MarkArticleRead(ctx, dbgen.MarkArticleReadParams{ID: catRows[0].ID, UserID: &u.ID})
+	unreadCatRows, err = q.ListUnreadArticlesByCategoryCursor(ctx, dbgen.ListUnreadArticlesByCategoryCursorParams{
+		CategoryID: cat.ID, UserID: &u.ID, BeforeTime: &before, BeforeTimeEq: &before, BeforeID: 999999, Limit: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unreadCatRows) != 1 {
+		t.Fatalf("after mark-read: got %d rows, want 1", len(unreadCatRows))
+	}
+}
