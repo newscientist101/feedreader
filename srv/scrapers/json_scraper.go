@@ -198,10 +198,10 @@ func consolidateItems(items []FeedItem) []FeedItem {
 				merged.Summary = combinedText
 			}
 
-			// Use the earliest date
+			// Use the latest date
 			for k := i; k < j; k++ {
 				if items[k].PublishedAt != nil {
-					if merged.PublishedAt == nil || items[k].PublishedAt.Before(*merged.PublishedAt) {
+					if merged.PublishedAt == nil || items[k].PublishedAt.After(*merged.PublishedAt) {
 						merged.PublishedAt = items[k].PublishedAt
 					}
 				}
