@@ -164,7 +164,7 @@ func consolidateItems(items []FeedItem) []FeedItem {
 			// Merge consecutive duplicates
 			merged := items[i] // Start with the first item
 			count := j - i
-			merged.Title = fmt.Sprintf("%s - Combined(%d)", items[i].Title, count)
+			merged.Title = fmt.Sprintf("%s - Combined (%d)", items[i].Title, count)
 
 			// Collect and dedupe sentences from content/summary
 			seen := make(map[string]bool)
