@@ -1,9 +1,10 @@
 /**
  * Test helper: loads app.js into the jsdom global scope.
  *
- * app.js is a plain <script> (not an ES module), so we eval it in the
- * global context.  Before loading we stub out browser APIs that the
- * DOMContentLoaded handler needs but jsdom doesn't fully support.
+ * app.js is a plain <script> (not an ES module), so we eval it inside
+ * an IIFE.  This file auto-scans app.js for top-level declarations
+ * (function, const, let, var) and generates window assignments so
+ * every symbol is accessible in tests — no manual list to maintain.
  */
 
 import { readFileSync } from 'fs';
@@ -28,6 +29,51 @@ class MockIntersectionObserver {
 
   /** Test helper: simulate entries firing. */
   _fire(entries) { this._callback(entries, this); }
+}
+
+/**
+ * Scan source for top-level declarations and return:
+ *   { functions: string[], consts: string[], lets: string[] }
+ */
+function extractTopLevelNames(src) {
+  const functions = [];
+  const consts = [];
+  const lets = [];
+
+  for (const line of src.split('\n')) {
+    let m;
+    if ((m = line.match(/^(?:async )?function\s+(\w+)/))) {
+      functions.push(m[1]);
+    } else if ((m = line.match(/^const\s+(\w+)/))) {
+      consts.push(m[1]);
+    } else if ((m = line.match(/^(?:let|var)\s+(\w+)/))) {
+      lets.push(m[1]);
+    }
+  }
+  return { functions, consts, lets };
+}
+
+/** Build the window-export code block appended inside the IIFE. */
+function buildExports(names) {
+  const lines = [];
+
+  // Functions and consts: plain assignment (immutable)
+  for (const n of [...names.functions, ...names.consts]) {
+    lines.push(`window['${n}'] = ${n};`);
+  }
+
+  // Lets: defineProperty with getter/setter for live access
+  for (const n of names.lets) {
+    lines.push(
+      `Object.defineProperty(window, '${n}', {` +
+      `  get() { return ${n}; },` +
+      `  set(v) { ${n} = v; },` +
+      `  configurable: true,` +
+      `});`
+    );
+  }
+
+  return lines.join('\n');
 }
 
 export function loadApp() {
@@ -57,68 +103,14 @@ export function loadApp() {
   `;
 
   const src = readFileSync(resolve(__dirname, 'app.js'), 'utf-8');
+  const names = extractTopLevelNames(src);
+  const exports = buildExports(names);
 
-  // Wrap in an IIFE. We expose selected names to window via a final block.
-  const wrapped = `
-    (function() {
-      ${src}
-
-      // Expose functions & state to the global scope for tests.
-      // Use a proxy object so getters read live closure values.
-      window.formatTimeAgo = formatTimeAgo;
-      window.stripHtml = stripHtml;
-      window.truncateText = truncateText;
-      window.getSetting = getSetting;
-      window.saveSetting = saveSetting;
-      window.initAutoMarkRead = initAutoMarkRead;
-      window.observeNewArticles = observeNewArticles;
-      window.flushMarkReadQueue = flushMarkReadQueue;
-      window.markReadSilent = markReadSilent;
-      window.renderArticles = renderArticles;
-      window.buildArticleCardHtml = buildArticleCardHtml;
-      window.applyUserPreferences = applyUserPreferences;
-      window.updateEndOfArticlesIndicator = updateEndOfArticlesIndicator;
-      window.getPaginationUrl = getPaginationUrl;
-      window.updateAllReadMessage = updateAllReadMessage;
-      window.showReadArticles = showReadArticles;
-      window.api = api;
-      window.openArticle = openArticle;
-      window.openArticleExternal = openArticleExternal;
-      window.PAGE_SIZE = PAGE_SIZE;
-      window.PREVIEW_TEXT_LIMIT = PREVIEW_TEXT_LIMIT;
-
-      // Live getters/setters for mutable state
-      Object.defineProperty(window, 'autoMarkReadObserver', {
-        get() { return autoMarkReadObserver; },
-        set(v) { autoMarkReadObserver = v; },
-        configurable: true,
-      });
-      Object.defineProperty(window, '_markReadQueue', {
-        get() { return _markReadQueue; },
-        configurable: true,
-      });
-      Object.defineProperty(window, '_markReadTimer', {
-        get() { return _markReadTimer; },
-        configurable: true,
-      });
-      Object.defineProperty(window, 'paginationDone', {
-        get() { return paginationDone; },
-        set(v) { paginationDone = v; },
-        configurable: true,
-      });
-      Object.defineProperty(window, 'paginationLoading', {
-        get() { return paginationLoading; },
-        set(v) { paginationLoading = v; },
-        configurable: true,
-      });
-      Object.defineProperty(window, 'paginationOffset', {
-        get() { return paginationOffset; },
-        set(v) { paginationOffset = v; },
-        configurable: true,
-      });
-    })();
-  `;
+  const wrapped = `(function() {\n${src}\n${exports}\n})();`;
 
   const script = new Function(wrapped);
   script.call(window);
 }
+
+// Re-export for testing the helper itself
+export { extractTopLevelNames };
