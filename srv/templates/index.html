@@ -78,7 +78,7 @@
         </div>
         {{else}}
         {{range .Articles}}
-        <article class="article-card {{if and .IsRead (ne (deref .IsRead) 0)}}read{{end}}{{if .ImageUrl}} has-image{{end}}" data-id="{{.ID}}">
+        <article class="article-card {{if and .IsRead (ne (deref .IsRead) 0)}}read{{end}}{{if .ImageUrl}} has-image{{end}}" data-id="{{.ID}}" data-sort-time="{{sortTime .PublishedAt .FetchedAt}}">
             {{if .ImageUrl}}
             {{/* Image for magazine and expanded views */}}
             <div class="article-image magazine-expanded-only">

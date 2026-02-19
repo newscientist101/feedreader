@@ -409,6 +409,88 @@ func (q *Queries) ListArticlesByCategory(ctx context.Context, arg ListArticlesBy
 	return items, nil
 }
 
+const listArticlesByCategoryCursor = `-- name: ListArticlesByCategoryCursor :many
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+JOIN feed_categories fc ON f.id = fc.feed_id
+WHERE fc.category_id = ? AND f.user_id = ?
+  AND (COALESCE(a.published_at, a.fetched_at) < ?
+       OR (COALESCE(a.published_at, a.fetched_at) = ? AND a.id < ?))
+ORDER BY COALESCE(a.published_at, a.fetched_at) DESC, a.id DESC
+LIMIT ?
+`
+
+type ListArticlesByCategoryCursorParams struct {
+	CategoryID   int64      `json:"category_id"`
+	UserID       *int64     `json:"user_id"`
+	BeforeTime   *time.Time `json:"before_time"`
+	BeforeTimeEq *time.Time `json:"before_time_eq"`
+	BeforeID     int64      `json:"before_id"`
+	Limit        int64      `json:"limit"`
+}
+
+type ListArticlesByCategoryCursorRow struct {
+	ID          int64      `json:"id"`
+	FeedID      int64      `json:"feed_id"`
+	Guid        string     `json:"guid"`
+	Title       string     `json:"title"`
+	Url         *string    `json:"url"`
+	Author      *string    `json:"author"`
+	Content     *string    `json:"content"`
+	Summary     *string    `json:"summary"`
+	ImageUrl    *string    `json:"image_url"`
+	PublishedAt *time.Time `json:"published_at"`
+	FetchedAt   time.Time  `json:"fetched_at"`
+	IsRead      *int64     `json:"is_read"`
+	IsStarred   *int64     `json:"is_starred"`
+	FeedName    string     `json:"feed_name"`
+}
+
+func (q *Queries) ListArticlesByCategoryCursor(ctx context.Context, arg ListArticlesByCategoryCursorParams) ([]ListArticlesByCategoryCursorRow, error) {
+	rows, err := q.db.QueryContext(ctx, listArticlesByCategoryCursor,
+		arg.CategoryID,
+		arg.UserID,
+		arg.BeforeTime,
+		arg.BeforeTimeEq,
+		arg.BeforeID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListArticlesByCategoryCursorRow{}
+	for rows.Next() {
+		var i ListArticlesByCategoryCursorRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FeedID,
+			&i.Guid,
+			&i.Title,
+			&i.Url,
+			&i.Author,
+			&i.Content,
+			&i.Summary,
+			&i.ImageUrl,
+			&i.PublishedAt,
+			&i.FetchedAt,
+			&i.IsRead,
+			&i.IsStarred,
+			&i.FeedName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listArticlesByFeed = `-- name: ListArticlesByFeed :many
 SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
 JOIN feeds f ON a.feed_id = f.id
@@ -455,6 +537,166 @@ func (q *Queries) ListArticlesByFeed(ctx context.Context, arg ListArticlesByFeed
 	items := []ListArticlesByFeedRow{}
 	for rows.Next() {
 		var i ListArticlesByFeedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FeedID,
+			&i.Guid,
+			&i.Title,
+			&i.Url,
+			&i.Author,
+			&i.Content,
+			&i.Summary,
+			&i.ImageUrl,
+			&i.PublishedAt,
+			&i.FetchedAt,
+			&i.IsRead,
+			&i.IsStarred,
+			&i.FeedName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listArticlesByFeedCursor = `-- name: ListArticlesByFeedCursor :many
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+WHERE a.feed_id = ? AND f.user_id = ?
+  AND (COALESCE(a.published_at, a.fetched_at) < ?
+       OR (COALESCE(a.published_at, a.fetched_at) = ? AND a.id < ?))
+ORDER BY COALESCE(a.published_at, a.fetched_at) DESC, a.id DESC
+LIMIT ?
+`
+
+type ListArticlesByFeedCursorParams struct {
+	FeedID       int64      `json:"feed_id"`
+	UserID       *int64     `json:"user_id"`
+	BeforeTime   *time.Time `json:"before_time"`
+	BeforeTimeEq *time.Time `json:"before_time_eq"`
+	BeforeID     int64      `json:"before_id"`
+	Limit        int64      `json:"limit"`
+}
+
+type ListArticlesByFeedCursorRow struct {
+	ID          int64      `json:"id"`
+	FeedID      int64      `json:"feed_id"`
+	Guid        string     `json:"guid"`
+	Title       string     `json:"title"`
+	Url         *string    `json:"url"`
+	Author      *string    `json:"author"`
+	Content     *string    `json:"content"`
+	Summary     *string    `json:"summary"`
+	ImageUrl    *string    `json:"image_url"`
+	PublishedAt *time.Time `json:"published_at"`
+	FetchedAt   time.Time  `json:"fetched_at"`
+	IsRead      *int64     `json:"is_read"`
+	IsStarred   *int64     `json:"is_starred"`
+	FeedName    string     `json:"feed_name"`
+}
+
+func (q *Queries) ListArticlesByFeedCursor(ctx context.Context, arg ListArticlesByFeedCursorParams) ([]ListArticlesByFeedCursorRow, error) {
+	rows, err := q.db.QueryContext(ctx, listArticlesByFeedCursor,
+		arg.FeedID,
+		arg.UserID,
+		arg.BeforeTime,
+		arg.BeforeTimeEq,
+		arg.BeforeID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListArticlesByFeedCursorRow{}
+	for rows.Next() {
+		var i ListArticlesByFeedCursorRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FeedID,
+			&i.Guid,
+			&i.Title,
+			&i.Url,
+			&i.Author,
+			&i.Content,
+			&i.Summary,
+			&i.ImageUrl,
+			&i.PublishedAt,
+			&i.FetchedAt,
+			&i.IsRead,
+			&i.IsStarred,
+			&i.FeedName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listArticlesCursor = `-- name: ListArticlesCursor :many
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+WHERE f.user_id = ?
+  AND (COALESCE(a.published_at, a.fetched_at) < ?
+       OR (COALESCE(a.published_at, a.fetched_at) = ? AND a.id < ?))
+ORDER BY COALESCE(a.published_at, a.fetched_at) DESC, a.id DESC
+LIMIT ?
+`
+
+type ListArticlesCursorParams struct {
+	UserID       *int64     `json:"user_id"`
+	BeforeTime   *time.Time `json:"before_time"`
+	BeforeTimeEq *time.Time `json:"before_time_eq"`
+	BeforeID     int64      `json:"before_id"`
+	Limit        int64      `json:"limit"`
+}
+
+type ListArticlesCursorRow struct {
+	ID          int64      `json:"id"`
+	FeedID      int64      `json:"feed_id"`
+	Guid        string     `json:"guid"`
+	Title       string     `json:"title"`
+	Url         *string    `json:"url"`
+	Author      *string    `json:"author"`
+	Content     *string    `json:"content"`
+	Summary     *string    `json:"summary"`
+	ImageUrl    *string    `json:"image_url"`
+	PublishedAt *time.Time `json:"published_at"`
+	FetchedAt   time.Time  `json:"fetched_at"`
+	IsRead      *int64     `json:"is_read"`
+	IsStarred   *int64     `json:"is_starred"`
+	FeedName    string     `json:"feed_name"`
+}
+
+func (q *Queries) ListArticlesCursor(ctx context.Context, arg ListArticlesCursorParams) ([]ListArticlesCursorRow, error) {
+	rows, err := q.db.QueryContext(ctx, listArticlesCursor,
+		arg.UserID,
+		arg.BeforeTime,
+		arg.BeforeTimeEq,
+		arg.BeforeID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListArticlesCursorRow{}
+	for rows.Next() {
+		var i ListArticlesCursorRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.FeedID,
@@ -698,6 +940,88 @@ func (q *Queries) ListUnreadArticlesByCategory(ctx context.Context, arg ListUnre
 	return items, nil
 }
 
+const listUnreadArticlesByCategoryCursor = `-- name: ListUnreadArticlesByCategoryCursor :many
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+JOIN feed_categories fc ON f.id = fc.feed_id
+WHERE fc.category_id = ? AND a.is_read = 0 AND f.user_id = ?
+  AND (COALESCE(a.published_at, a.fetched_at) < ?
+       OR (COALESCE(a.published_at, a.fetched_at) = ? AND a.id < ?))
+ORDER BY COALESCE(a.published_at, a.fetched_at) DESC, a.id DESC
+LIMIT ?
+`
+
+type ListUnreadArticlesByCategoryCursorParams struct {
+	CategoryID   int64      `json:"category_id"`
+	UserID       *int64     `json:"user_id"`
+	BeforeTime   *time.Time `json:"before_time"`
+	BeforeTimeEq *time.Time `json:"before_time_eq"`
+	BeforeID     int64      `json:"before_id"`
+	Limit        int64      `json:"limit"`
+}
+
+type ListUnreadArticlesByCategoryCursorRow struct {
+	ID          int64      `json:"id"`
+	FeedID      int64      `json:"feed_id"`
+	Guid        string     `json:"guid"`
+	Title       string     `json:"title"`
+	Url         *string    `json:"url"`
+	Author      *string    `json:"author"`
+	Content     *string    `json:"content"`
+	Summary     *string    `json:"summary"`
+	ImageUrl    *string    `json:"image_url"`
+	PublishedAt *time.Time `json:"published_at"`
+	FetchedAt   time.Time  `json:"fetched_at"`
+	IsRead      *int64     `json:"is_read"`
+	IsStarred   *int64     `json:"is_starred"`
+	FeedName    string     `json:"feed_name"`
+}
+
+func (q *Queries) ListUnreadArticlesByCategoryCursor(ctx context.Context, arg ListUnreadArticlesByCategoryCursorParams) ([]ListUnreadArticlesByCategoryCursorRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUnreadArticlesByCategoryCursor,
+		arg.CategoryID,
+		arg.UserID,
+		arg.BeforeTime,
+		arg.BeforeTimeEq,
+		arg.BeforeID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUnreadArticlesByCategoryCursorRow{}
+	for rows.Next() {
+		var i ListUnreadArticlesByCategoryCursorRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FeedID,
+			&i.Guid,
+			&i.Title,
+			&i.Url,
+			&i.Author,
+			&i.Content,
+			&i.Summary,
+			&i.ImageUrl,
+			&i.PublishedAt,
+			&i.FetchedAt,
+			&i.IsRead,
+			&i.IsStarred,
+			&i.FeedName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUnreadArticlesByCategoryInternal = `-- name: ListUnreadArticlesByCategoryInternal :many
 SELECT a.id, a.title, a.summary, a.author FROM articles a
 JOIN feed_categories fc ON a.feed_id = fc.feed_id
@@ -767,6 +1091,85 @@ func (q *Queries) ListUnreadArticlesByFeedInternal(ctx context.Context, feedID i
 			&i.Title,
 			&i.Summary,
 			&i.Author,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUnreadArticlesCursor = `-- name: ListUnreadArticlesCursor :many
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+WHERE a.is_read = 0 AND f.user_id = ?
+  AND (COALESCE(a.published_at, a.fetched_at) < ?
+       OR (COALESCE(a.published_at, a.fetched_at) = ? AND a.id < ?))
+ORDER BY COALESCE(a.published_at, a.fetched_at) DESC, a.id DESC
+LIMIT ?
+`
+
+type ListUnreadArticlesCursorParams struct {
+	UserID       *int64     `json:"user_id"`
+	BeforeTime   *time.Time `json:"before_time"`
+	BeforeTimeEq *time.Time `json:"before_time_eq"`
+	BeforeID     int64      `json:"before_id"`
+	Limit        int64      `json:"limit"`
+}
+
+type ListUnreadArticlesCursorRow struct {
+	ID          int64      `json:"id"`
+	FeedID      int64      `json:"feed_id"`
+	Guid        string     `json:"guid"`
+	Title       string     `json:"title"`
+	Url         *string    `json:"url"`
+	Author      *string    `json:"author"`
+	Content     *string    `json:"content"`
+	Summary     *string    `json:"summary"`
+	ImageUrl    *string    `json:"image_url"`
+	PublishedAt *time.Time `json:"published_at"`
+	FetchedAt   time.Time  `json:"fetched_at"`
+	IsRead      *int64     `json:"is_read"`
+	IsStarred   *int64     `json:"is_starred"`
+	FeedName    string     `json:"feed_name"`
+}
+
+func (q *Queries) ListUnreadArticlesCursor(ctx context.Context, arg ListUnreadArticlesCursorParams) ([]ListUnreadArticlesCursorRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUnreadArticlesCursor,
+		arg.UserID,
+		arg.BeforeTime,
+		arg.BeforeTimeEq,
+		arg.BeforeID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUnreadArticlesCursorRow{}
+	for rows.Next() {
+		var i ListUnreadArticlesCursorRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FeedID,
+			&i.Guid,
+			&i.Title,
+			&i.Url,
+			&i.Author,
+			&i.Content,
+			&i.Summary,
+			&i.ImageUrl,
+			&i.PublishedAt,
+			&i.FetchedAt,
+			&i.IsRead,
+			&i.IsStarred,
+			&i.FeedName,
 		); err != nil {
 			return nil, err
 		}

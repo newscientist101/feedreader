@@ -49,6 +49,53 @@ WHERE a.is_starred = 1 AND f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?;
 
+-- name: ListArticlesCursor :many
+SELECT a.*, f.name as feed_name FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+WHERE f.user_id = ?
+  AND (COALESCE(a.published_at, a.fetched_at) < @before_time
+       OR (COALESCE(a.published_at, a.fetched_at) = @before_time_eq AND a.id < @before_id))
+ORDER BY COALESCE(a.published_at, a.fetched_at) DESC, a.id DESC
+LIMIT ?;
+
+-- name: ListArticlesByFeedCursor :many
+SELECT a.*, f.name as feed_name FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+WHERE a.feed_id = ? AND f.user_id = ?
+  AND (COALESCE(a.published_at, a.fetched_at) < @before_time
+       OR (COALESCE(a.published_at, a.fetched_at) = @before_time_eq AND a.id < @before_id))
+ORDER BY COALESCE(a.published_at, a.fetched_at) DESC, a.id DESC
+LIMIT ?;
+
+-- name: ListUnreadArticlesCursor :many
+SELECT a.*, f.name as feed_name FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+WHERE a.is_read = 0 AND f.user_id = ?
+  AND (COALESCE(a.published_at, a.fetched_at) < @before_time
+       OR (COALESCE(a.published_at, a.fetched_at) = @before_time_eq AND a.id < @before_id))
+ORDER BY COALESCE(a.published_at, a.fetched_at) DESC, a.id DESC
+LIMIT ?;
+
+-- name: ListArticlesByCategoryCursor :many
+SELECT a.*, f.name as feed_name FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+JOIN feed_categories fc ON f.id = fc.feed_id
+WHERE fc.category_id = ? AND f.user_id = ?
+  AND (COALESCE(a.published_at, a.fetched_at) < @before_time
+       OR (COALESCE(a.published_at, a.fetched_at) = @before_time_eq AND a.id < @before_id))
+ORDER BY COALESCE(a.published_at, a.fetched_at) DESC, a.id DESC
+LIMIT ?;
+
+-- name: ListUnreadArticlesByCategoryCursor :many
+SELECT a.*, f.name as feed_name FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+JOIN feed_categories fc ON f.id = fc.feed_id
+WHERE fc.category_id = ? AND a.is_read = 0 AND f.user_id = ?
+  AND (COALESCE(a.published_at, a.fetched_at) < @before_time
+       OR (COALESCE(a.published_at, a.fetched_at) = @before_time_eq AND a.id < @before_id))
+ORDER BY COALESCE(a.published_at, a.fetched_at) DESC, a.id DESC
+LIMIT ?;
+
 -- name: MarkArticleRead :exec
 UPDATE articles SET is_read = 1 
 WHERE articles.id = ? AND feed_id IN (SELECT feeds.id FROM feeds WHERE feeds.user_id = ?);

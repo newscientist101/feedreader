@@ -516,6 +516,45 @@ describe('getIncludeReadUrl', () => {
 });
 
 // ---------------------------------------------------------------------------
+// getArticleSortTime
+// ---------------------------------------------------------------------------
+
+describe('getArticleSortTime', () => {
+  it('returns published_at when present', () => {
+    expect(window.getArticleSortTime({ published_at: '2025-01-01T00:00:00Z', fetched_at: '2025-01-02T00:00:00Z' }))
+      .toBe('2025-01-01T00:00:00Z');
+  });
+
+  it('falls back to fetched_at when published_at is null', () => {
+    expect(window.getArticleSortTime({ published_at: null, fetched_at: '2025-01-02T00:00:00Z' }))
+      .toBe('2025-01-02T00:00:00Z');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updatePaginationCursor
+// ---------------------------------------------------------------------------
+
+describe('updatePaginationCursor', () => {
+  it('sets cursor from last article', () => {
+    window.paginationCursorTime = null;
+    window.paginationCursorId = null;
+    window.updatePaginationCursor([
+      { id: 1, published_at: '2025-01-01T00:00:00Z', fetched_at: '2025-01-01T00:00:00Z' },
+      { id: 2, published_at: '2025-01-02T00:00:00Z', fetched_at: '2025-01-02T00:00:00Z' },
+    ]);
+    expect(window.paginationCursorTime).toBe('2025-01-02T00:00:00Z');
+    expect(window.paginationCursorId).toBe(2);
+  });
+
+  it('does nothing for empty array', () => {
+    window.paginationCursorTime = 'unchanged';
+    window.updatePaginationCursor([]);
+    expect(window.paginationCursorTime).toBe('unchanged');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // updateEndOfArticlesIndicator
 // ---------------------------------------------------------------------------
 
@@ -1268,7 +1307,8 @@ describe('loadMoreArticles', () => {
 
     window.paginationDone = false;
     window.paginationLoading = false;
-    window.paginationOffset = 0;
+    window.paginationCursorTime = '2025-01-01T00:00:00Z';
+    window.paginationCursorId = '999';
     window.queuedIdsReady = Promise.resolve();
 
     window.fetch = vi.fn(async () => ({

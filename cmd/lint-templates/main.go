@@ -33,6 +33,7 @@ var stubFuncMap = template.FuncMap{
 	"faviconURL":  func() string { return "" },
 	"staticPath":  func() string { return "" },
 	"add":         func() int64 { return 0 },
+	"sortTime":    func() string { return "" },
 	"dict":        func() map[string]any { return nil },
 }
 

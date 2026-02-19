@@ -238,6 +238,12 @@ func (s *Server) renderTemplate(w http.ResponseWriter, name string, data any) er
 			return "/static/" + name
 		},
 		"add": func(a, b int64) int64 { return a + b },
+		"sortTime": func(publishedAt *time.Time, fetchedAt time.Time) string {
+			if publishedAt != nil {
+				return publishedAt.Format(time.RFC3339Nano)
+			}
+			return fetchedAt.Format(time.RFC3339Nano)
+		},
 		"dict": func(pairs ...any) map[string]any {
 			m := make(map[string]any, len(pairs)/2)
 			for i := 0; i+1 < len(pairs); i += 2 {
@@ -317,6 +323,25 @@ func parseOffset(r *http.Request) int64 {
 		return 0
 	}
 	return v
+}
+
+// parseCursor extracts cursor-based pagination params from query string.
+// Returns (beforeTime, beforeID, hasCursor).
+func parseCursor(r *http.Request) (*time.Time, int64, bool) {
+	bt := r.URL.Query().Get("before_time")
+	bi := r.URL.Query().Get("before_id")
+	if bt == "" || bi == "" {
+		return nil, 0, false
+	}
+	t, err := time.Parse(time.RFC3339Nano, bt)
+	if err != nil {
+		return nil, 0, false
+	}
+	id, err := strconv.ParseInt(bi, 10, 64)
+	if err != nil {
+		return nil, 0, false
+	}
+	return &t, id, true
 }
 
 func previewText(s string) string {
@@ -1008,16 +1033,24 @@ func (s *Server) apiGetUnreadArticles(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
-	offset := parseOffset(r)
 	userID := user.ID
+	includeRead := r.URL.Query().Get("include_read") == "1"
+	beforeTime, beforeID, hasCursor := parseCursor(r)
 
-	// If include_read=1, return all articles (not just unread)
-	if r.URL.Query().Get("include_read") == "1" {
-		allArticles, _ := q.ListArticles(ctx, dbgen.ListArticlesParams{
-			UserID: &userID,
-			Limit:  articlePageSize * 2,
-			Offset: offset,
-		})
+	if includeRead {
+		var allArticles []dbgen.ListArticlesRow
+		if hasCursor {
+			cursorRows, _ := q.ListArticlesCursor(ctx, dbgen.ListArticlesCursorParams{
+				UserID: &userID, BeforeTime: beforeTime, BeforeTimeEq: beforeTime, BeforeID: beforeID, Limit: articlePageSize * 2,
+			})
+			for i := range cursorRows {
+				allArticles = append(allArticles, dbgen.ListArticlesRow(cursorRows[i]))
+			}
+		} else {
+			allArticles, _ = q.ListArticles(ctx, dbgen.ListArticlesParams{
+				UserID: &userID, Limit: articlePageSize * 2, Offset: parseOffset(r),
+			})
+		}
 		allArticles = s.FilterAllArticles(ctx, allArticles, userID)
 		if len(allArticles) > articlePageSize {
 			allArticles = allArticles[:articlePageSize]
@@ -1026,12 +1059,19 @@ func (s *Server) apiGetUnreadArticles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch extra to account for exclusion filtering
-	articles, _ := q.ListUnreadArticles(ctx, dbgen.ListUnreadArticlesParams{
-		UserID: &userID,
-		Limit:  articlePageSize * 2,
-		Offset: offset,
-	})
+	var articles []dbgen.ListUnreadArticlesRow
+	if hasCursor {
+		cursorRows, _ := q.ListUnreadArticlesCursor(ctx, dbgen.ListUnreadArticlesCursorParams{
+			UserID: &userID, BeforeTime: beforeTime, BeforeTimeEq: beforeTime, BeforeID: beforeID, Limit: articlePageSize * 2,
+		})
+		for i := range cursorRows {
+			articles = append(articles, dbgen.ListUnreadArticlesRow(cursorRows[i]))
+		}
+	} else {
+		articles, _ = q.ListUnreadArticles(ctx, dbgen.ListUnreadArticlesParams{
+			UserID: &userID, Limit: articlePageSize * 2, Offset: parseOffset(r),
+		})
+	}
 
 	articles = s.FilterAllUnreadArticles(ctx, articles, userID)
 	if len(articles) > articlePageSize {
@@ -1707,16 +1747,23 @@ func (s *Server) apiGetCategoryArticles(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	offset := parseOffset(r)
+	includeRead := r.URL.Query().Get("include_read") == "1"
+	beforeTime, beforeID, hasCursor := parseCursor(r)
 
-	// If include_read=1, return all articles (not just unread)
-	if r.URL.Query().Get("include_read") == "1" {
-		allArticles, _ := q.ListArticlesByCategory(ctx, dbgen.ListArticlesByCategoryParams{
-			CategoryID: catID,
-			UserID:     &user.ID,
-			Limit:      articlePageSize * 2,
-			Offset:     offset,
-		})
+	if includeRead {
+		var allArticles []dbgen.ListArticlesByCategoryRow
+		if hasCursor {
+			cursorRows, _ := q.ListArticlesByCategoryCursor(ctx, dbgen.ListArticlesByCategoryCursorParams{
+				CategoryID: catID, UserID: &user.ID, BeforeTime: beforeTime, BeforeTimeEq: beforeTime, BeforeID: beforeID, Limit: articlePageSize * 2,
+			})
+			for i := range cursorRows {
+				allArticles = append(allArticles, dbgen.ListArticlesByCategoryRow(cursorRows[i]))
+			}
+		} else {
+			allArticles, _ = q.ListArticlesByCategory(ctx, dbgen.ListArticlesByCategoryParams{
+				CategoryID: catID, UserID: &user.ID, Limit: articlePageSize * 2, Offset: parseOffset(r),
+			})
+		}
 		filteredAll := s.FilterArticlesByCategoryAll(ctx, allArticles, catID, user.ID)
 		if len(filteredAll) > articlePageSize {
 			filteredAll = filteredAll[:articlePageSize]
@@ -1728,12 +1775,19 @@ func (s *Server) apiGetCategoryArticles(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	articles, _ := q.ListUnreadArticlesByCategory(ctx, dbgen.ListUnreadArticlesByCategoryParams{
-		CategoryID: catID,
-		UserID:     &user.ID,
-		Limit:      articlePageSize * 2,
-		Offset:     offset,
-	})
+	var articles []dbgen.ListUnreadArticlesByCategoryRow
+	if hasCursor {
+		cursorRows, _ := q.ListUnreadArticlesByCategoryCursor(ctx, dbgen.ListUnreadArticlesByCategoryCursorParams{
+			CategoryID: catID, UserID: &user.ID, BeforeTime: beforeTime, BeforeTimeEq: beforeTime, BeforeID: beforeID, Limit: articlePageSize * 2,
+		})
+		for i := range cursorRows {
+			articles = append(articles, dbgen.ListUnreadArticlesByCategoryRow(cursorRows[i]))
+		}
+	} else {
+		articles, _ = q.ListUnreadArticlesByCategory(ctx, dbgen.ListUnreadArticlesByCategoryParams{
+			CategoryID: catID, UserID: &user.ID, Limit: articlePageSize * 2, Offset: parseOffset(r),
+		})
+	}
 
 	// Apply exclusion filters
 	filteredArticles := s.FilterArticlesByCategory(ctx, articles, catID, user.ID)
@@ -1764,8 +1818,20 @@ func (s *Server) apiGetFeedArticles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	offset := parseOffset(r)
-	articles, _ := q.ListArticlesByFeed(ctx, dbgen.ListArticlesByFeedParams{FeedID: feedID, UserID: &user.ID, Limit: articlePageSize * 2, Offset: offset})
+	var articles []dbgen.ListArticlesByFeedRow
+	beforeTime, beforeID, hasCursor := parseCursor(r)
+	if hasCursor {
+		cursorRows, _ := q.ListArticlesByFeedCursor(ctx, dbgen.ListArticlesByFeedCursorParams{
+			FeedID: feedID, UserID: &user.ID, BeforeTime: beforeTime, BeforeTimeEq: beforeTime, BeforeID: beforeID, Limit: articlePageSize * 2,
+		})
+		for i := range cursorRows {
+			articles = append(articles, dbgen.ListArticlesByFeedRow(cursorRows[i]))
+		}
+	} else {
+		articles, _ = q.ListArticlesByFeed(ctx, dbgen.ListArticlesByFeedParams{
+			FeedID: feedID, UserID: &user.ID, Limit: articlePageSize * 2, Offset: parseOffset(r),
+		})
+	}
 
 	// Apply exclusion filters based on feed's category
 	filteredArticles := s.FilterArticlesByFeed(ctx, articles, feedID, user.ID)

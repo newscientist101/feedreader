@@ -7,9 +7,10 @@ const PREVIEW_TEXT_LIMIT = 500;
 // Reset on the next navigation.
 let showingHiddenArticles = false;
 
-// Pagination state for infinite scroll.
+// Pagination state for infinite scroll (cursor-based).
 const PAGE_SIZE = 50;
-let paginationOffset = PAGE_SIZE; // first page is server-rendered
+let paginationCursorTime = null;  // sort time of last article on current page
+let paginationCursorId = null;    // ID of last article on current page
 let paginationLoading = false;
 let paginationDone = false;
 
@@ -514,7 +515,7 @@ async function loadFeedArticles(feedId, feedName) {
 function buildArticleCardHtml(a) {
     a.is_queued = queuedArticleIds.has(a.id);
     return `
-        <article class="article-card ${a.is_read ? 'read' : ''}${a.image_url ? ' has-image' : ''}" data-id="${a.id}">
+        <article class="article-card ${a.is_read ? 'read' : ''}${a.image_url ? ' has-image' : ''}" data-id="${a.id}" data-sort-time="${a.published_at || a.fetched_at}">
             ${a.image_url ? `<div class="article-image magazine-expanded-only"><img src="${a.image_url}" alt="" loading="lazy"></div>` : `<div class="article-image-placeholder magazine-only">
                 <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
                     <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
@@ -542,8 +543,9 @@ async function renderArticles(articles) {
     const list = document.getElementById('articles-list');
     if (!list) return;
 
-    // Reset pagination for fresh render
-    paginationOffset = PAGE_SIZE;
+    // Reset pagination for fresh render (cursor-based)
+    paginationCursorTime = null;
+    paginationCursorId = null;
     paginationDone = false;
     paginationLoading = false;
     
@@ -568,6 +570,9 @@ async function renderArticles(articles) {
     if (articles.length < PAGE_SIZE) {
         paginationDone = true;
     }
+
+    // Set cursor from last article for next pagination request
+    updatePaginationCursor(articles);
     
     list.innerHTML = articles.map(buildArticleCardHtml).join('');
     
@@ -733,9 +738,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Apply user preferences
     applyUserPreferences();
 
-    // Initialize pagination from server-rendered articles
+    // Initialize cursor-based pagination from server-rendered articles
     const initialArticles = document.querySelectorAll('#articles-list .article-card');
-    if (initialArticles.length > 0 && initialArticles.length < PAGE_SIZE) {
+    if (initialArticles.length > 0) {
+        const lastCard = initialArticles[initialArticles.length - 1];
+        paginationCursorTime = lastCard.dataset.sortTime || null;
+        paginationCursorId = lastCard.dataset.id || null;
+        if (initialArticles.length < PAGE_SIZE) {
+            paginationDone = true;
+        }
+    } else {
         paginationDone = true;
     }
     updateEndOfArticlesIndicator();
@@ -2007,6 +2019,19 @@ function updateEndOfArticlesIndicator() {
 }
 
 // Infinite scroll: load more articles when near the bottom
+// Extract cursor from an article's sort key: COALESCE(published_at, fetched_at)
+function getArticleSortTime(article) {
+    return article.published_at || article.fetched_at;
+}
+
+// Update pagination cursor from the last article in a batch
+function updatePaginationCursor(articles) {
+    if (!articles || articles.length === 0) return;
+    const last = articles[articles.length - 1];
+    paginationCursorTime = getArticleSortTime(last);
+    paginationCursorId = last.id;
+}
+
 function getPaginationUrl() {
     const path = window.location.pathname;
     const feedMatch = path.match(/^\/feed\/(\d+)/);
@@ -2022,10 +2047,13 @@ async function loadMoreArticles() {
     const url = getPaginationUrl();
     if (!url) return;
 
+    if (!paginationCursorTime || !paginationCursorId) return;
+
     paginationLoading = true;
     try {
         const includeRead = showingHiddenArticles ? '&include_read=1' : '';
-        const data = await api('GET', `${url}?offset=${paginationOffset}${includeRead}`);
+        const params = `before_time=${encodeURIComponent(paginationCursorTime)}&before_id=${paginationCursorId}${includeRead}`;
+        const data = await api('GET', `${url}?${params}`);
         const articles = data.articles || [];
         if (articles.length === 0) {
             paginationDone = true;
@@ -2034,7 +2062,7 @@ async function loadMoreArticles() {
         if (articles.length < PAGE_SIZE) {
             paginationDone = true;
         }
-        paginationOffset += articles.length;
+        updatePaginationCursor(articles);
 
         await queuedIdsReady;
         const list = document.getElementById('articles-list');
