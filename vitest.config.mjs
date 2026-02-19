@@ -4,5 +4,6 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['srv/static/**/*.test.js'],
+    reporters: ['verbose'],
   },
 });

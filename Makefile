@@ -8,7 +8,7 @@ clean:
 
 test:
 	go test ./...
-	npx vitest run
+	NO_COLOR=1 npx vitest run
 
 lint: lint-go lint-js lint-templates lint-html
 
