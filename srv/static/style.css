@@ -2828,6 +2828,7 @@ th {
     align-items: center;
     justify-content: center;
     gap: 0.75rem;
+    margin-top: 320px;
     padding: 2rem 1rem;
     color: var(--text-secondary);
     font-size: 0.85rem;
