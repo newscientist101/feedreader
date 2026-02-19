@@ -13,7 +13,7 @@
                 <p class="preference-description">Automatically mark articles as read when they scroll out of view</p>
             </div>
             <label class="toggle-switch">
-                <input type="checkbox" id="auto-mark-read" onchange="toggleAutoMarkRead(this.checked)">
+                <input type="checkbox" id="auto-mark-read" onchange="saveSetting('autoMarkRead', String(this.checked))">
                 <span class="toggle-slider"></span>
             </label>
         </div>

@@ -70,7 +70,7 @@ export default [
       "no-unused-vars": ["warn", {
         args: "none",
         caughtErrors: "none",
-        varsIgnorePattern: "^(closeCreateFolderModal|confirmDeleteAndReload|copyNewsletterAddress|createCategory|deleteCategory|deleteFeed|exportOPML|filterFeeds|generateNewsletterAddress|importOPML|markAsRead|markRead|markUnread|navigateFolder|openArticle|openArticleExternal|openCreateFolderModal|renameCategory|runCleanup|saveFeed|setFeedCategory|setPreference|showReadArticles|submitCreateFolder|toggleAutoMarkRead|toggleDropdown|toggleFolderCollapse|toggleQueue|toggleStar|unparentCategory)$",
+        varsIgnorePattern: "^(closeCreateFolderModal|confirmDeleteAndReload|copyNewsletterAddress|createCategory|deleteCategory|deleteFeed|exportOPML|filterFeeds|generateNewsletterAddress|importOPML|markAsRead|markRead|markUnread|navigateFolder|openArticle|openArticleExternal|openCreateFolderModal|renameCategory|runCleanup|saveFeed|setFeedCategory|setPreference|showReadArticles|submitCreateFolder|toggleDropdown|toggleFolderCollapse|toggleQueue|toggleStar|unparentCategory)$",
       }],
       "no-undef": "error",
       "no-use-before-define": ["warn", { functions: false, classes: false }],

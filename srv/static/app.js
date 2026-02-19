@@ -1849,11 +1849,6 @@ function confirmDeleteAndReload(url, name, noun) {
         .catch(e => alert(`Failed to delete ${noun}: ` + e.message));
 }
 
-// Settings page: toggle auto-mark-read
-function toggleAutoMarkRead(enabled) {
-    saveSetting('autoMarkRead', String(enabled));
-}
-
 // Settings page: set a preference and apply it immediately
 function setPreference(key, value) {
     saveSetting(key, value);

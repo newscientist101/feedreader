@@ -902,7 +902,6 @@ const UNTESTED_FUNCTIONS = {
   showArticlesLoading:       'loading spinner HTML',
   showFeedErrorBanner:       'error banner HTML',
   showNewsletterAddress:     'DOM update',
-  toggleAutoMarkRead:        'thin wrapper around saveSetting',
   updateFeedErrors:          'iterates feed errors + calls updateFeedStatusCell',
   updateFeedStatusCell:      'DOM update for feed status',
   updateReadButton:          'button HTML swap',
