@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { loadApp } from './test-helper.js';
+import { readFileSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { loadApp, extractTopLevelNames } from './test-helper.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -551,5 +556,408 @@ describe('auto-mark-read after client-side navigation (bug fix)', () => {
     expect(observers[1]).not.toBe(observers[2]);
     // All should be non-null
     observers.forEach(obs => expect(obs).not.toBeNull());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renderArticleActions
+// ---------------------------------------------------------------------------
+
+describe('renderArticleActions', () => {
+  it('renders read button for unread article', () => {
+    const html = window.renderArticleActions({ id: 1, is_read: 0, is_starred: 0, url: 'http://ex.com' });
+    expect(html).toContain('markRead');
+    expect(html).toContain('btn-read-toggle');
+  });
+
+  it('renders unread button for read article', () => {
+    const html = window.renderArticleActions({ id: 1, is_read: 1, is_starred: 0 });
+    expect(html).toContain('markUnread');
+  });
+
+  it('renders external link when url provided', () => {
+    const html = window.renderArticleActions({ id: 1, is_read: 0, is_starred: 0, url: 'http://ex.com' });
+    expect(html).toContain('http://ex.com');
+  });
+
+  it('omits external link when no url', () => {
+    const html = window.renderArticleActions({ id: 1, is_read: 0, is_starred: 0, url: '' });
+    expect(html).not.toContain('Open original');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// openArticle / openArticleExternal
+// ---------------------------------------------------------------------------
+
+describe('openArticle', () => {
+  it('marks article read and flushes immediately', () => {
+    window.fetch = vi.fn(() => Promise.resolve({
+      ok: true, json: () => Promise.resolve({ status: 'ok' }),
+    }));
+
+    window.openArticle(42);
+
+    // openArticle calls markReadSilent then flushMarkReadQueue immediately,
+    // so the batch-read API should have been called with the article id.
+    const batchCall = window.fetch.mock.calls.find(c => c[0] === '/api/articles/batch-read');
+    expect(batchCall).toBeDefined();
+    const body = JSON.parse(batchCall[1].body);
+    expect(body.ids).toContain(42);
+  });
+});
+
+describe('openArticleExternal', () => {
+  it('marks article read and opens in new tab', () => {
+    window.fetch = vi.fn(() => Promise.resolve({
+      ok: true, json: () => Promise.resolve({ status: 'ok' }),
+    }));
+    window.open = vi.fn();
+    const event = { stopPropagation: vi.fn() };
+
+    window.openArticleExternal(event, 99, 'http://example.com');
+    expect(event.stopPropagation).toHaveBeenCalled();
+    expect(window.open).toHaveBeenCalledWith('http://example.com', '_blank');
+    expect(window._markReadQueue).toContain(99);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatLocalDate
+// ---------------------------------------------------------------------------
+
+describe('formatLocalDate', () => {
+  it('returns a formatted date string', () => {
+    const result = window.formatLocalDate('2024-06-15T10:30:00Z');
+    // Should contain the year and some date components
+    expect(result).toContain('2024');
+    expect(result.length).toBeGreaterThan(5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// View scope / view switching
+// ---------------------------------------------------------------------------
+
+describe('getViewScope', () => {
+  it('returns "all" when no articles-view element', () => {
+    document.querySelector('.articles-view')?.removeAttribute('data-view-scope');
+    expect(window.getViewScope()).toBe('all');
+  });
+
+  it('returns the data-view-scope attribute', () => {
+    const view = document.querySelector('.articles-view');
+    view.dataset.viewScope = 'folder';
+    expect(window.getViewScope()).toBe('folder');
+  });
+});
+
+describe('setView', () => {
+  it('applies the view class to articles-list', () => {
+    window.fetch = vi.fn(() => Promise.resolve({ ok: true }));
+    window.setView('magazine');
+    const list = document.getElementById('articles-list');
+    expect(list.classList.contains('view-magazine')).toBe(true);
+    expect(list.classList.contains('view-card')).toBe(false);
+  });
+
+  it('falls back compact to list', () => {
+    window.fetch = vi.fn(() => Promise.resolve({ ok: true }));
+    window.setView('compact');
+    const list = document.getElementById('articles-list');
+    expect(list.classList.contains('view-list')).toBe(true);
+  });
+});
+
+describe('getDefaultViewForScope', () => {
+  it('returns card as default', () => {
+    expect(window.getDefaultViewForScope('all')).toBe('card');
+  });
+
+  it('returns saved folder view', () => {
+    window.__settings = { defaultFolderView: 'list' };
+    expect(window.getDefaultViewForScope('folder')).toBe('list');
+  });
+
+  it('returns saved feed view', () => {
+    window.__settings = { defaultFeedView: 'expanded' };
+    expect(window.getDefaultViewForScope('feed')).toBe('expanded');
+  });
+});
+
+describe('applyDefaultViewForScope', () => {
+  it('applies saved view without saving', () => {
+    window.fetch = vi.fn(() => Promise.resolve({ ok: true }));
+    window.__settings = { defaultFolderView: 'magazine' };
+    window.applyDefaultViewForScope('folder');
+    const list = document.getElementById('articles-list');
+    expect(list.classList.contains('view-magazine')).toBe(true);
+    // Should not have saved (save: false)
+    expect(window.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('migrateLegacyViewDefaults', () => {
+  it('migrates localStorage keys to settings', () => {
+    window.fetch = vi.fn(() => Promise.resolve({ ok: true }));
+    localStorage.setItem('feedreader-view-folder-default', 'list');
+    window.__settings = {};
+
+    window.migrateLegacyViewDefaults();
+
+    expect(window.__settings.defaultFolderView).toBe('list');
+    expect(localStorage.getItem('feedreader-view-folder-default')).toBeNull();
+  });
+
+  it('does not overwrite existing settings', () => {
+    window.fetch = vi.fn(() => Promise.resolve({ ok: true }));
+    localStorage.setItem('feedreader-view-folder-default', 'list');
+    window.__settings = { defaultFolderView: 'card' };
+
+    window.migrateLegacyViewDefaults();
+
+    expect(window.__settings.defaultFolderView).toBe('card');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// api wrapper
+// ---------------------------------------------------------------------------
+
+describe('api', () => {
+  it('sends JSON request and returns parsed response', async () => {
+    window.fetch = vi.fn(() => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({ status: 'ok' }),
+    }));
+    const result = await window.api('POST', '/api/test', { foo: 'bar' });
+    expect(result).toEqual({ status: 'ok' });
+    expect(window.fetch).toHaveBeenCalledWith('/api/test', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ foo: 'bar' }),
+    }));
+  });
+
+  it('throws on non-ok response', async () => {
+    window.fetch = vi.fn(() => Promise.resolve({
+      ok: false,
+      text: () => Promise.resolve('{"error":"bad request"}'),
+    }));
+    await expect(window.api('GET', '/api/fail')).rejects.toThrow('bad request');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findNextUnreadFolder
+// ---------------------------------------------------------------------------
+
+describe('findNextUnreadFolder', () => {
+  beforeEach(() => {
+    document.body.innerHTML += `
+      <div class="folder-item" data-category-id="1"></div>
+      <div class="folder-item" data-category-id="2"></div>
+      <div class="folder-item" data-category-id="3"></div>
+      <span data-count="category-3">5</span>
+    `;
+  });
+
+  it('returns the next folder with unread count', () => {
+    expect(window.findNextUnreadFolder(1)).toBe('/category/3');
+  });
+
+  it('returns null when no unread folders', () => {
+    document.querySelector('[data-count="category-3"]').textContent = '0';
+    expect(window.findNextUnreadFolder(1)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractYouTubeId
+// ---------------------------------------------------------------------------
+
+describe('extractYouTubeId', () => {
+  it('extracts from watch URL', () => {
+    expect(window.extractYouTubeId('https://youtube.com/watch?v=dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+  });
+
+  it('extracts from shorts URL', () => {
+    expect(window.extractYouTubeId('https://youtube.com/shorts/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+  });
+
+  it('extracts from youtu.be URL', () => {
+    expect(window.extractYouTubeId('https://youtu.be/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+  });
+
+  it('returns null for non-YouTube URL', () => {
+    expect(window.extractYouTubeId('https://example.com')).toBeNull();
+  });
+
+  it('returns null for empty input', () => {
+    expect(window.extractYouTubeId(null)).toBeNull();
+    expect(window.extractYouTubeId('')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyHideReadArticles / applyHideEmptyFeeds
+// ---------------------------------------------------------------------------
+
+describe('applyHideReadArticles', () => {
+  it('hides read articles when value is "hide"', () => {
+    document.getElementById('articles-list').innerHTML = `
+      <article class="article-card read" data-id="1"></article>
+      <article class="article-card" data-id="2"></article>
+    `;
+    window.applyHideReadArticles('hide');
+    expect(document.querySelector('[data-id="1"]').style.display).toBe('none');
+    expect(document.querySelector('[data-id="2"]').style.display).toBe('');
+  });
+
+  it('shows read articles when value is not "hide"', () => {
+    document.getElementById('articles-list').innerHTML = `
+      <article class="article-card read" data-id="1" style="display:none"></article>
+    `;
+    window.applyHideReadArticles('show');
+    expect(document.querySelector('[data-id="1"]').style.display).toBe('');
+  });
+});
+
+describe('applyHideEmptyFeeds', () => {
+  it('hides feeds with zero count', () => {
+    document.body.innerHTML += `
+      <div class="feed-item" data-feed-id="1"><span class="badge">0</span></div>
+      <div class="feed-item" data-feed-id="2"><span class="badge">5</span></div>
+    `;
+    window.applyHideEmptyFeeds('hide');
+    expect(document.querySelector('[data-feed-id="1"]').style.display).toBe('none');
+    expect(document.querySelector('[data-feed-id="2"]').style.display).toBe('');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Meta-test: ensure every app.js function has a test or is explicitly skipped.
+// When adding a new function to app.js, either write a test for it or add it
+// to the skip list below with a reason.
+// ---------------------------------------------------------------------------
+
+// Functions that are intentionally untested (with reasons).
+// Keep this list as small as possible — prefer writing tests.
+const UNTESTED_FUNCTIONS = {
+  // -- UI modals / prompts (require complex DOM + user interaction) --
+  closeCreateFolderModal:    'trivial modal close',
+  closeEditModal:            'trivial modal close',
+  createEditFeedModal:       'builds modal DOM, no logic to test',
+  openCreateFolderModal:     'trivial modal open',
+  confirmDeleteAndReload:    'thin wrapper around confirm() + fetch',
+
+  // -- DOM event wiring / init functions --
+  initDragDrop:              'drag-and-drop event wiring',
+  initFolderDragDrop:        'drag-and-drop event wiring',
+  initSettingsPage:          'settings page DOM wiring',
+  initTimestampTooltips:     'tooltip DOM wiring',
+  initView:                  'calls migrateLegacyViewDefaults + applyDefaultViewForScope (both tested)',
+
+  // -- Thin API wrappers (single fetch call + DOM update) --
+  copyNewsletterAddress:     'clipboard API wrapper',
+  deleteCategory:            'confirm + API call',
+  deleteFeed:                'confirm + API call',
+  editFeed:                  'modal + API call',
+  exportOPML:                'window.location redirect',
+  generateNewsletterAddress: 'API call + DOM update',
+  importOPML:                'file upload + API call',
+  loadNewsletterAddress:     'API call + DOM update',
+  markAsRead:                'API call + optional navigation',
+  markRead:                  'API call + DOM update',
+  markUnread:                'API call + DOM update',
+  refreshFeed:               'complex multi-step API call with polling',
+  renameCategory:            'prompt + API call',
+  runCleanup:                'API call + DOM update',
+  saveFeed:                  'form submit + API call',
+  setFeedCategory:           'API call + DOM update',
+  submitCreateFolder:        'form submit + API call',
+  toggleQueue:               'API call + DOM update',
+  toggleStar:                'API call + DOM update',
+  unparentCategory:          'API call + reload',
+  updateCounts:              'API call + sidebar DOM update',
+
+  // -- Side-effect-heavy functions needing full page context --
+  collapseFolder:            'CSS class toggle + sessionStorage',
+  filterFeeds:               'sidebar filter with full DOM',
+  loadCategoryArticles:      'full page navigation (tested via renderArticles)',
+  loadFeedArticles:          'full page navigation (tested via renderArticles)',
+  loadMoreArticles:          'pagination (integration; observeNewArticles tested separately)',
+  navigateFolder:            'event handler dispatching to loadCategoryArticles',
+  processEmbeds:             'YouTube embed processing',
+  reorderElements:           'drag-and-drop reorder',
+  syncFolderOrder:           'API call for drag-and-drop reorder',
+  toggleDropdown:            'dropdown menu toggle',
+  toggleFolderCollapse:      'folder expand/collapse',
+  toggleSidebar:             'sidebar toggle',
+
+  // -- Functions with minimal logic --
+  getDragAfterElementAmongSiblings: 'drag-and-drop geometry helper',
+  removeFeedErrorBanner:     'trivial DOM removal',
+  renderSearchResults:       'thin wrapper around renderArticles',
+  setPreference:             'thin wrapper around saveSetting + apply',
+  setSidebarActive:          'CSS class toggle',
+  showArticlesLoading:       'loading spinner HTML',
+  showFeedErrorBanner:       'error banner HTML',
+  showNewsletterAddress:     'DOM update',
+  toggleAutoMarkRead:        'thin wrapper around saveSetting',
+  updateFeedErrors:          'iterates feed errors + calls updateFeedStatusCell',
+  updateFeedStatusCell:      'DOM update for feed status',
+  updateReadButton:          'button HTML swap',
+};
+
+describe('test coverage check', () => {
+  it('every app.js function is either tested or explicitly skipped', () => {
+    const src = readFileSync(resolve(__dirname, 'app.js'), 'utf-8');
+    const { functions } = extractTopLevelNames(src);
+    const testSrc = readFileSync(resolve(__dirname, 'app.test.js'), 'utf-8');
+
+    const missing = [];
+    const staleSkips = [];
+
+    for (const fn of functions) {
+      // Match window.fn( or window.fn, or window.fn) etc. but not window.fnFoo
+      const pattern = new RegExp(`window\\.${fn}(?![A-Za-z0-9_])`);
+      const isTested = pattern.test(testSrc);
+      const isSkipped = fn in UNTESTED_FUNCTIONS;
+
+      if (!isTested && !isSkipped) {
+        missing.push(fn);
+      }
+      if (isTested && isSkipped) {
+        staleSkips.push(fn);
+      }
+    }
+
+    // Check for skip-list entries that don't correspond to real functions
+    const fnSet = new Set(functions);
+    const phantom = Object.keys(UNTESTED_FUNCTIONS).filter(k => !fnSet.has(k));
+
+    const errors = [];
+    if (missing.length > 0) {
+      errors.push(
+        `Functions missing tests (add tests or add to UNTESTED_FUNCTIONS with a reason):\n` +
+        missing.map(f => `  - ${f}`).join('\n')
+      );
+    }
+    if (staleSkips.length > 0) {
+      errors.push(
+        `Functions in UNTESTED_FUNCTIONS that now have tests (remove from skip list):\n` +
+        staleSkips.map(f => `  - ${f}`).join('\n')
+      );
+    }
+    if (phantom.length > 0) {
+      errors.push(
+        `UNTESTED_FUNCTIONS entries that don't match any app.js function (remove them):\n` +
+        phantom.map(f => `  - ${f}`).join('\n')
+      );
+    }
+
+    if (errors.length > 0) {
+      throw new Error('\n' + errors.join('\n\n'));
+    }
   });
 });
