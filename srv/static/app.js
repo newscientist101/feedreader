@@ -152,7 +152,14 @@ let queuedArticleIds = new Set();
 let queuedIdsReady = Promise.resolve();
 
 function initAutoMarkRead() {
+    // Disconnect any previous observer
+    if (autoMarkReadObserver) {
+        autoMarkReadObserver.disconnect();
+        autoMarkReadObserver = null;
+    }
+
     if (getSetting('autoMarkRead') !== 'true') {
+        console.debug('[auto-mark-read] disabled by setting');
         return;
     }
     
@@ -166,6 +173,7 @@ function initAutoMarkRead() {
                 
                 // Only mark unread articles
                 if (articleId && !article.classList.contains('read')) {
+                    console.debug(`[auto-mark-read] marking article ${articleId} as read (scrolled out of view)`);
                     markReadSilent(articleId);
                     article.classList.add('read');
                 }
@@ -178,9 +186,21 @@ function initAutoMarkRead() {
     });
     
     // Observe all article cards
-    document.querySelectorAll('.article-card').forEach(article => {
+    const cards = document.querySelectorAll('.article-card');
+    console.debug(`[auto-mark-read] observing ${cards.length} initial articles`);
+    cards.forEach(article => {
         autoMarkReadObserver.observe(article);
     });
+}
+
+// Observe newly added article cards (e.g. from pagination)
+function observeNewArticles(container) {
+    if (!autoMarkReadObserver) return;
+    const cards = container.querySelectorAll('.article-card');
+    if (cards.length > 0) {
+        console.debug(`[auto-mark-read] observing ${cards.length} new articles`);
+        cards.forEach(article => autoMarkReadObserver.observe(article));
+    }
 }
 
 // Batched mark-read for auto-mark feature
@@ -192,6 +212,7 @@ function flushMarkReadQueue() {
     if (_markReadQueue.length === 0) return;
     const ids = _markReadQueue.slice();
     _markReadQueue = [];
+    console.debug(`[auto-mark-read] flushing batch of ${ids.length} article(s):`, ids);
     api('POST', '/api/articles/batch-read', { ids })
         .then(() => updateCounts())
         .catch(e => console.error('Failed to batch mark read:', e));
@@ -523,6 +544,9 @@ async function renderArticles(articles) {
     // Re-apply user preferences (hide read, etc.)
     applyUserPreferences();
     updateEndOfArticlesIndicator();
+
+    // Re-initialize auto-mark-read observer for new article set
+    initAutoMarkRead();
 }
 
 function formatTimeAgo(dateStr) {
@@ -2009,6 +2033,7 @@ async function loadMoreArticles() {
             fragment.appendChild(temp.firstChild);
         }
         list.appendChild(fragment);
+        observeNewArticles(list);
         applyUserPreferences();
     } catch (e) {
         console.error('Failed to load more articles:', e);
