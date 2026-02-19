@@ -448,6 +448,74 @@ describe('showReadArticles', () => {
 });
 
 // ---------------------------------------------------------------------------
+// showHiddenArticles
+// ---------------------------------------------------------------------------
+
+describe('showHiddenArticles', () => {
+  it('sets showingHiddenArticles and re-fetches articles', async () => {
+    // Start on the root path
+    Object.defineProperty(window, 'location', {
+      value: { pathname: '/', hostname: 'localhost' },
+      writable: true,
+    });
+    window.showingHiddenArticles = false;
+
+    window.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ articles: [{ id: 1, title: 'Old', is_read: 1, feed_id: 1, guid: 'g1', fetched_at: new Date().toISOString() }] }),
+    });
+
+    await window.showHiddenArticles();
+
+    expect(window.showingHiddenArticles).toBe(true);
+    // Should have called the include_read URL
+    const fetchUrl = window.fetch.mock.calls[0][0];
+    expect(fetchUrl).toContain('include_read=1');
+    // Should have rendered the article
+    const cards = document.querySelectorAll('.article-card');
+    expect(cards.length).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getIncludeReadUrl
+// ---------------------------------------------------------------------------
+
+describe('getIncludeReadUrl', () => {
+  it('returns unread URL with include_read for root path', () => {
+    Object.defineProperty(window, 'location', {
+      value: { pathname: '/', hostname: 'localhost' },
+      writable: true,
+    });
+    expect(window.getIncludeReadUrl()).toBe('/api/articles/unread?include_read=1');
+  });
+
+  it('returns feed URL with include_read for feed path', () => {
+    Object.defineProperty(window, 'location', {
+      value: { pathname: '/feed/42', hostname: 'localhost' },
+      writable: true,
+    });
+    expect(window.getIncludeReadUrl()).toBe('/api/feeds/42/articles?include_read=1');
+  });
+
+  it('returns category URL with include_read for category path', () => {
+    Object.defineProperty(window, 'location', {
+      value: { pathname: '/category/7', hostname: 'localhost' },
+      writable: true,
+    });
+    expect(window.getIncludeReadUrl()).toBe('/api/categories/7/articles?include_read=1');
+  });
+
+  it('returns null for unknown paths', () => {
+    Object.defineProperty(window, 'location', {
+      value: { pathname: '/settings', hostname: 'localhost' },
+      writable: true,
+    });
+    expect(window.getIncludeReadUrl()).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // updateEndOfArticlesIndicator
 // ---------------------------------------------------------------------------
 

@@ -1010,6 +1010,22 @@ func (s *Server) apiGetUnreadArticles(w http.ResponseWriter, r *http.Request) {
 
 	offset := parseOffset(r)
 	userID := user.ID
+
+	// If include_read=1, return all articles (not just unread)
+	if r.URL.Query().Get("include_read") == "1" {
+		allArticles, _ := q.ListArticles(ctx, dbgen.ListArticlesParams{
+			UserID: &userID,
+			Limit:  articlePageSize * 2,
+			Offset: offset,
+		})
+		allArticles = s.FilterAllArticles(ctx, allArticles, userID)
+		if len(allArticles) > articlePageSize {
+			allArticles = allArticles[:articlePageSize]
+		}
+		jsonResponse(w, map[string]any{"articles": allArticles})
+		return
+	}
+
 	// Fetch extra to account for exclusion filtering
 	articles, _ := q.ListUnreadArticles(ctx, dbgen.ListUnreadArticlesParams{
 		UserID: &userID,
@@ -1692,6 +1708,26 @@ func (s *Server) apiGetCategoryArticles(w http.ResponseWriter, r *http.Request) 
 	}
 
 	offset := parseOffset(r)
+
+	// If include_read=1, return all articles (not just unread)
+	if r.URL.Query().Get("include_read") == "1" {
+		allArticles, _ := q.ListArticlesByCategory(ctx, dbgen.ListArticlesByCategoryParams{
+			CategoryID: catID,
+			UserID:     &user.ID,
+			Limit:      articlePageSize * 2,
+			Offset:     offset,
+		})
+		filteredAll := s.FilterArticlesByCategoryAll(ctx, allArticles, catID, user.ID)
+		if len(filteredAll) > articlePageSize {
+			filteredAll = filteredAll[:articlePageSize]
+		}
+		jsonResponse(w, map[string]any{
+			"category": category,
+			"articles": filteredAll,
+		})
+		return
+	}
+
 	articles, _ := q.ListUnreadArticlesByCategory(ctx, dbgen.ListUnreadArticlesByCategoryParams{
 		CategoryID: catID,
 		UserID:     &user.ID,

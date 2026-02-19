@@ -74,6 +74,7 @@
             {{if eq .ActiveView "unread"}}
             <p class="hint">Add some feeds to get started!</p>
             {{end}}
+            <button onclick="showHiddenArticles()" class="btn btn-secondary" style="margin-top: 10px;">Show hidden articles</button>
         </div>
         {{else}}
         {{range .Articles}}

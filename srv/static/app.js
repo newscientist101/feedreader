@@ -3,6 +3,10 @@
 // Keep in sync with previewTextLimit in server.go.
 const PREVIEW_TEXT_LIMIT = 500;
 
+// Temporary flag: when true, the current view includes read/hidden articles.
+// Reset on the next navigation.
+let showingHiddenArticles = false;
+
 // Pagination state for infinite scroll.
 const PAGE_SIZE = 50;
 let paginationOffset = PAGE_SIZE; // first page is server-rendered
@@ -146,6 +150,30 @@ function showReadArticles() {
     if (msg) msg.remove();
 }
 
+// Temporarily show hidden articles by re-fetching with include_read=1
+async function showHiddenArticles() {
+    showingHiddenArticles = true;
+    const url = getIncludeReadUrl();
+    if (!url) return;
+    try {
+        const data = await api('GET', url);
+        renderArticles(data.articles || []);
+    } catch (e) {
+        console.error('Failed to load hidden articles:', e);
+    }
+}
+
+// Build the API URL for the current view with include_read=1
+function getIncludeReadUrl() {
+    const path = window.location.pathname;
+    const feedMatch = path.match(/^\/feed\/(\d+)/);
+    if (feedMatch) return `/api/feeds/${feedMatch[1]}/articles?include_read=1`;
+    const catMatch = path.match(/^\/category\/(\d+)/);
+    if (catMatch) return `/api/categories/${catMatch[1]}/articles?include_read=1`;
+    if (path === '/') return '/api/articles/unread?include_read=1';
+    return null;
+}
+
 // Auto-mark-read on scroll feature
 let autoMarkReadObserver = null;
 let queuedArticleIds = new Set();
@@ -244,6 +272,7 @@ function openArticleExternal(event, id, url) {
 
 // Show loading spinner in the articles list
 function showArticlesLoading() {
+    showingHiddenArticles = false;
     const list = document.getElementById('articles-list');
     if (list) {
         list.innerHTML = `
@@ -519,12 +548,16 @@ async function renderArticles(articles) {
     paginationLoading = false;
     
     if (!articles || articles.length === 0) {
+        const showBtn = !showingHiddenArticles
+            ? `<button onclick="showHiddenArticles()" class="btn btn-secondary" style="margin-top: 10px;">Show hidden articles</button>`
+            : '';
         list.innerHTML = `
             <div class="empty-state">
                 <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" opacity="0.3">
                     <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>
                 </svg>
                 <p>No articles to show</p>
+                ${showBtn}
             </div>
         `;
         paginationDone = true;
@@ -1991,7 +2024,8 @@ async function loadMoreArticles() {
 
     paginationLoading = true;
     try {
-        const data = await api('GET', `${url}?offset=${paginationOffset}`);
+        const includeRead = showingHiddenArticles ? '&include_read=1' : '';
+        const data = await api('GET', `${url}?offset=${paginationOffset}${includeRead}`);
         const articles = data.articles || [];
         if (articles.length === 0) {
             paginationDone = true;
