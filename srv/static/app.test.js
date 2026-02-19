@@ -8,6 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 beforeEach(() => {
   vi.useFakeTimers();
+  vi.spyOn(console, 'debug').mockImplementation(() => {});
   loadApp();
 });
 
