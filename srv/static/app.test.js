@@ -298,6 +298,7 @@ describe('renderArticles', () => {
     window.fetch = vi.fn(() => Promise.resolve({
       ok: true, json: () => Promise.resolve({}),
     }));
+    window.scrollTo = vi.fn();
   });
 
   it('renders articles into the list', async () => {
@@ -307,6 +308,7 @@ describe('renderArticles', () => {
     ];
     await window.renderArticles(articles);
 
+    expect(window.scrollTo).toHaveBeenCalledWith(0, 0);
     const cards = document.querySelectorAll('#articles-list .article-card');
     expect(cards.length).toBe(2);
     expect(cards[0].dataset.id).toBe('1');
