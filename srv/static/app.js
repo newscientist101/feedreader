@@ -543,6 +543,9 @@ async function renderArticles(articles) {
     const list = document.getElementById('articles-list');
     if (!list) return;
 
+    // Scroll to top when loading a new set of articles
+    window.scrollTo(0, 0);
+
     // Reset pagination for fresh render (cursor-based)
     paginationCursorTime = null;
     paginationCursorId = null;

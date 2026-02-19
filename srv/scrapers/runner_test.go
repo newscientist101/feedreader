@@ -232,7 +232,7 @@ func TestRunJSONScraper_ConsolidateDuplicates(t *testing.T) {
 		t.Fatalf("expected 2 items after consolidation, got %d", len(items))
 	}
 
-	if items[0].Title != "Same - Combined(3)" {
+	if items[0].Title != "Same - Combined (3)" {
 		t.Errorf("consolidated title = %q", items[0].Title)
 	}
 	assertEq(t, "item1.Title", items[1].Title, "Different")
@@ -451,7 +451,7 @@ func TestConsolidateItems_AllSame(t *testing.T) {
 	if len(result) != 1 {
 		t.Fatalf("expected 1 consolidated, got %d", len(result))
 	}
-	if result[0].Title != "X - Combined(2)" {
+	if result[0].Title != "X - Combined (2)" {
 		t.Errorf("title = %q", result[0].Title)
 	}
 }
