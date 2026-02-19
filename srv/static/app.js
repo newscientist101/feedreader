@@ -1849,16 +1849,6 @@ function confirmDeleteAndReload(url, name, noun) {
         .catch(e => alert(`Failed to delete ${noun}: ` + e.message));
 }
 
-// Settings page: set a preference and apply it immediately
-function setPreference(key, value) {
-    saveSetting(key, value);
-    if (key === 'hideReadArticles') {
-        applyHideReadArticles(value);
-    } else if (key === 'hideEmptyFeeds') {
-        applyHideEmptyFeeds(value);
-    }
-}
-
 // Toggle read articles visibility (used by settings page for instant feedback)
 function applyHideReadArticles(value) {
     document.querySelectorAll('.article-card.read').forEach(card => {
