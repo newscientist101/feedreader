@@ -1516,7 +1516,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const articles = await res.json();
                     searchAbort = null;
                     if (!res.ok) throw new Error(articles.error || 'Search failed');
-                    renderSearchResults(articles);
+                    renderArticles(articles);
                 } catch (e) {
                     if (e.name === 'AbortError') return; // cancelled, ignore
                     console.error('Search failed:', e);
@@ -1526,10 +1526,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// renderSearchResults delegates to the shared renderArticles function
-function renderSearchResults(articles) {
-    renderArticles(articles);
-}
 
 // Folder drag-and-drop reordering
 function initFolderDragDrop() {

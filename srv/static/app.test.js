@@ -897,7 +897,6 @@ const UNTESTED_FUNCTIONS = {
   // -- Functions with minimal logic --
   getDragAfterElementAmongSiblings: 'drag-and-drop geometry helper',
   removeFeedErrorBanner:     'trivial DOM removal',
-  renderSearchResults:       'thin wrapper around renderArticles',
   setPreference:             'thin wrapper around saveSetting + apply',
   setSidebarActive:          'CSS class toggle',
   showArticlesLoading:       'loading spinner HTML',
