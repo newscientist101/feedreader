@@ -835,6 +835,462 @@ describe('applyHideEmptyFeeds', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Drag-and-drop helpers
+// ---------------------------------------------------------------------------
+
+describe('getDragAfterElementAmongSiblings', () => {
+  it('returns the next element based on cursor position', () => {
+    const one = document.createElement('div');
+    const two = document.createElement('div');
+    const three = document.createElement('div');
+
+    one.getBoundingClientRect = () => ({ top: 0, height: 10 });
+    two.getBoundingClientRect = () => ({ top: 10, height: 10 });
+    three.getBoundingClientRect = () => ({ top: 20, height: 10 });
+
+    const siblings = [one, two, three];
+    const result = window.getDragAfterElementAmongSiblings(siblings, 12);
+    expect(result).toBe(two);
+  });
+});
+
+describe('reorderElements', () => {
+  it('reorders only siblings with the matching parent id', () => {
+    const container = document.createElement('div');
+    container.innerHTML = `
+      <div class="folder-item" data-category-id="1" data-parent-id="5"></div>
+      <div class="folder-item" data-category-id="2" data-parent-id="5"></div>
+      <div class="folder-item" data-category-id="3" data-parent-id="7"></div>
+    `;
+
+    window.reorderElements(container, '.folder-item', 'data-category-id', [2, 1], 5);
+
+    const ids = Array.from(container.querySelectorAll('.folder-item'))
+      .map(el => el.dataset.categoryId);
+    expect(ids).toEqual(['2', '1', '3']);
+  });
+});
+
+describe('syncFolderOrder', () => {
+  it('syncs order into the other container', () => {
+    document.body.innerHTML += `
+      <div class="folders-list">
+        <div class="folder-item" data-category-id="1"></div>
+        <div class="folder-item" data-category-id="2"></div>
+      </div>
+      <div class="categories-grid">
+        <div class="category-card" data-id="1"></div>
+        <div class="category-card" data-id="2"></div>
+      </div>
+    `;
+
+    const source = document.querySelector('.categories-grid');
+    window.syncFolderOrder([2, 1], source, null);
+
+    const sidebarIds = Array.from(document.querySelectorAll('.folders-list .folder-item'))
+      .map(el => el.dataset.categoryId);
+    expect(sidebarIds).toEqual(['2', '1']);
+  });
+});
+
+describe('initFolderDragDrop', () => {
+  it('initializes drag-and-drop handlers for folder containers', async () => {
+    document.body.innerHTML += `
+      <div class="folders-list">
+        <div class="folder-item" data-category-id="1"></div>
+        <div class="folder-item" data-category-id="2"></div>
+      </div>
+      <div class="categories-grid">
+        <div class="category-card" data-id="1"></div>
+        <div class="category-card" data-id="2"></div>
+      </div>
+    `;
+
+    const folders = document.querySelector('.folders-list');
+    const items = folders.querySelectorAll('.folder-item');
+    items[0].getBoundingClientRect = () => ({ top: 0, height: 10 });
+    items[1].getBoundingClientRect = () => ({ top: 10, height: 10 });
+
+    window.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({}),
+      text: async () => '',
+    }));
+
+    window.initFolderDragDrop();
+
+    const dragstart = new Event('dragstart', { bubbles: true });
+    dragstart.dataTransfer = { effectAllowed: '', setData: vi.fn() };
+    items[0].dispatchEvent(dragstart);
+
+    const dragover = new Event('dragover', { bubbles: true });
+    dragover.preventDefault = vi.fn();
+    dragover.dataTransfer = { dropEffect: '' };
+    dragover.clientY = 30;
+    folders.dispatchEvent(dragover);
+
+    const drop = new Event('drop', { bubbles: true });
+    drop.preventDefault = vi.fn();
+    drop.dataTransfer = { dropEffect: '' };
+    folders.dispatchEvent(drop);
+
+    await Promise.resolve();
+
+    const ids = Array.from(folders.querySelectorAll('.folder-item'))
+      .map(el => el.dataset.categoryId);
+    expect(ids).toEqual(['2', '1']);
+  });
+});
+
+describe('initDragDrop', () => {
+  it('moves the dragged item on drop', async () => {
+    const container = document.createElement('div');
+    container.innerHTML = `
+      <div class="folder-item" data-category-id="1"></div>
+      <div class="folder-item" data-category-id="2"></div>
+    `;
+    document.body.appendChild(container);
+
+    const items = container.querySelectorAll('.folder-item');
+    items[0].getBoundingClientRect = () => ({ top: 0, height: 10 });
+    items[1].getBoundingClientRect = () => ({ top: 10, height: 10 });
+
+    const originalApi = window.api;
+    window.api = vi.fn(async () => ({}));
+
+    window.initDragDrop(container, '.folder-item', 'data-category-id');
+
+    const dragstart = new Event('dragstart', { bubbles: true });
+    dragstart.dataTransfer = { effectAllowed: '', setData: vi.fn() };
+    items[0].dispatchEvent(dragstart);
+
+    const dragover = new Event('dragover', { bubbles: true });
+    dragover.preventDefault = vi.fn();
+    dragover.dataTransfer = { dropEffect: '' };
+    dragover.clientY = 30;
+    container.dispatchEvent(dragover);
+
+    const drop = new Event('drop', { bubbles: true });
+    drop.preventDefault = vi.fn();
+    drop.dataTransfer = { dropEffect: '' };
+    container.dispatchEvent(drop);
+
+    await Promise.resolve();
+
+    const ids = Array.from(container.querySelectorAll('.folder-item'))
+      .map(el => el.dataset.categoryId);
+    expect(ids).toEqual(['2', '1']);
+
+    window.api = originalApi;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Feed, category, and pagination flows
+// ---------------------------------------------------------------------------
+
+describe('refreshFeed', () => {
+  it('polls until fetch completes and updates the status cell', async () => {
+    const originalUpdateCounts = window.updateCounts;
+    window.updateCounts = vi.fn();
+
+    let statusCall = 0;
+    window.fetch = vi.fn(async (url) => {
+      if (url === '/api/feeds/9/status') {
+        statusCall += 1;
+        return {
+          ok: true,
+          json: async () => ({
+            lastFetched: statusCall === 1 ? 't1' : 't2',
+            lastError: statusCall === 1 ? null : 'boom',
+          }),
+          text: async () => '',
+        };
+      }
+      if (url === '/api/feeds/9/refresh') {
+        return { ok: true, json: async () => ({}), text: async () => '' };
+      }
+      if (url === '/api/counts') {
+        return {
+          ok: true,
+          json: async () => ({ unread: 0, starred: 0, queue: 0, categories: {}, feeds: {}, feedErrors: {} }),
+          text: async () => '',
+        };
+      }
+      return { ok: true, json: async () => ({}), text: async () => '' };
+    });
+    document.body.innerHTML += `
+      <table>
+        <tbody>
+          <tr data-feed-id="9">
+            <td>Name</td>
+            <td>Status</td>
+            <td>Actions</td>
+          </tr>
+        </tbody>
+      </table>
+      <button data-feed-id="9">Refresh</button>
+    `;
+
+    const promise = window.refreshFeed(9);
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(1000);
+    await Promise.resolve();
+
+    await promise;
+
+    const row = document.querySelector('tr[data-feed-id="9"]');
+    const statusCell = row.querySelectorAll('td')[1];
+    expect(statusCell.innerHTML).toContain('Error');
+    expect(row.dataset.hasError).toBe('true');
+
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(document.querySelector('button[data-feed-id="9"]').disabled).toBe(false);
+
+    window.updateCounts = originalUpdateCounts;
+  });
+});
+
+describe('saveFeed', () => {
+  it('sends parsed content filters and updates the DOM', async () => {
+    document.body.innerHTML += `
+      <form>
+        <input id="edit-feed-id" value="10" />
+        <input id="edit-feed-name" value="New Name" />
+        <input id="edit-feed-url" value="https://example.com/rss" />
+        <input id="edit-feed-interval" value="15" />
+        <textarea id="edit-feed-filters">.ad\n#sponsored</textarea>
+      </form>
+      <table>
+        <tr data-feed-id="10">
+          <td><a>Old</a></td>
+          <td><a>https://old</a></td>
+        </tr>
+      </table>
+      <div class="feed-item" href="/feed/10"><span class="feed-name">Old</span></div>
+      <div class="view-header"><h1>Old</h1></div>
+    `;
+
+    Object.defineProperty(window, 'location', {
+      value: { pathname: '/feed/10' }, writable: true, configurable: true,
+    });
+
+    window.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({}),
+      text: async () => '',
+    }));
+
+    const event = { preventDefault: vi.fn() };
+    await window.saveFeed(event);
+
+    const body = JSON.parse(window.fetch.mock.calls[0][1].body);
+    expect(body.content_filters).toBe('[{"selector":".ad"},{"selector":"#sponsored"}]');
+    expect(document.querySelector('tr[data-feed-id="10"] td a').textContent).toBe('New Name');
+    expect(document.querySelector('.feed-item .feed-name').textContent).toBe('New Name');
+    expect(document.title).toContain('New Name');
+  });
+});
+
+describe('markAsRead', () => {
+  it('posts to category URL and navigates to next unread folder', async () => {
+    const dropdown = document.createElement('div');
+    dropdown.className = 'dropdown';
+    dropdown.dataset.categoryId = '3';
+    const btn = document.createElement('button');
+    dropdown.appendChild(btn);
+    document.body.appendChild(dropdown);
+
+    window.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({}),
+      text: async () => '',
+    }));
+
+    Object.defineProperty(window, 'location', {
+      value: { href: '', reload: vi.fn() }, writable: true, configurable: true,
+    });
+
+    vi.spyOn(window, 'findNextUnreadFolder').mockReturnValue('/category/9');
+
+    await window.markAsRead(btn, 'week');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(window.fetch).toHaveBeenCalledWith('/api/categories/3/read-all?age=week', expect.any(Object));
+  });
+});
+
+describe('loadCategoryArticles', () => {
+  it('updates view state and renders articles', async () => {
+    document.body.innerHTML += `
+      <div class="view-header"><h1>Old</h1></div>
+      <div class="articles-view"></div>
+      <div class="folder-item" data-category-id="5"><span class="folder-name">Tech</span></div>
+      <div class="dropdown" data-feed-id="1" data-category-id=""></div>
+      <button data-feed-action="refresh"></button>
+      <button data-feed-action="edit"></button>
+    `;
+
+    window.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ articles: [{
+        id: 1,
+        title: 'A',
+        is_read: 0,
+        is_starred: 0,
+        published_at: new Date().toISOString(),
+      }] }),
+      text: async () => '',
+    }));
+
+    await window.loadCategoryArticles(5, 'Tech');
+
+    expect(document.querySelector('.articles-view').dataset.viewScope).toBe('folder');
+    expect(document.querySelector('.dropdown').dataset.categoryId).toBe('5');
+    expect(document.querySelector('[data-feed-action="refresh"]').style.display).toBe('none');
+    expect(document.querySelectorAll('#articles-list .article-card').length).toBe(1);
+  });
+});
+
+describe('loadFeedArticles', () => {
+  it('updates header actions and shows feed error banner', async () => {
+    document.body.innerHTML += `
+      <div class="view-header"><h1>Old</h1></div>
+      <div class="articles-view"></div>
+      <div class="header-actions"></div>
+      <div class="feed-item" data-feed-id="7" data-feed-name="My Feed"><span class="feed-name">My Feed</span></div>
+      <div class="dropdown"></div>
+    `;
+
+    Object.defineProperty(window, 'location', {
+      value: { pathname: '/feed/7' }, writable: true, configurable: true,
+    });
+
+    window.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        feed: { id: 7, last_error: 'failed' },
+        articles: [{
+          id: 1,
+          title: 'A',
+          is_read: 0,
+          is_starred: 0,
+          published_at: new Date().toISOString(),
+        }],
+      }),
+      text: async () => '',
+    }));
+
+    await window.loadFeedArticles(7, 'My Feed');
+
+    expect(document.querySelector('.feed-error-banner')).not.toBeNull();
+    expect(document.querySelector('[data-feed-action="edit"]')).not.toBeNull();
+    expect(document.querySelector('[data-feed-action="refresh"]')).not.toBeNull();
+    expect(document.querySelectorAll('#articles-list .article-card').length).toBe(1);
+  });
+});
+
+describe('loadMoreArticles', () => {
+  it('appends new articles and observes them', async () => {
+    Object.defineProperty(window, 'location', {
+      value: { pathname: '/feed/8' }, writable: true, configurable: true,
+    });
+
+    window.paginationDone = false;
+    window.paginationLoading = false;
+    window.paginationOffset = 0;
+    window.queuedIdsReady = Promise.resolve();
+
+    window.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        articles: [{
+          id: 1,
+          title: 'A',
+          is_read: 0,
+          is_starred: 0,
+          published_at: new Date().toISOString(),
+          content: '<p>hi</p>',
+        }],
+      }),
+      text: async () => '',
+    }));
+
+    await window.loadMoreArticles();
+
+    await Promise.resolve();
+
+    expect(document.querySelectorAll('.article-card').length).toBe(1);
+    expect(document.querySelector('.article-content-preview')).not.toBeNull();
+  });
+});
+
+describe('processEmbeds', () => {
+  it('replaces video embeds with YouTube iframes', () => {
+    const container = document.createElement('div');
+    container.innerHTML = '<video data-embed-type="video" data-src="https://youtube.com/watch?v=dQw4w9WgXcQ"></video>';
+
+    window.processEmbeds(container);
+
+    const iframe = container.querySelector('iframe');
+    expect(iframe).not.toBeNull();
+    expect(iframe.src).toContain('youtube.com/embed');
+  });
+
+  it('loads twitter widget script for tweet embeds', () => {
+    const container = document.createElement('div');
+    container.innerHTML = `
+      <div data-embed-type="tweet">
+        <blockquote class="twitter-tweet"></blockquote>
+      </div>
+    `;
+
+    window.processEmbeds(container);
+
+    expect(document.querySelector('script[src*="platform.twitter.com"]')).not.toBeNull();
+  });
+});
+
+describe('updateFeedStatusCell', () => {
+  it('marks status error and sets dataset flag', () => {
+    document.body.innerHTML += `
+      <table>
+        <tr data-feed-id="4">
+          <td>Feed</td>
+          <td>Status</td>
+          <td>Actions</td>
+        </tr>
+      </table>
+    `;
+
+    window.updateFeedStatusCell(4, 'bad');
+
+    const row = document.querySelector('tr[data-feed-id="4"]');
+    expect(row.dataset.hasError).toBe('true');
+    expect(row.querySelector('.status-error')).not.toBeNull();
+  });
+});
+
+describe('updateFeedErrors', () => {
+  it('updates sidebar error state and banner', () => {
+    document.body.innerHTML += `
+      <div class="feed-item" data-feed-id="11">
+        <span data-error></span>
+      </div>
+      <button data-feed-id="11"></button>
+    `;
+
+    window.updateFeedErrors({ 11: 'oops' });
+
+    const item = document.querySelector('.feed-item');
+    expect(item.classList.contains('has-error')).toBe(true);
+    expect(document.querySelector('.feed-error-banner')).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Meta-test: ensure every app.js function has a test or is explicitly skipped.
 // When adding a new function to app.js, either write a test for it or add it
 // to the skip list below with a reason.
@@ -851,8 +1307,6 @@ const UNTESTED_FUNCTIONS = {
   confirmDeleteAndReload:    'thin wrapper around confirm() + fetch',
 
   // -- DOM event wiring / init functions --
-  initDragDrop:              'drag-and-drop event wiring',
-  initFolderDragDrop:        'drag-and-drop event wiring',
   initSettingsPage:          'settings page DOM wiring',
   initTimestampTooltips:     'tooltip DOM wiring',
   initView:                  'calls migrateLegacyViewDefaults + applyDefaultViewForScope (both tested)',
@@ -866,43 +1320,30 @@ const UNTESTED_FUNCTIONS = {
   generateNewsletterAddress: 'API call + DOM update',
   importOPML:                'file upload + API call',
   loadNewsletterAddress:     'API call + DOM update',
-  markAsRead:                'API call + optional navigation',
   markRead:                  'API call + DOM update',
   markUnread:                'API call + DOM update',
-  refreshFeed:               'complex multi-step API call with polling',
   renameCategory:            'prompt + API call',
   runCleanup:                'API call + DOM update',
-  saveFeed:                  'form submit + API call',
   setFeedCategory:           'API call + DOM update',
   submitCreateFolder:        'form submit + API call',
   toggleQueue:               'API call + DOM update',
   toggleStar:                'API call + DOM update',
   unparentCategory:          'API call + reload',
-  updateCounts:              'API call + sidebar DOM update',
 
   // -- Side-effect-heavy functions needing full page context --
   collapseFolder:            'CSS class toggle + sessionStorage',
   filterFeeds:               'sidebar filter with full DOM',
-  loadCategoryArticles:      'full page navigation (tested via renderArticles)',
-  loadFeedArticles:          'full page navigation (tested via renderArticles)',
-  loadMoreArticles:          'pagination (integration; observeNewArticles tested separately)',
   navigateFolder:            'event handler dispatching to loadCategoryArticles',
-  processEmbeds:             'YouTube embed processing',
-  reorderElements:           'drag-and-drop reorder',
-  syncFolderOrder:           'API call for drag-and-drop reorder',
   toggleDropdown:            'dropdown menu toggle',
   toggleFolderCollapse:      'folder expand/collapse',
   toggleSidebar:             'sidebar toggle',
 
   // -- Functions with minimal logic --
-  getDragAfterElementAmongSiblings: 'drag-and-drop geometry helper',
   removeFeedErrorBanner:     'trivial DOM removal',
   setSidebarActive:          'CSS class toggle',
   showArticlesLoading:       'loading spinner HTML',
   showFeedErrorBanner:       'error banner HTML',
   showNewsletterAddress:     'DOM update',
-  updateFeedErrors:          'iterates feed errors + calls updateFeedStatusCell',
-  updateFeedStatusCell:      'DOM update for feed status',
   updateReadButton:          'button HTML swap',
 };
 
