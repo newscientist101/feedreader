@@ -1,5 +1,8 @@
 export default [
   {
+    ignores: ["srv/static/**/*.test.js", "srv/static/test-helper.js"],
+  },
+  {
     files: ["srv/static/**/*.js"],
     languageOptions: {
       ecmaVersion: 2022,

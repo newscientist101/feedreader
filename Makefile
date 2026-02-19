@@ -8,6 +8,7 @@ clean:
 
 test:
 	go test ./...
+	npx vitest run
 
 lint: lint-go lint-js lint-templates lint-html
 

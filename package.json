@@ -1,0 +1,19 @@
+{
+  "name": "feedreader",
+  "version": "1.0.0",
+  "description": "A modern feed reader with RSS/Atom support and a modular scraper system for non-RSS sources.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "jsdom": "^28.1.0",
+    "vitest": "^4.0.18"
+  }
+}
