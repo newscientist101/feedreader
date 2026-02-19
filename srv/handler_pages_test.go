@@ -1,10 +1,12 @@
 package srv
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"srv.exe.dev/db/dbgen"
@@ -213,5 +215,51 @@ func TestHandleCategorySettings(t *testing.T) {
 		"GET", "/categories/abc/settings", "", ctx)
 	if w.Code != 400 {
 		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
+// TestHandleCategoryArticles_SubcategoryRendersDataID verifies that a
+// subcategory page renders article cards with data-id attributes, which
+// the auto-mark-read IntersectionObserver needs after client-side navigation.
+func TestHandleCategoryArticles_SubcategoryRendersDataID(t *testing.T) {
+	t.Parallel()
+	s := testServerWithTemplates(t)
+	ctx, user := testUser(t, s)
+	q := dbgen.New(s.DB)
+
+	parent := createCategory(t, s, user.ID, "Gaming")
+	child := createCategory(t, s, user.ID, "VR")
+	if err := q.UpdateCategoryParent(context.Background(), dbgen.UpdateCategoryParentParams{
+		ParentID: &parent.ID, SortOrder: new(int64), ID: child.ID, UserID: &user.ID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	feed := createFeed(t, s, user.ID, "VR Feed", "http://vr.example.com")
+	art := createArticle(t, s, feed.ID, "VR Article", "vr-g1")
+	if err := q.AddFeedToCategory(context.Background(), dbgen.AddFeedToCategoryParams{
+		FeedID: feed.ID, CategoryID: child.ID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	w := serveMux(t, "GET /categories/{id}", s.handleCategoryArticles,
+		"GET", fmt.Sprintf("/categories/%d", child.ID), "", ctx)
+	if w.Code != http.StatusOK {
+		t.Fatalf("got %d", w.Code)
+	}
+
+	body := w.Body.String()
+
+	// The rendered page must contain an article card with the correct data-id.
+	// This is what initAutoMarkRead() queries to attach the IntersectionObserver.
+	wantAttr := fmt.Sprintf(`data-id="%d"`, art.ID)
+	if !strings.Contains(body, wantAttr) {
+		t.Errorf("rendered subcategory page missing %s", wantAttr)
+	}
+
+	// Must also contain the articles-list container that the observer targets
+	if !strings.Contains(body, `id="articles-list"`) {
+		t.Error("rendered page missing articles-list container")
 	}
 }

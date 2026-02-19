@@ -433,6 +433,89 @@ func TestHandlerGetCategoryArticles(t *testing.T) {
 	}
 }
 
+// TestHandlerGetSubcategoryArticles verifies that navigating to a subcategory
+// returns its articles via the API — the same endpoint the client-side JS calls
+// after which initAutoMarkRead must re-attach the IntersectionObserver.
+func TestHandlerGetSubcategoryArticles(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	ctx, user := testUser(t, s)
+	q := dbgen.New(s.DB)
+
+	// Create parent > child category hierarchy
+	parent := createCategory(t, s, user.ID, "Gaming")
+	child := createCategory(t, s, user.ID, "VR")
+	if err := q.UpdateCategoryParent(context.Background(), dbgen.UpdateCategoryParentParams{
+		ParentID: &parent.ID, SortOrder: new(int64), ID: child.ID, UserID: &user.ID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Feed with articles in the subcategory
+	feed := createFeed(t, s, user.ID, "VR News", "http://vr.example.com/rss")
+	art1 := createArticle(t, s, feed.ID, "Quest 4 announced", "vr-g1")
+	art2 := createArticle(t, s, feed.ID, "PSVR2 update", "vr-g2")
+	if err := q.AddFeedToCategory(context.Background(), dbgen.AddFeedToCategoryParams{
+		FeedID: feed.ID, CategoryID: child.ID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Fetch subcategory articles (simulates client-side navigation)
+	w := serveMux(t, "GET /api/categories/{id}/articles", s.apiGetCategoryArticles,
+		"GET", fmt.Sprintf("/api/categories/%d/articles", child.ID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("subcategory articles: got %d: %s", w.Code, w.Body.String())
+	}
+	m := jsonBody(t, w)
+	articles, ok := m["articles"].([]any)
+	if !ok {
+		t.Fatalf("expected articles array, got %T", m["articles"])
+	}
+	if len(articles) != 2 {
+		t.Fatalf("expected 2 articles, got %d", len(articles))
+	}
+
+	// Each article must have an id field (needed by JS for data-id / observer)
+	for _, raw := range articles {
+		a := raw.(map[string]any)
+		if _, ok := a["id"]; !ok {
+			t.Error("article missing id field")
+		}
+	}
+
+	// Now batch-mark those articles as read (simulates what the auto-mark
+	// observer does after scrolling past them)
+	body := fmt.Sprintf(`{"ids":[%d,%d]}`, art1.ID, art2.ID)
+	w = serveAPI(t, s.apiBatchMarkRead, "POST", "/api/articles/batch-read", body, ctx)
+	if w.Code != 200 {
+		t.Fatalf("batch-read: got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify both articles are now read
+	for _, id := range []int64{art1.ID, art2.ID} {
+		var isRead bool
+		if err := s.DB.QueryRow("SELECT is_read FROM articles WHERE id = ?", id).Scan(&isRead); err != nil {
+			t.Fatal(err)
+		}
+		if !isRead {
+			t.Errorf("article %d should be read after batch-mark", id)
+		}
+	}
+
+	// Re-fetch: subcategory should now have 0 unread articles
+	w = serveMux(t, "GET /api/categories/{id}/articles", s.apiGetCategoryArticles,
+		"GET", fmt.Sprintf("/api/categories/%d/articles", child.ID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("re-fetch: got %d", w.Code)
+	}
+	m = jsonBody(t, w)
+	articles = m["articles"].([]any)
+	if len(articles) != 0 {
+		t.Errorf("expected 0 unread articles after batch-mark, got %d", len(articles))
+	}
+}
+
 func TestHandlerGetFeedArticles(t *testing.T) {
 	t.Parallel()
 	s := testServer(t)
