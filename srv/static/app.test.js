@@ -1439,6 +1439,45 @@ describe('updateFeedErrors', () => {
   });
 });
 
+describe('updateCounts', () => {
+  it('clears category badges missing from the response', async () => {
+    // Set up badges in DOM
+    const sidebar = document.createElement('div');
+    sidebar.innerHTML = `
+      <span data-count="category-1">10</span>
+      <span data-count="category-2">5</span>
+      <span data-count="feed-1">8</span>
+      <span data-count="feed-2">3</span>
+      <span data-count="unread">23</span>
+      <span data-count="starred">0</span>
+      <span data-count="queue">0</span>
+    `;
+    document.body.appendChild(sidebar);
+
+    // API returns only category-1 and feed-1 (category-2 and feed-2 went to 0)
+    window.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        unread: 12,
+        starred: 0,
+        queue: 0,
+        categories: { '1': 7 },
+        feeds: { '1': 5 },
+        feedErrors: {},
+      }),
+      text: async () => '',
+    }));
+
+    await window.updateCounts();
+
+    expect(document.querySelector('[data-count="category-1"]').textContent).toBe('7');
+    expect(document.querySelector('[data-count="category-2"]').textContent).toBe('');
+    expect(document.querySelector('[data-count="feed-1"]').textContent).toBe('5');
+    expect(document.querySelector('[data-count="feed-2"]').textContent).toBe('');
+    expect(document.querySelector('[data-count="unread"]').textContent).toBe('12');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Meta-test: ensure every app.js function has a test or is explicitly skipped.
 // When adding a new function to app.js, either write a test for it or add it
