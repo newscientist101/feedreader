@@ -1338,6 +1338,44 @@ describe('loadMoreArticles', () => {
   });
 });
 
+describe('checkScrollForMore', () => {
+  it('calls loadMoreArticles when near the bottom of the page', async () => {
+    Object.defineProperty(window, 'location', {
+      value: { pathname: '/feed/8' }, writable: true, configurable: true,
+    });
+    window.paginationDone = false;
+    window.paginationLoading = false;
+    window.paginationCursorTime = '2025-01-01T00:00:00Z';
+    window.paginationCursorId = '999';
+    window.queuedIdsReady = Promise.resolve();
+
+    // Simulate being near the bottom: scrollY + innerHeight >= offsetHeight - 600
+    Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true });
+    Object.defineProperty(window, 'scrollY', { value: 600, configurable: true, writable: true });
+    Object.defineProperty(document.body, 'offsetHeight', { value: 1000, configurable: true });
+
+    window.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ articles: [] }),
+      text: async () => '',
+    }));
+
+    window.checkScrollForMore();
+    await vi.runAllTimersAsync();
+
+    expect(window.fetch).toHaveBeenCalled();
+  });
+
+  it('does not load when paginationDone is true', () => {
+    window.paginationDone = true;
+    window.fetch = vi.fn();
+
+    window.checkScrollForMore();
+
+    expect(window.fetch).not.toHaveBeenCalled();
+  });
+});
+
 describe('processEmbeds', () => {
   it('replaces video embeds with YouTube iframes', () => {
     const container = document.createElement('div');

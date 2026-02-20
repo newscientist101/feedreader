@@ -2086,13 +2086,19 @@ async function loadMoreArticles() {
     } finally {
         paginationLoading = false;
         updateEndOfArticlesIndicator();
+        // Re-check scroll position: if still near the bottom after appending,
+        // trigger the next load immediately (the scroll event won't re-fire
+        // if the user has stopped scrolling).
+        checkScrollForMore();
     }
 }
 
-window.addEventListener('scroll', () => {
+function checkScrollForMore() {
     if (paginationDone || paginationLoading) return;
     const scrollBottom = window.innerHeight + window.scrollY;
     if (scrollBottom >= document.body.offsetHeight - 600) {
         loadMoreArticles();
     }
-});
+}
+
+window.addEventListener('scroll', checkScrollForMore);
