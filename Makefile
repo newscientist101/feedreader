@@ -8,6 +8,7 @@ clean:
 
 test:
 	go test ./...
+	@go test -v -run TestPerformance ./srv/ 2>&1 | grep -E '(median=|FAIL|PASS)'
 	NO_COLOR=1 npx vitest run
 
 lint: lint-go lint-js lint-templates lint-html
