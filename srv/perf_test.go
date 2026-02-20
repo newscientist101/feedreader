@@ -28,12 +28,13 @@ func drainClose(resp *http.Response) {
 var perfThresholds = map[string]time.Duration{
 	"/article/1":  50 * time.Millisecond,
 	"/":           50 * time.Millisecond,
+	"/category/1": 50 * time.Millisecond,
 	"/api/counts": 20 * time.Millisecond,
 }
 
 // seedPerfData populates the database with enough feeds, categories, and
 // articles to surface N+1 query regressions.
-func seedPerfData(t *testing.T, s *Server, userID int64) int64 {
+func seedPerfData(t *testing.T, s *Server, userID int64) (articleID, categoryID int64) {
 	t.Helper()
 	q := dbgen.New(s.DB)
 	ctx := t
@@ -53,7 +54,6 @@ func seedPerfData(t *testing.T, s *Server, userID int64) int64 {
 	}
 
 	// Create 200 feeds, each assigned to a category, with a few articles each
-	var firstArticleID int64
 	interval := int64(60)
 	for i := range 200 {
 		feed, err := q.CreateFeed(t.Context(), dbgen.CreateFeedParams{
@@ -89,13 +89,13 @@ func seedPerfData(t *testing.T, s *Server, userID int64) int64 {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if firstArticleID == 0 {
-				firstArticleID = article.ID
+			if articleID == 0 {
+				articleID = article.ID
 			}
 		}
 	}
 
-	return firstArticleID
+	return articleID, catIDs[0]
 }
 
 func TestPerformance(t *testing.T) {
@@ -115,12 +115,14 @@ func TestPerformance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	articleID := seedPerfData(t, s, dbUser.ID)
+	articleID, categoryID := seedPerfData(t, s, dbUser.ID)
 
 	articlePath := fmt.Sprintf("/article/%d", articleID)
+	categoryPath := fmt.Sprintf("/category/%d", categoryID)
 	endpoints := []string{
 		articlePath,
 		"/",
+		categoryPath,
 		"/api/counts",
 	}
 
@@ -131,10 +133,13 @@ func TestPerformance(t *testing.T) {
 	}
 
 	for _, ep := range endpoints {
-		// Use the generic threshold key (normalize article ID)
+		// Use the generic threshold key (normalize dynamic IDs)
 		thresholdKey := ep
-		if ep == articlePath {
+		switch ep {
+		case articlePath:
 			thresholdKey = "/article/1"
+		case categoryPath:
+			thresholdKey = "/category/1"
 		}
 		threshold := perfThresholds[thresholdKey]
 
