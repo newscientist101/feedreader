@@ -17,7 +17,7 @@ lint-go:
 	golangci-lint run ./...
 
 lint-js:
-	eslint srv/static/
+	npx eslint srv/static/
 
 lint-templates:
 	go run ./cmd/lint-templates/ srv/templates/
