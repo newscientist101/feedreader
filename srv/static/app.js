@@ -1337,7 +1337,11 @@ async function updateCounts() {
             queueBadge.textContent = counts.queue || '';
         }
         
-        // Update category counts
+        // Update category counts — zero all first, then set from response
+        // (categories with 0 unread are omitted from the response)
+        document.querySelectorAll('[data-count^="category-"]').forEach(badge => {
+            badge.textContent = '';
+        });
         if (counts.categories) {
             for (const [catId, count] of Object.entries(counts.categories)) {
                 const badge = document.querySelector(`[data-count="category-${catId}"]`);
@@ -1347,12 +1351,17 @@ async function updateCounts() {
             }
         }
         
-        // Update feed counts and errors
+        // Update feed counts — zero all first, then set from response
+        // (feeds with 0 unread are omitted from the response)
+        document.querySelectorAll('[data-count^="feed-"]').forEach(badge => {
+            if (!badge.classList.contains('pending')) {
+                badge.textContent = '';
+            }
+        });
         if (counts.feeds) {
             for (const [feedId, count] of Object.entries(counts.feeds)) {
                 const badges = document.querySelectorAll(`[data-count="feed-${feedId}"]`);
                 badges.forEach(badge => {
-                    // Don't overwrite pending indicator for never-fetched feeds
                     if (!badge.classList.contains('pending') || count > 0) {
                         badge.textContent = count || '';
                         badge.classList.remove('pending');
