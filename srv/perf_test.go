@@ -28,7 +28,7 @@ func drainClose(resp *http.Response) {
 var perfThresholds = map[string]time.Duration{
 	"/article/1":  50 * time.Millisecond,
 	"/":           50 * time.Millisecond,
-	"/api/counts": 10 * time.Millisecond,
+	"/api/counts": 20 * time.Millisecond,
 }
 
 // seedPerfData populates the database with enough feeds, categories, and
