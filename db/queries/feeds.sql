@@ -101,3 +101,16 @@ SELECT user_id FROM feeds WHERE id = ?;
 
 -- name: UpdateFeedSiteURL :exec
 UPDATE feeds SET site_url = ? WHERE id = ?;
+
+-- name: GetAllFeedUnreadCounts :many
+SELECT feed_id, COUNT(*) as count FROM articles
+WHERE is_read = 0
+  AND feed_id IN (SELECT id FROM feeds WHERE user_id = ?)
+GROUP BY feed_id;
+
+-- name: GetAllCategoryUnreadCounts :many
+SELECT fc.category_id, COUNT(*) as count FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+JOIN feed_categories fc ON f.id = fc.feed_id
+WHERE a.is_read = 0 AND f.user_id = ?
+GROUP BY fc.category_id;

@@ -130,6 +130,77 @@ func (q *Queries) DeleteFeed(ctx context.Context, arg DeleteFeedParams) error {
 	return err
 }
 
+const getAllCategoryUnreadCounts = `-- name: GetAllCategoryUnreadCounts :many
+SELECT fc.category_id, COUNT(*) as count FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+JOIN feed_categories fc ON f.id = fc.feed_id
+WHERE a.is_read = 0 AND f.user_id = ?
+GROUP BY fc.category_id
+`
+
+type GetAllCategoryUnreadCountsRow struct {
+	CategoryID int64 `json:"category_id"`
+	Count      int64 `json:"count"`
+}
+
+func (q *Queries) GetAllCategoryUnreadCounts(ctx context.Context, userID *int64) ([]GetAllCategoryUnreadCountsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAllCategoryUnreadCounts, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetAllCategoryUnreadCountsRow{}
+	for rows.Next() {
+		var i GetAllCategoryUnreadCountsRow
+		if err := rows.Scan(&i.CategoryID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllFeedUnreadCounts = `-- name: GetAllFeedUnreadCounts :many
+SELECT feed_id, COUNT(*) as count FROM articles
+WHERE is_read = 0
+  AND feed_id IN (SELECT id FROM feeds WHERE user_id = ?)
+GROUP BY feed_id
+`
+
+type GetAllFeedUnreadCountsRow struct {
+	FeedID int64 `json:"feed_id"`
+	Count  int64 `json:"count"`
+}
+
+func (q *Queries) GetAllFeedUnreadCounts(ctx context.Context, userID *int64) ([]GetAllFeedUnreadCountsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAllFeedUnreadCounts, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetAllFeedUnreadCountsRow{}
+	for rows.Next() {
+		var i GetAllFeedUnreadCountsRow
+		if err := rows.Scan(&i.FeedID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getCategory = `-- name: GetCategory :one
 SELECT id, name, created_at, user_id, sort_order, parent_id FROM categories WHERE id = ? AND user_id = ?
 `

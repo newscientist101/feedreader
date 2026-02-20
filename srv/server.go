@@ -412,25 +412,24 @@ func (s *Server) getCommonData(ctx context.Context) map[string]any {
 	queueCount, _ := q.GetQueueCount(ctx, userID)
 	categories, _ := q.ListCategories(ctx, &userID)
 
+	// Batch queries replace N+1 per-feed/per-category loops
 	feedCounts := make(map[int64]int64)
-	for i := range feedList {
-		count, _ := q.GetFeedUnreadCount(ctx, feedList[i].ID)
-		feedCounts[feedList[i].ID] = count
+	feedCountRows, _ := q.GetAllFeedUnreadCounts(ctx, &userID)
+	for _, row := range feedCountRows {
+		feedCounts[row.FeedID] = row.Count
 	}
 
 	catCounts := make(map[int64]int64)
-	for _, cat := range categories {
-		count, _ := q.GetCategoryUnreadCount(ctx, cat.ID)
-		catCounts[cat.ID] = count
+	catCountRows, _ := q.GetAllCategoryUnreadCounts(ctx, &userID)
+	for _, row := range catCountRows {
+		catCounts[row.CategoryID] = row.Count
 	}
 
 	// Get feed-to-category mapping
 	feedCategories := make(map[int64]int64)
-	for i := range feedList {
-		cats, _ := q.GetFeedCategories(ctx, feedList[i].ID)
-		if len(cats) > 0 {
-			feedCategories[feedList[i].ID] = cats[0].ID
-		}
+	mappings, _ := q.ListFeedCategoryMappings(ctx, &userID)
+	for _, m := range mappings {
+		feedCategories[m.FeedID] = m.CategoryID
 	}
 
 	// Build category tree for hierarchical display
@@ -967,26 +966,28 @@ func (s *Server) apiGetCounts(w http.ResponseWriter, r *http.Request) {
 	userID := user.ID
 
 	feedList, _ := q.ListFeeds(ctx, &userID)
-	categories, _ := q.ListCategories(ctx, &userID)
 
 	unreadCount, _ := q.GetUnreadCount(ctx, &userID)
 	starredCount, _ := q.GetStarredCount(ctx, &userID)
 	queueCount, _ := q.GetQueueCount(ctx, userID)
 
 	feedCounts := make(map[int64]int64)
+	feedCountRows, _ := q.GetAllFeedUnreadCounts(ctx, &userID)
+	for _, row := range feedCountRows {
+		feedCounts[row.FeedID] = row.Count
+	}
+
 	feedErrors := make(map[int64]string)
 	for i := range feedList {
-		count, _ := q.GetFeedUnreadCount(ctx, feedList[i].ID)
-		feedCounts[feedList[i].ID] = count
 		if feedList[i].LastError != nil && *feedList[i].LastError != "" {
 			feedErrors[feedList[i].ID] = *feedList[i].LastError
 		}
 	}
 
 	catCounts := make(map[int64]int64)
-	for _, cat := range categories {
-		count, _ := q.GetCategoryUnreadCount(ctx, cat.ID)
-		catCounts[cat.ID] = count
+	catCountRows, _ := q.GetAllCategoryUnreadCounts(ctx, &userID)
+	for _, row := range catCountRows {
+		catCounts[row.CategoryID] = row.Count
 	}
 
 	jsonResponse(w, map[string]any{
