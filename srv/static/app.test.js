@@ -269,12 +269,12 @@ describe('markReadSilent', () => {
       ok: true, json: () => Promise.resolve({ status: 'ok' }),
     }));
     window.markReadSilent(1);
-    vi.advanceTimersByTime(300);
+    vi.advanceTimersByTime(150);
     window.markReadSilent(2);
-    vi.advanceTimersByTime(300);
-    // Only 600ms total, but timer was reset at 300ms so another 200ms to go
+    vi.advanceTimersByTime(150);
+    // Only 300ms total, but timer was reset at 150ms so another 100ms to go
     expect(window.fetch).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(200);
+    vi.advanceTimersByTime(100);
     expect(window.fetch).toHaveBeenCalledTimes(1);
     const body = JSON.parse(window.fetch.mock.calls[0][1].body);
     expect(body.ids).toEqual([1, 2]);

@@ -256,7 +256,7 @@ function markReadSilent(id) {
     }
     _markReadQueue.push(Number(id));
     if (_markReadTimer) clearTimeout(_markReadTimer);
-    _markReadTimer = setTimeout(flushMarkReadQueue, 500);
+    _markReadTimer = setTimeout(flushMarkReadQueue, 250);
 }
 
 function openArticle(id) {
