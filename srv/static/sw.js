@@ -382,6 +382,8 @@ async function buildOfflineQueuePage() {
   <title>Queue (Offline) \u2014 FeedReader</title>
   <link rel="stylesheet" href="${cssUrl}">
   <style>
+    /* Use the app's mobile-header but always show it (no sidebar toggle) */
+    .mobile-header { display: flex; }
     .offline-banner {
       background: #e67e22;
       color: #fff;
@@ -389,44 +391,33 @@ async function buildOfflineQueuePage() {
       padding: 8px 16px;
       font-size: 14px;
       font-weight: 500;
-      position: sticky;
-      top: 0;
+      position: fixed;
+      top: 0; left: 0; right: 0;
       z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
       transition: background 0.3s;
     }
-    .offline-banner svg { vertical-align: middle; margin-right: 6px; }
-    .offline-queue-app {
+    .offline-banner svg { flex-shrink: 0; }
+    .mobile-header { top: 36px; }
+    .offline-queue-content {
       max-width: 800px;
       margin: 0 auto;
-      padding: 0 16px;
+      padding: 96px 16px 16px;
     }
-    .offline-queue-app .article-body img { max-width: 100%; height: auto; }
-    .offline-queue-app .article-body iframe,
-    .offline-queue-app .article-body video,
-    .offline-queue-app .article-body object,
-    .offline-queue-app .article-body embed { display: none; }
+    .offline-queue-content .article-body img { max-width: 100%; height: auto; }
+    .offline-queue-content .article-body iframe,
+    .offline-queue-content .article-body video,
+    .offline-queue-content .article-body object,
+    .offline-queue-content .article-body embed { display: none; }
     .offline-empty {
       text-align: center;
       padding: 80px 20px;
       color: var(--text-secondary, #999);
     }
     .offline-empty svg { opacity: 0.4; margin-bottom: 16px; }
-    .offline-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 0;
-      border-bottom: 1px solid var(--border-color, #333);
-      margin-bottom: 16px;
-    }
-    .offline-header .logo {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-weight: 600;
-      font-size: 18px;
-      color: var(--text-primary, #eee);
-    }
     .offline-meta {
       display: flex;
       gap: 12px;
@@ -474,15 +465,15 @@ async function buildOfflineQueuePage() {
     </svg>
     You're offline \u2014 reading from cached queue
   </div>
-  <div class="offline-queue-app">
-    <div class="offline-header">
-      <div class="logo">
-        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-          <path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20C5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27V4.44m0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93V10.1Z"/>
-        </svg>
-        FeedReader
-      </div>
+  <div class="mobile-header">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+        <path d="M6.18 15.64a2.18 2.18 0 0 1 2.18 2.18C8.36 19 7.38 20 6.18 20C5 20 4 19 4 17.82a2.18 2.18 0 0 1 2.18-2.18M4 4.44A15.56 15.56 0 0 1 19.56 20h-2.83A12.73 12.73 0 0 0 4 7.27V4.44m0 5.66a9.9 9.9 0 0 1 9.9 9.9h-2.83A7.07 7.07 0 0 0 4 12.93V10.1Z"/>
+      </svg>
+      <span>FeedReader</span>
     </div>
+  </div>
+  <div class="offline-queue-content">
     <div id="queue-content"></div>
   </div>
   <script>
