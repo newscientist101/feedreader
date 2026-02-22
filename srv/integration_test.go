@@ -657,3 +657,226 @@ func TestIntegration_EmptyStatePages(t *testing.T) {
 		})
 	}
 }
+
+// ---------- Service Worker and Offline Queue Support ----------
+
+func TestIntegration_ServiceWorkerEndpoint(t *testing.T) {
+	t.Parallel()
+	ts, _ := integrationServer(t)
+
+	// 1. /sw.js should be accessible without auth
+	resp, err := http.Get(ts.URL + "/sw.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	// 2. Correct Content-Type
+	ct := resp.Header.Get("Content-Type")
+	if ct != "application/javascript" {
+		t.Fatalf("expected application/javascript, got %q", ct)
+	}
+
+	// 3. Service-Worker-Allowed header set to root
+	swa := resp.Header.Get("Service-Worker-Allowed")
+	if swa != "/" {
+		t.Fatalf("expected Service-Worker-Allowed=/, got %q", swa)
+	}
+
+	// 4. No-cache for SW updates
+	cc := resp.Header.Get("Cache-Control")
+	if cc != "no-cache" {
+		t.Fatalf("expected Cache-Control=no-cache, got %q", cc)
+	}
+
+	// 5. Body contains SW code
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "ENABLE_OFFLINE") {
+		t.Fatal("sw.js body missing expected ENABLE_OFFLINE string")
+	}
+}
+
+func TestIntegration_QueueOfflineWorkflow(t *testing.T) {
+	t.Parallel()
+	ts, s := integrationServer(t)
+
+	// Create user by making an auth'd request
+	resp := authGet(t, ts, "/api/counts")
+	resp.Body.Close()
+
+	var userID int64
+	s.DB.QueryRow("SELECT id FROM users WHERE external_id = 'integ-user'").Scan(&userID)
+	if userID == 0 {
+		t.Fatal("user not created")
+	}
+
+	// Insert a feed with articles
+	_, err := s.DB.Exec(`INSERT INTO feeds (name, url, feed_type, user_id) VALUES (?, ?, ?, ?)`,
+		"Offline Test Feed", "http://offline.example.com/rss", "rss", userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var feedID int64
+	s.DB.QueryRow("SELECT id FROM feeds WHERE user_id = ? AND name = 'Offline Test Feed'", userID).Scan(&feedID)
+
+	// Insert 3 articles with content (for offline reading)
+	for i := 1; i <= 3; i++ {
+		_, err := s.DB.Exec(
+			`INSERT INTO articles (feed_id, guid, title, url, content, summary) VALUES (?, ?, ?, ?, ?, ?)`,
+			feedID,
+			fmt.Sprintf("offline-guid-%d", i),
+			fmt.Sprintf("Offline Article %d", i),
+			fmt.Sprintf("http://offline.example.com/%d", i),
+			fmt.Sprintf("<p>Full content of article %d</p>", i),
+			fmt.Sprintf("Summary of article %d", i),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Get article IDs
+	rows, err := s.DB.Query("SELECT id FROM articles WHERE feed_id = ? ORDER BY id", feedID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var articleIDs []int64
+	for rows.Next() {
+		var id int64
+		rows.Scan(&id)
+		articleIDs = append(articleIDs, id)
+	}
+	rows.Close()
+	if len(articleIDs) != 3 {
+		t.Fatalf("expected 3 articles, got %d", len(articleIDs))
+	}
+
+	// 1. Add all 3 articles to queue
+	for _, id := range articleIDs {
+		resp := authPost(t, ts, fmt.Sprintf("/api/articles/%d/queue", id), "")
+		if resp.StatusCode != 200 {
+			t.Fatalf("add to queue article %d: %d", id, resp.StatusCode)
+		}
+		m := readJSON(t, resp)
+		if m["queued"] != true {
+			t.Fatalf("expected queued=true for article %d", id)
+		}
+	}
+
+	// 2. GET /api/queue returns all 3 with full content (used by SW caching)
+	resp = authGet(t, ts, "/api/queue")
+	if resp.StatusCode != 200 {
+		t.Fatalf("queue list: %d", resp.StatusCode)
+	}
+	arr := readJSONArray(t, resp)
+	if len(arr) != 3 {
+		t.Fatalf("expected 3 queued articles, got %d", len(arr))
+	}
+
+	// Verify articles have content and feed_name (needed for offline rendering)
+	for i, item := range arr {
+		a, ok := item.(map[string]any)
+		if !ok {
+			t.Fatalf("article %d: not a map", i)
+		}
+		if a["title"] == nil || a["title"] == "" {
+			t.Fatalf("article %d: missing title", i)
+		}
+		if a["content"] == nil || a["content"] == "" {
+			t.Fatalf("article %d: missing content (needed for offline)", i)
+		}
+		if a["feed_name"] == nil || a["feed_name"] == "" {
+			t.Fatalf("article %d: missing feed_name (needed for offline)", i)
+		}
+	}
+
+	// 3. Queue page renders with first article
+	resp = authGet(t, ts, "/queue")
+	if resp.StatusCode != 200 {
+		t.Fatalf("queue page: %d", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	pageHTML := string(body)
+	if !strings.Contains(pageHTML, "Offline Article 1") {
+		t.Fatal("queue page should show the first article")
+	}
+	if !strings.Contains(pageHTML, "1 of 3") {
+		t.Fatal("queue page should show '1 of 3'")
+	}
+
+	// 4. Remove first article from queue (simulates offline dequeue replay)
+	resp = authDo(t, ts, "DELETE", fmt.Sprintf("/api/articles/%d/queue", articleIDs[0]), "")
+	if resp.StatusCode != 200 {
+		t.Fatalf("dequeue: %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// 5. Queue should now have 2 articles
+	resp = authGet(t, ts, "/api/queue")
+	if resp.StatusCode != 200 {
+		t.Fatalf("queue list after dequeue: %d", resp.StatusCode)
+	}
+	arr = readJSONArray(t, resp)
+	if len(arr) != 2 {
+		t.Fatalf("expected 2 queued articles after dequeue, got %d", len(arr))
+	}
+
+	// 6. Queue page now shows article 2
+	resp = authGet(t, ts, "/queue")
+	if resp.StatusCode != 200 {
+		t.Fatalf("queue page after dequeue: %d", resp.StatusCode)
+	}
+	body, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	pageHTML = string(body)
+	if !strings.Contains(pageHTML, "Offline Article 2") {
+		t.Fatal("queue page should now show the second article")
+	}
+	if !strings.Contains(pageHTML, "1 of 2") {
+		t.Fatal("queue page should show '1 of 2'")
+	}
+
+	// 7. Toggle queue removes and re-adds (idempotency)
+	resp = authPost(t, ts, fmt.Sprintf("/api/articles/%d/queue", articleIDs[1]), "")
+	m := readJSON(t, resp)
+	if m["queued"] != false {
+		t.Fatal("toggle should remove from queue")
+	}
+	resp = authPost(t, ts, fmt.Sprintf("/api/articles/%d/queue", articleIDs[1]), "")
+	m = readJSON(t, resp)
+	if m["queued"] != true {
+		t.Fatal("toggle should re-add to queue")
+	}
+
+	// 8. Empty queue page renders correctly
+	for _, id := range articleIDs {
+		resp = authDo(t, ts, "DELETE", fmt.Sprintf("/api/articles/%d/queue", id), "")
+		resp.Body.Close()
+	}
+	resp = authGet(t, ts, "/queue")
+	if resp.StatusCode != 200 {
+		t.Fatalf("empty queue page: %d", resp.StatusCode)
+	}
+	body, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if !strings.Contains(string(body), "Queue is empty") {
+		t.Fatal("empty queue page should show empty state")
+	}
+
+	// 9. Empty queue API returns empty array (not null)
+	resp = authGet(t, ts, "/api/queue")
+	if resp.StatusCode != 200 {
+		t.Fatalf("empty queue API: %d", resp.StatusCode)
+	}
+	arr = readJSONArray(t, resp)
+	if arr == nil {
+		t.Fatal("empty queue API should return [], not null")
+	}
+	if len(arr) != 0 {
+		t.Fatalf("expected 0, got %d", len(arr))
+	}
+}
