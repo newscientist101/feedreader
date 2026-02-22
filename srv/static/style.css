@@ -328,6 +328,7 @@ body {
     background: var(--bg-page);
     padding-top: 10px;
     padding-bottom: 10px;
+    overflow: hidden;
 }
 
 .view-header h1 {
@@ -1589,13 +1590,17 @@ th {
         padding-right: 15px;
     }
     
-    .view-header h1 {
+    .view-header > h1 {
         font-size: 1.4rem;
         flex: 0 0 100%;
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+    }
+
+    .view-header .header-title h1 {
+        font-size: 1.4rem;
     }
 
     .view-toggle {
@@ -2096,6 +2101,16 @@ th {
     display: flex;
     align-items: center;
     gap: 15px;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.header-title h1 {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .header-title .back-link {
@@ -2749,6 +2764,8 @@ th {
     align-items: center;
     padding: 15px 0;
     border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 10px;
 }
 
 .preference-item:last-child {
@@ -2832,6 +2849,7 @@ th {
 .radio-group {
     display: flex;
     gap: 20px;
+    flex-wrap: wrap;
 }
 
 .radio-option {
