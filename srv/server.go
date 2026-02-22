@@ -213,6 +213,14 @@ func (s *Server) Handler() http.Handler {
 		staticFS.ServeHTTP(w, r)
 	})))
 
+	// Serve service worker from root path so it can control all routes
+	mux.HandleFunc("GET /sw.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/javascript")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Service-Worker-Allowed", "/")
+		http.ServeFile(w, r, filepath.Join(s.StaticDir, "sw.js"))
+	})
+
 	// Wrap with auth middleware, then gzip compression
 	return gzipMiddleware(s.AuthMiddleware(mux))
 }

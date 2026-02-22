@@ -63,13 +63,11 @@
         // Remove current article from queue
         await api('DELETE', `/api/articles/${currentId}/queue`);
         queueIndex++;
-        if (queueIndex < queueArticleIds.length) {
-            // Navigate to queue page — server will render next article
-            window.location.href = '/queue';
-        } else {
-            // Queue is done
-            window.location.href = '/queue';
+        if (typeof updateQueueCacheIfStandalone === 'function') {
+            updateQueueCacheIfStandalone();
         }
+        // Navigate to queue page — server will render next article
+        window.location.href = '/queue';
     }
     </script>
 </div>

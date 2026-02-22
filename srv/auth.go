@@ -55,8 +55,8 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 		externalID := r.Header.Get("X-Exedev-Userid")
 		email := r.Header.Get("X-Exedev-Email")
 
-		// Allow static files without auth
-		if len(r.URL.Path) >= 7 && r.URL.Path[:7] == "/static" {
+		// Allow static files and service worker without auth
+		if (len(r.URL.Path) >= 7 && r.URL.Path[:7] == "/static") || r.URL.Path == "/sw.js" {
 			next.ServeHTTP(w, r)
 			return
 		}

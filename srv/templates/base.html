@@ -161,15 +161,11 @@
     <script>window.__settings = {{toJSON .Settings}};</script>
     <script src="{{staticPath "app.js"}}"></script>
     <script>
-        // Register Service Worker for PWA (once)
+        // Register Service Worker for PWA with root scope
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistration('/static/').then((reg) => {
-                if (!reg) {
-                    navigator.serviceWorker.register('/static/sw.js')
-                        .then((r) => console.log('Service Worker registered', r.scope))
-                        .catch((err) => console.log('Service Worker registration failed', err));
-                }
-            });
+            navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                .then((r) => console.log('Service Worker registered', r.scope))
+                .catch((err) => console.log('Service Worker registration failed', err));
         }
     </script>
 </body>

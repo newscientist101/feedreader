@@ -1526,6 +1526,17 @@ const UNTESTED_FUNCTIONS = {
   toggleFolderCollapse:      'folder expand/collapse',
   toggleSidebar:             'sidebar toggle',
 
+  // -- PWA offline support (require Service Worker + navigator.onLine) --
+  initOfflineSupport:        'requires serviceWorker API',
+  cacheQueueForOffline:      'requires serviceWorker API',
+  handleOnlineStateChange:   'requires navigator.onLine + serviceWorker',
+  showOfflineBanner:         'DOM banner creation',
+  hideOfflineBanner:         'DOM banner removal',
+  disableNonQueueUI:         'offline UI state toggle',
+  enableAllUI:               'offline UI state toggle',
+  replayPendingActions:      'requires serviceWorker messaging',
+  updateQueueCacheIfStandalone: 'requires serviceWorker API',
+
   // -- Functions with minimal logic --
   removeFeedErrorBanner:     'trivial DOM removal',
   setSidebarActive:          'CSS class toggle',
