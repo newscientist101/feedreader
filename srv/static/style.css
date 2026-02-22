@@ -344,6 +344,10 @@ body {
     min-width: 0;
 }
 
+.dropdown.feed-overflow-menu {
+    display: none;
+}
+
 .search-box {
     flex: 1 1 150px;
     min-width: 80px;
@@ -1565,7 +1569,7 @@ th {
     
     .view-header h1 {
         font-size: 1.4rem;
-        flex: 0 1 auto;
+        flex: 0 0 100%;
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -1577,16 +1581,41 @@ th {
     }
 
     .view-toggle button {
-        padding: 5px 7px;
+        padding: 4px 6px;
+    }
+
+    .view-toggle {
+        padding: 3px;
+        gap: 2px;
+    }
+
+    .mark-read-toggle .dropdown-chevron {
+        display: none;
     }
     
     .header-actions {
-        flex: 0 0 100%;
-        flex-wrap: wrap;
+        flex: 1 1 0;
+        flex-wrap: nowrap;
+        min-width: 0;
     }
-    
-    .search-box {
-        width: 100%;
+
+    .header-actions .search-box {
+        flex: 1 1 50px;
+        min-width: 40px;
+        max-width: none;
+    }
+
+    .header-actions .search-box input {
+        padding: 6px 10px;
+        font-size: 0.8rem;
+    }
+
+    .header-actions .feed-action-btn {
+        display: none;
+    }
+
+    .header-actions .dropdown.feed-overflow-menu {
+        display: inline-block;
     }
     
     .article-title {
