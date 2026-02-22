@@ -1723,20 +1723,32 @@ th {
         display: none;
     }
     
+    .view-list .article-card .article-body {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        padding: 8px 12px;
+    }
+
+    .view-list .article-title {
+        order: -1;
+        white-space: nowrap;
+        font-size: 0.9rem;
+    }
+
     .view-list .article-meta {
-        min-width: auto;
+        min-width: 0;
+        overflow: hidden;
+        font-size: 0.7rem;
+        opacity: 0.6;
+    }
+
+    .view-list .article-meta .feed-name {
         max-width: none;
     }
-    
-    .view-list .article-card .article-body {
-        flex-wrap: wrap;
-    }
-    
-    .view-list .article-title {
-        width: 100%;
-        order: -1;
-        margin-bottom: 5px;
-        white-space: normal;
+
+    .view-list .article-actions {
+        display: none;
     }
     
     .view-card,
