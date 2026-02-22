@@ -1531,7 +1531,6 @@ const UNTESTED_FUNCTIONS = {
   cacheQueueForOffline:      'requires serviceWorker API',
   handleOnlineStateChange:   'requires navigator.onLine + serviceWorker',
   showOfflineBanner:         'DOM banner creation',
-  hideOfflineBanner:         'DOM banner removal',
   disableNonQueueUI:         'offline UI state toggle',
   enableAllUI:               'offline UI state toggle',
   replayPendingActions:      'requires serviceWorker messaging',

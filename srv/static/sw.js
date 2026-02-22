@@ -3,9 +3,8 @@
 
 const STATIC_CACHE = 'fr-static-v1';
 const QUEUE_CACHE = 'fr-queue-v1';
-
-let offlineEnabled = false;
-let pendingActions = [];
+const PENDING_CACHE = 'fr-pending-v1';
+const STATE_CACHE = 'fr-state-v1';
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -14,7 +13,13 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((names) =>
       Promise.all(
         names
-          .filter((n) => n !== STATIC_CACHE && n !== QUEUE_CACHE)
+          .filter(
+            (n) =>
+              n !== STATIC_CACHE &&
+              n !== QUEUE_CACHE &&
+              n !== PENDING_CACHE &&
+              n !== STATE_CACHE
+          )
           .map((n) => caches.delete(n))
       )
     )
@@ -22,13 +27,80 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Persist offlineEnabled flag across SW restarts
+async function isOfflineEnabled() {
+  try {
+    const cache = await caches.open(STATE_CACHE);
+    const resp = await cache.match('/state/offline-enabled');
+    return resp !== undefined;
+  } catch {
+    return false;
+  }
+}
+
+async function setOfflineEnabled(enabled) {
+  try {
+    const cache = await caches.open(STATE_CACHE);
+    if (enabled) {
+      await cache.put(
+        '/state/offline-enabled',
+        new Response('1')
+      );
+    } else {
+      await cache.delete('/state/offline-enabled');
+    }
+  } catch {
+    // ignore
+  }
+}
+
+// Persist pending actions across SW restarts using Cache API
+async function loadPendingActions() {
+  try {
+    const cache = await caches.open(PENDING_CACHE);
+    const resp = await cache.match('/pending-actions');
+    if (resp) {
+      return await resp.json();
+    }
+  } catch {
+    // ignore
+  }
+  return [];
+}
+
+async function savePendingActions(actions) {
+  try {
+    const cache = await caches.open(PENDING_CACHE);
+    await cache.put(
+      '/pending-actions',
+      new Response(JSON.stringify(actions), {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+  } catch {
+    // ignore
+  }
+}
+
+async function addPendingAction(action) {
+  const actions = await loadPendingActions();
+  actions.push(action);
+  await savePendingActions(actions);
+}
+
+async function drainPendingActions() {
+  const actions = await loadPendingActions();
+  await savePendingActions([]);
+  return actions;
+}
+
 // Listen for messages from the app
 self.addEventListener('message', (event) => {
   const { type, data } = event.data || {};
 
   switch (type) {
     case 'ENABLE_OFFLINE':
-      offlineEnabled = true;
+      setOfflineEnabled(true);
       // Pre-cache static assets
       cacheStaticAssets(data?.staticUrls || []);
       if (event.source) {
@@ -41,17 +113,19 @@ self.addEventListener('message', (event) => {
       break;
 
     case 'GET_PENDING_ACTIONS':
-      if (event.source) {
-        event.source.postMessage({
-          type: 'PENDING_ACTIONS',
-          actions: pendingActions.splice(0),
-        });
-      }
+      drainPendingActions().then((actions) => {
+        if (event.source) {
+          event.source.postMessage({
+            type: 'PENDING_ACTIONS',
+            actions,
+          });
+        }
+      });
       break;
 
     case 'OFFLINE_DEQUEUE':
       if (data?.articleId) {
-        pendingActions.push({
+        addPendingAction({
           type: 'dequeue',
           articleId: data.articleId,
           timestamp: Date.now(),
@@ -64,7 +138,6 @@ self.addEventListener('message', (event) => {
 async function cacheStaticAssets(urls) {
   try {
     const cache = await caches.open(STATIC_CACHE);
-    // Cache each provided URL
     for (const url of urls) {
       try {
         const resp = await fetch(url);
@@ -94,38 +167,48 @@ async function cacheQueueData(articles) {
 
 // Fetch handler
 self.addEventListener('fetch', (event) => {
-  if (!offlineEnabled) return; // Pass through when not enabled
-
   const { request } = event;
   const url = new URL(request.url);
 
   // Only handle same-origin requests
   if (url.origin !== self.location.origin) return;
 
-  // Static assets: network-first with cache fallback
+  // Static assets: network-first with cache fallback (always active once
+  // anything is cached, so cached assets survive SW restarts)
   if (url.pathname.startsWith('/static/')) {
     event.respondWith(networkFirstStatic(request));
     return;
   }
 
-  // Queue API: network-first with cache fallback
+  // Everything below only activates for offline-enabled PWA mode.
+  // We check the persisted flag asynchronously.
   if (url.pathname === '/api/queue' && request.method === 'GET') {
-    event.respondWith(networkFirstQueue(request));
+    event.respondWith(
+      isOfflineEnabled().then((enabled) =>
+        enabled ? networkFirstQueue(request) : fetch(request)
+      )
+    );
     return;
   }
 
-  // Offline dequeue actions: store for later replay
   if (
     request.method === 'DELETE' &&
     url.pathname.match(/^\/api\/articles\/\d+\/queue$/)
   ) {
-    event.respondWith(handleOfflineDequeue(request, url));
+    event.respondWith(
+      isOfflineEnabled().then((enabled) =>
+        enabled ? handleOfflineDequeue(request, url) : fetch(request)
+      )
+    );
     return;
   }
 
-  // Navigation requests when offline
   if (request.mode === 'navigate') {
-    event.respondWith(handleNavigation(request, url));
+    event.respondWith(
+      isOfflineEnabled().then((enabled) =>
+        enabled ? handleNavigation(request, url) : fetch(request)
+      )
+    );
     return;
   }
 });
@@ -147,10 +230,9 @@ async function networkFirstStatic(request) {
 
 async function findCachedStatic(request) {
   const cache = await caches.open(STATIC_CACHE);
-  // Direct match first
   const direct = await cache.match(request);
   if (direct) return direct;
-  // Try matching by pathname prefix (ignore query string/hash differences)
+  // Match by pathname (ignore cache-bust query string)
   const url = new URL(request.url);
   const keys = await cache.keys();
   for (const key of keys) {
@@ -184,10 +266,9 @@ async function handleOfflineDequeue(request, url) {
   try {
     return await fetch(request);
   } catch {
-    // Offline: store action for replay
     const match = url.pathname.match(/^\/api\/articles\/(\d+)\/queue$/);
     if (match) {
-      pendingActions.push({
+      await addPendingAction({
         type: 'dequeue',
         articleId: Number(match[1]),
         timestamp: Date.now(),
@@ -200,7 +281,6 @@ async function handleOfflineDequeue(request, url) {
 }
 
 async function handleNavigation(request, url) {
-  // Queue page: serve offline version if network fails
   if (url.pathname === '/queue') {
     try {
       return await fetch(request);
@@ -209,7 +289,6 @@ async function handleNavigation(request, url) {
     }
   }
 
-  // All other pages: try network, fall back to offline notice
   try {
     return await fetch(request);
   } catch {
@@ -242,6 +321,51 @@ async function getCssUrl() {
   return '/static/style.css';
 }
 
+// Reconnection script shared by both offline pages.
+// When connectivity returns, flush pending dequeue actions to the server
+// and then reload so the browser fetches the real server-rendered page.
+const RECONNECT_SCRIPT = `
+    window.addEventListener('online', function onReconnect() {
+      window.removeEventListener('online', onReconnect);
+
+      var banner = document.querySelector('.offline-banner');
+      if (banner) {
+        banner.style.background = '#27ae60';
+        banner.innerHTML =
+          '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">' +
+          '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>' +
+          '</svg> Back online \u2014 reloading\u2026';
+      }
+
+      // Replay pending dequeue actions before reloading
+      function replayAndReload() {
+        if (!navigator.serviceWorker || !navigator.serviceWorker.controller) {
+          window.location.reload();
+          return;
+        }
+        function onMessage(evt) {
+          if (!evt.data || evt.data.type !== 'PENDING_ACTIONS') return;
+          navigator.serviceWorker.removeEventListener('message', onMessage);
+          var actions = evt.data.actions || [];
+          var promises = actions.map(function(a) {
+            if (a.type === 'dequeue') {
+              return fetch('/api/articles/' + a.articleId + '/queue', { method: 'DELETE' }).catch(function() {});
+            }
+            return Promise.resolve();
+          });
+          Promise.all(promises).then(function() {
+            window.location.reload();
+          });
+        }
+        navigator.serviceWorker.addEventListener('message', onMessage);
+        navigator.serviceWorker.controller.postMessage({ type: 'GET_PENDING_ACTIONS' });
+      }
+
+      // Small delay so the network stack settles
+      setTimeout(replayAndReload, 500);
+    });
+`;
+
 async function buildOfflineQueuePage() {
   const articles = await getQueueArticles();
   const cssUrl = await getCssUrl();
@@ -255,7 +379,7 @@ async function buildOfflineQueuePage() {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Queue (Offline) — FeedReader</title>
+  <title>Queue (Offline) \u2014 FeedReader</title>
   <link rel="stylesheet" href="${cssUrl}">
   <style>
     .offline-banner {
@@ -268,6 +392,7 @@ async function buildOfflineQueuePage() {
       position: sticky;
       top: 0;
       z-index: 1000;
+      transition: background 0.3s;
     }
     .offline-banner svg { vertical-align: middle; margin-right: 6px; }
     .offline-queue-app {
@@ -347,7 +472,7 @@ async function buildOfflineQueuePage() {
     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
       <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4c-1.48 0-2.85.43-4.01 1.17l1.46 1.46C10.21 6.23 11.08 6 12 6c3.04 0 5.5 2.46 5.5 5.5v.5H19c1.66 0 3 1.34 3 3 0 .99-.49 1.87-1.24 2.41l1.46 1.46C23.33 17.98 24 16.58 24 15c0-2.64-2.05-4.78-4.65-4.96zM3 5.27l2.75 2.74C2.56 8.15 0 10.77 0 14c0 3.31 2.69 6 6 6h11.73l2 2 1.27-1.27L4.27 4 3 5.27zM7.73 10l8 8H6c-2.21 0-4-1.79-4-4s1.79-4 4-4h1.73z"/>
     </svg>
-    You're offline — reading from cached queue
+    You're offline \u2014 reading from cached queue
   </div>
   <div class="offline-queue-app">
     <div class="offline-header">
@@ -361,34 +486,33 @@ async function buildOfflineQueuePage() {
     <div id="queue-content"></div>
   </div>
   <script>
-    const articles = ${articlesJson};
-    let currentIndex = 0;
-    const pendingDequeues = [];
+    var articles = ${articlesJson};
+    var currentIndex = 0;
 
     function escapeHtml(str) {
       if (!str) return '';
-      const d = document.createElement('div');
+      var d = document.createElement('div');
       d.textContent = str;
       return d.innerHTML;
     }
 
     function timeAgo(dateStr) {
       if (!dateStr) return '';
-      const d = new Date(dateStr);
-      const now = new Date();
-      const diffMs = now - d;
-      const mins = Math.floor(diffMs / 60000);
+      var d = new Date(dateStr);
+      var now = new Date();
+      var diffMs = now - d;
+      var mins = Math.floor(diffMs / 60000);
       if (mins < 1) return 'just now';
       if (mins < 60) return mins + 'm ago';
-      const hours = Math.floor(mins / 60);
+      var hours = Math.floor(mins / 60);
       if (hours < 24) return hours + 'h ago';
-      const days = Math.floor(hours / 24);
+      var days = Math.floor(hours / 24);
       if (days < 30) return days + 'd ago';
       return d.toLocaleDateString();
     }
 
     function render() {
-      const el = document.getElementById('queue-content');
+      var el = document.getElementById('queue-content');
       if (articles.length === 0 || currentIndex >= articles.length) {
         el.innerHTML = '<div class="offline-empty">' +
           '<svg viewBox="0 0 24 24" width="64" height="64" fill="currentColor">' +
@@ -400,8 +524,8 @@ async function buildOfflineQueuePage() {
         return;
       }
 
-      const a = articles[currentIndex];
-      const content = a.content || a.summary || '<p>No content available.</p>';
+      var a = articles[currentIndex];
+      var content = a.content || a.summary || '<p>No content available.</p>';
 
       el.innerHTML =
         '<div class="offline-queue-actions">' +
@@ -426,8 +550,7 @@ async function buildOfflineQueuePage() {
 
     function nextArticle() {
       if (currentIndex < articles.length) {
-        const a = articles[currentIndex];
-        pendingDequeues.push(a.id);
+        var a = articles[currentIndex];
         // Tell SW about pending dequeue
         if (navigator.serviceWorker && navigator.serviceWorker.controller) {
           navigator.serviceWorker.controller.postMessage({
@@ -441,6 +564,7 @@ async function buildOfflineQueuePage() {
     }
 
     render();
+    ${RECONNECT_SCRIPT}
   </script>
 </body>
 </html>`;
@@ -456,18 +580,34 @@ function buildOfflineFallbackPage() {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Offline — FeedReader</title>
+  <title>Offline \u2014 FeedReader</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: #1a1a2e;
       color: #e0e0e0;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       min-height: 100vh;
       margin: 0;
     }
+    .offline-banner {
+      background: #e67e22;
+      color: #fff;
+      text-align: center;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      transition: background 0.3s;
+    }
+    .offline-banner svg { vertical-align: middle; margin-right: 6px; }
     .offline-page {
       text-align: center;
       padding: 40px;
@@ -488,6 +628,12 @@ function buildOfflineFallbackPage() {
   </style>
 </head>
 <body>
+  <div class="offline-banner">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+      <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4c-1.48 0-2.85.43-4.01 1.17l1.46 1.46C10.21 6.23 11.08 6 12 6c3.04 0 5.5 2.46 5.5 5.5v.5H19c1.66 0 3 1.34 3 3 0 .99-.49 1.87-1.24 2.41l1.46 1.46C23.33 17.98 24 16.58 24 15c0-2.64-2.05-4.78-4.65-4.96zM3 5.27l2.75 2.74C2.56 8.15 0 10.77 0 14c0 3.31 2.69 6 6 6h11.73l2 2 1.27-1.27L4.27 4 3 5.27zM7.73 10l8 8H6c-2.21 0-4-1.79-4-4s1.79-4 4-4h1.73z"/>
+    </svg>
+    You're offline
+  </div>
   <div class="offline-page">
     <svg viewBox="0 0 24 24" width="64" height="64" fill="currentColor">
       <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4c-1.48 0-2.85.43-4.01 1.17l1.46 1.46C10.21 6.23 11.08 6 12 6c3.04 0 5.5 2.46 5.5 5.5v.5H19c1.66 0 3 1.34 3 3 0 .99-.49 1.87-1.24 2.41l1.46 1.46C23.33 17.98 24 16.58 24 15c0-2.64-2.05-4.78-4.65-4.96zM3 5.27l2.75 2.74C2.56 8.15 0 10.77 0 14c0 3.31 2.69 6 6 6h11.73l2 2 1.27-1.27L4.27 4 3 5.27zM7.73 10l8 8H6c-2.21 0-4-1.79-4-4s1.79-4 4-4h1.73z"/>
@@ -496,6 +642,9 @@ function buildOfflineFallbackPage() {
     <p>This page isn't available offline, but your reading queue is.</p>
     <a href="/queue">Go to Queue</a>
   </div>
+  <script>
+    ${RECONNECT_SCRIPT}
+  </script>
 </body>
 </html>`;
 

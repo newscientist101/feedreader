@@ -2176,12 +2176,18 @@ function handleOnlineStateChange() {
         showOfflineBanner();
         disableNonQueueUI();
     } else {
-        hideOfflineBanner();
+        // Show "reconnected" feedback then reload for fresh content
+        const banner = document.getElementById('offline-banner');
+        if (banner) {
+            banner.style.background = '#27ae60';
+            banner.innerHTML =
+                '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">' +
+                '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>' +
+                '</svg> Back online \u2014 reloading\u2026';
+        }
         enableAllUI();
-        replayPendingActions();
-        // Re-cache queue when back online
-        navigator.serviceWorker.ready.then((reg) => {
-            if (reg.active) cacheQueueForOffline(reg.active);
+        replayPendingActions(() => {
+            window.location.reload();
         });
     }
 }
@@ -2197,11 +2203,6 @@ function showOfflineBanner() {
         'You\'re offline' +
         (window.location.pathname !== '/queue' ? ' \u2014 <a href="/queue" style="color:#fff;text-decoration:underline">Go to Queue</a>' : '');
     document.body.prepend(banner);
-}
-
-function hideOfflineBanner() {
-    const banner = document.getElementById('offline-banner');
-    if (banner) banner.remove();
 }
 
 function disableNonQueueUI() {
@@ -2245,25 +2246,35 @@ function enableAllUI() {
     if (overlay) overlay.remove();
 }
 
-function replayPendingActions() {
-    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return;
+function replayPendingActions(callback) {
+    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
+        if (callback) setTimeout(callback, 0);
+        return;
+    }
 
     const handler = (event) => {
         if (event.data?.type !== 'PENDING_ACTIONS') return;
         navigator.serviceWorker.removeEventListener('message', handler);
 
         const actions = event.data.actions || [];
-        for (const action of actions) {
+        const promises = actions.map((action) => {
             if (action.type === 'dequeue') {
-                api('DELETE', `/api/articles/${action.articleId}/queue`).catch(() => {});
+                return api('DELETE', `/api/articles/${action.articleId}/queue`).catch(() => {});
             }
-        }
-        if (actions.length > 0) {
-            updateCounts();
-        }
+            return Promise.resolve();
+        });
+        Promise.all(promises).then(() => {
+            if (actions.length > 0) updateCounts();
+            if (callback) callback();
+        });
     };
     navigator.serviceWorker.addEventListener('message', handler);
     navigator.serviceWorker.controller.postMessage({ type: 'GET_PENDING_ACTIONS' });
+    // Safety timeout: if SW doesn't respond within 3s, proceed anyway
+    setTimeout(() => {
+        navigator.serviceWorker.removeEventListener('message', handler);
+        if (callback) callback();
+    }, 3000);
 }
 
 // Update queue cache when articles change
