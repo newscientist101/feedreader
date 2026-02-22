@@ -1522,7 +1522,7 @@ th {
         position: fixed;
         left: -280px;
         width: 280px;
-        z-index: 100;
+        z-index: 200;
         transition: left 0.3s ease;
         box-shadow: var(--shadow-sidebar);
     }
@@ -1641,7 +1641,7 @@ th {
     right: 0;
     bottom: 0;
     background: var(--overlay-light);
-    z-index: 99;
+    z-index: 199;
 }
 
 .sidebar-overlay.active {
