@@ -1734,6 +1734,7 @@ th {
         order: -1;
         white-space: nowrap;
         font-size: 0.9rem;
+        max-width: 100%;
     }
 
     .view-list .article-meta {
