@@ -2154,7 +2154,12 @@ function initOfflineSupport() {
     // Monitor online/offline state
     window.addEventListener('online', handleOnlineStateChange);
     window.addEventListener('offline', handleOnlineStateChange);
-    handleOnlineStateChange();
+    // Apply initial offline state if needed (without triggering reload)
+    if (!navigator.onLine) {
+        document.body.classList.add('pwa-offline');
+        showOfflineBanner();
+        disableNonQueueUI();
+    }
 }
 
 function cacheQueueForOffline(sw) {
@@ -2176,7 +2181,8 @@ function handleOnlineStateChange() {
         showOfflineBanner();
         disableNonQueueUI();
     } else {
-        // Show "reconnected" feedback then reload for fresh content
+        // This only fires on a real offline→online transition (from the
+        // 'online' event), never on initial page load.
         const banner = document.getElementById('offline-banner');
         if (banner) {
             banner.style.background = '#27ae60';
