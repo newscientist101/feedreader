@@ -2222,6 +2222,12 @@ function disableNonQueueUI() {
         el.setAttribute('data-offline-disabled', 'true');
     });
 
+    // Disable sidebar footer sections (scrapers, settings, user info)
+    document.querySelectorAll('.sidebar .feeds-section, .sidebar .feeds-header').forEach(el => {
+        el.classList.add('offline-disabled');
+        el.setAttribute('data-offline-disabled', 'true');
+    });
+
     // On non-queue pages, show overlay
     if (!isQueuePage) {
         const content = document.querySelector('.content');

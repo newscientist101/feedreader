@@ -1548,7 +1548,17 @@ th {
         padding: 15px;
         padding-top: 60px; /* Space for mobile header */
     }
-    
+
+    /* Extra space for offline banner above mobile header */
+    .pwa-offline .content {
+        padding-top: 96px;
+    }
+
+    .pwa-offline .sidebar {
+        top: 86px;
+        height: calc(100% - 86px);
+    }
+
     /* Expanded view: stack image above content on mobile */
     .view-expanded .article-card.has-image {
         grid-template-columns: 1fr;
@@ -2926,17 +2936,30 @@ th {
     padding: 8px 16px;
     font-size: 14px;
     font-weight: 500;
-    position: sticky;
+    position: fixed;
     top: 0;
+    left: 0;
+    right: 0;
     z-index: 1000;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
+    transition: background 0.3s;
 }
 
 .offline-banner svg {
     flex-shrink: 0;
+}
+
+/* Push mobile header below the offline banner */
+.pwa-offline .mobile-header {
+    top: 36px;
+}
+
+/* Push body content down to account for the fixed banner */
+.pwa-offline .app {
+    padding-top: 36px;
 }
 
 .offline-disabled {
