@@ -1514,6 +1514,14 @@ th {
     .search-box {
         min-width: 80px;
     }
+
+    .header-actions .feed-action-btn {
+        display: none;
+    }
+
+    .header-actions .dropdown.feed-overflow-menu {
+        display: inline-block;
+    }
 }
 
 /* Responsive - Mobile */
