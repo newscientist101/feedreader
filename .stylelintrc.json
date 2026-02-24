@@ -1,0 +1,21 @@
+{
+  "extends": "stylelint-config-standard",
+  "rules": {
+    "no-descending-specificity": null,
+    "no-duplicate-selectors": true,
+    "declaration-property-value-keyword-no-deprecated": true,
+    "alpha-value-notation": null,
+    "color-function-alias-notation": null,
+    "color-function-notation": null,
+    "media-feature-range-notation": null,
+    "value-keyword-case": ["lower", {
+      "ignoreFunctions": ["local"],
+      "ignoreKeywords": ["BlinkMacSystemFont", "Roboto", "Oxygen", "Ubuntu", "Monaco", "currentColor"]
+    }],
+    "declaration-empty-line-before": null,
+    "property-no-vendor-prefix": [true, {
+      "ignoreProperties": ["mask-image"]
+    }],
+    "selector-pseudo-element-colon-notation": "double"
+  }
+}

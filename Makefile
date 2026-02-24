@@ -1,4 +1,4 @@
-.PHONY: build clean stop start restart test lint lint-go lint-js lint-templates lint-html fmt fmt-check fix-check vulncheck check
+.PHONY: build clean stop start restart test lint lint-go lint-js lint-css lint-templates lint-html fmt fmt-check fix-check vulncheck check
 
 build:
 	go build -o feedreader ./cmd/srv
@@ -11,13 +11,16 @@ test:
 	@go test -v -run TestPerformance ./srv/ 2>&1 | grep -E '(median=|FAIL|PASS)'
 	NO_COLOR=1 npx vitest run
 
-lint: lint-go lint-js lint-templates lint-html
+lint: lint-go lint-js lint-css lint-templates lint-html
 
 lint-go:
 	golangci-lint run ./...
 
 lint-js:
 	npx eslint srv/static/
+
+lint-css:
+	npx stylelint srv/static/**/*.css
 
 lint-templates:
 	go run ./cmd/lint-templates/ srv/templates/
