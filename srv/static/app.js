@@ -82,32 +82,9 @@ function saveSetting(key, value) {
 
 // Apply user preferences from settings
 function applyUserPreferences() {
-    // Hide read articles
-    const hideRead = getSetting('hideReadArticles');
-    if (hideRead === 'hide') {
-        document.querySelectorAll('.article-card.read').forEach(card => {
-            card.style.display = 'none';
-        });
-    }
-    
-    // Show/hide "all read" message
+    applyHideReadArticles(getSetting('hideReadArticles'));
     updateAllReadMessage();
-    
-    // Hide empty feeds (but never hide folders - they should always be visible)
-    const hideEmpty = getSetting('hideEmptyFeeds');
-    if (hideEmpty === 'hide') {
-        // Hide feeds with no unread (but not never-fetched feeds)
-        document.querySelectorAll('.feed-item').forEach(item => {
-            // Don't hide feeds that have never been fetched
-            if (item.dataset.neverFetched === 'true') return;
-            const badge = item.querySelector('.badge');
-            const count = badge ? parseInt(badge.textContent || '0', 10) : 0;
-            if (!count) {
-                item.style.display = 'none';
-            }
-        });
-        // Folders are always visible, even when empty
-    }
+    applyHideEmptyFeeds(getSetting('hideEmptyFeeds'));
 }
 
 // Show message when all articles are read and hidden
@@ -248,12 +225,16 @@ function flushMarkReadQueue() {
 }
 
 // Mark as read without page reload (for auto-mark feature)
-function markReadSilent(id) {
+function markCardAsRead(id) {
     const card = document.querySelector(`.article-card[data-id="${id}"]`);
     if (card) {
         card.classList.add('read');
         updateReadButton(card, true);
     }
+}
+
+function markReadSilent(id) {
+    markCardAsRead(id);
     _markReadQueue.push(Number(id));
     if (_markReadTimer) clearTimeout(_markReadTimer);
     _markReadTimer = setTimeout(flushMarkReadQueue, 250);
@@ -531,7 +512,7 @@ function buildArticleCardHtml(a) {
                     ${a.url ? `<a href="${a.url}" target="_blank" onclick="openArticleExternal(event, ${a.id}, '${a.url.replace(/'/g, "\\'")}'">${a.title}</a>` : `<a href="/article/${a.id}" onclick="markReadSilent(${a.id})">${a.title}</a>`}
                 </h2>
                 ${a.summary ? `<p class="article-summary">${truncateText(stripHtml(a.summary), PREVIEW_TEXT_LIMIT)}</p>` : (a.content ? `<p class="article-summary">${truncateText(stripHtml(a.content), PREVIEW_TEXT_LIMIT)}</p>` : '')}
-                ${a.content ? `<div class="article-content-preview expanded-only" onclick="event.stopPropagation(); markReadSilent(${a.id})">${truncateText(stripHtml(a.content), PREVIEW_TEXT_LIMIT)}</div>` : (a.summary ? `<div class="article-content-preview expanded-only">${truncateText(stripHtml(a.summary), PREVIEW_TEXT_LIMIT)}</div>` : '')}
+                ${a.content ? `<div class="article-content-preview expanded-only" onclick="event.stopPropagation(); markReadSilent(${a.id})">${truncateText(stripHtml(a.content), PREVIEW_TEXT_LIMIT)}</div>` : (a.summary ? `<div class="article-content-preview expanded-only" onclick="event.stopPropagation(); markReadSilent(${a.id})">${truncateText(stripHtml(a.summary), PREVIEW_TEXT_LIMIT)}</div>` : '')}
                 ${renderArticleActions(a)}
             </div>
         </article>
@@ -821,11 +802,7 @@ async function markRead(event, id) {
     if (event) event.stopPropagation();
     try {
         await api('POST', `/api/articles/${id}/read`);
-        const card = document.querySelector(`.article-card[data-id="${id}"]`);
-        if (card) {
-            card.classList.add('read');
-            updateReadButton(card, true);
-        }
+        markCardAsRead(id);
         updateCounts();
     } catch (e) {
         console.error('Failed to mark read:', e);
@@ -853,7 +830,12 @@ async function toggleStar(event, id) {
         await api('POST', `/api/articles/${id}/star`);
         // Toggle star button appearance
         const btns = document.querySelectorAll(`[onclick="toggleStar(event, ${id})"]`);
-        btns.forEach(btn => btn.classList.toggle('starred'));
+        btns.forEach(btn => {
+            const isNowStarred = !btn.classList.contains('starred');
+            btn.classList.toggle('starred', isNowStarred);
+            btn.title = isNowStarred ? 'Unstar' : 'Star';
+            btn.innerHTML = isNowStarred ? SVG_STAR_FILLED : SVG_STAR_EMPTY;
+        });
         updateCounts();
     } catch (e) {
         console.error('Failed to toggle star:', e);
@@ -1381,7 +1363,6 @@ async function updateCounts() {
     }
 }
 
-// Update feed error indicators in sidebar
 // Update status cell in the Manage Feeds table
 function updateFeedStatusCell(feedId, lastError) {
     const row = document.querySelector(`tr[data-feed-id="${feedId}"]`);
@@ -1897,16 +1878,6 @@ document.addEventListener('dragstart', (event) => {
 
 // --- Helpers moved from inline template scripts ---
 
-// Generic confirm-and-delete: shows confirm dialog, calls DELETE, reloads on success.
-function confirmDeleteAndReload(url, name, noun) {
-    if (!confirm(`Delete ${noun} "${name}"? ${noun === 'feed' ? 'This will also delete all its articles.' : ''}`)) {
-        return;
-    }
-    api('DELETE', url)
-        .then(() => location.reload())
-        .catch(e => alert(`Failed to delete ${noun}: ` + e.message));
-}
-
 // Toggle read articles visibility (used by settings page for instant feedback)
 function applyHideReadArticles(value) {
     document.querySelectorAll('.article-card.read').forEach(card => {
@@ -1917,6 +1888,8 @@ function applyHideReadArticles(value) {
 // Toggle empty feeds visibility (used by settings page for instant feedback)
 function applyHideEmptyFeeds(value) {
     document.querySelectorAll('.feed-item').forEach(item => {
+        // Don't hide feeds that have never been fetched
+        if (item.dataset.neverFetched === 'true') return;
         const badge = item.querySelector('.badge');
         const count = badge ? parseInt(badge.textContent || '0', 10) : 0;
         if (!count) {

@@ -230,6 +230,26 @@ describe('observeNewArticles', () => {
 });
 
 // ---------------------------------------------------------------------------
+// markCardAsRead — shared DOM helper
+// ---------------------------------------------------------------------------
+
+describe('markCardAsRead', () => {
+  it('adds the "read" class and updates the read button', () => {
+    document.getElementById('articles-list').innerHTML =
+      '<article class="article-card" data-id="99"><button class="btn-read-toggle" onclick="markRead(event, 99)" title="Mark read"><svg class="icon"><use href="#icon-mark-read"></use></svg></button></article>';
+    window.markCardAsRead(99);
+    const card = document.querySelector('.article-card[data-id="99"]');
+    expect(card.classList.contains('read')).toBe(true);
+    const btn = card.querySelector('.btn-read-toggle');
+    expect(btn.getAttribute('title')).toBe('Mark unread');
+  });
+
+  it('does nothing when card is not in DOM', () => {
+    // Should not throw
+    window.markCardAsRead(999);
+  });
+});
+
 // markReadSilent / flushMarkReadQueue — batched mark-read
 // ---------------------------------------------------------------------------
 
@@ -1924,7 +1944,6 @@ const UNTESTED_FUNCTIONS = {
   closeEditModal:            'trivial modal close',
   createEditFeedModal:       'builds modal DOM, no logic to test',
   openCreateFolderModal:     'trivial modal open',
-  confirmDeleteAndReload:    'thin wrapper around confirm() + fetch',
 
   // -- DOM event wiring / init functions --
   initSettingsPage:          'settings page DOM wiring',
