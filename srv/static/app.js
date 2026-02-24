@@ -1,9 +1,14 @@
 import { getSetting, saveSetting, applyHideReadArticles, applyHideEmptyFeeds } from './modules/settings.js';
 import { toggleDropdown, initDropdownCloseListener } from './modules/dropdown.js';
 import { initTimestampTooltips } from './modules/timestamps.js';
+import { setView, initView, applyDefaultViewForScope } from './modules/views.js';
+import { toggleSidebar, setSidebarActive, navigateFolder, toggleFolderCollapse, setSidebarLoadCategory } from './modules/sidebar.js';
 
 // Initialize click-outside listener for dropdowns (was top-level in original code)
 initDropdownCloseListener();
+
+// Wire sidebar's late-bound dependency on loadCategoryArticles
+setSidebarLoadCategory((...args) => loadCategoryArticles(...args));
 
 // Max characters to put in the DOM for article text previews.
 // CSS line-clamp handles the visual truncation; this just limits DOM weight.
@@ -62,13 +67,6 @@ function updateReadButton(card, isRead) {
         btn.setAttribute('title', 'Mark read');
         btn.innerHTML = SVG_MARK_READ;
     }
-}
-
-// Sidebar highlighting helper — clears all active states in the sidebar,
-// then marks the given element (nav-item, feed-item, or folder-item) active.
-function setSidebarActive(el) {
-    document.querySelectorAll('.sidebar .active').forEach(a => a.classList.remove('active'));
-    if (el) el.classList.add('active');
 }
 
 
@@ -282,52 +280,6 @@ function removeFeedErrorBanner() {
     if (banner) banner.remove();
 }
 
-// Mobile sidebar toggle
-function toggleSidebar() {
-    const sidebar = document.querySelector('.sidebar');
-    const overlay = document.querySelector('.sidebar-overlay');
-    sidebar.classList.toggle('open');
-    overlay.classList.toggle('active');
-    document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
-}
-
-// Toggle folder expand/collapse in sidebar
-function navigateFolder(event, categoryId) {
-    // If not on the main articles page, use regular navigation
-    if (!document.getElementById('articles-list')) {
-        return true;
-    }
-    event.preventDefault();
-    const folderItem = document.querySelector(`.folder-item[data-category-id="${categoryId}"]`);
-    if (!folderItem) return false;
-    
-    // Load category articles via AJAX (also updates active state)
-    loadCategoryArticles(categoryId, folderItem.querySelector('.folder-name')?.textContent || 'Category');
-    
-    return false;
-}
-
-function toggleFolderCollapse(categoryId) {
-    const folderItem = document.querySelector(`.folder-item[data-category-id="${categoryId}"]`);
-    if (!folderItem) return;
-    if (folderItem.classList.contains('expanded')) {
-        collapseFolder(folderItem);
-    } else {
-        folderItem.classList.add('expanded');
-    }
-}
-
-function collapseFolder(folderItem) {
-    folderItem.classList.remove('expanded');
-    // Collapse nested subfolders and clear their active/expanded state
-    folderItem.querySelectorAll('.folder-item.expanded').forEach(child => {
-        child.classList.remove('expanded', 'active');
-    });
-    // Clear active from any nested feeds/folders that are now hidden
-    folderItem.querySelectorAll('.feed-item.active, .folder-item.active').forEach(child => {
-        child.classList.remove('active');
-    });
-}
 
 async function loadCategoryArticles(categoryId, categoryName) {
     showArticlesLoading();
@@ -547,85 +499,7 @@ function truncateText(text, maxLen) {
     return text.substring(0, maxLen) + '...';
 }
 
-// View mode switching
-function getViewScope() {
-    const view = document.querySelector('.articles-view');
-    if (!view) return 'all';
-    return view.dataset.viewScope || 'all';
-}
 
-function setView(view, { save = true } = {}) {
-    // Compact view was removed; fall back to list
-    if (view === 'compact') view = 'list';
-
-    const list = document.getElementById('articles-list');
-    if (!list) return;
-
-    // Remove all view classes
-    list.classList.remove('view-card', 'view-list', 'view-magazine', 'view-expanded');
-    // Add the selected view class
-    list.classList.add('view-' + view);
-
-    // Update toggle buttons
-    document.querySelectorAll('.view-toggle button').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.view === view);
-    });
-
-    // Save preference (scope-aware)
-    if (save) {
-        const scope = getViewScope();
-        if (scope === 'folder') {
-            saveSetting('defaultFolderView', view);
-        } else if (scope === 'feed') {
-            saveSetting('defaultFeedView', view);
-        } else {
-            saveSetting('defaultView', view);
-        }
-    }
-}
-
-function migrateLegacyViewDefaults() {
-    // Migrate any localStorage settings to the server
-    const keys = ['autoMarkRead', 'hideReadArticles', 'hideEmptyFeeds', 'defaultFolderView', 'defaultFeedView'];
-    const localMap = {
-        'feedreader-view-folder-default': 'defaultFolderView',
-        'feedreader-view-feed-default': 'defaultFeedView',
-        'feedreader-view': 'defaultView',
-    };
-    for (const key of keys) {
-        if (!getSetting(key) && localStorage.getItem(key)) {
-            saveSetting(key, localStorage.getItem(key));
-            localStorage.removeItem(key);
-        }
-    }
-    for (const [oldKey, newKey] of Object.entries(localMap)) {
-        if (!getSetting(newKey) && localStorage.getItem(oldKey)) {
-            saveSetting(newKey, localStorage.getItem(oldKey));
-            localStorage.removeItem(oldKey);
-        }
-    }
-}
-
-function getDefaultViewForScope(scope) {
-    if (scope === 'folder') {
-        return getSetting('defaultFolderView') || 'card';
-    }
-    if (scope === 'feed') {
-        return getSetting('defaultFeedView') || 'card';
-    }
-    return getSetting('defaultView') || 'card';
-}
-
-function applyDefaultViewForScope(scope) {
-    const savedView = getDefaultViewForScope(scope);
-    setView(savedView, { save: false });
-}
-
-// Initialize view on page load
-function initView() {
-    migrateLegacyViewDefaults();
-    applyDefaultViewForScope(getViewScope());
-}
 
 // Close sidebar when clicking a link on mobile
 document.addEventListener('DOMContentLoaded', () => {

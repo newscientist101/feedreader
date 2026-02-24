@@ -32,3 +32,18 @@
 4. When removing a function from app.js, check if it's in `UNTESTED_FUNCTIONS` in `app.test.js` and remove it
 
 **Next run:** Continue Phase 2 — extract `views.js`, `sidebar.js`, `articles.js`. Note that `applyUserPreferences` should move to `settings.js` once `articles.js` is extracted (it needs `updateAllReadMessage` from there). The duplicate utility functions (`formatTimeAgo`, `stripHtml`, `truncateText`, `getArticleSortTime`) are still in `app.js` — they can be removed and imported from `modules/utils.js` as part of extracting the modules that use them.
+
+## Run 3 — Phase 2 continued (views, sidebar)
+
+**Completed:**
+- Extracted `modules/views.js`: `setView`, `getViewScope`, `initView`, `migrateLegacyViewDefaults`, `getDefaultViewForScope`, `applyDefaultViewForScope`. Imports `getSetting`/`saveSetting` from settings.js.
+- Extracted `modules/sidebar.js`: `toggleSidebar`, `setSidebarActive`, `navigateFolder`, `toggleFolderCollapse`, `collapseFolder`. Uses late-binding pattern (`setSidebarLoadCategory`) to avoid circular dep with feeds module — `navigateFolder` needs `loadCategoryArticles` which is still in app.js.
+- Removed corresponding entries from UNTESTED_FUNCTIONS in app.test.js.
+- Only imported the functions actually used in app.js (not all exports) to keep eslint happy.
+
+**Key decisions:**
+- `navigateFolder` calls `loadCategoryArticles` which lives in app.js (will be in feeds.js later). Used a `setSidebarLoadCategory(fn)` setter pattern to inject the dependency from app.js, avoiding circular imports.
+- `applyDefaultViewForScope` is still needed in app.js (called from `loadCategoryArticles` and `loadFeedArticles`), so it's imported.
+- `getViewScope`, `migrateLegacyViewDefaults`, `getDefaultViewForScope`, `collapseFolder` are NOT imported into app.js — they're only used within their own modules.
+
+**Next run:** Extract `articles.js`. This is complex because `renderArticles` depends on pagination state, `processEmbeds`, `applyUserPreferences`, `initAutoMarkRead`, and `queuedArticleIds`/`queuedIdsReady`. Consider extracting pagination.js first or simultaneously to make articles.js cleaner. The `showHiddenArticles` function also calls `api` and `renderArticles` (self-referential within the module). The duplicate utility functions (`formatTimeAgo`, `stripHtml`, `truncateText`, `getArticleSortTime`) in app.js can be removed once articles.js imports them from utils.js.

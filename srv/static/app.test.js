@@ -1947,7 +1947,6 @@ const UNTESTED_FUNCTIONS = {
 
   // -- DOM event wiring / init functions --
   initSettingsPage:          'settings page DOM wiring',
-  initView:                  'calls migrateLegacyViewDefaults + applyDefaultViewForScope (both tested)',
 
   // -- Thin API wrappers (single fetch call + DOM update) --
   copyNewsletterAddress:     'clipboard API wrapper',
@@ -1969,15 +1968,10 @@ const UNTESTED_FUNCTIONS = {
   unparentCategory:          'API call + reload',
 
   // -- Side-effect-heavy functions needing full page context --
-  collapseFolder:            'CSS class toggle + sessionStorage',
   filterFeeds:               'sidebar filter with full DOM',
-  navigateFolder:            'event handler dispatching to loadCategoryArticles',
-  toggleFolderCollapse:      'folder expand/collapse',
-  toggleSidebar:             'sidebar toggle',
 
   // -- Functions with minimal logic --
   removeFeedErrorBanner:     'trivial DOM removal',
-  setSidebarActive:          'CSS class toggle',
   showArticlesLoading:       'loading spinner HTML',
   showFeedErrorBanner:       'error banner HTML',
   showNewsletterAddress:     'DOM update',

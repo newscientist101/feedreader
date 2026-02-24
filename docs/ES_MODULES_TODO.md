@@ -17,8 +17,8 @@ See `ES_MODULES_PLAN.md` for context and rationale.
 - [x] Extract `modules/settings.js` — `getSetting`, `saveSetting`, ~~`applyUserPreferences`~~, `applyHideReadArticles`, `applyHideEmptyFeeds`
 - [x] Extract `modules/dropdown.js` — `toggleDropdown`, `initDropdownCloseListener`
 - [x] Extract `modules/timestamps.js` — `initTimestampTooltips`
-- [ ] Extract `modules/views.js` — `setView`, `getViewScope`, `initView`, `migrateLegacyViewDefaults`, `getDefaultViewForScope`, `applyDefaultViewForScope`
-- [ ] Extract `modules/sidebar.js` — `toggleSidebar`, `setSidebarActive`, `navigateFolder`, `toggleFolderCollapse`, `collapseFolder`
+- [x] Extract `modules/views.js` — `setView`, `getViewScope`, `initView`, `migrateLegacyViewDefaults`, `getDefaultViewForScope`, `applyDefaultViewForScope`
+- [x] Extract `modules/sidebar.js` — `toggleSidebar`, `setSidebarActive`, `navigateFolder`, `toggleFolderCollapse`, `collapseFolder`
 - [ ] Extract `modules/articles.js` — `renderArticleActions`, `buildArticleCardHtml`, `renderArticles`, `updateReadButton`, `showArticlesLoading`, `updateAllReadMessage`, `showReadArticles`, `showHiddenArticles`, `processEmbeds`, `extractYouTubeId`
 - [ ] Extract `modules/article-actions.js` — `markRead`, `markUnread`, `toggleStar`, `toggleQueue`, `markReadSilent`, `openArticle`, `openArticleExternal`, `markAsRead`, auto-mark-read observer (`initAutoMarkRead`, `observeNewArticles`, `flushMarkReadQueue`, `markCardAsRead`)
 - [ ] Extract `modules/pagination.js` — cursor state, `loadMoreArticles`, `checkScrollForMore`, `updatePaginationCursor`, `updateEndOfArticlesIndicator`, `getPaginationUrl`
