@@ -46,4 +46,29 @@
 - `applyDefaultViewForScope` is still needed in app.js (called from `loadCategoryArticles` and `loadFeedArticles`), so it's imported.
 - `getViewScope`, `migrateLegacyViewDefaults`, `getDefaultViewForScope`, `collapseFolder` are NOT imported into app.js — they're only used within their own modules.
 
-**Next run:** Extract `articles.js`. This is complex because `renderArticles` depends on pagination state, `processEmbeds`, `applyUserPreferences`, `initAutoMarkRead`, and `queuedArticleIds`/`queuedIdsReady`. Consider extracting pagination.js first or simultaneously to make articles.js cleaner. The `showHiddenArticles` function also calls `api` and `renderArticles` (self-referential within the module). The duplicate utility functions (`formatTimeAgo`, `stripHtml`, `truncateText`, `getArticleSortTime`) in app.js can be removed once articles.js imports them from utils.js.
+## Run 4 — Phase 2 continued (articles, article-actions, pagination)
+
+**Completed:**
+- Extracted `modules/articles.js`: `renderArticleActions`, `buildArticleCardHtml`, `renderArticles`, `updateReadButton`, `showArticlesLoading`, `updateAllReadMessage`, `showReadArticles`, `showHiddenArticles`, `processEmbeds`, `extractYouTubeId`, `applyUserPreferences`, `getIncludeReadUrl`, `showingHiddenArticles` state.
+- Extracted `modules/article-actions.js`: `markRead`, `markUnread`, `toggleStar`, `toggleQueue`, `markAsRead`, `markReadSilent`, `openArticle`, `openArticleExternal`, `markCardAsRead`, `initAutoMarkRead`, `observeNewArticles`, `flushMarkReadQueue`, `findNextUnreadFolder`. Also owns `queuedArticleIds`, `queuedIdsReady`, auto-mark-read observer state.
+- Extracted `modules/pagination.js`: `updateEndOfArticlesIndicator`, `updatePaginationCursor`, `getPaginationUrl`, `loadMoreArticles`, `checkScrollForMore`, `PAGE_SIZE`, pagination cursor state.
+- Removed duplicate utility functions (`formatTimeAgo`, `stripHtml`, `truncateText`, `getArticleSortTime`, `api`, all SVG icon constants, `PREVIEW_TEXT_LIMIT`) from app.js — they're now only in their respective modules.
+- Removed `markRead`, `markUnread`, `toggleStar`, `toggleQueue`, `showArticlesLoading`, `updateReadButton` from UNTESTED_FUNCTIONS in app.test.js (no longer in app.js).
+- Added `articles.test.js` (29 tests), `article-actions.test.js` (19 tests), `pagination.test.js` (18 tests).
+- Updated `test-helper.js`: `replaceImports()` now handles multi-line imports using a regex replacement. Added property accessors (defineProperty shims) for internal module state (`autoMarkReadObserver`, `_markReadQueue`, pagination state, `showingHiddenArticles`) so legacy app.test.js tests still work.
+- Added `_resetXxxState()` functions to each module so test-helper can reset module state between loadApp() calls (modules persist across tests, unlike the old eval'd code).
+- app.js DOMContentLoaded now uses `setQueuedArticleIds`/`setQueuedIdsReady` setters instead of directly assigning module variables.
+- app.js pagination init uses `setPaginationState()` instead of direct variable assignment.
+
+**Key patterns:**
+- Circular dependencies between articles ↔ article-actions ↔ pagination resolved via:
+  - `articles.js` imports from `article-actions.js` (queuedArticleIds, initAutoMarkRead)
+  - `pagination.js` imports from both `articles.js` and `article-actions.js`
+  - `article-actions.js` uses late-bound deps (`setArticleActionDeps`) for `updateReadButton` (from articles) and `updateCounts`/`updateQueueCacheIfStandalone` (still in app.js)
+  - `articles.js` uses late-bound deps (`setArticlesDeps`) for pagination functions
+- Module internal state that tests need: exposed via `_getXxx`/`_setXxx` accessors, bridged to `window.xxx` via `Object.defineProperty` in test-helper. Will be removed in Phase 4 when tests migrate to direct imports.
+- `_resetXxxState()` pattern needed for each module with mutable state.
+
+**app.js reduced from 2124 → 1518 lines.**
+
+**Next run:** Continue Phase 2 — extract `feeds.js`, `folders.js`, `counts.js`. These are relatively straightforward API-calling functions. `feeds.js` will include `loadFeedArticles`, `loadCategoryArticles`, `refreshFeed`, `deleteFeed`, `editFeed`, `saveFeed`, `filterFeeds`, `setFeedCategory`, `showFeedErrorBanner`, `removeFeedErrorBanner`, `createEditFeedModal`, `closeEditModal`. Note that `loadFeedArticles`/`loadCategoryArticles` depend on `renderArticles`, `showArticlesLoading`, `applyDefaultViewForScope`, `setSidebarActive` — all already in modules.

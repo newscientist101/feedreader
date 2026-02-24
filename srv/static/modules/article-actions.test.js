@@ -1,0 +1,236 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+    initAutoMarkRead, observeNewArticles, flushMarkReadQueue,
+    markCardAsRead, markReadSilent, openArticle, openArticleExternal,
+    markRead, markUnread, toggleStar, toggleQueue, markAsRead,
+    findNextUnreadFolder,
+    setArticleActionDeps, setQueuedArticleIds, setQueuedIdsReady,
+    _resetArticleActionsState,
+    _getAutoMarkReadObserver, _getMarkReadQueue,
+} from './article-actions.js';
+
+// Minimal IntersectionObserver mock
+class MockIntersectionObserver {
+    constructor(callback) {
+        this._callback = callback;
+        this._entries = [];
+    }
+    observe(el) { this._entries.push(el); }
+    unobserve() {}
+    disconnect() { this._entries = []; }
+    _fire(entries) { this._callback(entries, this); }
+}
+
+beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'debug').mockImplementation(() => {});
+    _resetArticleActionsState();
+    window.IntersectionObserver = MockIntersectionObserver;
+    window.__settings = {};
+    window.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }));
+    document.body.innerHTML = '<div id="articles-list"></div>';
+    setArticleActionDeps({
+        updateReadButton: vi.fn(),
+        updateCounts: vi.fn(),
+        updateQueueCacheIfStandalone: vi.fn(),
+    });
+});
+
+afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+});
+
+describe('initAutoMarkRead', () => {
+    it('does nothing when autoMarkRead setting is not true', () => {
+        window.__settings = { autoMarkRead: 'false' };
+        initAutoMarkRead();
+        expect(_getAutoMarkReadObserver()).toBeNull();
+    });
+
+    it('creates an IntersectionObserver when autoMarkRead is true', () => {
+        window.__settings = { autoMarkRead: 'true' };
+        document.getElementById('articles-list').innerHTML =
+            '<div class="article-card" data-id="1"></div>';
+        initAutoMarkRead();
+        expect(_getAutoMarkReadObserver()).not.toBeNull();
+    });
+
+    it('disconnects previous observer on re-init', () => {
+        window.__settings = { autoMarkRead: 'true' };
+        initAutoMarkRead();
+        const first = _getAutoMarkReadObserver();
+        initAutoMarkRead();
+        expect(_getAutoMarkReadObserver()).not.toBe(first);
+    });
+});
+
+describe('observeNewArticles', () => {
+    it('is a no-op when observer is null', () => {
+        const container = document.createElement('div');
+        container.innerHTML = '<div class="article-card"></div>';
+        observeNewArticles(container);
+        // Should not throw
+    });
+
+    it('observes new cards in the container', () => {
+        window.__settings = { autoMarkRead: 'true' };
+        initAutoMarkRead();
+        const obs = _getAutoMarkReadObserver();
+        const spy = vi.spyOn(obs, 'observe');
+        const container = document.createElement('div');
+        container.innerHTML = '<div class="article-card"></div><div class="article-card"></div>';
+        observeNewArticles(container);
+        expect(spy).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('markCardAsRead', () => {
+    it('adds read class to the matching card', () => {
+        document.getElementById('articles-list').innerHTML =
+            '<div class="article-card" data-id="42"></div>';
+        markCardAsRead(42);
+        expect(document.querySelector('.article-card').classList.contains('read')).toBe(true);
+    });
+
+    it('does not throw for non-existent card', () => {
+        markCardAsRead(999);
+        // No error expected
+    });
+});
+
+describe('markReadSilent', () => {
+    it('queues article id and sets a timer', () => {
+        document.getElementById('articles-list').innerHTML =
+            '<div class="article-card" data-id="42"></div>';
+        markReadSilent(42);
+        expect(_getMarkReadQueue()).toContain(42);
+    });
+});
+
+describe('flushMarkReadQueue', () => {
+    it('posts queued ids as a batch', () => {
+        markReadSilent(1);
+        markReadSilent(2);
+        flushMarkReadQueue();
+        expect(window.fetch).toHaveBeenCalledWith(
+            '/api/articles/batch-read',
+            expect.objectContaining({
+                method: 'POST',
+                body: expect.stringContaining('"ids"'),
+            })
+        );
+    });
+
+    it('does nothing when queue is empty', () => {
+        flushMarkReadQueue();
+        expect(window.fetch).not.toHaveBeenCalled();
+    });
+});
+
+describe('openArticle', () => {
+    it('marks the article as read and navigates', () => {
+        const assignSpy = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { pathname: '/', hostname: 'localhost' },
+            writable: true,
+            configurable: true,
+        });
+        markReadSilent(5);
+        openArticle(5);
+        // flushMarkReadQueue was called (fetch happened)
+        expect(window.fetch).toHaveBeenCalled();
+    });
+});
+
+describe('openArticleExternal', () => {
+    it('stops propagation and opens new tab', () => {
+        const event = { stopPropagation: vi.fn() };
+        const openSpy = vi.fn();
+        window.open = openSpy;
+        openArticleExternal(event, 5, 'https://example.com');
+        expect(event.stopPropagation).toHaveBeenCalled();
+        expect(openSpy).toHaveBeenCalledWith('https://example.com', '_blank');
+    });
+});
+
+describe('markRead', () => {
+    it('calls API and updates DOM', async () => {
+        document.getElementById('articles-list').innerHTML =
+            '<div class="article-card" data-id="10"></div>';
+        await markRead(null, 10);
+        expect(window.fetch).toHaveBeenCalledWith(
+            '/api/articles/10/read',
+            expect.objectContaining({ method: 'POST' })
+        );
+    });
+});
+
+describe('markUnread', () => {
+    it('calls API and removes read class', async () => {
+        document.getElementById('articles-list').innerHTML =
+            '<div class="article-card read" data-id="10"><button class="btn-read-toggle"></button></div>';
+        await markUnread(null, 10);
+        expect(window.fetch).toHaveBeenCalledWith(
+            '/api/articles/10/unread',
+            expect.objectContaining({ method: 'POST' })
+        );
+        expect(document.querySelector('.article-card').classList.contains('read')).toBe(false);
+    });
+});
+
+describe('toggleStar', () => {
+    it('calls API for star toggle', async () => {
+        await toggleStar(null, 10);
+        expect(window.fetch).toHaveBeenCalledWith(
+            '/api/articles/10/star',
+            expect.objectContaining({ method: 'POST' })
+        );
+    });
+});
+
+describe('toggleQueue', () => {
+    it('calls API for queue toggle', async () => {
+        window.fetch = vi.fn(() => Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ queued: true }),
+        }));
+        await toggleQueue(null, 10);
+        expect(window.fetch).toHaveBeenCalledWith(
+            '/api/articles/10/queue',
+            expect.objectContaining({ method: 'POST' })
+        );
+    });
+});
+
+describe('findNextUnreadFolder', () => {
+    it('returns URL of next folder with unread count', () => {
+        document.body.innerHTML = `
+            <div class="folder-item" data-category-id="1"></div>
+            <span data-count="category-1">0</span>
+            <div class="folder-item" data-category-id="2"></div>
+            <span data-count="category-2">5</span>
+            <div class="folder-item" data-category-id="3"></div>
+            <span data-count="category-3">0</span>
+        `;
+        expect(findNextUnreadFolder('1')).toBe('/category/2');
+    });
+
+    it('returns null when no unread folders exist', () => {
+        document.body.innerHTML = `
+            <div class="folder-item" data-category-id="1"></div>
+            <span data-count="category-1">0</span>
+        `;
+        expect(findNextUnreadFolder('1')).toBeNull();
+    });
+
+    it('wraps around to find folders before current', () => {
+        document.body.innerHTML = `
+            <div class="folder-item" data-category-id="1"></div>
+            <span data-count="category-1">3</span>
+            <div class="folder-item" data-category-id="2"></div>
+            <span data-count="category-2">0</span>
+        `;
+        expect(findNextUnreadFolder('2')).toBe('/category/1');
+    });
+});

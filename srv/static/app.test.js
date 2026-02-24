@@ -1957,14 +1957,10 @@ const UNTESTED_FUNCTIONS = {
   generateNewsletterAddress: 'API call + DOM update',
   importOPML:                'file upload + API call',
   loadNewsletterAddress:     'API call + DOM update',
-  markRead:                  'API call + DOM update',
-  markUnread:                'API call + DOM update',
   renameCategory:            'prompt + API call',
   runCleanup:                'API call + DOM update',
   setFeedCategory:           'API call + DOM update',
   submitCreateFolder:        'form submit + API call',
-  toggleQueue:               'API call + DOM update',
-  toggleStar:                'API call + DOM update',
   unparentCategory:          'API call + reload',
 
   // -- Side-effect-heavy functions needing full page context --
@@ -1972,10 +1968,8 @@ const UNTESTED_FUNCTIONS = {
 
   // -- Functions with minimal logic --
   removeFeedErrorBanner:     'trivial DOM removal',
-  showArticlesLoading:       'loading spinner HTML',
   showFeedErrorBanner:       'error banner HTML',
   showNewsletterAddress:     'DOM update',
-  updateReadButton:          'button HTML swap',
 };
 
 describe('test coverage check', () => {

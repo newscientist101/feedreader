@@ -88,19 +88,16 @@ function buildExports(names) {
  *   -> `const { foo, bar } = window;`
  */
 function replaceImports(src) {
-  const lines = src.split('\n');
-  const result = [];
-  for (const line of lines) {
-    const m = line.match(/^import\s+\{([^}]+)\}\s+from\s+['"]/);
-    if (m) {
-      // Replace import with window destructuring so local names resolve
-      const names = m[1].trim();
-      result.push(`const { ${names} } = window;`);
-    } else {
-      result.push(line);
+  // Replace both single-line and multi-line import statements with
+  // window destructuring so the eval'd code can access imported symbols.
+  return src.replace(
+    /^import\s+\{([^}]+)\}\s+from\s+['"][^'"]+['"];?/gm,
+    (_match, names) => {
+      // Collapse multi-line name lists to a single line
+      const cleaned = names.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+      return `const { ${cleaned} } = window;`;
     }
-  }
-  return result.join('\n');
+  );
 }
 
 /**
@@ -147,6 +144,59 @@ export async function loadApp() {
 
   // Pre-load extracted modules onto window
   await preloadModules();
+
+  // Reset module state between tests (modules persist across loadApp calls)
+  if (window._resetArticleActionsState) window._resetArticleActionsState();
+  if (window._resetPaginationState) window._resetPaginationState();
+  if (window._resetArticlesState) window._resetArticlesState();
+
+  // Expose internal module state as window properties for legacy tests.
+  // These use getter/setter accessors exported from modules with _ prefix.
+  // Once tests are migrated to direct module imports (Phase 4), remove these.
+  if (window._getAutoMarkReadObserver) {
+    Object.defineProperty(window, 'autoMarkReadObserver', {
+      get: () => window._getAutoMarkReadObserver(),
+      set: (v) => window._setAutoMarkReadObserver(v),
+      configurable: true,
+    });
+  }
+  if (window._getMarkReadQueue) {
+    Object.defineProperty(window, '_markReadQueue', {
+      get: () => window._getMarkReadQueue(),
+      configurable: true,
+    });
+  }
+  // Pagination state shims
+  if (window._getPaginationCursorTime) {
+    Object.defineProperty(window, 'paginationCursorTime', {
+      get: () => window._getPaginationCursorTime(),
+      set: (v) => window.setPaginationState({ cursorTime: v }),
+      configurable: true,
+    });
+    Object.defineProperty(window, 'paginationCursorId', {
+      get: () => window._getPaginationCursorId(),
+      set: (v) => window.setPaginationState({ cursorId: v }),
+      configurable: true,
+    });
+    Object.defineProperty(window, 'paginationDone', {
+      get: () => window._getPaginationDone(),
+      set: (v) => window.setPaginationState({ done: v }),
+      configurable: true,
+    });
+    Object.defineProperty(window, 'paginationLoading', {
+      get: () => window._getPaginationLoading(),
+      set: (v) => window.setPaginationState({ loading: v }),
+      configurable: true,
+    });
+  }
+  // showingHiddenArticles shim
+  if (window.getShowingHiddenArticles) {
+    Object.defineProperty(window, 'showingHiddenArticles', {
+      get: () => window.getShowingHiddenArticles(),
+      set: (v) => window.setShowingHiddenArticles(v),
+      configurable: true,
+    });
+  }
 
   let src = readFileSync(resolve(__dirname, 'app.js'), 'utf-8');
   // Replace import statements with window destructuring

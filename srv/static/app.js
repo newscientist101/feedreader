@@ -1,8 +1,24 @@
+import { api } from './modules/api.js';
 import { getSetting, saveSetting, applyHideReadArticles, applyHideEmptyFeeds } from './modules/settings.js';
 import { toggleDropdown, initDropdownCloseListener } from './modules/dropdown.js';
 import { initTimestampTooltips } from './modules/timestamps.js';
 import { setView, initView, applyDefaultViewForScope } from './modules/views.js';
 import { toggleSidebar, setSidebarActive, navigateFolder, toggleFolderCollapse, setSidebarLoadCategory } from './modules/sidebar.js';
+import {
+    renderArticleActions, renderArticles, updateReadButton,
+    showArticlesLoading, showReadArticles, showHiddenArticles,
+    processEmbeds, applyUserPreferences, setArticlesDeps
+} from './modules/articles.js';
+import {
+    markRead, markUnread, toggleStar, toggleQueue, markAsRead,
+    markReadSilent, openArticle, openArticleExternal,
+    initAutoMarkRead, queuedArticleIds, setQueuedArticleIds, setQueuedIdsReady,
+    setArticleActionDeps
+} from './modules/article-actions.js';
+import {
+    updateEndOfArticlesIndicator, updatePaginationCursor,
+    checkScrollForMore, setPaginationState, PAGE_SIZE
+} from './modules/pagination.js';
 
 // Initialize click-outside listener for dropdowns (was top-level in original code)
 initDropdownCloseListener();
@@ -10,251 +26,21 @@ initDropdownCloseListener();
 // Wire sidebar's late-bound dependency on loadCategoryArticles
 setSidebarLoadCategory((...args) => loadCategoryArticles(...args));
 
-// Max characters to put in the DOM for article text previews.
-// CSS line-clamp handles the visual truncation; this just limits DOM weight.
-// Keep in sync with previewTextLimit in server.go.
-const PREVIEW_TEXT_LIMIT = 500;
+// Wire article-actions' late-bound dependencies
+setArticleActionDeps({
+    updateReadButton,
+    updateCounts: (...args) => updateCounts(...args),
+    updateQueueCacheIfStandalone: (...args) => updateQueueCacheIfStandalone(...args),
+});
 
-// Temporary flag: when true, the current view includes read/hidden articles.
-// Reset on the next navigation.
-let showingHiddenArticles = false;
-
-// Pagination state for infinite scroll (cursor-based).
-const PAGE_SIZE = 50;
-let paginationCursorTime = null;  // sort time of last article on current page
-let paginationCursorId = null;    // ID of last article on current page
-let paginationLoading = false;
-let paginationDone = false;
-
-// SVG icons
-const SVG_MARK_READ = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/></svg>';
-const SVG_MARK_UNREAD = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V8l8 5 8-5v10zm-8-7L4 6h16l-8 5z"/></svg>';
-const SVG_STAR_FILLED = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>';
-const SVG_STAR_EMPTY = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/></svg>';
-const SVG_EXTERNAL = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>';
-const SVG_QUEUE_ADD = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zm-7-2h2v-3h3V9h-3V6h-2v3h-2v2h2v3z"/></svg>';
-const SVG_QUEUE_REMOVE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zm-2-5H10V9h8v2z"/></svg>';
-
-// Render the standard set of action buttons for an article.
-// `a` must have: id, is_read, is_starred, url (optional), is_queued (optional).
-// To add a new action button to all views, add it here.
-function renderArticleActions(a) {
-    const readBtn = `<button onclick="${a.is_read ? 'markUnread' : 'markRead'}(event, ${a.id})" class="btn-icon btn-read-toggle" title="${a.is_read ? 'Mark unread' : 'Mark read'}">
-        ${a.is_read ? SVG_MARK_UNREAD : SVG_MARK_READ}
-    </button>`;
-    const starBtn = `<button onclick="toggleStar(event, ${a.id})" class="btn-icon ${a.is_starred ? 'starred' : ''}" title="Star">
-        ${a.is_starred ? SVG_STAR_FILLED : SVG_STAR_EMPTY}
-    </button>`;
-    const queueBtn = `<button onclick="toggleQueue(event, ${a.id})" class="btn-icon btn-queue-toggle ${a.is_queued ? 'queued' : ''}" title="${a.is_queued ? 'Remove from queue' : 'Add to queue'}">
-        ${a.is_queued ? SVG_QUEUE_REMOVE : SVG_QUEUE_ADD}
-    </button>`;
-    const extBtn = a.url ? `<a href="${a.url}" target="_blank" class="btn-icon" title="Open original">${SVG_EXTERNAL}</a>` : '';
-    return `<div class="article-actions">${readBtn}${starBtn}${queueBtn}${extBtn}</div>`;
-}
-
-// Update the read/unread toggle button inside an article card
-function updateReadButton(card, isRead) {
-    if (!card) return;
-    const btn = card.querySelector('.btn-read-toggle');
-    if (!btn) return;
-    const id = card.dataset.id;
-    if (isRead) {
-        btn.setAttribute('onclick', `markUnread(event, ${id})`);
-        btn.setAttribute('title', 'Mark unread');
-        btn.innerHTML = SVG_MARK_UNREAD;
-    } else {
-        btn.setAttribute('onclick', `markRead(event, ${id})`);
-        btn.setAttribute('title', 'Mark read');
-        btn.innerHTML = SVG_MARK_READ;
-    }
-}
+// Wire articles' late-bound dependencies on pagination
+setArticlesDeps({
+    updatePaginationCursor,
+    updateEndOfArticlesIndicator,
+    setPaginationState,
+});
 
 
-// Apply user preferences from settings
-function applyUserPreferences() {
-    applyHideReadArticles(getSetting('hideReadArticles'));
-    updateAllReadMessage();
-    applyHideEmptyFeeds(getSetting('hideEmptyFeeds'));
-}
-
-// Show message when all articles are read and hidden
-function updateAllReadMessage() {
-    const articlesList = document.getElementById('articles-list');
-    if (!articlesList) return;
-    
-    // Remove existing message if any
-    const existingMsg = document.getElementById('all-read-message');
-    if (existingMsg) existingMsg.remove();
-    
-    const hideRead = getSetting('hideReadArticles') === 'hide';
-    if (!hideRead) return;
-    
-    // Check if there are articles but all are hidden
-    const allCards = articlesList.querySelectorAll('.article-card');
-    const visibleCards = articlesList.querySelectorAll('.article-card:not([style*="display: none"])');
-    
-    if (allCards.length > 0 && visibleCards.length === 0) {
-        const msg = document.createElement('div');
-        msg.id = 'all-read-message';
-        msg.className = 'empty-state';
-        msg.innerHTML = `
-            <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" opacity="0.3">
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-            </svg>
-            <p>All caught up!</p>
-            <p class="hint">All ${allCards.length} article${allCards.length === 1 ? '' : 's'} in this view have been read.</p>
-            <button onclick="showReadArticles()" class="btn btn-secondary" style="margin-top: 10px;">Show read articles</button>
-        `;
-        articlesList.appendChild(msg);
-    }
-}
-
-// Temporarily show read articles
-function showReadArticles() {
-    document.querySelectorAll('.article-card.read').forEach(card => {
-        card.style.display = '';
-    });
-    const msg = document.getElementById('all-read-message');
-    if (msg) msg.remove();
-}
-
-// Temporarily show hidden articles by re-fetching with include_read=1
-async function showHiddenArticles() {
-    showingHiddenArticles = true;
-    const url = getIncludeReadUrl();
-    if (!url) return;
-    try {
-        const data = await api('GET', url);
-        renderArticles(data.articles || []);
-    } catch (e) {
-        console.error('Failed to load hidden articles:', e);
-    }
-}
-
-// Build the API URL for the current view with include_read=1
-function getIncludeReadUrl() {
-    const path = window.location.pathname;
-    const feedMatch = path.match(/^\/feed\/(\d+)/);
-    if (feedMatch) return `/api/feeds/${feedMatch[1]}/articles?include_read=1`;
-    const catMatch = path.match(/^\/category\/(\d+)/);
-    if (catMatch) return `/api/categories/${catMatch[1]}/articles?include_read=1`;
-    if (path === '/') return '/api/articles/unread?include_read=1';
-    return null;
-}
-
-// Auto-mark-read on scroll feature
-let autoMarkReadObserver = null;
-let queuedArticleIds = new Set();
-let queuedIdsReady = Promise.resolve();
-
-function initAutoMarkRead() {
-    // Disconnect any previous observer
-    if (autoMarkReadObserver) {
-        autoMarkReadObserver.disconnect();
-        autoMarkReadObserver = null;
-    }
-
-    if (getSetting('autoMarkRead') !== 'true') {
-        console.debug('[auto-mark-read] disabled by setting');
-        return;
-    }
-    
-    // Use IntersectionObserver to detect when articles scroll out of view
-    autoMarkReadObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            // Article has scrolled up and out of view
-            if (!entry.isIntersecting && entry.boundingClientRect.top < 0) {
-                const article = entry.target;
-                const articleId = article.dataset.id;
-                
-                // Only mark unread articles
-                if (articleId && !article.classList.contains('read')) {
-                    console.debug(`[auto-mark-read] marking article ${articleId} as read (scrolled out of view)`);
-                    markReadSilent(articleId);
-                    article.classList.add('read');
-                }
-            }
-        });
-    }, {
-        root: null,
-        rootMargin: '0px',
-        threshold: 0
-    });
-    
-    // Observe all article cards
-    const cards = document.querySelectorAll('.article-card');
-    console.debug(`[auto-mark-read] observing ${cards.length} initial articles`);
-    cards.forEach(article => {
-        autoMarkReadObserver.observe(article);
-    });
-}
-
-// Observe newly added article cards (e.g. from pagination)
-function observeNewArticles(container) {
-    if (!autoMarkReadObserver) return;
-    const cards = container.querySelectorAll('.article-card');
-    if (cards.length > 0) {
-        console.debug(`[auto-mark-read] observing ${cards.length} new articles`);
-        cards.forEach(article => autoMarkReadObserver.observe(article));
-    }
-}
-
-// Batched mark-read for auto-mark feature
-let _markReadQueue = [];
-let _markReadTimer = null;
-
-function flushMarkReadQueue() {
-    _markReadTimer = null;
-    if (_markReadQueue.length === 0) return;
-    const ids = _markReadQueue.slice();
-    _markReadQueue = [];
-    console.debug(`[auto-mark-read] flushing batch of ${ids.length} article(s):`, ids);
-    api('POST', '/api/articles/batch-read', { ids })
-        .then(() => updateCounts())
-        .catch(e => console.error('Failed to batch mark read:', e));
-}
-
-// Mark as read without page reload (for auto-mark feature)
-function markCardAsRead(id) {
-    const card = document.querySelector(`.article-card[data-id="${id}"]`);
-    if (card) {
-        card.classList.add('read');
-        updateReadButton(card, true);
-    }
-}
-
-function markReadSilent(id) {
-    markCardAsRead(id);
-    _markReadQueue.push(Number(id));
-    if (_markReadTimer) clearTimeout(_markReadTimer);
-    _markReadTimer = setTimeout(flushMarkReadQueue, 250);
-}
-
-function openArticle(id) {
-    markReadSilent(id);
-    flushMarkReadQueue();
-    window.location = `/article/${id}`;
-}
-
-function openArticleExternal(event, id, url) {
-    event.stopPropagation();
-    markReadSilent(id);
-    window.open(url, '_blank');
-}
-
-// Show loading spinner in the articles list
-function showArticlesLoading() {
-    showingHiddenArticles = false;
-    const list = document.getElementById('articles-list');
-    if (list) {
-        list.innerHTML = `
-            <div class="loading-state">
-                <div class="spinner"></div>
-                <p>Loading articles...</p>
-            </div>
-        `;
-    }
-}
 
 // Create or update the feed error banner
 function showFeedErrorBanner(feedId, errorMessage) {
@@ -394,110 +180,7 @@ async function loadFeedArticles(feedId, feedName) {
     }
 }
 
-function buildArticleCardHtml(a) {
-    a.is_queued = queuedArticleIds.has(a.id);
-    return `
-        <article class="article-card ${a.is_read ? 'read' : ''}${a.image_url ? ' has-image' : ''}" data-id="${a.id}" data-sort-time="${a.published_at || a.fetched_at}">
-            ${a.image_url ? `<div class="article-image magazine-expanded-only"><img src="${a.image_url}" alt="" loading="lazy"></div>` : `<div class="article-image-placeholder magazine-only">
-                <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
-                    <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
-                </svg>
-            </div>`}
-            <div class="article-body clickable" onclick="openArticle(${a.id})">
-                <div class="article-meta">
-                    <a class="feed-name" href="/feed/${a.feed_id}" onclick="event.stopPropagation();">${a.feed_name || ''}</a>
-                    ${a.author ? `<span class="article-author">${a.author}</span>` : ''}
-                    <span class="article-date">${formatTimeAgo(a.published_at)}</span>
-                </div>
-                <h2 class="article-title">
-                    ${a.url ? `<a href="${a.url}" target="_blank" onclick="openArticleExternal(event, ${a.id}, '${a.url.replace(/'/g, "\\'")}'">${a.title}</a>` : `<a href="/article/${a.id}" onclick="markReadSilent(${a.id})">${a.title}</a>`}
-                </h2>
-                ${a.summary ? `<p class="article-summary">${truncateText(stripHtml(a.summary), PREVIEW_TEXT_LIMIT)}</p>` : (a.content ? `<p class="article-summary">${truncateText(stripHtml(a.content), PREVIEW_TEXT_LIMIT)}</p>` : '')}
-                ${a.content ? `<div class="article-content-preview expanded-only" onclick="event.stopPropagation(); markReadSilent(${a.id})">${truncateText(stripHtml(a.content), PREVIEW_TEXT_LIMIT)}</div>` : (a.summary ? `<div class="article-content-preview expanded-only" onclick="event.stopPropagation(); markReadSilent(${a.id})">${truncateText(stripHtml(a.summary), PREVIEW_TEXT_LIMIT)}</div>` : '')}
-                ${renderArticleActions(a)}
-            </div>
-        </article>
-    `;
-}
 
-async function renderArticles(articles) {
-    await queuedIdsReady;
-    const list = document.getElementById('articles-list');
-    if (!list) return;
-
-    // Scroll to top when loading a new set of articles
-    window.scrollTo(0, 0);
-
-    // Reset pagination for fresh render (cursor-based)
-    paginationCursorTime = null;
-    paginationCursorId = null;
-    paginationDone = false;
-    paginationLoading = false;
-    
-    if (!articles || articles.length === 0) {
-        const showBtn = !showingHiddenArticles
-            ? `<button onclick="showHiddenArticles()" class="btn btn-secondary" style="margin-top: 10px;">Show hidden articles</button>`
-            : '';
-        list.innerHTML = `
-            <div class="empty-state">
-                <svg viewBox="0 0 24 24" width="48" height="48" fill="currentColor" opacity="0.3">
-                    <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>
-                </svg>
-                <p>No articles to show</p>
-                ${showBtn}
-            </div>
-        `;
-        paginationDone = true;
-        updateEndOfArticlesIndicator();
-        return;
-    }
-
-    if (articles.length < PAGE_SIZE) {
-        paginationDone = true;
-    }
-
-    // Set cursor from last article for next pagination request
-    updatePaginationCursor(articles);
-    
-    list.innerHTML = articles.map(buildArticleCardHtml).join('');
-    
-    // Process embeds in expanded view content previews
-    list.querySelectorAll('.article-content-preview').forEach(el => processEmbeds(el));
-    
-    // Re-apply user preferences (hide read, etc.)
-    applyUserPreferences();
-    updateEndOfArticlesIndicator();
-
-    // Re-initialize auto-mark-read observer for new article set
-    initAutoMarkRead();
-}
-
-function formatTimeAgo(dateStr) {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-    
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
-}
-
-function stripHtml(html) {
-    const tmp = document.createElement('div');
-    tmp.innerHTML = html;
-    return tmp.textContent || tmp.innerText || '';
-}
-
-function truncateText(text, maxLen) {
-    if (!text || text.length <= maxLen) return text;
-    return text.substring(0, maxLen) + '...';
-}
 
 
 
@@ -516,10 +199,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Load queued article IDs, then hydrate action-button placeholders
-    queuedIdsReady = api('GET', '/api/queue').then(articles => {
-        queuedArticleIds = new Set((articles || []).map(a => a.id));
+    const _queueReady = api('GET', '/api/queue').then(articles => {
+        setQueuedArticleIds(new Set((articles || []).map(a => a.id)));
     }).catch(() => {});
-    queuedIdsReady.then(() => {
+    setQueuedIdsReady(_queueReady);
+    _queueReady.then(() => {
         document.querySelectorAll('.article-actions-placeholder').forEach(el => {
             const a = {
                 id: Number(el.dataset.articleId),
@@ -549,13 +233,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const initialArticles = document.querySelectorAll('#articles-list .article-card');
     if (initialArticles.length > 0) {
         const lastCard = initialArticles[initialArticles.length - 1];
-        paginationCursorTime = lastCard.dataset.sortTime || null;
-        paginationCursorId = lastCard.dataset.id || null;
-        if (initialArticles.length < PAGE_SIZE) {
-            paginationDone = true;
-        }
+        setPaginationState({
+            cursorTime: lastCard.dataset.sortTime || null,
+            cursorId: lastCard.dataset.id || null,
+            done: initialArticles.length < PAGE_SIZE,
+        });
     } else {
-        paginationDone = true;
+        setPaginationState({ done: true });
     }
     updateEndOfArticlesIndicator();
     
@@ -595,99 +279,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize settings page controls (no-op if not on settings page)
     initSettingsPage();
 });
-
-// API helpers
-async function api(method, url, data = null) {
-    const options = {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-    };
-    if (data) {
-        options.body = JSON.stringify(data);
-    }
-    const res = await fetch(url, options);
-    if (!res.ok) {
-        let message = 'Request failed';
-        const text = await res.text();
-        try {
-            const json = JSON.parse(text);
-            message = json.error || message;
-        } catch {
-            message = text || message;
-        }
-        throw new Error(message);
-    }
-    return res.json();
-}
-
-// Article actions
-async function markRead(event, id) {
-    if (event) event.stopPropagation();
-    try {
-        await api('POST', `/api/articles/${id}/read`);
-        markCardAsRead(id);
-        updateCounts();
-    } catch (e) {
-        console.error('Failed to mark read:', e);
-    }
-}
-
-async function markUnread(event, id) {
-    if (event) event.stopPropagation();
-    try {
-        await api('POST', `/api/articles/${id}/unread`);
-        const card = document.querySelector(`.article-card[data-id="${id}"]`);
-        if (card) {
-            card.classList.remove('read');
-            updateReadButton(card, false);
-        }
-        updateCounts();
-    } catch (e) {
-        console.error('Failed to mark unread:', e);
-    }
-}
-
-async function toggleStar(event, id) {
-    if (event) event.stopPropagation();
-    try {
-        await api('POST', `/api/articles/${id}/star`);
-        // Toggle star button appearance
-        const btns = document.querySelectorAll(`[onclick="toggleStar(event, ${id})"]`);
-        btns.forEach(btn => {
-            const isNowStarred = !btn.classList.contains('starred');
-            btn.classList.toggle('starred', isNowStarred);
-            btn.title = isNowStarred ? 'Unstar' : 'Star';
-            btn.innerHTML = isNowStarred ? SVG_STAR_FILLED : SVG_STAR_EMPTY;
-        });
-        updateCounts();
-    } catch (e) {
-        console.error('Failed to toggle star:', e);
-    }
-}
-
-async function toggleQueue(event, id) {
-    if (event) event.stopPropagation();
-    try {
-        const resp = await api('POST', `/api/articles/${id}/queue`);
-        const isNowQueued = resp.queued;
-        if (isNowQueued) {
-            queuedArticleIds.add(id);
-        } else {
-            queuedArticleIds.delete(id);
-        }
-        // Toggle queue button appearance
-        const btns = document.querySelectorAll(`[onclick="toggleQueue(event, ${id})"]`);
-        btns.forEach(btn => {
-            btn.classList.toggle('queued', isNowQueued);
-            btn.title = isNowQueued ? 'Remove from queue' : 'Add to queue';
-            btn.innerHTML = isNowQueued ? SVG_QUEUE_REMOVE : SVG_QUEUE_ADD;
-        });
-        updateCounts();
-        updateQueueCacheIfStandalone();
-    } catch (e) {
-        console.error('Failed to toggle queue:', e);
-    }
-}
 
 // Feed actions
 async function refreshFeed(id) {
@@ -956,57 +547,6 @@ async function saveFeed(event) {
         console.error('Failed to save feed:', e);
         alert('Failed to save feed');
     }
-}
-
-async function markAsRead(btn, age = 'all') {
-    const dropdown = btn.closest('.dropdown');
-    const feedId = dropdown.dataset.feedId;
-    const categoryId = dropdown.dataset.categoryId;
-    
-    try {
-        let url;
-        if (feedId) {
-            url = `/api/feeds/${feedId}/read-all?age=${age}`;
-        } else if (categoryId) {
-            url = `/api/categories/${categoryId}/read-all?age=${age}`;
-        } else {
-            url = `/api/articles/read-all?age=${age}`;
-        }
-        
-        await api('POST', url);
-        document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
-        
-        // After marking a folder as read, navigate to the next folder with unread articles
-        if (categoryId) {
-            const nextUrl = findNextUnreadFolder(categoryId);
-            if (nextUrl) {
-                window.location.href = nextUrl;
-                return;
-            }
-        }
-        location.reload();
-    } catch (e) {
-        console.error('Failed to mark as read:', e);
-    }
-}
-
-// Find the next folder in sidebar order that has unread articles
-function findNextUnreadFolder(currentCategoryId) {
-    const allFolders = Array.from(document.querySelectorAll('.folder-item[data-category-id]'));
-    const currentIdx = allFolders.findIndex(f => f.dataset.categoryId === String(currentCategoryId));
-    if (currentIdx === -1) return null;
-    
-    // Search from current+1 to end, then wrap from start to current
-    const ordered = [...allFolders.slice(currentIdx + 1), ...allFolders.slice(0, currentIdx)];
-    for (const folder of ordered) {
-        const catId = folder.dataset.categoryId;
-        const badge = document.querySelector(`[data-count="category-${catId}"]`);
-        const count = badge ? parseInt(badge.textContent.trim(), 10) : 0;
-        if (count > 0) {
-            return `/category/${catId}`;
-        }
-    }
-    return null;
 }
 
 // Category functions
@@ -1632,65 +1172,6 @@ function getDragAfterElementAmongSiblings(siblings, y) {
 }
 
 // Process custom embed tags in article content
-function processEmbeds(container) {
-    if (!container) return;
-
-    // Process video embeds: <video data-embed-type="video" data-src="...">
-    container.querySelectorAll('video[data-embed-type="video"]').forEach(el => {
-        const src = el.getAttribute('data-src') || '';
-        const videoId = extractYouTubeId(src);
-        if (videoId) {
-            const wrapper = document.createElement('div');
-            wrapper.className = 'embed-video';
-            wrapper.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
-            el.replaceWith(wrapper);
-        }
-    });
-
-    // Process tweet embeds: <div data-embed-type="tweet">
-    const tweetEls = container.querySelectorAll('[data-embed-type="tweet"]');
-    if (tweetEls.length > 0) {
-        tweetEls.forEach(el => {
-            // The blockquote is already inside; Twitter's widget JS will pick it up
-            const blockquote = el.querySelector('blockquote.twitter-tweet');
-            if (blockquote) {
-                el.replaceWith(blockquote);
-            }
-        });
-        // Load Twitter widget JS if not already loaded
-        if (!document.querySelector('script[src*="platform.twitter.com"]')) {
-            const s = document.createElement('script');
-            s.src = 'https://platform.twitter.com/widgets.js';
-            s.async = true;
-            document.body.appendChild(s);
-        } else if (window.twttr && window.twttr.widgets) {
-            window.twttr.widgets.load(container);
-        }
-    }
-
-    // Process existing iframes (e.g. YouTube) - ensure they're responsive
-    container.querySelectorAll('iframe').forEach(el => {
-        if (el.closest('.embed-video')) return; // already wrapped
-        const src = el.getAttribute('src') || '';
-        if (src.includes('youtube.com') || src.includes('youtu.be')) {
-            const wrapper = document.createElement('div');
-            wrapper.className = 'embed-video';
-            el.parentNode.insertBefore(wrapper, el);
-            wrapper.appendChild(el);
-            el.removeAttribute('width');
-            el.removeAttribute('height');
-        }
-    });
-}
-
-function extractYouTubeId(url) {
-    if (!url) return null;
-    // youtube.com/watch?v=ID, youtube.com/shorts/ID, youtube.com/embed/ID, youtu.be/ID
-    const m = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/);
-    return m ? m[1] : null;
-}
-
-
 // Prevent starting a drag when clicking chevrons.
 document.addEventListener('dragstart', (event) => {
     if (event.target.closest('.folder-chevron')) {
@@ -1796,93 +1277,6 @@ async function copyNewsletterAddress() {
         const sel = window.getSelection();
         sel.removeAllRanges();
         sel.addRange(range);
-    }
-}
-
-function updateEndOfArticlesIndicator() {
-    const el = document.getElementById('end-of-articles');
-    if (!el) return;
-    const hasArticles = document.querySelectorAll('#articles-list .article-card').length > 0;
-    el.classList.toggle('visible', paginationDone && hasArticles);
-}
-
-// Infinite scroll: load more articles when near the bottom
-// Extract cursor from an article's sort key: COALESCE(published_at, fetched_at)
-function getArticleSortTime(article) {
-    return article.published_at || article.fetched_at;
-}
-
-// Update pagination cursor from the last article in a batch
-function updatePaginationCursor(articles) {
-    if (!articles || articles.length === 0) return;
-    const last = articles[articles.length - 1];
-    paginationCursorTime = getArticleSortTime(last);
-    paginationCursorId = last.id;
-}
-
-function getPaginationUrl() {
-    const path = window.location.pathname;
-    const feedMatch = path.match(/^\/feed\/(\d+)/);
-    if (feedMatch) return `/api/feeds/${feedMatch[1]}/articles`;
-    const catMatch = path.match(/^\/category\/(\d+)/);
-    if (catMatch) return `/api/categories/${catMatch[1]}/articles`;
-    if (path === '/') return '/api/articles/unread';
-    return null;
-}
-
-async function loadMoreArticles() {
-    if (paginationLoading || paginationDone) return;
-    const url = getPaginationUrl();
-    if (!url) return;
-
-    if (!paginationCursorTime || !paginationCursorId) return;
-
-    paginationLoading = true;
-    try {
-        const includeRead = showingHiddenArticles ? '&include_read=1' : '';
-        const params = `before_time=${encodeURIComponent(paginationCursorTime)}&before_id=${paginationCursorId}${includeRead}`;
-        const data = await api('GET', `${url}?${params}`);
-        const articles = data.articles || [];
-        if (articles.length === 0) {
-            paginationDone = true;
-            return;
-        }
-        if (articles.length < PAGE_SIZE) {
-            paginationDone = true;
-        }
-        updatePaginationCursor(articles);
-
-        await queuedIdsReady;
-        const list = document.getElementById('articles-list');
-        if (!list) return;
-
-        const fragment = document.createDocumentFragment();
-        const temp = document.createElement('div');
-        temp.innerHTML = articles.map(buildArticleCardHtml).join('');
-        temp.querySelectorAll('.article-content-preview').forEach(el => processEmbeds(el));
-        while (temp.firstChild) {
-            fragment.appendChild(temp.firstChild);
-        }
-        list.appendChild(fragment);
-        observeNewArticles(list);
-        applyUserPreferences();
-    } catch (e) {
-        console.error('Failed to load more articles:', e);
-    } finally {
-        paginationLoading = false;
-        updateEndOfArticlesIndicator();
-        // Re-check scroll position: if still near the bottom after appending,
-        // trigger the next load immediately (the scroll event won't re-fire
-        // if the user has stopped scrolling).
-        checkScrollForMore();
-    }
-}
-
-function checkScrollForMore() {
-    if (paginationDone || paginationLoading) return;
-    const scrollBottom = window.innerHeight + window.scrollY;
-    if (scrollBottom >= document.body.offsetHeight - 600) {
-        loadMoreArticles();
     }
 }
 

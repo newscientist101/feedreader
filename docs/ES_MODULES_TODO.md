@@ -19,9 +19,9 @@ See `ES_MODULES_PLAN.md` for context and rationale.
 - [x] Extract `modules/timestamps.js` — `initTimestampTooltips`
 - [x] Extract `modules/views.js` — `setView`, `getViewScope`, `initView`, `migrateLegacyViewDefaults`, `getDefaultViewForScope`, `applyDefaultViewForScope`
 - [x] Extract `modules/sidebar.js` — `toggleSidebar`, `setSidebarActive`, `navigateFolder`, `toggleFolderCollapse`, `collapseFolder`
-- [ ] Extract `modules/articles.js` — `renderArticleActions`, `buildArticleCardHtml`, `renderArticles`, `updateReadButton`, `showArticlesLoading`, `updateAllReadMessage`, `showReadArticles`, `showHiddenArticles`, `processEmbeds`, `extractYouTubeId`
-- [ ] Extract `modules/article-actions.js` — `markRead`, `markUnread`, `toggleStar`, `toggleQueue`, `markReadSilent`, `openArticle`, `openArticleExternal`, `markAsRead`, auto-mark-read observer (`initAutoMarkRead`, `observeNewArticles`, `flushMarkReadQueue`, `markCardAsRead`)
-- [ ] Extract `modules/pagination.js` — cursor state, `loadMoreArticles`, `checkScrollForMore`, `updatePaginationCursor`, `updateEndOfArticlesIndicator`, `getPaginationUrl`
+- [x] Extract `modules/articles.js` — `renderArticleActions`, `buildArticleCardHtml`, `renderArticles`, `updateReadButton`, `showArticlesLoading`, `updateAllReadMessage`, `showReadArticles`, `showHiddenArticles`, `processEmbeds`, `extractYouTubeId`
+- [x] Extract `modules/article-actions.js` — `markRead`, `markUnread`, `toggleStar`, `toggleQueue`, `markReadSilent`, `openArticle`, `openArticleExternal`, `markAsRead`, auto-mark-read observer (`initAutoMarkRead`, `observeNewArticles`, `flushMarkReadQueue`, `markCardAsRead`)
+- [x] Extract `modules/pagination.js` — cursor state, `loadMoreArticles`, `checkScrollForMore`, `updatePaginationCursor`, `updateEndOfArticlesIndicator`, `getPaginationUrl`
 - [ ] Extract `modules/feeds.js` — `loadFeedArticles`, `loadCategoryArticles`, `refreshFeed`, `deleteFeed`, `editFeed`, `saveFeed`, `filterFeeds`, `setFeedCategory`, `showFeedErrorBanner`, `removeFeedErrorBanner`, `createEditFeedModal`, `closeEditModal`
 - [ ] Extract `modules/folders.js` — `openCreateFolderModal`, `closeCreateFolderModal`, `submitCreateFolder`, `renameCategory`, `unparentCategory`, `deleteCategory`
 - [ ] Extract `modules/counts.js` — `updateCounts`, `updateFeedStatusCell`, `updateFeedErrors`
