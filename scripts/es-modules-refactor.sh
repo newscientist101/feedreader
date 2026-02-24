@@ -60,7 +60,8 @@ IMPORTANT RULES:
 - Never break existing app functionality. The app must work after your changes.
 - If you get stuck on a task, skip it, note why in MEMORY.md, and move on.
 - Do not modify this prompt or the service/timer configuration.
-- When testing in browser, use the dev user.'
+- When testing in browser, use the dev user.
+- Every new module MUST have a corresponding .test.js file with meaningful unit tests. Follow the patterns in api.test.js and utils.test.js. If you extract a module without writing tests, the task is not complete.'
 
 # Start the conversation
 RESULT=$(shelley client chat -p "$PROMPT" -model "$MODEL" -cwd "$WORKDIR" 2>&1)
