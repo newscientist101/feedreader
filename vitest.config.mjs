@@ -5,5 +5,11 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['srv/static/**/*.test.js'],
     reporters: ['default'],
+    coverage: {
+      provider: 'v8',
+      include: ['srv/static/**/*.js'],
+      exclude: ['srv/static/**/*.test.js', 'srv/static/test-helper.js', 'srv/static/sw.js'],
+      reporter: ['text', 'text-summary'],
+    },
   },
 });
