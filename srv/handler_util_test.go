@@ -132,26 +132,6 @@ func TestConvertSteamNewsURL(t *testing.T) {
 	}
 }
 
-func TestStripLeadingImage(t *testing.T) {
-	tests := []struct {
-		name, content, imageURL, want string
-	}{
-		{"strips matching img", `<img src="https://example.com/img.jpg">Hello`, "https://example.com/img.jpg", "Hello"},
-		{"keeps non-matching img", `<img src="https://other.com/img.jpg">Hello`, "https://example.com/img.jpg", `<img src="https://other.com/img.jpg">Hello`},
-		{"no img tag", "Hello world", "https://example.com/img.jpg", "Hello world"},
-		{"empty image url", `<img src="x">Hello`, "", `<img src="x">Hello`},
-		{"empty content", "", "https://example.com/img.jpg", ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := stripLeadingImage(tt.content, tt.imageURL)
-			if got != tt.want {
-				t.Errorf("stripLeadingImage = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestSafeHTML(t *testing.T) {
 	got := safeHTML("<b>bold</b>")
 	if string(got) != "<b>bold</b>" {

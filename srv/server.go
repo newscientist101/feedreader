@@ -12,7 +12,6 @@ import (
 	"html"
 	"html/template"
 	"io"
-	"log"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -88,6 +87,12 @@ func hashStaticFiles(dir string) map[string]string {
 	slog.Info("static file hashes computed", "count", len(hashes))
 	return hashes
 }
+
+var (
+	steamFeedAppRe = regexp.MustCompile(`store\.steampowered\.com/feeds/news/app/(\d+)`)
+	redditSubRe    = regexp.MustCompile(`reddit\.com/r/([^/]+)`)
+	steamNewsURLRe = regexp.MustCompile(`^(https?://store\.steampowered\.com)/news/(app/\d+)/?.*$`)
+)
 
 func (s *Server) setUpDatabase(dbPath string) error {
 	wdb, err := db.Open(dbPath)
@@ -319,6 +324,13 @@ const articlePageSize = 50
 // Keep in sync with PREVIEW_TEXT_LIMIT in static/app.js.
 const previewTextLimit = 500
 
+// markReadAgeDay and markReadAgeWeek are the string values passed to the
+// MarkXxxReadOlderThan DB queries for "older than N days" filtering.
+var (
+	markReadAgeDay  = "1"
+	markReadAgeWeek = "7"
+)
+
 // parseOffset extracts a non-negative integer "offset" query parameter.
 func parseOffset(r *http.Request) int64 {
 	v, err := strconv.ParseInt(r.URL.Query().Get("offset"), 10, 64)
@@ -404,23 +416,22 @@ func stripHTML(s string) string {
 	return strings.TrimSpace(html.UnescapeString(result.String()))
 }
 
-// Page Handlers
-// getCommonData returns data shared across all pages
-func (s *Server) getCommonData(ctx context.Context) map[string]any {
-	q := dbgen.New(s.DB)
-	user := GetUser(ctx)
-	if user == nil {
-		return map[string]any{}
-	}
-	userID := user.ID
+// articleCounts holds the aggregated unread/starred/queue counts plus per-feed and per-category breakdowns.
+type articleCounts struct {
+	Unread     int64
+	Starred    int64
+	Queue      int64
+	FeedCounts map[int64]int64
+	CatCounts  map[int64]int64
+}
 
-	feedList, _ := q.ListFeeds(ctx, &userID)
+// getArticleCounts fetches all count data for a user in batch.
+func (s *Server) getArticleCounts(ctx context.Context, userID int64) articleCounts {
+	q := dbgen.New(s.DB)
 	unreadCount, _ := q.GetUnreadCount(ctx, &userID)
 	starredCount, _ := q.GetStarredCount(ctx, &userID)
 	queueCount, _ := q.GetQueueCount(ctx, userID)
-	categories, _ := q.ListCategories(ctx, &userID)
 
-	// Batch queries replace N+1 per-feed/per-category loops
 	feedCounts := make(map[int64]int64)
 	feedCountRows, _ := q.GetAllFeedUnreadCounts(ctx, &userID)
 	for _, row := range feedCountRows {
@@ -432,6 +443,29 @@ func (s *Server) getCommonData(ctx context.Context) map[string]any {
 	for _, row := range catCountRows {
 		catCounts[row.CategoryID] = row.Count
 	}
+
+	return articleCounts{
+		Unread:     unreadCount,
+		Starred:    starredCount,
+		Queue:      queueCount,
+		FeedCounts: feedCounts,
+		CatCounts:  catCounts,
+	}
+}
+
+// Page Handlers
+// getCommonData returns data shared across all pages
+func (s *Server) getCommonData(ctx context.Context) map[string]any {
+	q := dbgen.New(s.DB)
+	user := GetUser(ctx)
+	if user == nil {
+		return map[string]any{}
+	}
+	userID := user.ID
+
+	feedList, _ := q.ListFeeds(ctx, &userID)
+	categories, _ := q.ListCategories(ctx, &userID)
+	counts := s.getArticleCounts(ctx, userID)
 
 	// Get feed-to-category mapping
 	feedCategories := make(map[int64]int64)
@@ -453,15 +487,15 @@ func (s *Server) getCommonData(ctx context.Context) map[string]any {
 
 	return map[string]any{
 		"Feeds":          feedList,
-		"FeedCounts":     feedCounts,
+		"FeedCounts":     counts.FeedCounts,
 		"Categories":     categories,
 		"CategoryTree":   categoryTree,
 		"FlatCategories": flatCategories,
-		"CategoryCounts": catCounts,
+		"CategoryCounts": counts.CatCounts,
 		"FeedCategories": feedCategories,
-		"UnreadCount":    unreadCount,
-		"StarredCount":   starredCount,
-		"QueueCount":     queueCount,
+		"UnreadCount":    counts.Unread,
+		"StarredCount":   counts.Starred,
+		"QueueCount":     counts.Queue,
 		"User":           user,
 		"Settings":       settings,
 	}
@@ -617,7 +651,7 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 	articles, _ := q.ListHistoryArticles(ctx, dbgen.ListHistoryArticlesParams{
 		UserID: user.ID,
 		Limit:  articlePageSize,
-		Offset: int64(offset),
+		Offset: offset,
 	})
 
 	data := s.getCommonData(ctx)
@@ -742,8 +776,7 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 
 	// Auto-generate name for Steam feeds
 	if req.Name == "" && req.FeedType == "rss" {
-		steamAppRe := regexp.MustCompile(`store\.steampowered\.com/feeds/news/app/(\d+)`)
-		if m := steamAppRe.FindStringSubmatch(req.URL); m != nil {
+		if m := steamFeedAppRe.FindStringSubmatch(req.URL); m != nil {
 			if name := fetchSteamAppName(m[1]); name != "" {
 				req.Name = name
 			}
@@ -752,8 +785,7 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 
 	// Auto-generate name for Reddit RSS feeds
 	if req.Name == "" && req.FeedType == "rss" {
-		redditRe := regexp.MustCompile(`reddit\.com/r/([^/]+)`)
-		if m := redditRe.FindStringSubmatch(req.URL); m != nil {
+		if m := redditSubRe.FindStringSubmatch(req.URL); m != nil {
 			req.Name = "r/" + m[1]
 		}
 	}
@@ -973,18 +1005,9 @@ func (s *Server) apiGetCounts(w http.ResponseWriter, r *http.Request) {
 	q := dbgen.New(s.DB)
 	userID := user.ID
 
+	counts := s.getArticleCounts(ctx, userID)
+
 	feedList, _ := q.ListFeeds(ctx, &userID)
-
-	unreadCount, _ := q.GetUnreadCount(ctx, &userID)
-	starredCount, _ := q.GetStarredCount(ctx, &userID)
-	queueCount, _ := q.GetQueueCount(ctx, userID)
-
-	feedCounts := make(map[int64]int64)
-	feedCountRows, _ := q.GetAllFeedUnreadCounts(ctx, &userID)
-	for _, row := range feedCountRows {
-		feedCounts[row.FeedID] = row.Count
-	}
-
 	feedErrors := make(map[int64]string)
 	for i := range feedList {
 		if feedList[i].LastError != nil && *feedList[i].LastError != "" {
@@ -992,18 +1015,12 @@ func (s *Server) apiGetCounts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	catCounts := make(map[int64]int64)
-	catCountRows, _ := q.GetAllCategoryUnreadCounts(ctx, &userID)
-	for _, row := range catCountRows {
-		catCounts[row.CategoryID] = row.Count
-	}
-
 	jsonResponse(w, map[string]any{
-		"unread":     unreadCount,
-		"starred":    starredCount,
-		"queue":      queueCount,
-		"feeds":      feedCounts,
-		"categories": catCounts,
+		"unread":     counts.Unread,
+		"starred":    counts.Starred,
+		"queue":      counts.Queue,
+		"feeds":      counts.FeedCounts,
+		"categories": counts.CatCounts,
 		"feedErrors": feedErrors,
 	})
 }
@@ -1252,14 +1269,12 @@ func (s *Server) apiMarkAllRead(w http.ResponseWriter, r *http.Request) {
 	q := dbgen.New(s.DB)
 
 	age := r.URL.Query().Get("age")
-	oneDay := "1"
-	oneWeek := "7"
 	var err error
 	switch age {
 	case "day":
-		err = q.MarkAllArticlesReadOlderThan(ctx, dbgen.MarkAllArticlesReadOlderThanParams{Column1: &oneDay, UserID: &user.ID})
+		err = q.MarkAllArticlesReadOlderThan(ctx, dbgen.MarkAllArticlesReadOlderThanParams{Column1: &markReadAgeDay, UserID: &user.ID})
 	case "week":
-		err = q.MarkAllArticlesReadOlderThan(ctx, dbgen.MarkAllArticlesReadOlderThanParams{Column1: &oneWeek, UserID: &user.ID})
+		err = q.MarkAllArticlesReadOlderThan(ctx, dbgen.MarkAllArticlesReadOlderThanParams{Column1: &markReadAgeWeek, UserID: &user.ID})
 	default:
 		err = q.MarkAllArticlesRead(ctx, &user.ID)
 	}
@@ -1284,19 +1299,17 @@ func (s *Server) apiMarkFeedRead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	age := r.URL.Query().Get("age")
-	oneDay := "1"
-	oneWeek := "7"
 	switch age {
 	case "day":
 		err = q.MarkFeedArticlesReadOlderThan(ctx, dbgen.MarkFeedArticlesReadOlderThanParams{
 			FeedID:  feedID,
-			Column2: &oneDay,
+			Column2: &markReadAgeDay,
 			UserID:  &user.ID,
 		})
 	case "week":
 		err = q.MarkFeedArticlesReadOlderThan(ctx, dbgen.MarkFeedArticlesReadOlderThanParams{
 			FeedID:  feedID,
-			Column2: &oneWeek,
+			Column2: &markReadAgeWeek,
 			UserID:  &user.ID,
 		})
 	default:
@@ -1515,7 +1528,7 @@ func (s *Server) apiSearch(w http.ResponseWriter, r *http.Request) {
 func jsonResponse(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(data); err != nil {
-		log.Printf("jsonResponse encode error: %v", err)
+		slog.Warn("jsonResponse encode error", "error", err)
 	}
 }
 
@@ -1523,7 +1536,7 @@ func jsonError(w http.ResponseWriter, msg string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	if err := json.NewEncoder(w).Encode(map[string]string{"error": msg}); err != nil {
-		log.Printf("jsonError encode error: %v", err)
+		slog.Warn("jsonError encode error", "error", err)
 	}
 }
 
@@ -1655,32 +1668,10 @@ func fetchSteamAppName(appID string) string {
 // convertSteamNewsURL converts Steam store news URLs to their RSS feed equivalents
 func convertSteamNewsURL(rawURL string) string {
 	// Match https://store.steampowered.com/news/app/DIGITS with optional trailing slash/params
-	steamNewsRe := regexp.MustCompile(`^(https?://store\.steampowered\.com)/news/(app/\d+)/?.*$`)
-	if m := steamNewsRe.FindStringSubmatch(rawURL); m != nil {
+	if m := steamNewsURLRe.FindStringSubmatch(rawURL); m != nil {
 		return m[1] + "/feeds/news/" + m[2]
 	}
 	return rawURL
-}
-
-// stripLeadingImage removes the first <img> tag from content if its src matches the given URL
-func stripLeadingImage(content, imageURL string) string {
-	if imageURL == "" {
-		return content
-	}
-	trimmed := strings.TrimSpace(content)
-	if !strings.HasPrefix(trimmed, "<img") {
-		return content
-	}
-	// Find the end of the first img tag
-	end := strings.Index(trimmed, ">")
-	if end == -1 {
-		return content
-	}
-	imgTag := trimmed[:end+1]
-	if strings.Contains(imgTag, imageURL) {
-		return strings.TrimSpace(trimmed[end+1:])
-	}
-	return content
 }
 
 // Category handlers
@@ -1695,19 +1686,12 @@ func (s *Server) handleCategoryArticles(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	categories, _ := q.ListCategories(ctx, &user.ID)
-	var category *dbgen.Category
-	for _, c := range categories {
-		if c.ID == catID {
-			catCopy := c
-			category = &catCopy
-			break
-		}
-	}
-	if category == nil {
+	categoryVal, err := q.GetCategory(ctx, dbgen.GetCategoryParams{ID: catID, UserID: &user.ID})
+	if err != nil {
 		http.Error(w, "Category not found", 404)
 		return
 	}
+	category := &categoryVal
 
 	articles, _ := q.ListUnreadArticlesByCategory(ctx, dbgen.ListUnreadArticlesByCategoryParams{
 		CategoryID: catID,
@@ -1746,19 +1730,12 @@ func (s *Server) apiGetCategoryArticles(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	categories, _ := q.ListCategories(ctx, &user.ID)
-	var category *dbgen.Category
-	for _, c := range categories {
-		if c.ID == catID {
-			catCopy := c
-			category = &catCopy
-			break
-		}
-	}
-	if category == nil {
+	categoryVal, err := q.GetCategory(ctx, dbgen.GetCategoryParams{ID: catID, UserID: &user.ID})
+	if err != nil {
 		jsonError(w, "Category not found", 404)
 		return
 	}
+	category := &categoryVal
 
 	includeRead := r.URL.Query().Get("include_read") == "1"
 	beforeTime, beforeID, hasCursor := parseCursor(r)
@@ -2002,11 +1979,18 @@ func (s *Server) apiDeleteCategory(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) apiSetFeedCategory(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
 	feedID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		jsonError(w, "Invalid feed ID", 400)
+		return
+	}
+
+	// Verify feed belongs to user
+	if _, err := q.GetFeed(ctx, dbgen.GetFeedParams{ID: feedID, UserID: &user.ID}); err != nil {
+		jsonError(w, "Feed not found", 404)
 		return
 	}
 
@@ -2049,20 +2033,18 @@ func (s *Server) apiMarkCategoryRead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	age := r.URL.Query().Get("age")
-	oneDay := "1"
-	oneWeek := "7"
 	switch age {
 	case "day":
 		err = q.MarkCategoryArticlesReadOlderThan(ctx, dbgen.MarkCategoryArticlesReadOlderThanParams{
 			CategoryID: catID,
 			UserID:     &user.ID,
-			Column3:    &oneDay,
+			Column3:    &markReadAgeDay,
 		})
 	case "week":
 		err = q.MarkCategoryArticlesReadOlderThan(ctx, dbgen.MarkCategoryArticlesReadOlderThanParams{
 			CategoryID: catID,
 			UserID:     &user.ID,
-			Column3:    &oneWeek,
+			Column3:    &markReadAgeWeek,
 		})
 	default:
 		err = q.MarkCategoryRead(ctx, dbgen.MarkCategoryReadParams{CategoryID: catID, UserID: &user.ID})
@@ -2111,7 +2093,7 @@ func (s *Server) apiExportOPML(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/xml")
 	w.Header().Set("Content-Disposition", "attachment; filename=feedreader-export.opml")
 	if _, err := w.Write(data); err != nil {
-		log.Printf("failed to write OPML export: %v", err)
+		slog.Error("failed to write OPML export", "error", err)
 	}
 }
 
@@ -2321,19 +2303,12 @@ func (s *Server) handleCategorySettings(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	categories, _ := q.ListCategories(ctx, &user.ID)
-	var category *dbgen.Category
-	for _, c := range categories {
-		if c.ID == catID {
-			catCopy := c
-			category = &catCopy
-			break
-		}
-	}
-	if category == nil {
+	categoryVal, err := q.GetCategory(ctx, dbgen.GetCategoryParams{ID: catID, UserID: &user.ID})
+	if err != nil {
 		http.Error(w, "Category not found", 404)
 		return
 	}
+	category := &categoryVal
 
 	exclusions, _ := q.ListExclusionsByCategory(ctx, dbgen.ListExclusionsByCategoryParams{CategoryID: catID, UserID: &user.ID})
 
