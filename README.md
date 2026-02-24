@@ -11,6 +11,9 @@ A modern feed reader with RSS/Atom support and a modular scraper system for non-
 - **Exclusion Rules**: Filter out articles by keyword or author per folder
 - **Data Retention**: Automatic cleanup of old articles (starred items preserved)
 - **Multiple Views**: Card, List, Magazine, and Expanded views
+- **Reading Queue**: Save articles to read later
+- **Reading History**: Track recently read articles
+- **Newsletter Support**: Receive newsletters as feed items via email
 - **Responsive UI**: Works on desktop, tablet, and mobile
 
 ## Building and Running
@@ -162,21 +165,41 @@ Filter unwanted content per folder:
 ## API Endpoints
 
 ### Feeds
-- `GET /api/feeds` - List all feeds
+- `GET /api/feeds/{id}` - Get feed details
+- `GET /api/feeds/{id}/articles` - Get feed articles
+- `GET /api/feeds/{id}/status` - Get feed fetch status
 - `POST /api/feeds` - Create feed
+- `PUT /api/feeds/{id}` - Update feed
 - `DELETE /api/feeds/{id}` - Delete feed
 - `POST /api/feeds/{id}/refresh` - Refresh feed
+- `POST /api/feeds/{id}/category` - Set feed category
+- `POST /api/feeds/{id}/read-all` - Mark all feed articles read
 
 ### Articles
+- `GET /api/articles/unread` - Get unread articles
 - `POST /api/articles/{id}/read` - Mark as read
+- `POST /api/articles/{id}/unread` - Mark as unread
 - `POST /api/articles/{id}/star` - Toggle star
-- `GET /api/search?q=query` - Search articles
+- `POST /api/articles/batch-read` - Batch mark as read
+- `POST /api/articles/read-all` - Mark all articles read
+- `GET /api/search` - Search articles
 
 ### Categories
-- `GET /api/categories` - List categories
 - `POST /api/categories` - Create category
 - `PUT /api/categories/{id}` - Update category
 - `DELETE /api/categories/{id}` - Delete category
+- `GET /api/categories/{id}/articles` - Get category articles
+- `POST /api/categories/reorder` - Reorder categories
+- `POST /api/categories/{id}/parent` - Set parent category
+- `POST /api/categories/{id}/read-all` - Mark all category articles read
+- `GET /api/categories/{id}/exclusions` - List exclusion rules
+- `POST /api/categories/{id}/exclusions` - Create exclusion rule
+- `DELETE /api/exclusions/{id}` - Delete exclusion rule
+
+### Queue & History
+- `GET /api/queue` - List queued articles
+- `POST /api/articles/{id}/queue` - Toggle queue status
+- `DELETE /api/articles/{id}/queue` - Remove from queue
 
 ### OPML
 - `GET /api/opml/export` - Export as OPML
@@ -185,10 +208,20 @@ Filter unwanted content per folder:
 ### Scrapers
 - `GET /api/scrapers/{id}` - Get scraper
 - `POST /api/scrapers` - Create scraper
+- `PUT /api/scrapers/{id}` - Update scraper
 - `DELETE /api/scrapers/{id}` - Delete scraper
 - `POST /api/ai/generate-scraper` - Generate config with AI
+- `GET /api/ai/status` - Check AI availability
 
-### Settings
+### Newsletter
+- `GET /api/newsletter/address` - Get newsletter email address
+- `POST /api/newsletter/generate-address` - Generate new newsletter address
+
+### Settings & Counts
+- `GET /api/settings` - Get user settings
+- `PUT /api/settings` - Update user settings
+- `GET /api/counts` - Get unread/starred/feed counts
+- `GET /api/favicon` - Fetch site favicon
 - `GET /api/retention/stats` - Retention statistics
 - `POST /api/retention/cleanup` - Run cleanup
 
@@ -203,6 +236,8 @@ SQLite database (`db.sqlite3`) with migrations in `db/migrations/`.
 - `srv/feeds/` - RSS/Atom parser and fetcher
 - `srv/scrapers/` - Custom scraper engine
 - `srv/opml/` - OPML import/export
+- `srv/email/` - Newsletter email receiving
+- `srv/huggingface/` - Hugging Face feed source
 - `srv/templates/` - HTML templates
 - `srv/static/` - CSS and JavaScript
 - `db/` - Database, migrations, queries
