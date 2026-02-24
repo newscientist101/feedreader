@@ -1,0 +1,12 @@
+[Unit]
+Description=ES Modules refactor agent (shelley + claude-opus-4.6)
+After=network.target
+
+[Service]
+Type=oneshot
+User=exedev
+WorkingDirectory=/home/exedev/feedreader
+ExecStart=/home/exedev/feedreader/scripts/es-modules-refactor.sh
+TimeoutStartSec=3900
+Environment=HOME=/home/exedev
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:/home/exedev/.local/bin:/home/exedev/go/bin
