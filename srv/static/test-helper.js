@@ -1,10 +1,14 @@
 /**
  * Test helper: loads app.js into the jsdom global scope.
  *
- * app.js is a plain <script> (not an ES module), so we eval it inside
- * an IIFE.  This file auto-scans app.js for top-level declarations
- * (function, const, let, var) and generates window assignments so
- * every symbol is accessible in tests — no manual list to maintain.
+ * app.js is an ES module, but we eval it inside an IIFE for testing.
+ * Import statements are stripped and replaced with window destructuring
+ * so the eval'd code can access imported symbols. The modules themselves
+ * are loaded separately and their exports placed on window first.
+ *
+ * This file auto-scans app.js for top-level declarations (function,
+ * const, let, var) and generates window assignments so every symbol
+ * is accessible in tests — no manual list to maintain.
  */
 
 import { readFileSync } from 'fs';
@@ -76,7 +80,46 @@ function buildExports(names) {
   return lines.join('\n');
 }
 
-export function loadApp() {
+/**
+ * Strip ES module import lines from source and return replacement
+ * destructuring statements that pull the same names from window.
+ *
+ * e.g. `import { foo, bar } from './modules/x.js';`
+ *   -> `const { foo, bar } = window;`
+ */
+function replaceImports(src) {
+  const lines = src.split('\n');
+  const result = [];
+  for (const line of lines) {
+    const m = line.match(/^import\s+\{([^}]+)\}\s+from\s+['"]/);
+    if (m) {
+      // Replace import with window destructuring so local names resolve
+      const names = m[1].trim();
+      result.push(`const { ${names} } = window;`);
+    } else {
+      result.push(line);
+    }
+  }
+  return result.join('\n');
+}
+
+/**
+ * Dynamically import all modules under modules/ and place their
+ * exports on window so eval'd app.js code can reference them.
+ */
+async function preloadModules() {
+  const modulesDir = resolve(__dirname, 'modules');
+  const { readdirSync } = await import('fs');
+  const files = readdirSync(modulesDir).filter(f => f.endsWith('.js') && !f.endsWith('.test.js'));
+  for (const file of files) {
+    const mod = await import(resolve(modulesDir, file));
+    for (const [name, value] of Object.entries(mod)) {
+      window[name] = value;
+    }
+  }
+}
+
+export async function loadApp() {
   // Reset relevant globals between tests
   window.__settings = {};
 
@@ -102,7 +145,12 @@ export function loadApp() {
     </div>
   `;
 
-  const src = readFileSync(resolve(__dirname, 'app.js'), 'utf-8');
+  // Pre-load extracted modules onto window
+  await preloadModules();
+
+  let src = readFileSync(resolve(__dirname, 'app.js'), 'utf-8');
+  // Replace import statements with window destructuring
+  src = replaceImports(src);
   const names = extractTopLevelNames(src);
   const exports = buildExports(names);
 

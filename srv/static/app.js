@@ -1,3 +1,10 @@
+import { getSetting, saveSetting, applyHideReadArticles, applyHideEmptyFeeds } from './modules/settings.js';
+import { toggleDropdown, initDropdownCloseListener } from './modules/dropdown.js';
+import { initTimestampTooltips } from './modules/timestamps.js';
+
+// Initialize click-outside listener for dropdowns (was top-level in original code)
+initDropdownCloseListener();
+
 // Max characters to put in the DOM for article text previews.
 // CSS line-clamp handles the visual truncation; this just limits DOM weight.
 // Keep in sync with previewTextLimit in server.go.
@@ -64,21 +71,6 @@ function setSidebarActive(el) {
     if (el) el.classList.add('active');
 }
 
-// User settings (injected from server, saved via API)
-function getSetting(key, defaultValue) {
-    const val = (window.__settings || {})[key];
-    return val !== undefined ? val : (defaultValue || '');
-}
-
-function saveSetting(key, value) {
-    if (!window.__settings) window.__settings = {};
-    window.__settings[key] = value;
-    fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [key]: value }),
-    }).catch(e => console.error('Failed to save setting:', e));
-}
 
 // Apply user preferences from settings
 function applyUserPreferences() {
@@ -289,49 +281,6 @@ function removeFeedErrorBanner() {
     const banner = document.querySelector('.feed-error-banner');
     if (banner) banner.remove();
 }
-
-// Format timestamps in user's local timezone
-function formatLocalDate(isoString) {
-    const date = new Date(isoString);
-    return date.toLocaleDateString(undefined, {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit'
-    });
-}
-
-function initTimestampTooltips() {
-    document.querySelectorAll('[data-timestamp]').forEach(el => {
-        const timestamp = el.dataset.timestamp;
-        if (timestamp) {
-            el.title = formatLocalDate(timestamp);
-        }
-    });
-}
-
-// Dropdown toggle
-function toggleDropdown(btn) {
-    const dropdown = btn.closest('.dropdown');
-    const wasOpen = dropdown.classList.contains('open');
-    
-    // Close all dropdowns
-    document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
-    
-    // Toggle this one
-    if (!wasOpen) {
-        dropdown.classList.add('open');
-    }
-}
-
-// Close dropdowns when clicking outside
-document.addEventListener('click', (e) => {
-    if (!e.target.closest('.dropdown')) {
-        document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
-    }
-});
 
 // Mobile sidebar toggle
 function toggleSidebar() {
@@ -1879,27 +1828,6 @@ document.addEventListener('dragstart', (event) => {
 // --- Helpers moved from inline template scripts ---
 
 // Toggle read articles visibility (used by settings page for instant feedback)
-function applyHideReadArticles(value) {
-    document.querySelectorAll('.article-card.read').forEach(card => {
-        card.style.display = value === 'hide' ? 'none' : '';
-    });
-}
-
-// Toggle empty feeds visibility (used by settings page for instant feedback)
-function applyHideEmptyFeeds(value) {
-    document.querySelectorAll('.feed-item').forEach(item => {
-        // Don't hide feeds that have never been fetched
-        if (item.dataset.neverFetched === 'true') return;
-        const badge = item.querySelector('.badge');
-        const count = badge ? parseInt(badge.textContent || '0', 10) : 0;
-        if (!count) {
-            item.style.display = value === 'hide' ? 'none' : '';
-        } else {
-            item.style.display = '';
-        }
-    });
-}
-
 // Settings page: run retention cleanup
 async function runCleanup() {
     const status = document.getElementById('cleanup-status');
@@ -2275,3 +2203,48 @@ function updateQueueCacheIfStandalone() {
 document.addEventListener('DOMContentLoaded', () => {
     initOfflineSupport();
 });
+
+// --- Transitional window exports (Phase 2) ---
+// Functions called from inline onclick/onchange handlers in templates
+// or from <script> blocks in template files need to be global.
+// These will be removed in Phase 3 when inline handlers are eliminated.
+window.api = api;
+window.getSetting = getSetting;
+window.saveSetting = saveSetting;
+window.saveFeed = saveFeed;
+window.applyUserPreferences = applyUserPreferences;
+window.applyHideReadArticles = applyHideReadArticles;
+window.applyHideEmptyFeeds = applyHideEmptyFeeds;
+window.toggleDropdown = toggleDropdown;
+window.toggleSidebar = toggleSidebar;
+window.toggleFolderCollapse = toggleFolderCollapse;
+window.navigateFolder = navigateFolder;
+window.openCreateFolderModal = openCreateFolderModal;
+window.closeCreateFolderModal = closeCreateFolderModal;
+window.closeEditModal = closeEditModal;
+window.submitCreateFolder = submitCreateFolder;
+window.deleteCategory = deleteCategory;
+window.deleteFeed = deleteFeed;
+window.editFeed = editFeed;
+window.exportOPML = exportOPML;
+window.importOPML = importOPML;
+window.filterFeeds = filterFeeds;
+window.markAsRead = markAsRead;
+window.markRead = markRead;
+window.markUnread = markUnread;
+window.markReadSilent = markReadSilent;
+window.openArticle = openArticle;
+window.openArticleExternal = openArticleExternal;
+window.refreshFeed = refreshFeed;
+window.renameCategory = renameCategory;
+window.runCleanup = runCleanup;
+window.setFeedCategory = setFeedCategory;
+window.setView = setView;
+window.showHiddenArticles = showHiddenArticles;
+window.showReadArticles = showReadArticles;
+window.toggleStar = toggleStar;
+window.toggleQueue = toggleQueue;
+window.unparentCategory = unparentCategory;
+window.copyNewsletterAddress = copyNewsletterAddress;
+window.generateNewsletterAddress = generateNewsletterAddress;
+window.updateQueueCacheIfStandalone = updateQueueCacheIfStandalone;

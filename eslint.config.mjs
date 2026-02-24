@@ -76,9 +76,9 @@ export default [
       "no-use-before-define": ["warn", { functions: false, classes: false }],
     },
   },
-  // ES module override for files in the modules/ directory
+  // ES module override for app.js and files in the modules/ directory
   {
-    files: ["srv/static/modules/**/*.js"],
+    files: ["srv/static/app.js", "srv/static/modules/**/*.js"],
     languageOptions: {
       sourceType: "module",
     },

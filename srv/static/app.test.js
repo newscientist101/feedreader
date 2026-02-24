@@ -6,10 +6,10 @@ import { loadApp, extractTopLevelNames } from './test-helper.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.useFakeTimers();
   vi.spyOn(console, 'debug').mockImplementation(() => {});
-  loadApp();
+  await loadApp();
 });
 
 afterEach(() => {
@@ -1947,7 +1947,6 @@ const UNTESTED_FUNCTIONS = {
 
   // -- DOM event wiring / init functions --
   initSettingsPage:          'settings page DOM wiring',
-  initTimestampTooltips:     'tooltip DOM wiring',
   initView:                  'calls migrateLegacyViewDefaults + applyDefaultViewForScope (both tested)',
 
   // -- Thin API wrappers (single fetch call + DOM update) --
@@ -1973,7 +1972,6 @@ const UNTESTED_FUNCTIONS = {
   collapseFolder:            'CSS class toggle + sessionStorage',
   filterFeeds:               'sidebar filter with full DOM',
   navigateFolder:            'event handler dispatching to loadCategoryArticles',
-  toggleDropdown:            'dropdown menu toggle',
   toggleFolderCollapse:      'folder expand/collapse',
   toggleSidebar:             'sidebar toggle',
 

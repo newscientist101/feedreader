@@ -14,9 +14,9 @@ See `ES_MODULES_PLAN.md` for context and rationale.
 
 ## Phase 2: Extract stateful modules
 
-- [ ] Extract `modules/settings.js` — `getSetting`, `saveSetting`, `applyUserPreferences`, `applyHideReadArticles`, `applyHideEmptyFeeds`
-- [ ] Extract `modules/dropdown.js` — `toggleDropdown`, click-outside close listener
-- [ ] Extract `modules/timestamps.js` — `initTimestampTooltips`
+- [x] Extract `modules/settings.js` — `getSetting`, `saveSetting`, ~~`applyUserPreferences`~~, `applyHideReadArticles`, `applyHideEmptyFeeds`
+- [x] Extract `modules/dropdown.js` — `toggleDropdown`, `initDropdownCloseListener`
+- [x] Extract `modules/timestamps.js` — `initTimestampTooltips`
 - [ ] Extract `modules/views.js` — `setView`, `getViewScope`, `initView`, `migrateLegacyViewDefaults`, `getDefaultViewForScope`, `applyDefaultViewForScope`
 - [ ] Extract `modules/sidebar.js` — `toggleSidebar`, `setSidebarActive`, `navigateFolder`, `toggleFolderCollapse`, `collapseFolder`
 - [ ] Extract `modules/articles.js` — `renderArticleActions`, `buildArticleCardHtml`, `renderArticles`, `updateReadButton`, `showArticlesLoading`, `updateAllReadMessage`, `showReadArticles`, `showHiddenArticles`, `processEmbeds`, `extractYouTubeId`

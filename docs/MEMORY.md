@@ -7,8 +7,28 @@
 - Created `srv/static/modules/` directory
 - Extracted `icons.js` (7 SVG constants), `utils.js` (5 functions + PREVIEW_TEXT_LIMIT), `api.js` (fetch wrapper)
 - Added `utils.test.js` (15 tests) and `api.test.js` (5 tests) with direct ES module imports
-- Added ESLint flat-config override for `modules/**/*.js` with `sourceType: "module"` (must come AFTER the general `srv/static/**/*.js` config so it wins the merge)
-- `vitest.config.mjs` globs already covered `modules/` — no changes needed
-- `app.js` is **unchanged** — functions are duplicated in modules for now. Phase 2 will start removing from `app.js` and importing from modules.
+- Added ESLint flat-config override for `modules/**/*.js` with `sourceType: "module"`
+- `app.js` is **unchanged** — functions are duplicated in modules for now.
 
-**Next run:** Start Phase 2. First task is `modules/settings.js`. Note: to actually use imports in `app.js`, it must become `type="module"` in base.html. The plan says this is Phase 4, but practically it needs to happen at the start of Phase 2 (or else `app.js` can't import from modules). Consider switching `<script>` to `<script type="module">` as the first Phase 2 step — the app already uses `DOMContentLoaded`, so deferred execution should be equivalent.
+## Run 2 — Phase 2 started (settings, dropdown, timestamps)
+
+**Completed:**
+- Switched `base.html` to `<script type="module">` for `app.js` — moved up from Phase 4 since imports require module context. Verified deferred execution is equivalent (app uses `DOMContentLoaded`).
+- Added comprehensive `window.X = X` transitional exports at bottom of `app.js` for all functions called from inline `onclick`/`onchange`/`onsubmit` handlers in templates and JS-built HTML strings (~40 functions).
+- Updated `test-helper.js`: `loadApp()` is now **async**. It strips `import` lines from `app.js` (replacing them with `const { ... } = window;` destructuring) and pre-loads all modules via `preloadModules()` before eval.
+- Updated `app.test.js`: `beforeEach` is now `async` to `await loadApp()`.
+- Updated ESLint config: added `app.js` to the `sourceType: "module"` override alongside `modules/**/*.js`.
+- Extracted `modules/settings.js`: `getSetting`, `saveSetting`, `applyHideReadArticles`, `applyHideEmptyFeeds`. Note: `applyUserPreferences` was **not** extracted — it calls `updateAllReadMessage()` which belongs to `articles.js` (not yet extracted). It stays in `app.js` for now.
+- Extracted `modules/dropdown.js`: `toggleDropdown`, `initDropdownCloseListener`. The click-outside listener is now called explicitly via `initDropdownCloseListener()` at module top level in `app.js`.
+- Extracted `modules/timestamps.js`: `initTimestampTooltips`. Imports `formatLocalDate` from `utils.js`.
+- Removed `formatLocalDate` from `app.js` (already in `modules/utils.js`, only used by `initTimestampTooltips`).
+- Removed `initTimestampTooltips` and `toggleDropdown` from `UNTESTED_FUNCTIONS` in `app.test.js` (no longer in `app.js`).
+- Added missing `window.saveFeed` and `window.closeEditModal` exports (called from JS-built onclick strings).
+
+**Key patterns established:**
+1. Extract function to module → remove from `app.js` → add `import` at top of `app.js`
+2. `window.X = X` at bottom of `app.js` for anything called from inline handlers
+3. `test-helper.js` auto-loads all modules and strips imports — no manual module list needed
+4. When removing a function from app.js, check if it's in `UNTESTED_FUNCTIONS` in `app.test.js` and remove it
+
+**Next run:** Continue Phase 2 — extract `views.js`, `sidebar.js`, `articles.js`. Note that `applyUserPreferences` should move to `settings.js` once `articles.js` is extracted (it needs `updateAllReadMessage` from there). The duplicate utility functions (`formatTimeAgo`, `stripHtml`, `truncateText`, `getArticleSortTime`) are still in `app.js` — they can be removed and imported from `modules/utils.js` as part of extracting the modules that use them.
