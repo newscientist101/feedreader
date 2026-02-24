@@ -76,4 +76,14 @@ export default [
       "no-use-before-define": ["warn", { functions: false, classes: false }],
     },
   },
+  // ES module override for files in the modules/ directory
+  {
+    files: ["srv/static/modules/**/*.js"],
+    languageOptions: {
+      sourceType: "module",
+    },
+    rules: {
+      "no-unused-vars": ["warn", { args: "none", caughtErrors: "none" }],
+    },
+  },
 ];

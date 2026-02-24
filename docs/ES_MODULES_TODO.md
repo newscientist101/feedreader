@@ -4,13 +4,13 @@ See `ES_MODULES_PLAN.md` for context and rationale.
 
 ## Phase 1: Infrastructure (non-breaking)
 
-- [ ] Create `srv/static/modules/` directory
-- [ ] Extract `modules/icons.js` — SVG constant strings
-- [ ] Extract `modules/utils.js` — `formatTimeAgo`, `formatLocalDate`, `stripHtml`, `truncateText`, `getArticleSortTime`
-- [ ] Extract `modules/api.js` — `api()` fetch wrapper
-- [ ] Add direct-import tests for `utils.js` and `api.js`
-- [ ] Update `vitest.config.mjs` coverage include to cover `modules/`
-- [ ] Verify `make check` passes, commit
+- [x] Create `srv/static/modules/` directory
+- [x] Extract `modules/icons.js` — SVG constant strings
+- [x] Extract `modules/utils.js` — `formatTimeAgo`, `formatLocalDate`, `stripHtml`, `truncateText`, `getArticleSortTime`
+- [x] Extract `modules/api.js` — `api()` fetch wrapper
+- [x] Add direct-import tests for `utils.js` and `api.js`
+- [x] Update `vitest.config.mjs` coverage include to cover `modules/`
+- [x] Verify `make check` passes, commit
 
 ## Phase 2: Extract stateful modules
 
