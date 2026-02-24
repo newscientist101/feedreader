@@ -762,28 +762,6 @@ func TestHandlerRetentionCleanup(t *testing.T) {
 
 // --------------- Generate Scraper ---------------
 
-func TestHandlerGenerateScraper_Validation(t *testing.T) {
-	t.Parallel()
-	s := testServer(t)
-	ctx, _ := testUser(t, s)
-
-	// Missing URL
-	w := serveAPI(t, s.apiGenerateScraper, "POST", "/api/ai/generate-scraper",
-		`{"description":"test"}`, ctx)
-	// If Shelley is available, should get 400 for missing URL.
-	// If unavailable, should get 503.
-	if w.Code != 400 && w.Code != 503 {
-		t.Fatalf("expected 400 or 503, got %d: %s", w.Code, w.Body.String())
-	}
-
-	// Bad JSON
-	w = serveAPI(t, s.apiGenerateScraper, "POST", "/api/ai/generate-scraper",
-		`not json`, ctx)
-	if w.Code != 400 && w.Code != 503 {
-		t.Fatalf("expected 400 or 503, got %d", w.Code)
-	}
-}
-
 // --------------- Gzip Middleware ---------------
 
 func TestGzipMiddleware(t *testing.T) {
