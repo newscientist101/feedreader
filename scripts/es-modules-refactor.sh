@@ -59,8 +59,8 @@ IMPORTANT RULES:
 - Always run `make check` before committing. All checks must pass.
 - Never break existing app functionality. The app must work after your changes.
 - If you get stuck on a task, skip it, note why in MEMORY.md, and move on.
-- Do not modify this prompt or the service/timer configuration.'
-- When testing in browser, use the dev user.
+- Do not modify this prompt or the service/timer configuration.
+- When testing in browser, use the dev user.'
 
 # Start the conversation
 RESULT=$(shelley client chat -p "$PROMPT" -model "$MODEL" -cwd "$WORKDIR" 2>&1)
