@@ -27,7 +27,7 @@ vulnerability scanning in one command.
 ```
 cmd/srv/main.go          Entry point — parses flags, opens DB, starts server
 srv/
-  server.go              HTTP server, all route handlers (~2100 lines, the bulk of the app)
+  server.go              HTTP server, all route handlers (~2600 lines, the bulk of the app)
   auth.go                exe.dev auth middleware (reads X-Exedev-* headers; DEV=1 bypass)
   filter.go              Exclusion-rule filtering (keyword/author per folder)
   content_filter.go      Per-feed content transform filters
@@ -37,14 +37,18 @@ srv/
   feeds/
     fetcher.go           RSS/Atom feed fetching with conditional GET support
     parser.go            RSS and Atom XML parser
+    fetcher_test.go      Fetcher tests
     parser_test.go       Parser tests
   scrapers/
     runner.go            CSS-selector-based HTML scraper (goquery)
+    runner_test.go       Scraper tests
     json_scraper.go      JSON API scraper
   huggingface/
     huggingface.go       Hugging Face-specific feed source
   opml/
     opml.go              OPML import/export
+  email/
+    email.go             Newsletter email receiving (SMTP)
   templates/             Server-rendered HTML templates
     base.html            Shared layout (nav, head, sidebar)
     index.html           Main article list view
@@ -53,16 +57,19 @@ srv/
     scrapers.html        Scraper management page
     settings.html        User settings page
     queue.html           Reading queue page
+    history.html         Reading history page
     category_settings.html  Folder exclusion-rule settings
   static/
-    app.js               Main client-side JS (~1800 lines)
+    app.js               Main client-side JS (~2300 lines)
+    app.test.js          JS unit tests (vitest)
+    test-helper.js       JS test helper
     script.js            Service worker registration
     sw.js                Service worker
-    style.css            All styles (~2600 lines)
+    style.css            All styles (~3000 lines)
 db/
   db.go                  DB open, migrations, pragmas
   sqlc.yaml              sqlc configuration
-  migrations/            Numbered SQL migration files (001–012)
+  migrations/            Numbered SQL migration files (001–015)
   queries/               SQL query files for sqlc
   dbgen/                 Generated Go code from sqlc (do not edit by hand)
 ```
