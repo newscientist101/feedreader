@@ -72,3 +72,17 @@
 **app.js reduced from 2124 → 1518 lines.**
 
 **Next run:** Continue Phase 2 — extract `feeds.js`, `folders.js`, `counts.js`. These are relatively straightforward API-calling functions. `feeds.js` will include `loadFeedArticles`, `loadCategoryArticles`, `refreshFeed`, `deleteFeed`, `editFeed`, `saveFeed`, `filterFeeds`, `setFeedCategory`, `showFeedErrorBanner`, `removeFeedErrorBanner`, `createEditFeedModal`, `closeEditModal`. Note that `loadFeedArticles`/`loadCategoryArticles` depend on `renderArticles`, `showArticlesLoading`, `applyDefaultViewForScope`, `setSidebarActive` — all already in modules.
+
+## Run 5 — Phase 2 continued (feeds, folders, counts)
+
+**Completed:**
+- Extracted `modules/feeds.js`: `showFeedErrorBanner`, `removeFeedErrorBanner`, `loadCategoryArticles`, `loadFeedArticles`, `refreshFeed`, `deleteFeed`, `filterFeeds`, `createEditFeedModal`, `editFeed`, `closeEditModal`, `saveFeed`, `setFeedCategory`. Imports from `api`, `articles`, `sidebar`, `views`, `counts`.
+- Extracted `modules/folders.js`: `openCreateFolderModal`, `closeCreateFolderModal`, `submitCreateFolder`, `renameCategory`, `unparentCategory`, `deleteCategory`. Only depends on `api`.
+- Extracted `modules/counts.js`: `updateCounts`, `updateFeedStatusCell`, `updateFeedErrors`. Uses `setCountsDeps` late-binding for `showFeedErrorBanner`, `removeFeedErrorBanner` (from feeds.js) and `applyUserPreferences` (from articles.js) to avoid circular imports.
+- Added `feeds.test.js` (26 tests), `folders.test.js` (15 tests), `counts.test.js` (14 tests).
+- Removed 18 entries from UNTESTED_FUNCTIONS in app.test.js (functions no longer in app.js).
+- Dependency graph: feeds.js → counts.js (direct), counts.js → feeds.js (late-bound via setCountsDeps).
+
+**app.js reduced from 1518 → 926 lines.**
+
+**Next run:** Continue Phase 2 — extract `drag-drop.js`, `opml.js`, `queue.js`. Then `settings-page.js` and `offline.js`. After those, Phase 2 will be complete except for the "Wire transitional window.X" and "Verify make check" tasks (which are ongoing and can be checked off). The remaining functions in app.js are: `exportOPML`, `importOPML`, drag-drop functions, settings-page functions, offline/service-worker functions, and the DOMContentLoaded/form-handler blocks.

@@ -1939,36 +1939,18 @@ describe('updateQueueCacheIfStandalone', () => {
 // Functions that are intentionally untested (with reasons).
 // Keep this list as small as possible — prefer writing tests.
 const UNTESTED_FUNCTIONS = {
-  // -- UI modals / prompts (require complex DOM + user interaction) --
-  closeCreateFolderModal:    'trivial modal close',
-  closeEditModal:            'trivial modal close',
-  createEditFeedModal:       'builds modal DOM, no logic to test',
-  openCreateFolderModal:     'trivial modal open',
-
   // -- DOM event wiring / init functions --
   initSettingsPage:          'settings page DOM wiring',
 
   // -- Thin API wrappers (single fetch call + DOM update) --
   copyNewsletterAddress:     'clipboard API wrapper',
-  deleteCategory:            'confirm + API call',
-  deleteFeed:                'confirm + API call',
-  editFeed:                  'modal + API call',
   exportOPML:                'window.location redirect',
   generateNewsletterAddress: 'API call + DOM update',
   importOPML:                'file upload + API call',
   loadNewsletterAddress:     'API call + DOM update',
-  renameCategory:            'prompt + API call',
   runCleanup:                'API call + DOM update',
-  setFeedCategory:           'API call + DOM update',
-  submitCreateFolder:        'form submit + API call',
-  unparentCategory:          'API call + reload',
-
-  // -- Side-effect-heavy functions needing full page context --
-  filterFeeds:               'sidebar filter with full DOM',
 
   // -- Functions with minimal logic --
-  removeFeedErrorBanner:     'trivial DOM removal',
-  showFeedErrorBanner:       'error banner HTML',
   showNewsletterAddress:     'DOM update',
 };
 

@@ -1,0 +1,426 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+    showFeedErrorBanner, removeFeedErrorBanner,
+    loadCategoryArticles, loadFeedArticles,
+    filterFeeds, closeEditModal, saveFeed,
+    deleteFeed, setFeedCategory,
+} from './feeds.js';
+import { _resetArticlesState, setArticlesDeps } from './articles.js';
+import { _resetArticleActionsState, setQueuedArticleIds } from './article-actions.js';
+
+beforeEach(() => {
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+    _resetArticlesState();
+    _resetArticleActionsState();
+    setQueuedArticleIds(new Set());
+    setArticlesDeps({
+        updatePaginationCursor: vi.fn(),
+        updateEndOfArticlesIndicator: vi.fn(),
+        setPaginationState: vi.fn(),
+    });
+    window.__settings = {};
+});
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
+
+describe('showFeedErrorBanner', () => {
+    it('creates an error banner if none exists', () => {
+        document.body.innerHTML = '<div class="articles-view"></div>';
+
+        showFeedErrorBanner(42, 'Connection timeout');
+
+        const banner = document.querySelector('.feed-error-banner');
+        expect(banner).not.toBeNull();
+        expect(banner.innerHTML).toContain('Connection timeout');
+        expect(banner.innerHTML).toContain('refreshFeed(42)');
+    });
+
+    it('updates existing banner', () => {
+        document.body.innerHTML = `
+            <div class="articles-view">
+                <div class="feed-error-banner">Old error</div>
+            </div>
+        `;
+
+        showFeedErrorBanner(7, 'New error');
+
+        const banners = document.querySelectorAll('.feed-error-banner');
+        expect(banners).toHaveLength(1);
+        expect(banners[0].innerHTML).toContain('New error');
+    });
+});
+
+describe('removeFeedErrorBanner', () => {
+    it('removes the banner if present', () => {
+        document.body.innerHTML = '<div class="feed-error-banner">Error</div>';
+
+        removeFeedErrorBanner();
+
+        expect(document.querySelector('.feed-error-banner')).toBeNull();
+    });
+
+    it('does nothing if no banner exists', () => {
+        document.body.innerHTML = '<div>Content</div>';
+        removeFeedErrorBanner(); // should not throw
+    });
+});
+
+describe('loadCategoryArticles', () => {
+    beforeEach(() => {
+        document.body.innerHTML = `
+            <div class="articles-view">
+                <div class="view-header"><h1>All Articles</h1></div>
+                <div class="dropdown" data-feed-id="5" data-category-id=""></div>
+                <button data-feed-action="edit" style="display: block">Edit</button>
+                <div id="articles-list" class="articles-list"></div>
+            </div>
+            <div class="sidebar">
+                <div class="folder-item" data-category-id="3">Tech</div>
+            </div>
+        `;
+        vi.spyOn(window.history, 'pushState').mockImplementation(() => {});
+    });
+
+    it('loads and renders category articles', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({ articles: [{ id: 1, title: 'Test', feed_name: 'F' }] }),
+        });
+
+        await loadCategoryArticles(3, 'Tech');
+
+        expect(document.querySelector('.view-header h1').textContent).toBe('Tech');
+        expect(document.title).toBe('Tech - FeedReader');
+        expect(history.pushState).toHaveBeenCalledWith({ categoryId: 3 }, 'Tech', '/category/3');
+        const dropdown = document.querySelector('.dropdown');
+        expect(dropdown.dataset.feedId).toBe('');
+        expect(dropdown.dataset.categoryId).toBe('3');
+    });
+
+    it('hides feed action buttons', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({ articles: [] }),
+        });
+
+        await loadCategoryArticles(3, 'Tech');
+
+        const editBtn = document.querySelector('[data-feed-action="edit"]');
+        expect(editBtn.style.display).toBe('none');
+    });
+
+    it('handles API errors gracefully', async () => {
+        vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Network error'));
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        await loadCategoryArticles(3, 'Tech');
+
+        expect(console.error).toHaveBeenCalledWith('Failed to load category articles:', expect.any(Error));
+    });
+});
+
+describe('loadFeedArticles', () => {
+    beforeEach(() => {
+        document.body.innerHTML = `
+            <div class="articles-view">
+                <div class="view-header"><h1>All Articles</h1></div>
+                <div class="header-actions"></div>
+                <div class="dropdown" data-feed-id="" data-category-id="5"></div>
+                <div id="articles-list" class="articles-list"></div>
+            </div>
+            <div class="sidebar">
+                <div class="feed-item" data-feed-id="7">Feed</div>
+            </div>
+        `;
+        vi.spyOn(window.history, 'pushState').mockImplementation(() => {});
+    });
+
+    it('loads and renders feed articles', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                articles: [{ id: 1, title: 'Test', feed_name: 'F' }],
+                feed: { id: 7, name: 'Feed', last_error: null },
+            }),
+        });
+
+        await loadFeedArticles(7, 'Feed');
+
+        expect(document.querySelector('.view-header h1').textContent).toBe('Feed');
+        expect(document.title).toBe('Feed - FeedReader');
+        expect(history.pushState).toHaveBeenCalledWith({ feedId: 7 }, 'Feed', '/feed/7');
+        const dropdown = document.querySelector('.dropdown');
+        expect(dropdown.dataset.feedId).toBe('7');
+        expect(dropdown.dataset.categoryId).toBe('');
+    });
+
+    it('sets active state on matching feed items', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                articles: [],
+                feed: { id: 7, name: 'Feed', last_error: null },
+            }),
+        });
+
+        await loadFeedArticles(7, 'Feed');
+
+        expect(document.querySelector('.feed-item[data-feed-id="7"]').classList.contains('active')).toBe(true);
+    });
+
+    it('shows error banner when feed has last_error', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                articles: [],
+                feed: { id: 7, name: 'Feed', last_error: 'Timeout' },
+            }),
+        });
+
+        await loadFeedArticles(7, 'Feed');
+
+        const banner = document.querySelector('.feed-error-banner');
+        expect(banner).not.toBeNull();
+        expect(banner.innerHTML).toContain('Timeout');
+    });
+
+    it('creates edit and refresh buttons in header-actions', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                articles: [],
+                feed: { id: 7, name: 'Feed', last_error: null },
+            }),
+        });
+
+        await loadFeedArticles(7, 'Feed');
+
+        const editBtn = document.querySelector('[data-feed-action="edit"]');
+        expect(editBtn).not.toBeNull();
+        const refreshBtn = document.querySelector('[data-feed-action="refresh"]');
+        expect(refreshBtn).not.toBeNull();
+        expect(refreshBtn.dataset.feedId).toBe('7');
+    });
+
+    it('handles API errors gracefully', async () => {
+        vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Network error'));
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        await loadFeedArticles(7, 'Feed');
+
+        expect(console.error).toHaveBeenCalledWith('Failed to load feed articles:', expect.any(Error));
+    });
+});
+
+describe('filterFeeds', () => {
+    beforeEach(() => {
+        document.body.innerHTML = `
+            <input id="feeds-search" value="">
+            <input id="filter-errors" type="checkbox">
+            <table class="feeds-table"><tbody>
+                <tr><td>Tech Blog</td><td class="url-cell">https://tech.com/rss</td></tr>
+                <tr data-has-error="true"><td>Broken Feed</td><td class="url-cell">https://broken.com</td></tr>
+                <tr><td>News Site</td><td class="url-cell">https://news.com/feed</td></tr>
+            </tbody></table>
+        `;
+    });
+
+    it('shows all rows when search is empty', () => {
+        filterFeeds();
+
+        const rows = document.querySelectorAll('.feeds-table tbody tr');
+        rows.forEach(row => expect(row.style.display).toBe(''));
+    });
+
+    it('filters rows by name', () => {
+        document.getElementById('feeds-search').value = 'tech';
+
+        filterFeeds();
+
+        const rows = document.querySelectorAll('.feeds-table tbody tr');
+        expect(rows[0].style.display).toBe('');
+        expect(rows[1].style.display).toBe('none');
+        expect(rows[2].style.display).toBe('none');
+    });
+
+    it('filters rows by URL', () => {
+        document.getElementById('feeds-search').value = 'news.com';
+
+        filterFeeds();
+
+        const rows = document.querySelectorAll('.feeds-table tbody tr');
+        expect(rows[0].style.display).toBe('none');
+        expect(rows[1].style.display).toBe('none');
+        expect(rows[2].style.display).toBe('');
+    });
+
+    it('shows only error rows when error filter checked', () => {
+        document.getElementById('filter-errors').checked = true;
+
+        filterFeeds();
+
+        const rows = document.querySelectorAll('.feeds-table tbody tr');
+        expect(rows[0].style.display).toBe('none');
+        expect(rows[1].style.display).toBe(''); // has error
+        expect(rows[2].style.display).toBe('none');
+    });
+
+    it('combines search and error filter', () => {
+        document.getElementById('feeds-search').value = 'broken';
+        document.getElementById('filter-errors').checked = true;
+
+        filterFeeds();
+
+        const rows = document.querySelectorAll('.feeds-table tbody tr');
+        expect(rows[0].style.display).toBe('none');
+        expect(rows[1].style.display).toBe(''); // matches both
+        expect(rows[2].style.display).toBe('none');
+    });
+});
+
+describe('closeEditModal', () => {
+    it('hides the edit modal', () => {
+        document.body.innerHTML = '<div id="edit-feed-modal" class="modal" style="display: flex"></div>';
+
+        closeEditModal();
+
+        expect(document.getElementById('edit-feed-modal').style.display).toBe('none');
+    });
+
+    it('does nothing when no modal exists', () => {
+        document.body.innerHTML = '<div>Content</div>';
+        closeEditModal(); // should not throw
+    });
+});
+
+describe('saveFeed', () => {
+    beforeEach(() => {
+        document.body.innerHTML = `
+            <div id="edit-feed-modal" class="modal" style="display: flex"></div>
+            <input id="edit-feed-id" value="5">
+            <input id="edit-feed-name" value="Updated Feed">
+            <input id="edit-feed-url" value="https://example.com/rss">
+            <input id="edit-feed-interval" value="30">
+            <textarea id="edit-feed-filters"></textarea>
+            <table><tbody>
+                <tr data-feed-id="5">
+                    <td><a>Old Name</a></td>
+                    <td><a href="https://old.com" class="url-cell">https://old.com</a></td>
+                </tr>
+            </tbody></table>
+        `;
+    });
+
+    it('saves feed and updates row in place', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({}),
+        });
+        const event = { preventDefault: vi.fn() };
+
+        await saveFeed(event);
+
+        expect(event.preventDefault).toHaveBeenCalled();
+        expect(fetch).toHaveBeenCalledWith('/api/feeds/5', expect.objectContaining({
+            method: 'PUT',
+            body: expect.stringContaining('"Updated Feed"'),
+        }));
+        // Modal should be hidden
+        expect(document.getElementById('edit-feed-modal').style.display).toBe('none');
+        // Row should be updated
+        const row = document.querySelector('tr[data-feed-id="5"]');
+        expect(row.querySelector('td a').textContent).toBe('Updated Feed');
+    });
+
+    it('sends content filters as JSON', async () => {
+        document.getElementById('edit-feed-filters').value = '.ad\n.sidebar';
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({}),
+        });
+        const event = { preventDefault: vi.fn() };
+
+        await saveFeed(event);
+
+        const body = JSON.parse(fetch.mock.calls[0][1].body);
+        const filters = JSON.parse(body.content_filters);
+        expect(filters).toEqual([{ selector: '.ad' }, { selector: '.sidebar' }]);
+    });
+
+    it('handles save errors', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: false,
+            text: () => Promise.resolve(JSON.stringify({ error: 'Not found' })),
+        });
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        vi.spyOn(window, 'alert').mockImplementation(() => {});
+        const event = { preventDefault: vi.fn() };
+
+        await saveFeed(event);
+
+        expect(window.alert).toHaveBeenCalledWith('Failed to save feed');
+    });
+});
+
+describe('deleteFeed', () => {
+    it('calls API and reloads on confirm', async () => {
+        vi.spyOn(window, 'confirm').mockReturnValue(true);
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({}),
+        });
+        // Mock location.reload
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
+
+        await deleteFeed(5, 'Test Feed');
+
+        expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('Test Feed'));
+        expect(fetch).toHaveBeenCalledWith('/api/feeds/5', expect.objectContaining({ method: 'DELETE' }));
+    });
+
+    it('does nothing when user cancels', async () => {
+        vi.spyOn(window, 'confirm').mockReturnValue(false);
+        vi.spyOn(globalThis, 'fetch');
+
+        await deleteFeed(5, 'Test Feed');
+
+        expect(fetch).not.toHaveBeenCalled();
+    });
+});
+
+describe('setFeedCategory', () => {
+    it('calls the category API', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({}),
+        });
+
+        await setFeedCategory(5, 3);
+
+        expect(fetch).toHaveBeenCalledWith('/api/feeds/5/category', expect.objectContaining({
+            method: 'POST',
+            body: JSON.stringify({ categoryId: 3 }),
+        }));
+    });
+
+    it('handles errors gracefully', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: false,
+            text: () => Promise.resolve(JSON.stringify({ error: 'fail' })),
+        });
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        vi.spyOn(window, 'alert').mockImplementation(() => {});
+
+        await setFeedCategory(5, 3);
+
+        expect(window.alert).toHaveBeenCalledWith('Failed to move feed');
+    });
+});
