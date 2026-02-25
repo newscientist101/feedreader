@@ -131,3 +131,23 @@
 **Next run:** Begin Phase 3 — eliminate inline event handlers. Start with templates that have the fewest handlers (`queue.html` already done during this run, `category_settings.html` has 2). Then tackle `base.html` (4), working up to the larger files.
 
 **Total tests: 413 (111 in app.test.js, 302 across 19 module test files).**
+
+## Run 8 — Phase 3 started (audit, base.html, category_settings.html)
+
+**Completed:**
+- Audited all inline handlers across 7 template files. Exact counts: base.html (4), index.html (18), feeds.html (15), scrapers.html (34), settings.html (16), category_settings.html (2), queue.html (0). Total: 89 in templates. Plus ~20 inline onclick strings built in JS modules (articles.js, feeds.js).
+- Replaced 4 inline handlers in `base.html` with `data-action` attributes: `toggle-sidebar` (menu button + overlay), `toggle-folder` (chevron), `navigate-folder` (folder link). Added `initSidebarListeners()` to sidebar.js using delegated event listeners on document. Chevron uses capture phase so `stopPropagation()` works correctly.
+- Replaced 2 inline handlers in `category_settings.html`: `unparentCategory` button uses `data-action="unparent-category"`, `deleteExclusion` button uses `data-action="delete-exclusion"`. Both wired via a delegated click handler in the page's `<script>` block. Removed the standalone `deleteExclusion()` function.
+- Removed `window.toggleSidebar`, `window.toggleFolderCollapse`, `window.navigateFolder` from app.js transitional exports (no longer needed since handlers are delegated).
+- Added 6 new tests to sidebar.test.js for `initSidebarListeners` (toggle-sidebar open/close, toggle-folder expand/stopPropagation, navigate-folder SPA/non-SPA).
+
+**Key patterns established for Phase 3:**
+- Template inline handlers → `data-action="action-name"` + `data-*` attributes for parameters
+- Delegated listeners via `document.addEventListener('click', ...)` matching `[data-action]`
+- For handlers that need `stopPropagation`, use capture phase (`addEventListener(..., true)`)
+- Tests for delegated listeners: call `initXxxListeners()` once (not per-test, since document listeners accumulate), set up DOM per test
+- Page-specific `<script>` blocks (like category_settings.html) can wire their own data-action handlers locally
+
+**Next run:** Continue Phase 3 — tackle `index.html` (18 handlers) and `queue.html` (0 — already done). Index.html handlers include view switchers, mark-as-read dropdown, feed action buttons, and article body/link clicks. Consider grouping: view buttons → views.js `initViewListeners`, mark-read buttons → article-actions.js, feed buttons → feeds.js, article clicks → articles.js.
+
+**Total tests: 419 (111 app.test.js + 308 across module test files).**

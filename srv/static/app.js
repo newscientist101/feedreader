@@ -3,7 +3,7 @@ import { getSetting, saveSetting, applyHideReadArticles, applyHideEmptyFeeds } f
 import { toggleDropdown, initDropdownCloseListener } from './modules/dropdown.js';
 import { initTimestampTooltips } from './modules/timestamps.js';
 import { setView, initView } from './modules/views.js';
-import { toggleSidebar, navigateFolder, toggleFolderCollapse, setSidebarLoadCategory } from './modules/sidebar.js';
+import { toggleSidebar, setSidebarLoadCategory, initSidebarListeners } from './modules/sidebar.js';
 import {
     renderArticleActions, renderArticles, updateReadButton,
     showReadArticles, showHiddenArticles,
@@ -42,6 +42,9 @@ import {
 
 // Initialize click-outside listener for dropdowns (was top-level in original code)
 initDropdownCloseListener();
+
+// Initialize delegated sidebar event listeners (replaces inline onclick in base.html)
+initSidebarListeners();
 
 // Wire sidebar's late-bound dependency on loadCategoryArticles
 setSidebarLoadCategory((...args) => loadCategoryArticles(...args));
@@ -356,9 +359,7 @@ window.applyUserPreferences = applyUserPreferences;
 window.applyHideReadArticles = applyHideReadArticles;
 window.applyHideEmptyFeeds = applyHideEmptyFeeds;
 window.toggleDropdown = toggleDropdown;
-window.toggleSidebar = toggleSidebar;
-window.toggleFolderCollapse = toggleFolderCollapse;
-window.navigateFolder = navigateFolder;
+
 window.openCreateFolderModal = openCreateFolderModal;
 window.closeCreateFolderModal = closeCreateFolderModal;
 window.closeEditModal = closeEditModal;

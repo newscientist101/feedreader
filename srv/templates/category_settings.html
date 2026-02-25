@@ -15,7 +15,7 @@
     <div class="settings-section">
         <h2>Parent Folder</h2>
         <p class="section-description">This folder is nested inside another folder.</p>
-        <button onclick="unparentCategory({{.CurrentCategory.ID}})" class="btn btn-secondary">Move to Top Level</button>
+        <button data-action="unparent-category" data-category-id="{{.CurrentCategory.ID}}" class="btn btn-secondary">Move to Top Level</button>
     </div>
     {{end}}
 
@@ -72,7 +72,7 @@
                         <td><code>{{.Pattern}}</code></td>
                         <td>{{if and .IsRegex (ne (deref .IsRegex) 0)}}Yes{{else}}No{{end}}</td>
                         <td>
-                            <button onclick="deleteExclusion({{.ID}})" class="btn-icon danger" title="Delete">
+                            <button data-action="delete-exclusion" data-exclusion-id="{{.ID}}" class="btn-icon danger" title="Delete">
                                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                                     <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
                                 </svg>
@@ -127,11 +127,20 @@ document.getElementById('add-exclusion-form').addEventListener('submit', async (
     }
 });
 
-async function deleteExclusion(id) {
-    if (!confirm('Delete this exclusion rule?')) return;
-    api('DELETE', `/api/exclusions/${id}`)
-        .then(() => location.reload())
-        .catch(e => alert('Error: ' + e.message));
-}
+// Delegated click handler for data-action buttons (replaces inline onclick)
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    if (action === 'unparent-category') {
+        unparentCategory(Number(btn.dataset.categoryId));
+    } else if (action === 'delete-exclusion') {
+        const id = Number(btn.dataset.exclusionId);
+        if (!confirm('Delete this exclusion rule?')) return;
+        api('DELETE', `/api/exclusions/${id}`)
+            .then(() => location.reload())
+            .catch(err => alert('Error: ' + err.message));
+    }
+});
 </script>
 {{end}}

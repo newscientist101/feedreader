@@ -63,3 +63,38 @@ export function collapseFolder(folderItem) {
         child.classList.remove('active');
     });
 }
+
+// Attach delegated event listeners for sidebar actions (replaces inline onclick handlers).
+export function initSidebarListeners() {
+    // data-action="toggle-sidebar" — menu toggle button and overlay
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('[data-action="toggle-sidebar"]')) {
+            toggleSidebar();
+        }
+    });
+
+    // data-action="toggle-folder" — folder chevron expand/collapse
+    // Uses capture phase so stopPropagation prevents the click from reaching
+    // parent elements (e.g. folder-row click handlers).
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action="toggle-folder"]');
+        if (btn) {
+            e.stopPropagation();
+            const catId = Number(btn.dataset.categoryId);
+            if (catId) toggleFolderCollapse(catId);
+        }
+    }, true);
+
+    // data-action="navigate-folder" — folder link SPA navigation
+    document.addEventListener('click', (e) => {
+        const link = e.target.closest('[data-action="navigate-folder"]');
+        if (link) {
+            const catId = Number(link.dataset.categoryId);
+            // navigateFolder returns true for full-page nav, false/undefined for SPA
+            const result = navigateFolder(e, catId);
+            if (!result) {
+                e.preventDefault();
+            }
+        }
+    });
+}
