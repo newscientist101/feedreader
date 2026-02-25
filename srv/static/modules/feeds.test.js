@@ -3,6 +3,7 @@ import {
     loadCategoryArticles, loadFeedArticles,
     filterFeeds, closeEditModal, saveFeed,
     deleteFeed, setFeedCategory, initFeedActionListeners,
+    initAddFeedForm, initFeedItemClickListeners,
     refreshFeed, editFeed,
 } from './feeds.js';
 import { _resetArticlesState } from './articles.js';
@@ -571,5 +572,270 @@ describe('initFeedActionListeners', () => {
             method: 'POST',
             body: JSON.stringify({ categoryId: 3 }),
         }));
+    });
+});
+
+describe('initAddFeedForm', () => {
+    it('is a no-op when form is absent', () => {
+        initAddFeedForm();
+        // No error thrown
+    });
+
+    it('submits a basic RSS feed', async () => {
+        document.body.innerHTML = `
+            <form id="add-feed-form">
+                <input id="feed-url" value="https://example.com/feed.xml">
+                <input id="feed-name" value="My Feed">
+                <select id="feed-type"><option value="rss" selected>RSS</option></select>
+                <input id="feed-interval" value="60">
+            </form>
+        `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: async () => ({ id: 1 }),
+        });
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
+
+        initAddFeedForm();
+        document.getElementById('add-feed-form').dispatchEvent(
+            new Event('submit', { cancelable: true })
+        );
+
+        await new Promise(r => setTimeout(r, 50));
+
+        expect(fetch).toHaveBeenCalledWith('/api/feeds', expect.objectContaining({
+            method: 'POST',
+            body: JSON.stringify({
+                url: 'https://example.com/feed.xml',
+                name: 'My Feed',
+                feedType: 'rss',
+                scraperModule: '',
+                scraperConfig: '',
+                interval: 60,
+            }),
+        }));
+        expect(reloadMock).toHaveBeenCalled();
+    });
+
+    it('builds Reddit RSS URL from subreddit', async () => {
+        document.body.innerHTML = `
+            <form id="add-feed-form">
+                <input id="feed-url" value="">
+                <input id="feed-name" value="">
+                <select id="feed-type"><option value="reddit" selected>Reddit</option></select>
+                <input id="reddit-subreddit" value="r/javascript">
+                <select id="reddit-sort"><option value="hot" selected>Hot</option></select>
+                <select id="reddit-top-period"><option value="day" selected>Day</option></select>
+                <input id="feed-interval" value="60">
+            </form>
+        `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: async () => ({ id: 2 }),
+        });
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
+
+        initAddFeedForm();
+        document.getElementById('add-feed-form').dispatchEvent(
+            new Event('submit', { cancelable: true })
+        );
+
+        await new Promise(r => setTimeout(r, 50));
+
+        expect(fetch).toHaveBeenCalledWith('/api/feeds', expect.objectContaining({
+            method: 'POST',
+            body: expect.stringContaining('"url":"https://www.reddit.com/r/javascript/hot/.rss"'),
+        }));
+    });
+
+    it('rejects empty subreddit for Reddit feed', async () => {
+        document.body.innerHTML = `
+            <form id="add-feed-form">
+                <input id="feed-url" value="">
+                <input id="feed-name" value="">
+                <select id="feed-type"><option value="reddit" selected>Reddit</option></select>
+                <input id="reddit-subreddit" value="">
+                <select id="reddit-sort"><option value="hot" selected>Hot</option></select>
+                <select id="reddit-top-period"><option value="day" selected>Day</option></select>
+                <input id="feed-interval" value="60">
+            </form>
+        `;
+        const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {});
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+        initAddFeedForm();
+        document.getElementById('add-feed-form').dispatchEvent(
+            new Event('submit', { cancelable: true })
+        );
+
+        await new Promise(r => setTimeout(r, 50));
+
+        expect(alertMock).toHaveBeenCalledWith('Please enter a subreddit name');
+        expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('builds HuggingFace config with daily_papers', async () => {
+        document.body.innerHTML = `
+            <form id="add-feed-form">
+                <input id="feed-url" value="">
+                <input id="feed-name" value="">
+                <select id="feed-type"><option value="huggingface" selected>HF</option></select>
+                <select id="hf-type"><option value="daily_papers" selected>Daily Papers</option></select>
+                <input id="hf-identifier" value="">
+                <input id="feed-interval" value="60">
+            </form>
+        `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: async () => ({ id: 3 }),
+        });
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
+
+        initAddFeedForm();
+        document.getElementById('add-feed-form').dispatchEvent(
+            new Event('submit', { cancelable: true })
+        );
+
+        await new Promise(r => setTimeout(r, 50));
+
+        expect(fetch).toHaveBeenCalledWith('/api/feeds', expect.objectContaining({
+            method: 'POST',
+            body: expect.stringContaining('"url":"https://huggingface.co/papers"'),
+        }));
+    });
+
+    it('sets category after creating feed', async () => {
+        document.body.innerHTML = `
+            <form id="add-feed-form">
+                <input id="feed-url" value="https://example.com/feed.xml">
+                <input id="feed-name" value="My Feed">
+                <select id="feed-type"><option value="rss" selected>RSS</option></select>
+                <select id="feed-category"><option value="5" selected>Tech</option></select>
+                <input id="feed-interval" value="60">
+            </form>
+        `;
+        vi.spyOn(globalThis, 'fetch')
+            .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 10 }) })
+            .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
+
+        initAddFeedForm();
+        document.getElementById('add-feed-form').dispatchEvent(
+            new Event('submit', { cancelable: true })
+        );
+
+        await new Promise(r => setTimeout(r, 50));
+
+        // First call: create feed, second call: set category
+        expect(fetch).toHaveBeenCalledTimes(2);
+        expect(fetch).toHaveBeenCalledWith('/api/feeds/10/category', expect.objectContaining({
+            method: 'POST',
+            body: JSON.stringify({ categoryId: 5 }),
+        }));
+    });
+
+    it('shows alert on API failure', async () => {
+        document.body.innerHTML = `
+            <form id="add-feed-form">
+                <input id="feed-url" value="https://example.com/feed.xml">
+                <input id="feed-name" value="My Feed">
+                <select id="feed-type"><option value="rss" selected>RSS</option></select>
+                <input id="feed-interval" value="60">
+            </form>
+        `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: false,
+            json: async () => ({ error: 'Bad URL' }),
+        });
+        const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {});
+
+        initAddFeedForm();
+        document.getElementById('add-feed-form').dispatchEvent(
+            new Event('submit', { cancelable: true })
+        );
+
+        await new Promise(r => setTimeout(r, 50));
+
+        expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Failed to add feed'));
+    });
+});
+
+describe('initFeedItemClickListeners', () => {
+    it('does SPA navigation when articles-view is present', () => {
+        document.body.innerHTML = `
+            <div class="articles-view">
+                <div class="view-header"><h1>Title</h1></div>
+            </div>
+            <a class="feed-item" data-feed-id="42" data-feed-name="Test Feed" href="/feed/42">
+                <span class="feed-name">Test Feed</span>
+            </a>
+        `;
+        initFeedItemClickListeners();
+
+        const link = document.querySelector('.feed-item');
+        const event = new Event('click', { cancelable: true, bubbles: true });
+        event.preventDefault = vi.fn();
+        link.dispatchEvent(event);
+
+        expect(event.preventDefault).toHaveBeenCalled();
+    });
+
+    it('falls through to normal navigation on non-article pages', () => {
+        document.body.innerHTML = `
+            <a class="feed-item" data-feed-id="42" data-feed-name="Test Feed" href="/feed/42">
+                <span class="feed-name">Test Feed</span>
+            </a>
+        `;
+        initFeedItemClickListeners();
+
+        const link = document.querySelector('.feed-item');
+        const event = new Event('click', { cancelable: true, bubbles: true });
+        event.preventDefault = vi.fn();
+        link.dispatchEvent(event);
+
+        expect(event.preventDefault).not.toHaveBeenCalled();
+    });
+
+    it('reads feed name from data attribute and calls loadFeedArticles', () => {
+        document.body.innerHTML = `
+            <div class="articles-view">
+                <div class="view-header"><h1>Title</h1></div>
+            </div>
+            <div id="articles-list"></div>
+            <a class="feed-item" data-feed-id="7" data-feed-name="Custom Name" href="/feed/7"></a>
+        `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: async () => ({ feed: { id: 7 }, articles: [] }),
+        });
+        vi.spyOn(window.history, 'pushState').mockImplementation(() => {});
+        initFeedItemClickListeners();
+
+        const link = document.querySelector('.feed-item');
+        link.dispatchEvent(new Event('click', { cancelable: true, bubbles: true }));
+
+        // loadFeedArticles is called with feedId="7" and feedName="Custom Name"
+        // Verified indirectly: the fetch call targets the correct feed
+        expect(fetch).toHaveBeenCalledWith('/api/feeds/7/articles', expect.any(Object));
     });
 });

@@ -91,8 +91,8 @@ Phase 6 for rationale.
 
 ### Move to existing modules
 
-- [ ] Add feed form handler (72 lines) → `feeds.js` as `initAddFeedForm()`
-- [ ] Feed item click handler (12 lines) → `feeds.js` as part of `initFeedActionListeners()`
+- [x] Add feed form handler (72 lines) → `feeds.js` as `initAddFeedForm()`
+- [x] Feed item click handler (12 lines) → `feeds.js` as `initFeedItemClickListeners()`
 - [ ] Sidebar mobile close (8 lines) → `sidebar.js` as part of `initSidebarListeners()`
 - [ ] Pagination bootstrap + scroll listener (11 lines) → `pagination.js` as `initPagination()`
 - [ ] Queue hydration (16 lines) → `article-actions.js` as `initQueueState()`
@@ -100,7 +100,7 @@ Phase 6 for rationale.
 
 ### New module
 
-- [ ] Search handler (36 lines) → new `search.js` module with `initSearch()`
+- [x] Search handler (36 lines) → new `search.js` module with `initSearch()`
 
 ### Performance
 

@@ -293,3 +293,25 @@
 **app.js is 355 lines** (down from 363).
 
 **Next run:** Begin Phase 6 — clean up app.js entry point. Start by moving the add feed form handler (72 lines) to `feeds.js` as `initAddFeedForm()`, and the search handler (36 lines) to a new `search.js` module.
+
+## Run 16 — Phase 6 started (add feed form, search, feed item clicks)
+
+**Completed:**
+- Moved add feed form handler (72 lines) from app.js → `feeds.js` as `initAddFeedForm()`. Handles Reddit URL building, HuggingFace config construction, category assignment.
+- Moved feed item click handler (12 lines) from app.js → `feeds.js` as `initFeedItemClickListeners()`. SPA feed navigation on article pages.
+- Extracted search handler (36 lines) from app.js → new `search.js` module with `initSearch()`. Self-contained: debounced input, AbortController, original HTML restore, context-scoped search URLs. Added `_resetSearchState()` for test cleanup.
+- Created `search.test.js` (9 tests): no-op, listener attachment, restore on clear, short query skip, debounce+fetch, feed/category scoping, abort on new input, error handling.
+- Added to `feeds.test.js`: 7 tests for `initAddFeedForm` (no-op, basic RSS, Reddit URL, empty subreddit rejection, HuggingFace daily_papers, category assignment, API failure alert) and 3 tests for `initFeedItemClickListeners` (SPA navigation, normal fallthrough, feed name from data attribute).
+- Removed unused `renderArticles` import from app.js.
+
+**app.js reduced from 355 → 172 lines.** Down from 2277 original.
+
+**Total: 413 tests across 23 test files.**
+
+**Next run:** Continue Phase 6 — remaining tasks:
+- Sidebar mobile close (8 lines) → `sidebar.js` as part of `initSidebarListeners()`
+- Pagination bootstrap + scroll listener (11 lines) → `pagination.js` as `initPagination()`
+- Queue hydration (16 lines) → `article-actions.js` as `initQueueState()`
+- Drag prevention (4 lines) → `drag-drop.js` as part of init
+- Modulepreload hints in base.html
+- Final cleanup: remove empty DOMContentLoaded blocks, verify ~120 lines

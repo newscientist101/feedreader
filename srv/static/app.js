@@ -4,7 +4,7 @@ import { initTimestampTooltips } from './modules/timestamps.js';
 import { initView, initViewListeners } from './modules/views.js';
 import { toggleSidebar, setSidebarLoadCategory, initSidebarListeners } from './modules/sidebar.js';
 import {
-    renderArticleActions, renderArticles,
+    renderArticleActions,
     processEmbeds, applyUserPreferences,
     initArticleListListeners,
 } from './modules/articles.js';
@@ -18,8 +18,10 @@ import {
 } from './modules/pagination.js';
 import { updateCounts } from './modules/counts.js';
 import {
-    loadFeedArticles, loadCategoryArticles, initFeedActionListeners,
+    loadCategoryArticles, initFeedActionListeners,
+    initAddFeedForm, initFeedItemClickListeners,
 } from './modules/feeds.js';
+import { initSearch } from './modules/search.js';
 import { initFoldersPageListeners, initCategorySettingsPage } from './modules/folders.js';
 import { initFolderDragDrop } from './modules/drag-drop.js';
 import { initOpmlListeners } from './modules/opml.js';
@@ -55,14 +57,6 @@ initScraperPageListeners();
 setSidebarLoadCategory((...args) => loadCategoryArticles(...args));
 
 
-
-
-
-
-
-
-
-// Close sidebar when clicking a link on mobile
 document.addEventListener('DOMContentLoaded', () => {
     // Expand parent folders of the active folder/feed so it's visible
     const activeItem = document.querySelector('.folder-item.active, .feed-item.active');
@@ -135,24 +129,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    document.querySelectorAll('.feed-item[data-feed-id]').forEach(link => {
-        link.addEventListener('click', (event) => {
-            // On non-article pages, use normal navigation
-            if (!document.querySelector('.articles-view')) {
-                return;
-            }
-            event.preventDefault();
-            const feedId = link.dataset.feedId;
-            const feedName = link.dataset.feedName || link.querySelector('.feed-name')?.textContent || 'Feed';
-            loadFeedArticles(feedId, feedName);
-        });
-    });
+    // Initialize SPA feed-item click handlers in sidebar
+    initFeedItemClickListeners();
     
     // Initialize view mode
     initView();
     
     // Initialize folder drag-and-drop
     initFolderDragDrop();
+
+    // Initialize add feed form (no-op if not on feeds page)
+    initAddFeedForm();
+
+    // Initialize search (no-op if #search element absent)
+    initSearch();
 
     // Initialize settings page controls (no-op if not on settings page)
     initSettingsPage();
@@ -171,163 +161,12 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-
-// Form handlers
-document.addEventListener('DOMContentLoaded', () => {
-    // Add feed form
-    const addFeedForm = document.getElementById('add-feed-form');
-    if (addFeedForm) {
-        addFeedForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            let url = document.getElementById('feed-url').value;
-            const name = document.getElementById('feed-name').value;
-            const feedType = document.getElementById('feed-type').value;
-            const scraperModule = document.getElementById('scraper-module')?.value || '';
-            const categoryId = parseInt(document.getElementById('feed-category')?.value) || 0;
-            const interval = parseInt(document.getElementById('feed-interval').value) || 60;
-            
-            let scraperConfig = '';
-            let actualFeedType = feedType;
-
-            // Handle Reddit feed type — it becomes a regular RSS feed
-            if (feedType === 'reddit') {
-                let subreddit = document.getElementById('reddit-subreddit').value.trim();
-                if (!subreddit) {
-                    alert('Please enter a subreddit name');
-                    return;
-                }
-                // Strip leading r/ if present
-                subreddit = subreddit.replace(/^\/?(r\/)?/, '');
-                const sort = document.getElementById('reddit-sort').value;
-                const period = document.getElementById('reddit-top-period').value;
-
-                if (sort === 'top') {
-                    url = `https://www.reddit.com/r/${subreddit}/top/.rss?t=${period}`;
-                } else if (sort === 'best') {
-                    url = `https://www.reddit.com/r/${subreddit}/.rss`;
-                } else {
-                    url = `https://www.reddit.com/r/${subreddit}/${sort}/.rss`;
-                }
-                actualFeedType = 'rss';
-            }
-
-            // Handle HuggingFace feed type
-            if (feedType === 'huggingface') {
-                const hfType = document.getElementById('hf-type').value;
-                const hfIdentifier = document.getElementById('hf-identifier').value;
-                
-                if (!hfIdentifier && hfType !== 'daily_papers') {
-                    alert('Please enter a username, organization, or collection slug');
-                    return;
-                }
-                
-                scraperConfig = JSON.stringify({
-                    type: hfType,
-                    identifier: hfIdentifier,
-                    limit: 30
-                });
-                
-                // Generate a URL for display purposes
-                if (hfType === 'daily_papers') {
-                    url = 'https://huggingface.co/papers';
-                } else if (hfType === 'collection') {
-                    url = `https://huggingface.co/collections/${hfIdentifier}`;
-                } else if (hfType.includes('models')) {
-                    url = `https://huggingface.co/${hfIdentifier}`;
-                } else if (hfType.includes('datasets')) {
-                    url = `https://huggingface.co/datasets?author=${hfIdentifier}`;
-                } else if (hfType.includes('spaces')) {
-                    url = `https://huggingface.co/spaces?author=${hfIdentifier}`;
-                } else if (hfType.includes('posts')) {
-                    url = `https://huggingface.co/${hfIdentifier}`;
-                }
-            }
-
-            try {
-                // For HuggingFace/Reddit feeds, let the server auto-generate the name
-                const feedName = ((feedType === 'huggingface' || feedType === 'reddit') && !name) ? '' : (name || url);
-                const feed = await api('POST', '/api/feeds', {
-                    url,
-                    name: feedName,
-                    feedType: actualFeedType,
-                    scraperModule,
-                    scraperConfig,
-                    interval
-                });
-                
-                // Set category if specified
-                if (categoryId > 0 && feed.id) {
-                    await api('POST', `/api/feeds/${feed.id}/category`, { categoryId });
-                }
-                
-                location.reload();
-            } catch (e) {
-                alert('Failed to add feed: ' + e.message);
-            }
-        });
-    }
-
-    // Scraper form is handled in scrapers.html template
-
-    // Search
-    const searchInput = document.getElementById('search');
-    if (searchInput) {
-        let timeout;
-        let searchAbort = null;
-        let originalHTML = null;
-        searchInput.addEventListener('input', (e) => {
-            clearTimeout(timeout);
-            if (searchAbort) { searchAbort.abort(); searchAbort = null; }
-            timeout = setTimeout(async () => {
-                const q = e.target.value.trim();
-                if (q.length < 2) {
-                    // Restore original article list if we saved it
-                    if (originalHTML !== null) {
-                        const list = document.getElementById('articles-list');
-                        if (list) list.innerHTML = originalHTML;
-                        originalHTML = null;
-                        applyUserPreferences();
-                    }
-                    return;
-                }
-                // Save original HTML before first search replaces it
-                if (originalHTML === null) {
-                    const list = document.getElementById('articles-list');
-                    if (list) originalHTML = list.innerHTML;
-                }
-                try {
-                    searchAbort = new AbortController();
-                    let searchUrl = `/api/search?q=${encodeURIComponent(q)}`;
-                    // Scope search to current feed or category context
-                    const pathMatch = window.location.pathname.match(/^\/(feed|category)\/(\d+)/);
-                    if (pathMatch) {
-                        const [, type, id] = pathMatch;
-                        searchUrl += type === 'feed' ? `&feed_id=${id}` : `&category_id=${id}`;
-                    }
-                    const res = await fetch(searchUrl, { signal: searchAbort.signal });
-                    const articles = await res.json();
-                    searchAbort = null;
-                    if (!res.ok) throw new Error(articles.error || 'Search failed');
-                    renderArticles(articles);
-                } catch (e) {
-                    if (e.name === 'AbortError') return; // cancelled, ignore
-                    console.error('Search failed:', e);
-                }
-            }, 300);
-        });
-    }
-});
-
-
 // Prevent starting a drag when clicking chevrons.
 document.addEventListener('dragstart', (event) => {
     if (event.target.closest('.folder-chevron')) {
         event.preventDefault();
     }
 }, true);
-
-
-
 
 window.addEventListener('scroll', checkScrollForMore);
 
