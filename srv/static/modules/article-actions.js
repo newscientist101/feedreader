@@ -7,15 +7,7 @@ import {
 } from './icons.js';
 import { updateCounts } from './counts.js';
 import { updateQueueCacheIfStandalone } from './offline.js';
-
-// --- Late-bound dependency (set by app.js during init) ---
-// updateReadButton comes from articles.js which imports from this module,
-// creating a real circular dependency. Kept as late-bound.
-let _updateReadButton = null;
-
-export function setArticleActionDeps({ updateReadButton }) {
-    if (updateReadButton) _updateReadButton = updateReadButton;
-}
+import { updateReadButton } from './read-button.js';
 
 // --- Queue state ---
 export let queuedArticleIds = new Set();
@@ -114,7 +106,7 @@ export function markCardAsRead(id) {
     const card = document.querySelector(`.article-card[data-id="${id}"]`);
     if (card) {
         card.classList.add('read');
-        if (_updateReadButton) _updateReadButton(card, true);
+        updateReadButton(card, true);
     }
 }
 
@@ -157,7 +149,7 @@ export async function markUnread(event, id) {
         const card = document.querySelector(`.article-card[data-id="${id}"]`);
         if (card) {
             card.classList.remove('read');
-            if (_updateReadButton) _updateReadButton(card, false);
+            updateReadButton(card, false);
         }
         updateCounts();
     } catch (e) {

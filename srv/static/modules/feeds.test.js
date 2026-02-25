@@ -1,13 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-    showFeedErrorBanner, removeFeedErrorBanner,
     loadCategoryArticles, loadFeedArticles,
     filterFeeds, closeEditModal, saveFeed,
     deleteFeed, setFeedCategory, initFeedActionListeners,
     refreshFeed, editFeed,
 } from './feeds.js';
-import { _resetArticlesState, setArticlesDeps } from './articles.js';
+import { _resetArticlesState } from './articles.js';
 import { _resetArticleActionsState, setQueuedArticleIds } from './article-actions.js';
+
+// Mock pagination (articles.js directly imports from pagination.js)
+vi.mock('./pagination.js', () => ({
+    updatePaginationCursor: vi.fn(),
+    updateEndOfArticlesIndicator: vi.fn(),
+    setPaginationState: vi.fn(),
+}));
 
 beforeEach(() => {
     document.body.innerHTML = '';
@@ -15,59 +21,11 @@ beforeEach(() => {
     _resetArticlesState();
     _resetArticleActionsState();
     setQueuedArticleIds(new Set());
-    setArticlesDeps({
-        updatePaginationCursor: vi.fn(),
-        updateEndOfArticlesIndicator: vi.fn(),
-        setPaginationState: vi.fn(),
-    });
     window.__settings = {};
 });
 
 afterEach(() => {
     vi.restoreAllMocks();
-});
-
-describe('showFeedErrorBanner', () => {
-    it('creates an error banner if none exists', () => {
-        document.body.innerHTML = '<div class="articles-view"></div>';
-
-        showFeedErrorBanner(42, 'Connection timeout');
-
-        const banner = document.querySelector('.feed-error-banner');
-        expect(banner).not.toBeNull();
-        expect(banner.innerHTML).toContain('Connection timeout');
-        expect(banner.innerHTML).toContain('data-action="refresh-feed"');
-        expect(banner.innerHTML).toContain('data-feed-id="42"');
-    });
-
-    it('updates existing banner', () => {
-        document.body.innerHTML = `
-            <div class="articles-view">
-                <div class="feed-error-banner">Old error</div>
-            </div>
-        `;
-
-        showFeedErrorBanner(7, 'New error');
-
-        const banners = document.querySelectorAll('.feed-error-banner');
-        expect(banners).toHaveLength(1);
-        expect(banners[0].innerHTML).toContain('New error');
-    });
-});
-
-describe('removeFeedErrorBanner', () => {
-    it('removes the banner if present', () => {
-        document.body.innerHTML = '<div class="feed-error-banner">Error</div>';
-
-        removeFeedErrorBanner();
-
-        expect(document.querySelector('.feed-error-banner')).toBeNull();
-    });
-
-    it('does nothing if no banner exists', () => {
-        document.body.innerHTML = '<div>Content</div>';
-        removeFeedErrorBanner(); // should not throw
-    });
 });
 
 describe('loadCategoryArticles', () => {

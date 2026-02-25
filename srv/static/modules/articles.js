@@ -8,17 +8,12 @@ import {
 } from './icons.js';
 import { getSetting, applyHideReadArticles, applyHideEmptyFeeds } from './settings.js';
 import { queuedArticleIds, queuedIdsReady, initAutoMarkRead } from './article-actions.js';
-
-// --- Late-bound dependencies (set by app.js during init) ---
-let _updatePaginationCursor = null;
-let _updateEndOfArticlesIndicator = null;
-let _setPaginationState = null;
-
-export function setArticlesDeps({ updatePaginationCursor, updateEndOfArticlesIndicator, setPaginationState }) {
-    if (updatePaginationCursor) _updatePaginationCursor = updatePaginationCursor;
-    if (updateEndOfArticlesIndicator) _updateEndOfArticlesIndicator = updateEndOfArticlesIndicator;
-    if (setPaginationState) _setPaginationState = setPaginationState;
-}
+// Direct import from pagination — this is a circular import (pagination also
+// imports from this module) but works fine with ES modules because all exports
+// are function declarations (hoisted and available before module body runs).
+import {
+    updatePaginationCursor, updateEndOfArticlesIndicator, setPaginationState
+} from './pagination.js';
 
 // Temporary flag: when true, the current view includes read/hidden articles.
 // Reset on the next navigation.
@@ -52,20 +47,9 @@ export function renderArticleActions(a) {
     return `<div class="article-actions">${readBtn}${starBtn}${queueBtn}${extBtn}</div>`;
 }
 
-// Update the read/unread toggle button inside an article card
-export function updateReadButton(card, isRead) {
-    if (!card) return;
-    const btn = card.querySelector('.btn-read-toggle');
-    if (!btn) return;
-    btn.dataset.isRead = isRead ? '1' : '0';
-    if (isRead) {
-        btn.setAttribute('title', 'Mark unread');
-        btn.innerHTML = SVG_MARK_UNREAD;
-    } else {
-        btn.setAttribute('title', 'Mark read');
-        btn.innerHTML = SVG_MARK_READ;
-    }
-}
+// Re-export updateReadButton from the shared leaf module so existing
+// consumers (app.js, tests) can still import from articles.js.
+export { updateReadButton } from './read-button.js';
 
 // Apply user preferences from settings
 export function applyUserPreferences() {
@@ -188,9 +172,7 @@ export async function renderArticles(articles) {
     window.scrollTo(0, 0);
 
     // Reset pagination for fresh render (cursor-based)
-    if (_setPaginationState) {
-        _setPaginationState({ cursorTime: null, cursorId: null, done: false, loading: false });
-    }
+    setPaginationState({ cursorTime: null, cursorId: null, done: false, loading: false });
 
     const PAGE_SIZE = 50;
 
@@ -207,17 +189,17 @@ export async function renderArticles(articles) {
                 ${showBtn}
             </div>
         `;
-        if (_setPaginationState) _setPaginationState({ done: true });
-        if (_updateEndOfArticlesIndicator) _updateEndOfArticlesIndicator();
+        setPaginationState({ done: true });
+        updateEndOfArticlesIndicator();
         return;
     }
 
     if (articles.length < PAGE_SIZE) {
-        if (_setPaginationState) _setPaginationState({ done: true });
+        setPaginationState({ done: true });
     }
 
     // Set cursor from last article for next pagination request
-    if (_updatePaginationCursor) _updatePaginationCursor(articles);
+    updatePaginationCursor(articles);
 
     list.innerHTML = articles.map(buildArticleCardHtml).join('');
 
@@ -226,7 +208,7 @@ export async function renderArticles(articles) {
 
     // Re-apply user preferences (hide read, etc.)
     applyUserPreferences();
-    if (_updateEndOfArticlesIndicator) _updateEndOfArticlesIndicator();
+    updateEndOfArticlesIndicator();
 
     // Re-initialize auto-mark-read observer for new article set
     initAutoMarkRead();

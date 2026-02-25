@@ -4,22 +4,21 @@ import { initTimestampTooltips } from './modules/timestamps.js';
 import { initView, initViewListeners } from './modules/views.js';
 import { toggleSidebar, setSidebarLoadCategory, initSidebarListeners } from './modules/sidebar.js';
 import {
-    renderArticleActions, renderArticles, updateReadButton,
-    processEmbeds, applyUserPreferences, setArticlesDeps,
+    renderArticleActions, renderArticles,
+    processEmbeds, applyUserPreferences,
     initArticleListListeners,
 } from './modules/articles.js';
 import {
     initAutoMarkRead, queuedArticleIds, setQueuedArticleIds, setQueuedIdsReady,
-    setArticleActionDeps, initArticleActionListeners,
+    initArticleActionListeners,
 } from './modules/article-actions.js';
 import {
-    updateEndOfArticlesIndicator, updatePaginationCursor,
+    updateEndOfArticlesIndicator,
     checkScrollForMore, setPaginationState, PAGE_SIZE
 } from './modules/pagination.js';
-import { updateCounts, setCountsDeps } from './modules/counts.js';
+import { updateCounts } from './modules/counts.js';
 import {
-    loadFeedArticles, loadCategoryArticles,
-    showFeedErrorBanner, removeFeedErrorBanner, initFeedActionListeners,
+    loadFeedArticles, loadCategoryArticles, initFeedActionListeners,
 } from './modules/feeds.js';
 import { initFoldersPageListeners, initCategorySettingsPage } from './modules/folders.js';
 import { initFolderDragDrop } from './modules/drag-drop.js';
@@ -55,23 +54,7 @@ initScraperPageListeners();
 // Wire sidebar's late-bound dependency on loadCategoryArticles
 setSidebarLoadCategory((...args) => loadCategoryArticles(...args));
 
-// Wire article-actions' late-bound dependency (real cycle: article-actions ↔ articles)
-setArticleActionDeps({
-    updateReadButton,
-});
 
-// Wire articles' late-bound dependencies on pagination
-setArticlesDeps({
-    updatePaginationCursor,
-    updateEndOfArticlesIndicator,
-    setPaginationState,
-});
-
-// Wire counts' late-bound dependencies on feeds (real cycle: counts ↔ feeds)
-setCountsDeps({
-    showFeedErrorBanner,
-    removeFeedErrorBanner,
-});
 
 
 

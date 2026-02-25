@@ -3,14 +3,21 @@ import {
     renderArticleActions, buildArticleCardHtml, updateReadButton,
     showArticlesLoading, updateAllReadMessage, showReadArticles,
     processEmbeds, extractYouTubeId, applyUserPreferences,
-    getIncludeReadUrl, setArticlesDeps, setShowingHiddenArticles,
+    getIncludeReadUrl, setShowingHiddenArticles,
     initArticleListListeners, showHiddenArticles, renderArticles,
     _resetArticlesState,
 } from './articles.js';
 import {
     _resetArticleActionsState, setQueuedArticleIds,
-    setArticleActionDeps, initAutoMarkRead, _getAutoMarkReadObserver,
+    initAutoMarkRead, _getAutoMarkReadObserver,
 } from './article-actions.js';
+
+// Mock pagination module (now directly imported by articles via circular import)
+vi.mock('./pagination.js', () => ({
+    updatePaginationCursor: vi.fn(),
+    updateEndOfArticlesIndicator: vi.fn(),
+    setPaginationState: vi.fn(),
+}));
 
 class MockIntersectionObserver {
     constructor(callback) {
@@ -32,16 +39,6 @@ beforeEach(() => {
     window.__settings = {};
     window.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }));
     document.body.innerHTML = '<div id="articles-list" class="articles-list"></div>';
-    setArticlesDeps({
-        updatePaginationCursor: vi.fn(),
-        updateEndOfArticlesIndicator: vi.fn(),
-        setPaginationState: vi.fn(),
-    });
-    setArticleActionDeps({
-        updateReadButton: vi.fn(),
-        updateCounts: vi.fn(),
-        updateQueueCacheIfStandalone: vi.fn(),
-    });
 });
 
 afterEach(() => {

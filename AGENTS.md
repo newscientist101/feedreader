@@ -71,13 +71,15 @@ srv/
       counts.js          Unread/starred counts, feed status, error banners
       drag-drop.js       Drag-and-drop reordering for feeds and folders
       dropdown.js        Dropdown toggle and click-outside close
-      feeds.js           Feed CRUD, load articles, edit modal, error banner
+      feed-errors.js     Feed error banner (shared leaf: counts + feeds)
+      feeds.js           Feed CRUD, load articles, edit modal
       folders.js         Folder CRUD, category settings page
       icons.js           SVG icon constant strings
       offline.js         Service worker, online/offline handling, cache
       opml.js            OPML import/export
       pagination.js      Cursor-based pagination and infinite scroll
       queue.js           Reading queue page init
+      read-button.js     Read/unread toggle button (shared leaf: articles + article-actions)
       scraper-page.js    Scraper management page (tabs, AI, config modal)
       settings-page.js   Settings page init, cleanup, newsletter
       settings.js        User settings (get/save/apply)

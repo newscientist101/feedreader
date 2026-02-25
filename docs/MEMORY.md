@@ -275,3 +275,21 @@
 4. `setSidebarLoadCategory(...)` — legitimate top-down wiring (not a cycle hack)
 
 **Next run:** Tackle the 3 real cycle eliminations (Phase 5 remaining tasks). Start with the `counts ↔ feeds` cycle since it's simplest — move `showFeedErrorBanner`/`removeFeedErrorBanner` into `counts.js` or a new `feed-errors.js`.
+
+## Run 15 — Phase 5 completed (all 3 real cycles eliminated)
+
+**Completed:**
+- **`counts ↔ feeds` cycle:** Extracted `showFeedErrorBanner`/`removeFeedErrorBanner` from `feeds.js` into new `feed-errors.js` leaf module. Both `counts.js` and `feeds.js` now import from `feed-errors.js`. Removed `setCountsDeps` entirely.
+- **`article-actions ↔ articles` cycle:** Extracted `updateReadButton` from `articles.js` into new `read-button.js` leaf module. `article-actions.js` imports directly from `read-button.js`. `articles.js` re-exports for backward compat. Removed `setArticleActionDeps` entirely.
+- **`articles ↔ pagination` cycle:** Made `articles.js` directly import `updatePaginationCursor`, `updateEndOfArticlesIndicator`, `setPaginationState` from `pagination.js`. The circular import (pagination also imports from articles) works fine because all exports are hoisted `function` declarations. Removed `setArticlesDeps` entirely.
+- Created `feed-errors.test.js` (6 tests) and `read-button.test.js` (5 tests).
+- Updated `counts.test.js`, `article-actions.test.js`, `articles.test.js`, `feeds.test.js` to use `vi.mock()` instead of `setXxxDeps`.
+- Removed unused `updatePaginationCursor` import from `app.js`.
+
+**Phase 5 is now complete.** Only `setSidebarLoadCategory` remains in `app.js` — legitimate top-down wiring, not a cycle hack.
+
+**Total: 394 tests across 22 test files. All `make check` passes clean.**
+
+**app.js is 355 lines** (down from 363).
+
+**Next run:** Begin Phase 6 — clean up app.js entry point. Start by moving the add feed form handler (72 lines) to `feeds.js` as `initAddFeedForm()`, and the search handler (36 lines) to a new `search.js` module.

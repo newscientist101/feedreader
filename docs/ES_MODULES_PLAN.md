@@ -18,7 +18,9 @@ Refactor `srv/static/app.js` (2277 lines, plain `<script>`) into ES modules.
 - Zero `window.X` global exports
 - Import maps provide cache busting for all module files
 - 82% statement / 85% function coverage on modules
-- 6 `setXxxDeps()` late-binding calls remain (Phase 5 target)
+- 1 `setSidebarLoadCategory()` late-binding call remains (legitimate top-down wiring)
+- 2 shared leaf modules (`feed-errors.js`, `read-button.js`) break former cycles
+- 1 safe circular ES module import (`articles ↔ pagination`) with hoisted functions
 
 ## Proposed Module Structure
 

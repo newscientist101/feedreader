@@ -76,12 +76,12 @@ restructurings. See `ES_MODULES_PLAN.md` Phase 5 for rationale.
 
 ### Real cycles (restructure)
 
-- [ ] `article-actions ↔ articles`: extract `updateReadButton` into a shared module (e.g. `read-button.js`) so both can import it without a cycle
-- [ ] `articles ↔ pagination`: move pagination state functions (`updatePaginationCursor`, `updateEndOfArticlesIndicator`, `setPaginationState`) into `articles.js`, or extract shared rendering (`buildArticleCardHtml`, `processEmbeds`) into `article-rendering.js`
-- [ ] `counts ↔ feeds`: move `showFeedErrorBanner`/`removeFeedErrorBanner` out of `feeds.js` into `counts.js` or a new `feed-errors.js`
-- [ ] Keep `setSidebarLoadCategory` in `app.js` — this is legitimate top-down entry-point wiring, not a circular dependency hack
-- [ ] Remove all remaining `setXxxDeps` functions and late-bound `let _dep = null` variables
-- [ ] Verify `make check` passes, commit
+- [x] `article-actions ↔ articles`: extract `updateReadButton` into a shared module (`read-button.js`) so both can import it without a cycle
+- [x] `articles ↔ pagination`: articles.js now directly imports from pagination.js — circular ES module imports work fine since all exports are hoisted function declarations
+- [x] `counts ↔ feeds`: extracted `showFeedErrorBanner`/`removeFeedErrorBanner` into `feed-errors.js` — both `counts.js` and `feeds.js` import from the shared leaf module
+- [x] Keep `setSidebarLoadCategory` in `app.js` — this is legitimate top-down entry-point wiring, not a circular dependency hack
+- [x] Remove all remaining `setXxxDeps` functions and late-bound `let _dep = null` variables
+- [x] Verify `make check` passes, commit
 
 ## Phase 6: Clean up app.js entry point
 

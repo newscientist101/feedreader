@@ -1,17 +1,6 @@
 import { api } from './api.js';
 import { applyUserPreferences } from './articles.js';
-
-// Late-bound dependencies to avoid circular imports (counts ↔ feeds cycle).
-// showFeedErrorBanner/removeFeedErrorBanner live in feeds.js which imports
-// from this module, so they must remain late-bound.
-let _deps = {
-    showFeedErrorBanner: () => {},
-    removeFeedErrorBanner: () => {},
-};
-
-export function setCountsDeps(deps) {
-    Object.assign(_deps, deps);
-}
+import { showFeedErrorBanner, removeFeedErrorBanner } from './feed-errors.js';
 
 export async function updateCounts() {
     try {
@@ -127,9 +116,9 @@ export function updateFeedErrors(feedErrors) {
     const currentFeedId = document.querySelector('button[data-feed-id]')?.dataset.feedId;
     if (currentFeedId) {
         if (feedErrors[currentFeedId]) {
-            _deps.showFeedErrorBanner(currentFeedId, feedErrors[currentFeedId]);
+            showFeedErrorBanner(currentFeedId, feedErrors[currentFeedId]);
         } else {
-            _deps.removeFeedErrorBanner();
+            removeFeedErrorBanner();
         }
     }
 }

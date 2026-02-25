@@ -4,11 +4,18 @@ import {
     markCardAsRead, markReadSilent, openArticle, openArticleExternal,
     markRead, markUnread, toggleStar, toggleQueue, markAsRead,
     findNextUnreadFolder, initArticleActionListeners,
-    setArticleActionDeps, setQueuedArticleIds, setQueuedIdsReady,
+    setQueuedArticleIds, setQueuedIdsReady,
     _resetArticleActionsState,
     _getAutoMarkReadObserver, _getMarkReadQueue,
 } from './article-actions.js';
-import { renderArticles, _resetArticlesState, setArticlesDeps } from './articles.js';
+import { renderArticles, _resetArticlesState } from './articles.js';
+
+// Mock pagination (articles.js directly imports from pagination.js)
+vi.mock('./pagination.js', () => ({
+    updatePaginationCursor: vi.fn(),
+    updateEndOfArticlesIndicator: vi.fn(),
+    setPaginationState: vi.fn(),
+}));
 
 // Mock counts and offline modules (now directly imported by article-actions)
 vi.mock('./counts.js', () => ({
@@ -17,6 +24,10 @@ vi.mock('./counts.js', () => ({
 
 vi.mock('./offline.js', () => ({
     updateQueueCacheIfStandalone: vi.fn(),
+}));
+
+vi.mock('./read-button.js', () => ({
+    updateReadButton: vi.fn(),
 }));
 
 // Minimal IntersectionObserver mock
@@ -40,12 +51,6 @@ beforeEach(() => {
     window.__settings = {};
     window.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }));
     document.body.innerHTML = '<div id="articles-list"></div>';
-    setArticleActionDeps({ updateReadButton: vi.fn() });
-    setArticlesDeps({
-        updatePaginationCursor: vi.fn(),
-        updateEndOfArticlesIndicator: vi.fn(),
-        setPaginationState: vi.fn(),
-    });
 });
 
 afterEach(() => {
@@ -392,7 +397,6 @@ describe('markAsRead with category URL', () => {
 describe('initArticleActionListeners', () => {
     beforeEach(() => {
         _resetArticleActionsState();
-        setArticleActionDeps({ updateReadButton: vi.fn() });
     });
 
     it('delegates mark-as-read clicks to markAsRead', async () => {

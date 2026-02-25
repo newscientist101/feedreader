@@ -1,20 +1,23 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { updateCounts, updateFeedStatusCell, updateFeedErrors, setCountsDeps } from './counts.js';
+import { updateCounts, updateFeedStatusCell, updateFeedErrors } from './counts.js';
 
-// Mock articles module (applyUserPreferences is now directly imported by counts)
+// Mock articles module (applyUserPreferences is directly imported by counts)
 vi.mock('./articles.js', () => ({
     applyUserPreferences: vi.fn(),
 }));
 
+// Mock feed-errors module (directly imported by counts)
+vi.mock('./feed-errors.js', () => ({
+    showFeedErrorBanner: vi.fn(),
+    removeFeedErrorBanner: vi.fn(),
+}));
+
 import { applyUserPreferences } from './articles.js';
+import { showFeedErrorBanner, removeFeedErrorBanner } from './feed-errors.js';
 
 beforeEach(() => {
     document.body.innerHTML = '';
     vi.restoreAllMocks();
-    setCountsDeps({
-        showFeedErrorBanner: vi.fn(),
-        removeFeedErrorBanner: vi.fn(),
-    });
 });
 
 afterEach(() => {
@@ -228,29 +231,18 @@ describe('updateFeedErrors', () => {
     });
 
     it('updates error banner on current feed page', () => {
-        const mockShowBanner = vi.fn();
-        const mockRemoveBanner = vi.fn();
-        setCountsDeps({
-            showFeedErrorBanner: mockShowBanner,
-            removeFeedErrorBanner: mockRemoveBanner,
-        });
         document.body.innerHTML = '<button data-feed-id="3">Refresh</button>';
 
         updateFeedErrors({ '3': 'Network error' });
 
-        expect(mockShowBanner).toHaveBeenCalledWith('3', 'Network error');
+        expect(showFeedErrorBanner).toHaveBeenCalledWith('3', 'Network error');
     });
 
     it('removes error banner when current feed has no errors', () => {
-        const mockRemoveBanner = vi.fn();
-        setCountsDeps({
-            showFeedErrorBanner: vi.fn(),
-            removeFeedErrorBanner: mockRemoveBanner,
-        });
         document.body.innerHTML = '<button data-feed-id="3">Refresh</button>';
 
         updateFeedErrors({});
 
-        expect(mockRemoveBanner).toHaveBeenCalled();
+        expect(removeFeedErrorBanner).toHaveBeenCalled();
     });
 });
