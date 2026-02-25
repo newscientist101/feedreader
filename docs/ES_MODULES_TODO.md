@@ -67,12 +67,12 @@ restructurings. See `ES_MODULES_PLAN.md` Phase 5 for rationale.
 
 ### Non-circular (replace with direct imports)
 
-- [ ] `article-actions.js`: import `updateCounts` directly from `counts.js` (no cycle exists)
-- [ ] `article-actions.js`: import `updateQueueCacheIfStandalone` directly from `offline.js` (no cycle exists)
-- [ ] `counts.js`: import `applyUserPreferences` directly from `articles.js` (no cycle exists)
-- [ ] `offline.js`: import `updateCounts` directly from `counts.js` (no cycle exists)
-- [ ] `queue.js`: import `updateQueueCacheIfStandalone` directly from `offline.js` (no cycle exists)
-- [ ] Remove corresponding `setXxxDeps` parameters and wiring from `app.js`
+- [x] `article-actions.js`: import `updateCounts` directly from `counts.js` (no cycle exists)
+- [x] `article-actions.js`: import `updateQueueCacheIfStandalone` directly from `offline.js` (no cycle exists)
+- [x] `counts.js`: import `applyUserPreferences` directly from `articles.js` (no cycle exists)
+- [x] `offline.js`: import `updateCounts` directly from `counts.js` (no cycle exists)
+- [x] `queue.js`: import `updateQueueCacheIfStandalone` directly from `offline.js` (no cycle exists)
+- [x] Remove corresponding `setXxxDeps` parameters and wiring from `app.js`
 
 ### Real cycles (restructure)
 

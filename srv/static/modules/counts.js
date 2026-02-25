@@ -1,10 +1,12 @@
 import { api } from './api.js';
+import { applyUserPreferences } from './articles.js';
 
-// Late-bound dependencies to avoid circular imports
+// Late-bound dependencies to avoid circular imports (counts ↔ feeds cycle).
+// showFeedErrorBanner/removeFeedErrorBanner live in feeds.js which imports
+// from this module, so they must remain late-bound.
 let _deps = {
     showFeedErrorBanner: () => {},
     removeFeedErrorBanner: () => {},
-    applyUserPreferences: () => {},
 };
 
 export function setCountsDeps(deps) {
@@ -70,7 +72,7 @@ export async function updateCounts() {
         updateFeedErrors(counts.feedErrors || {});
 
         // Re-apply hide empty preference if enabled
-        _deps.applyUserPreferences();
+        applyUserPreferences();
     } catch (e) {
         console.error('Failed to update counts:', e);
     }

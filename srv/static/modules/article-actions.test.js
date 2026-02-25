@@ -10,6 +10,15 @@ import {
 } from './article-actions.js';
 import { renderArticles, _resetArticlesState, setArticlesDeps } from './articles.js';
 
+// Mock counts and offline modules (now directly imported by article-actions)
+vi.mock('./counts.js', () => ({
+    updateCounts: vi.fn(),
+}));
+
+vi.mock('./offline.js', () => ({
+    updateQueueCacheIfStandalone: vi.fn(),
+}));
+
 // Minimal IntersectionObserver mock
 class MockIntersectionObserver {
     constructor(callback) {
@@ -31,11 +40,7 @@ beforeEach(() => {
     window.__settings = {};
     window.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }));
     document.body.innerHTML = '<div id="articles-list"></div>';
-    setArticleActionDeps({
-        updateReadButton: vi.fn(),
-        updateCounts: vi.fn(),
-        updateQueueCacheIfStandalone: vi.fn(),
-    });
+    setArticleActionDeps({ updateReadButton: vi.fn() });
     setArticlesDeps({
         updatePaginationCursor: vi.fn(),
         updateEndOfArticlesIndicator: vi.fn(),
@@ -387,11 +392,7 @@ describe('markAsRead with category URL', () => {
 describe('initArticleActionListeners', () => {
     beforeEach(() => {
         _resetArticleActionsState();
-        setArticleActionDeps({
-            updateReadButton: vi.fn(),
-            updateCounts: vi.fn(),
-            updateQueueCacheIfStandalone: vi.fn(),
-        });
+        setArticleActionDeps({ updateReadButton: vi.fn() });
     });
 
     it('delegates mark-as-read clicks to markAsRead', async () => {

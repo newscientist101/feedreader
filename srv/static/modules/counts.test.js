@@ -1,13 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { updateCounts, updateFeedStatusCell, updateFeedErrors, setCountsDeps } from './counts.js';
 
+// Mock articles module (applyUserPreferences is now directly imported by counts)
+vi.mock('./articles.js', () => ({
+    applyUserPreferences: vi.fn(),
+}));
+
+import { applyUserPreferences } from './articles.js';
+
 beforeEach(() => {
     document.body.innerHTML = '';
     vi.restoreAllMocks();
     setCountsDeps({
         showFeedErrorBanner: vi.fn(),
         removeFeedErrorBanner: vi.fn(),
-        applyUserPreferences: vi.fn(),
     });
 });
 
@@ -94,12 +100,6 @@ describe('updateCounts', () => {
     });
 
     it('calls applyUserPreferences after updating counts', async () => {
-        const mockApply = vi.fn();
-        setCountsDeps({
-            showFeedErrorBanner: vi.fn(),
-            removeFeedErrorBanner: vi.fn(),
-            applyUserPreferences: mockApply,
-        });
         vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: true,
             json: () => Promise.resolve({
@@ -110,7 +110,7 @@ describe('updateCounts', () => {
 
         await updateCounts();
 
-        expect(mockApply).toHaveBeenCalled();
+        expect(applyUserPreferences).toHaveBeenCalled();
     });
 
     it('handles API errors gracefully', async () => {
@@ -233,7 +233,6 @@ describe('updateFeedErrors', () => {
         setCountsDeps({
             showFeedErrorBanner: mockShowBanner,
             removeFeedErrorBanner: mockRemoveBanner,
-            applyUserPreferences: vi.fn(),
         });
         document.body.innerHTML = '<button data-feed-id="3">Refresh</button>';
 
@@ -247,7 +246,6 @@ describe('updateFeedErrors', () => {
         setCountsDeps({
             showFeedErrorBanner: vi.fn(),
             removeFeedErrorBanner: mockRemoveBanner,
-            applyUserPreferences: vi.fn(),
         });
         document.body.innerHTML = '<button data-feed-id="3">Refresh</button>';
 

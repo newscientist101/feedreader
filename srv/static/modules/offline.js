@@ -2,13 +2,7 @@
 // Handles service-worker setup, online/offline banners, and pending-action replay.
 
 import { api } from './api.js';
-
-// --- Late-bound dependencies (set by app.js during init) ---
-let _updateCounts = null;
-
-export function setOfflineDeps({ updateCounts }) {
-    if (updateCounts) _updateCounts = updateCounts;
-}
+import { updateCounts } from './counts.js';
 
 // Detect PWA standalone mode
 export const _isStandalone = (typeof window.matchMedia === 'function' &&
@@ -170,7 +164,7 @@ export function replayPendingActions(callback) {
             return Promise.resolve();
         });
         Promise.all(promises).then(() => {
-            if (actions.length > 0 && _updateCounts) _updateCounts();
+            if (actions.length > 0) updateCounts();
             if (callback) callback();
         });
     };

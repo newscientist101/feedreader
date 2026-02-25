@@ -252,3 +252,26 @@
 - Zero `window.X` global exports
 - Import maps provide cache busting for all module files
 - Coverage: 82% statements, 85% functions (modules only)
+
+## Run 14 — Phase 5 started (non-circular late-bound deps)
+
+**Completed:**
+- Replaced 5 non-circular `setXxxDeps` late-bound dependencies with direct ES module imports:
+  - `article-actions.js`: now imports `updateCounts` from `counts.js` and `updateQueueCacheIfStandalone` from `offline.js` directly
+  - `counts.js`: now imports `applyUserPreferences` from `articles.js` directly
+  - `offline.js`: now imports `updateCounts` from `counts.js` directly
+  - `queue.js`: now imports `updateQueueCacheIfStandalone` from `offline.js` directly
+- Removed `setOfflineDeps` and `setQueueDeps` entirely (no longer exported or called)
+- Simplified `setArticleActionDeps` to only accept `updateReadButton` (the real cycle)
+- Simplified `setCountsDeps` to only accept `showFeedErrorBanner`/`removeFeedErrorBanner` (the real cycle)
+- Removed corresponding wiring from `app.js`
+- Updated 4 test files (article-actions, counts, offline, queue) to use `vi.mock()` for the now-directly-imported modules instead of `setXxxDeps`
+- All 387 tests pass, `make check` clean
+
+**Remaining `setXxxDeps` calls in app.js (3):**
+1. `setArticleActionDeps({ updateReadButton })` — real cycle: article-actions ↔ articles
+2. `setArticlesDeps({ updatePaginationCursor, updateEndOfArticlesIndicator, setPaginationState })` — real cycle: articles ↔ pagination
+3. `setCountsDeps({ showFeedErrorBanner, removeFeedErrorBanner })` — real cycle: counts ↔ feeds
+4. `setSidebarLoadCategory(...)` — legitimate top-down wiring (not a cycle hack)
+
+**Next run:** Tackle the 3 real cycle eliminations (Phase 5 remaining tasks). Start with the `counts ↔ feeds` cycle since it's simplest — move `showFeedErrorBanner`/`removeFeedErrorBanner` into `counts.js` or a new `feed-errors.js`.

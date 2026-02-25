@@ -25,11 +25,9 @@ import { initFoldersPageListeners, initCategorySettingsPage } from './modules/fo
 import { initFolderDragDrop } from './modules/drag-drop.js';
 import { initOpmlListeners } from './modules/opml.js';
 import { initSettingsPage, initSettingsPageListeners } from './modules/settings-page.js';
-import { initQueuePage, setQueueDeps } from './modules/queue.js';
+import { initQueuePage } from './modules/queue.js';
 import { initScraperPage, initScraperPageListeners } from './modules/scraper-page.js';
-import {
-    initOfflineSupport, updateQueueCacheIfStandalone, setOfflineDeps,
-} from './modules/offline.js';
+import { initOfflineSupport } from './modules/offline.js';
 
 // Initialize click-outside listener for dropdowns (was top-level in original code)
 initDropdownCloseListener();
@@ -57,11 +55,9 @@ initScraperPageListeners();
 // Wire sidebar's late-bound dependency on loadCategoryArticles
 setSidebarLoadCategory((...args) => loadCategoryArticles(...args));
 
-// Wire article-actions' late-bound dependencies
+// Wire article-actions' late-bound dependency (real cycle: article-actions ↔ articles)
 setArticleActionDeps({
     updateReadButton,
-    updateCounts,
-    updateQueueCacheIfStandalone: (...args) => updateQueueCacheIfStandalone(...args),
 });
 
 // Wire articles' late-bound dependencies on pagination
@@ -71,22 +67,13 @@ setArticlesDeps({
     setPaginationState,
 });
 
-// Wire counts' late-bound dependencies on feeds and articles
+// Wire counts' late-bound dependencies on feeds (real cycle: counts ↔ feeds)
 setCountsDeps({
     showFeedErrorBanner,
     removeFeedErrorBanner,
-    applyUserPreferences,
 });
 
-// Wire queue's late-bound dependencies
-setQueueDeps({
-    updateQueueCacheIfStandalone: (...args) => updateQueueCacheIfStandalone(...args),
-});
 
-// Wire offline module dependencies
-setOfflineDeps({
-    updateCounts,
-});
 
 
 

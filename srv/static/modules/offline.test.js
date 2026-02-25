@@ -9,22 +9,25 @@ import {
     enableAllUI,
     replayPendingActions,
     updateQueueCacheIfStandalone,
-    setOfflineDeps,
 } from './offline.js';
 
-// Mock the api module
+// Mock the api and counts modules
 vi.mock('./api.js', () => ({
     api: vi.fn(),
 }));
 
+vi.mock('./counts.js', () => ({
+    updateCounts: vi.fn(),
+}));
+
 import { api } from './api.js';
+import { updateCounts } from './counts.js';
 
 beforeEach(() => {
     document.body.innerHTML = '';
     vi.useFakeTimers();
     vi.restoreAllMocks();
     vi.clearAllMocks();
-    setOfflineDeps({ updateCounts: vi.fn() });
 });
 
 afterEach(() => {
@@ -311,9 +314,6 @@ describe('replayPendingActions', () => {
 
         api.mockResolvedValue({});
 
-        const mockUpdateCounts = vi.fn();
-        setOfflineDeps({ updateCounts: mockUpdateCounts });
-
         const cb = vi.fn();
         replayPendingActions(cb);
 
@@ -333,7 +333,7 @@ describe('replayPendingActions', () => {
 
         expect(api).toHaveBeenCalledWith('DELETE', '/api/articles/123/queue');
         expect(api).toHaveBeenCalledWith('DELETE', '/api/articles/456/queue');
-        expect(mockUpdateCounts).toHaveBeenCalled();
+        expect(updateCounts).toHaveBeenCalled();
         expect(cb).toHaveBeenCalledOnce();
         expect(removeEventListener).toHaveBeenCalledWith('message', messageHandler);
     });
@@ -437,10 +437,4 @@ describe('updateQueueCacheIfStandalone', () => {
     });
 });
 
-describe('setOfflineDeps', () => {
-    it('accepts and stores dependencies', () => {
-        const fn = vi.fn();
-        setOfflineDeps({ updateCounts: fn });
-        // Verified via replayPendingActions calling it (tested above)
-    });
-});
+

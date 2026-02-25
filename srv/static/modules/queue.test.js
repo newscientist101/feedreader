@@ -1,19 +1,22 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { initQueuePage, queueNext, setQueueDeps } from './queue.js';
+import { initQueuePage, queueNext } from './queue.js';
 
-// Mock the api module
+// Mock the api and offline modules
 vi.mock('./api.js', () => ({
     api: vi.fn(),
 }));
 
+vi.mock('./offline.js', () => ({
+    updateQueueCacheIfStandalone: vi.fn(),
+}));
+
 import { api } from './api.js';
+import { updateQueueCacheIfStandalone } from './offline.js';
 
 beforeEach(() => {
     document.body.innerHTML = '';
     vi.restoreAllMocks();
     vi.clearAllMocks();
-    // Reset deps
-    setQueueDeps({ updateQueueCacheIfStandalone: null });
 });
 
 afterEach(() => {
@@ -91,41 +94,16 @@ describe('queueNext', () => {
         window.location = origLocation;
     });
 
-    it('calls updateQueueCacheIfStandalone when wired', async () => {
+    it('calls updateQueueCacheIfStandalone', async () => {
         api.mockResolvedValue({});
         const origLocation = window.location;
         delete window.location;
         window.location = { href: '' };
 
-        const mockUpdate = vi.fn();
-        setQueueDeps({ updateQueueCacheIfStandalone: mockUpdate });
-
         await queueNext([7]);
 
-        expect(mockUpdate).toHaveBeenCalled();
+        expect(updateQueueCacheIfStandalone).toHaveBeenCalled();
 
         window.location = origLocation;
-    });
-
-    it('does not call updateQueueCacheIfStandalone when not wired', async () => {
-        api.mockResolvedValue({});
-        const origLocation = window.location;
-        delete window.location;
-        window.location = { href: '' };
-
-        setQueueDeps({ updateQueueCacheIfStandalone: null });
-
-        // Should not throw
-        await queueNext([7]);
-
-        window.location = origLocation;
-    });
-});
-
-describe('setQueueDeps', () => {
-    it('accepts and stores dependencies', () => {
-        const fn = vi.fn();
-        setQueueDeps({ updateQueueCacheIfStandalone: fn });
-        // Verified via queueNext calling it (tested above)
     });
 });

@@ -1,13 +1,7 @@
 // Queue page — "next" button logic.
 
 import { api } from './api.js';
-
-// --- Late-bound dependencies (set by app.js during init) ---
-let _updateQueueCacheIfStandalone = null;
-
-export function setQueueDeps({ updateQueueCacheIfStandalone }) {
-    if (updateQueueCacheIfStandalone) _updateQueueCacheIfStandalone = updateQueueCacheIfStandalone;
-}
+import { updateQueueCacheIfStandalone } from './offline.js';
 
 /**
  * Initialise the queue page. Call from DOMContentLoaded.
@@ -40,6 +34,6 @@ export async function queueNext(queueArticleIds) {
     if (!queueArticleIds || queueArticleIds.length === 0) return;
     const currentId = queueArticleIds[0];
     await api('DELETE', `/api/articles/${currentId}/queue`);
-    if (_updateQueueCacheIfStandalone) _updateQueueCacheIfStandalone();
+    updateQueueCacheIfStandalone();
     window.location.href = '/queue';
 }

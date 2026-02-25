@@ -5,16 +5,16 @@ import { getSetting } from './settings.js';
 import {
     SVG_STAR_FILLED, SVG_STAR_EMPTY, SVG_QUEUE_ADD, SVG_QUEUE_REMOVE
 } from './icons.js';
+import { updateCounts } from './counts.js';
+import { updateQueueCacheIfStandalone } from './offline.js';
 
-// --- Late-bound dependencies (set by app.js during init) ---
+// --- Late-bound dependency (set by app.js during init) ---
+// updateReadButton comes from articles.js which imports from this module,
+// creating a real circular dependency. Kept as late-bound.
 let _updateReadButton = null;
-let _updateCounts = null;
-let _updateQueueCacheIfStandalone = null;
 
-export function setArticleActionDeps({ updateReadButton, updateCounts, updateQueueCacheIfStandalone }) {
+export function setArticleActionDeps({ updateReadButton }) {
     if (updateReadButton) _updateReadButton = updateReadButton;
-    if (updateCounts) _updateCounts = updateCounts;
-    if (updateQueueCacheIfStandalone) _updateQueueCacheIfStandalone = updateQueueCacheIfStandalone;
 }
 
 // --- Queue state ---
@@ -105,7 +105,7 @@ export function flushMarkReadQueue() {
     _markReadQueue = [];
     console.debug(`[auto-mark-read] flushing batch of ${ids.length} article(s):`, ids);
     api('POST', '/api/articles/batch-read', { ids })
-        .then(() => { if (_updateCounts) _updateCounts(); })
+        .then(() => { updateCounts(); })
         .catch(e => console.error('Failed to batch mark read:', e));
 }
 
@@ -144,7 +144,7 @@ export async function markRead(event, id) {
     try {
         await api('POST', `/api/articles/${id}/read`);
         markCardAsRead(id);
-        if (_updateCounts) _updateCounts();
+        updateCounts();
     } catch (e) {
         console.error('Failed to mark read:', e);
     }
@@ -159,7 +159,7 @@ export async function markUnread(event, id) {
             card.classList.remove('read');
             if (_updateReadButton) _updateReadButton(card, false);
         }
-        if (_updateCounts) _updateCounts();
+        updateCounts();
     } catch (e) {
         console.error('Failed to mark unread:', e);
     }
@@ -177,7 +177,7 @@ export async function toggleStar(event, id) {
             btn.title = isNowStarred ? 'Unstar' : 'Star';
             btn.innerHTML = isNowStarred ? SVG_STAR_FILLED : SVG_STAR_EMPTY;
         });
-        if (_updateCounts) _updateCounts();
+        updateCounts();
     } catch (e) {
         console.error('Failed to toggle star:', e);
     }
@@ -200,8 +200,8 @@ export async function toggleQueue(event, id) {
             btn.title = isNowQueued ? 'Remove from queue' : 'Add to queue';
             btn.innerHTML = isNowQueued ? SVG_QUEUE_REMOVE : SVG_QUEUE_ADD;
         });
-        if (_updateCounts) _updateCounts();
-        if (_updateQueueCacheIfStandalone) _updateQueueCacheIfStandalone();
+        updateCounts();
+        updateQueueCacheIfStandalone();
     } catch (e) {
         console.error('Failed to toggle queue:', e);
     }
