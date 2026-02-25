@@ -60,12 +60,31 @@ srv/
     history.html         Reading history page
     category_settings.html  Folder exclusion-rule settings
   static/
-    app.js               Main client-side JS (~2300 lines)
-    app.test.js          JS unit tests (vitest)
-    test-helper.js       JS test helper
+    app.js               Entry point — imports modules, runs init (~360 lines)
     script.js            Service worker registration
     sw.js                Service worker
-    style.css            All styles (~3000 lines)
+    style.css            All styles (~2900 lines)
+    modules/             ES modules (each with a .test.js companion)
+      api.js             Fetch wrapper for /api/* endpoints
+      article-actions.js Mark read/unread, star, queue, auto-mark-read observer
+      articles.js        Article rendering — cards, actions, embeds, user prefs
+      counts.js          Unread/starred counts, feed status, error banners
+      drag-drop.js       Drag-and-drop reordering for feeds and folders
+      dropdown.js        Dropdown toggle and click-outside close
+      feeds.js           Feed CRUD, load articles, edit modal, error banner
+      folders.js         Folder CRUD, category settings page
+      icons.js           SVG icon constant strings
+      offline.js         Service worker, online/offline handling, cache
+      opml.js            OPML import/export
+      pagination.js      Cursor-based pagination and infinite scroll
+      queue.js           Reading queue page init
+      scraper-page.js    Scraper management page (tabs, AI, config modal)
+      settings-page.js   Settings page init, cleanup, newsletter
+      settings.js        User settings (get/save/apply)
+      sidebar.js         Sidebar toggle, folder navigation, collapse
+      timestamps.js      Tooltip initialization for timestamps
+      utils.js           formatTimeAgo, stripHtml, truncateText, etc.
+      views.js           View mode switching (cards/list/magazine/expanded)
 db/
   db.go                  DB open, migrations, pragmas
   sqlc.yaml              sqlc configuration
@@ -85,6 +104,13 @@ db/
   `go generate ./db/...` to regenerate `db/dbgen/`.
 - **Single-file server**: Most handler logic lives in `srv/server.go`.
   It's large but flat — each handler is a standalone function on the server struct.
+- **ES modules**: Client-side JS uses native ES modules (no bundler).
+  `app.js` is the entry point (`<script type="module">`), importing from
+  `modules/`. An import map in `base.html` maps module URLs to versioned
+  URLs (`?v=hash`) for cache busting. No inline `onclick` handlers — all
+  event wiring uses `data-action` attributes with delegated `addEventListener`.
+  Circular dependencies are resolved via late-bound setters (e.g.,
+  `setArticleActionDeps()`). Each module has a companion `.test.js` file.
 - **Build & validation**: See the Build Workflow section below.
 - **Service**: Managed via systemd (`srv.service`). Restart after changes
   with `make build && sudo systemctl restart feedreader`.

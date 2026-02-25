@@ -210,14 +210,9 @@ func (s *Server) Handler() http.Handler {
 	// Static files – serve with long cache lifetime (files are cache-busted via ?v=hash)
 	staticFS := http.FileServer(http.Dir(s.StaticDir))
 	mux.Handle("/static/", http.StripPrefix("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Query().Get("v") != "":
+		if r.URL.Query().Get("v") != "" {
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-		case strings.HasPrefix(r.URL.Path, "modules/"):
-			// ES module imports don't support cache-busting query params,
-			// so use a short cache with revalidation for module files.
-			w.Header().Set("Cache-Control", "public, max-age=60, must-revalidate")
-		default:
+		} else {
 			w.Header().Set("Cache-Control", "public, max-age=3600")
 		}
 		staticFS.ServeHTTP(w, r)
@@ -254,6 +249,17 @@ func (s *Server) renderTemplate(w http.ResponseWriter, name string, data any) er
 				return "/static/" + name + "?v=" + h
 			}
 			return "/static/" + name
+		},
+		"moduleImportMap": func() template.HTML {
+			imports := make(map[string]string)
+			for name, hash := range s.StaticHashes {
+				if strings.HasPrefix(name, "modules/") && strings.HasSuffix(name, ".js") && !strings.HasSuffix(name, ".test.js") {
+					imports["/static/"+name] = "/static/" + name + "?v=" + hash
+				}
+			}
+			data := map[string]any{"imports": imports}
+			b, _ := json.Marshal(data)
+			return template.HTML(b)
 		},
 		"add":      func(a, b int64) int64 { return a + b },
 		"sortTime": sortTimeFunc,

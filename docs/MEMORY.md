@@ -233,3 +233,22 @@
 - Final `make check`, commit
 
 **Next run:** Tackle import maps, coverage verification, and AGENTS.md update.
+
+## Run 13 — Phase 4 completed (import maps, coverage, AGENTS.md)
+
+**Completed:**
+- **Import maps with version hashes:** Added `moduleImportMap` template function in `server.go` that generates a JSON import map mapping each module's absolute URL (`/static/modules/foo.js`) to its versioned URL (`/static/modules/foo.js?v=hash`). Added `<script type="importmap">` to `base.html` before the module script. Browser now resolves all `import` statements through the import map, getting proper cache busting with immutable caching (`max-age=31536000`). Removed the special short-cache case for `modules/` directory (no longer needed). Added `moduleImportMap` stub to template linter's FuncMap.
+- **Coverage verification:** Ran `npx vitest run --coverage`. Results: 82.25% statement / 85.4% function coverage for modules, 74% overall (dragged down by `app.js` entry point at 0% and `script.js`). Coverage reports real, meaningful numbers with direct ES module imports.
+- **AGENTS.md update:** Updated Code Layout section to document the `modules/` directory with all 20 modules. Updated Key Patterns to describe the ES module architecture (import maps, data-action delegation, late-bound deps, companion test files).
+- Also fixed `$HOME/go/bin` not being in PATH (added to `.profile`).
+
+**All Phase 4 tasks are now complete. The ES modules migration is finished.**
+
+**Final state:**
+- 20 ES modules in `srv/static/modules/`, each with a `.test.js` companion
+- 390 tests across 20 test files
+- `app.js` is a 363-line entry point (down from 2277 original)
+- Zero inline event handlers — all use `data-action` + `addEventListener`
+- Zero `window.X` global exports
+- Import maps provide cache busting for all module files
+- Coverage: 82% statements, 85% functions (modules only)
