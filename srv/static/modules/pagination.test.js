@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
     updateEndOfArticlesIndicator, updatePaginationCursor, getPaginationUrl,
-    loadMoreArticles, checkScrollForMore,
+    loadMoreArticles, checkScrollForMore, initPagination,
     setPaginationState, getPaginationState, PAGE_SIZE,
     _resetPaginationState,
 } from './pagination.js';
@@ -231,5 +231,52 @@ describe('checkScrollForMore', () => {
         await new Promise(r => setTimeout(r, 50));
 
         expect(window.fetch).toHaveBeenCalled();
+    });
+});
+
+describe('initPagination', () => {
+    let scrollHandler;
+
+    beforeEach(() => {
+        _resetPaginationState();
+        // Capture the scroll listener added by initPagination
+        scrollHandler = null;
+        const origAddEventListener = window.addEventListener;
+        vi.spyOn(window, 'addEventListener').mockImplementation((type, handler) => {
+            if (type === 'scroll') scrollHandler = handler;
+            origAddEventListener.call(window, type, handler);
+        });
+    });
+
+    it('sets pagination state from last article card', () => {
+        document.getElementById('articles-list').innerHTML = `
+            <div class="article-card" data-sort-time="2025-01-01T00:00:00Z" data-id="10"></div>
+            <div class="article-card" data-sort-time="2025-01-02T00:00:00Z" data-id="20"></div>
+        `;
+        initPagination();
+        const state = getPaginationState();
+        expect(state.cursorTime).toBe('2025-01-02T00:00:00Z');
+        expect(state.cursorId).toBe('20');
+        expect(state.done).toBe(true); // 2 < PAGE_SIZE
+    });
+
+    it('marks not done when article count equals PAGE_SIZE', () => {
+        let html = '';
+        for (let i = 0; i < PAGE_SIZE; i++) {
+            html += `<div class="article-card" data-sort-time="2025-01-01T00:00:00Z" data-id="${i}"></div>`;
+        }
+        document.getElementById('articles-list').innerHTML = html;
+        initPagination();
+        expect(getPaginationState().done).toBe(false);
+    });
+
+    it('sets done=true when no articles exist', () => {
+        initPagination();
+        expect(getPaginationState().done).toBe(true);
+    });
+
+    it('registers scroll listener', () => {
+        initPagination();
+        expect(scrollHandler).toBeInstanceOf(Function);
     });
 });

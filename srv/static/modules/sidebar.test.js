@@ -7,6 +7,7 @@ import {
     collapseFolder,
     setSidebarLoadCategory,
     initSidebarListeners,
+    initSidebarMobileClose,
 } from './sidebar.js';
 
 describe('sidebar', () => {
@@ -225,6 +226,43 @@ describe('sidebar', () => {
             link.dispatchEvent(event);
             // In jsdom, default isn't actually navigating, but the event should not be prevented
             // navigateFolder returns true, so our handler doesn't call preventDefault
+        });
+    });
+
+    describe('initSidebarMobileClose', () => {
+        it('does nothing when sidebar is absent', () => {
+            document.body.innerHTML = '<div>No sidebar</div>';
+            initSidebarMobileClose(); // should not throw
+        });
+
+        it('toggles sidebar on link click when width <= 768', () => {
+            document.body.innerHTML = `
+                <div class="sidebar open">
+                    <a href="/feed/1">Feed 1</a>
+                    <a href="/feed/2">Feed 2</a>
+                </div>
+                <div class="sidebar-overlay active"></div>
+            `;
+            Object.defineProperty(window, 'innerWidth', { value: 600, configurable: true });
+            initSidebarMobileClose();
+
+            document.querySelector('a[href="/feed/1"]').click();
+            expect(document.querySelector('.sidebar').classList.contains('open')).toBe(false);
+        });
+
+        it('does not toggle sidebar on link click when width > 768', () => {
+            document.body.innerHTML = `
+                <div class="sidebar open">
+                    <a href="/feed/1">Feed 1</a>
+                </div>
+                <div class="sidebar-overlay active"></div>
+            `;
+            Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
+            initSidebarMobileClose();
+
+            document.querySelector('a[href="/feed/1"]').click();
+            // Sidebar should remain open on wide screens
+            expect(document.querySelector('.sidebar').classList.contains('open')).toBe(true);
         });
     });
 });

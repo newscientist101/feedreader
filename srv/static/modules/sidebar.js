@@ -64,6 +64,19 @@ export function collapseFolder(folderItem) {
     });
 }
 
+// Close sidebar when a link is clicked on mobile (≤768px).
+export function initSidebarMobileClose() {
+    const sidebar = document.querySelector('.sidebar');
+    if (!sidebar) return;
+    sidebar.querySelectorAll('a').forEach(link => {
+        link.addEventListener('click', () => {
+            if (window.innerWidth <= 768) {
+                toggleSidebar();
+            }
+        });
+    });
+}
+
 // Attach delegated event listeners for sidebar actions (replaces inline onclick handlers).
 export function initSidebarListeners() {
     // data-action="toggle-sidebar" — menu toggle button and overlay

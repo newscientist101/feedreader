@@ -38,6 +38,27 @@ export function _resetArticleActionsState() {
     queuedIdsReady = Promise.resolve();
 }
 
+// Load queued article IDs from the API, then hydrate action-button placeholders
+// in server-rendered article cards.
+export function initQueueState(renderArticleActions) {
+    const _queueReady = api('GET', '/api/queue').then(articles => {
+        queuedArticleIds = new Set((articles || []).map(a => a.id));
+    }).catch(() => {});
+    queuedIdsReady = _queueReady;
+    _queueReady.then(() => {
+        document.querySelectorAll('.article-actions-placeholder').forEach(el => {
+            const a = {
+                id: Number(el.dataset.articleId),
+                is_read: el.dataset.isRead === '1',
+                is_starred: el.dataset.isStarred === '1',
+                is_queued: el.dataset.isQueued === '1' || queuedArticleIds.has(Number(el.dataset.articleId)),
+                url: el.dataset.url || null,
+            };
+            el.outerHTML = renderArticleActions(a);
+        });
+    });
+}
+
 export function initAutoMarkRead() {
     // Disconnect any previous observer
     if (autoMarkReadObserver) {

@@ -1,21 +1,17 @@
-import { api } from './modules/api.js';
 import { initDropdownCloseListener, initDropdownListeners } from './modules/dropdown.js';
 import { initTimestampTooltips } from './modules/timestamps.js';
 import { initView, initViewListeners } from './modules/views.js';
-import { toggleSidebar, setSidebarLoadCategory, initSidebarListeners } from './modules/sidebar.js';
+import { setSidebarLoadCategory, initSidebarListeners, initSidebarMobileClose } from './modules/sidebar.js';
 import {
     renderArticleActions,
     processEmbeds, applyUserPreferences,
     initArticleListListeners,
 } from './modules/articles.js';
 import {
-    initAutoMarkRead, queuedArticleIds, setQueuedArticleIds, setQueuedIdsReady,
+    initAutoMarkRead, initQueueState,
     initArticleActionListeners,
 } from './modules/article-actions.js';
-import {
-    updateEndOfArticlesIndicator,
-    checkScrollForMore, setPaginationState, PAGE_SIZE
-} from './modules/pagination.js';
+import { initPagination } from './modules/pagination.js';
 import { updateCounts } from './modules/counts.js';
 import {
     loadCategoryArticles, initFeedActionListeners,
@@ -70,23 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Load queued article IDs, then hydrate action-button placeholders
-    const _queueReady = api('GET', '/api/queue').then(articles => {
-        setQueuedArticleIds(new Set((articles || []).map(a => a.id)));
-    }).catch(() => {});
-    setQueuedIdsReady(_queueReady);
-    _queueReady.then(() => {
-        document.querySelectorAll('.article-actions-placeholder').forEach(el => {
-            const a = {
-                id: Number(el.dataset.articleId),
-                is_read: el.dataset.isRead === '1',
-                is_starred: el.dataset.isStarred === '1',
-                is_queued: el.dataset.isQueued === '1' || queuedArticleIds.has(Number(el.dataset.articleId)),
-                url: el.dataset.url || null,
-            };
-            el.outerHTML = renderArticleActions(a);
-        });
-    });
+    // Load queued article IDs and hydrate action-button placeholders
+    initQueueState(renderArticleActions);
 
     // Initialize timestamp tooltips with local timezone
     initTimestampTooltips();
@@ -102,32 +83,13 @@ document.addEventListener('DOMContentLoaded', () => {
     applyUserPreferences();
 
     // Initialize cursor-based pagination from server-rendered articles
-    const initialArticles = document.querySelectorAll('#articles-list .article-card');
-    if (initialArticles.length > 0) {
-        const lastCard = initialArticles[initialArticles.length - 1];
-        setPaginationState({
-            cursorTime: lastCard.dataset.sortTime || null,
-            cursorId: lastCard.dataset.id || null,
-            done: initialArticles.length < PAGE_SIZE,
-        });
-    } else {
-        setPaginationState({ done: true });
-    }
-    updateEndOfArticlesIndicator();
+    initPagination();
     
     // Poll for count updates every 60 seconds (catches new articles from background fetches)
     setInterval(updateCounts, 60000);
     
-    const sidebar = document.querySelector('.sidebar');
-    if (sidebar) {
-        sidebar.querySelectorAll('a').forEach(link => {
-            link.addEventListener('click', () => {
-                if (window.innerWidth <= 768) {
-                    toggleSidebar();
-                }
-            });
-        });
-    }
+    // Close sidebar on mobile when a link is clicked
+    initSidebarMobileClose();
 
     // Initialize SPA feed-item click handlers in sidebar
     initFeedItemClickListeners();
@@ -168,5 +130,4 @@ document.addEventListener('dragstart', (event) => {
     }
 }, true);
 
-window.addEventListener('scroll', checkScrollForMore);
 

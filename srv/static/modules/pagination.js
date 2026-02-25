@@ -122,3 +122,21 @@ export function checkScrollForMore() {
         loadMoreArticles();
     }
 }
+
+// Bootstrap pagination state from server-rendered articles and register
+// the scroll listener for infinite scrolling.
+export function initPagination() {
+    const initialArticles = document.querySelectorAll('#articles-list .article-card');
+    if (initialArticles.length > 0) {
+        const lastCard = initialArticles[initialArticles.length - 1];
+        setPaginationState({
+            cursorTime: lastCard.dataset.sortTime || null,
+            cursorId: lastCard.dataset.id || null,
+            done: initialArticles.length < PAGE_SIZE,
+        });
+    } else {
+        setPaginationState({ done: true });
+    }
+    updateEndOfArticlesIndicator();
+    window.addEventListener('scroll', checkScrollForMore);
+}

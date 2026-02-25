@@ -315,3 +315,26 @@
 - Drag prevention (4 lines) → `drag-drop.js` as part of init
 - Modulepreload hints in base.html
 - Final cleanup: remove empty DOMContentLoaded blocks, verify ~120 lines
+
+## Run 17 — Phase 6 continued (sidebar mobile close, pagination init, queue hydration)
+
+**Completed:**
+- Moved sidebar mobile close (8 lines) from app.js → `sidebar.js` as `initSidebarMobileClose()`. Attaches click listeners to sidebar links that close sidebar on mobile (≤768px).
+- Moved pagination bootstrap + scroll listener (11 lines) from app.js → `pagination.js` as `initPagination()`. Reads initial article cards, sets cursor state, registers scroll listener.
+- Moved queue hydration (16 lines) from app.js → `article-actions.js` as `initQueueState(renderArticleActions)`. Fetches queue IDs, populates `queuedArticleIds`, hydrates action-button placeholders. Takes `renderArticleActions` as a parameter to avoid importing from articles.js (which would create a circular import).
+- Removed unused `api` import from app.js, removed `toggleSidebar` import (no longer needed directly), removed `checkScrollForMore`/`setPaginationState`/`PAGE_SIZE`/`updateEndOfArticlesIndicator` imports, removed `setQueuedArticleIds`/`setQueuedIdsReady`/`queuedArticleIds` imports.
+- Removed `window.addEventListener('scroll', checkScrollForMore)` from bottom of app.js (now inside `initPagination`).
+- Added 3 tests to `sidebar.test.js` for `initSidebarMobileClose` (no-op, mobile click, desktop no-op).
+- Added 4 tests to `pagination.test.js` for `initPagination` (cursor from last card, PAGE_SIZE boundary, empty list, scroll listener registration).
+- Added 3 tests to `article-actions.test.js` for `initQueueState` (fetch+populate, hydrate placeholders, API failure). Used real timers for these tests since they depend on real promise resolution.
+
+**app.js is now 117 lines** (down from 172). Almost entirely imports, init calls, and DOMContentLoaded sequencing.
+
+**Total: 423 tests across 23 test files.**
+
+**Remaining Phase 6 tasks:**
+- Drag prevention (4 lines) → `drag-drop.js` as part of init
+- Modulepreload hints in base.html
+- Remove empty DOMContentLoaded blocks from app.js
+- Verify app.js is ~120 lines (currently 117 — ✓)
+- Final `make check`

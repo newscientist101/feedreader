@@ -93,9 +93,9 @@ Phase 6 for rationale.
 
 - [x] Add feed form handler (72 lines) → `feeds.js` as `initAddFeedForm()`
 - [x] Feed item click handler (12 lines) → `feeds.js` as `initFeedItemClickListeners()`
-- [ ] Sidebar mobile close (8 lines) → `sidebar.js` as part of `initSidebarListeners()`
-- [ ] Pagination bootstrap + scroll listener (11 lines) → `pagination.js` as `initPagination()`
-- [ ] Queue hydration (16 lines) → `article-actions.js` as `initQueueState()`
+- [x] Sidebar mobile close (8 lines) → `sidebar.js` as `initSidebarMobileClose()`
+- [x] Pagination bootstrap + scroll listener (11 lines) → `pagination.js` as `initPagination()`
+- [x] Queue hydration (16 lines) → `article-actions.js` as `initQueueState()`
 - [ ] Drag prevention (4 lines) → `drag-drop.js` as part of init
 
 ### New module

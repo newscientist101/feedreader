@@ -3,8 +3,8 @@ import {
     initAutoMarkRead, observeNewArticles, flushMarkReadQueue,
     markCardAsRead, markReadSilent, openArticle, openArticleExternal,
     markRead, markUnread, toggleStar, toggleQueue, markAsRead,
-    findNextUnreadFolder, initArticleActionListeners,
-    setQueuedArticleIds, setQueuedIdsReady,
+    findNextUnreadFolder, initArticleActionListeners, initQueueState,
+    setQueuedArticleIds, setQueuedIdsReady, queuedArticleIds,
     _resetArticleActionsState,
     _getAutoMarkReadObserver, _getMarkReadQueue,
 } from './article-actions.js';
@@ -519,5 +519,74 @@ describe('initArticleActionListeners', () => {
         const card = document.querySelector('.article-card[data-id="15"]');
         expect(card.classList.contains('read')).toBe(true);
         expect(_getMarkReadQueue()).toContain(15);
+    });
+});
+
+describe('initQueueState', () => {
+    beforeEach(() => {
+        vi.useRealTimers();
+    });
+
+    afterEach(() => {
+        vi.useFakeTimers();
+    });
+
+    it('fetches queue and populates queuedArticleIds', async () => {
+        window.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve([{ id: 10 }, { id: 20 }, { id: 30 }]),
+        });
+        const renderFn = vi.fn().mockReturnValue('<span>actions</span>');
+
+        initQueueState(renderFn);
+        // Wait for the internal promise chain to settle
+        await new Promise(r => setTimeout(r, 50));
+
+        expect(queuedArticleIds.has(10)).toBe(true);
+        expect(queuedArticleIds.has(20)).toBe(true);
+        expect(queuedArticleIds.has(30)).toBe(true);
+    });
+
+    it('hydrates action-button placeholders after queue loads', async () => {
+        window.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve([{ id: 5 }]),
+        });
+        document.body.innerHTML = `
+            <div class="article-actions-placeholder"
+                 data-article-id="5"
+                 data-is-read="1"
+                 data-is-starred="0"
+                 data-is-queued="0"
+                 data-url="https://example.com"></div>
+        `;
+        const renderFn = vi.fn().mockReturnValue('<span class="rendered">actions</span>');
+
+        initQueueState(renderFn);
+        await new Promise(r => setTimeout(r, 50));
+
+        expect(renderFn).toHaveBeenCalledWith(expect.objectContaining({
+            id: 5,
+            is_read: true,
+            is_starred: false,
+            is_queued: true, // in queuedArticleIds
+            url: 'https://example.com',
+        }));
+        expect(document.querySelector('.rendered')).not.toBeNull();
+    });
+
+    it('handles API failure gracefully', async () => {
+        window.fetch = vi.fn().mockResolvedValue({
+            ok: false,
+            status: 500,
+            text: () => Promise.resolve('Internal Server Error'),
+        });
+        const renderFn = vi.fn();
+
+        initQueueState(renderFn);
+        await new Promise(r => setTimeout(r, 50));
+
+        // Should not throw, renderFn should not be called since the catch swallows the error
+        expect(renderFn).not.toHaveBeenCalled();
     });
 });
