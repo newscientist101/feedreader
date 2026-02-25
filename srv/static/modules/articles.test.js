@@ -4,6 +4,7 @@ import {
     showArticlesLoading, updateAllReadMessage, showReadArticles,
     processEmbeds, extractYouTubeId, applyUserPreferences,
     getIncludeReadUrl, setArticlesDeps, setShowingHiddenArticles,
+    initArticleListListeners, showHiddenArticles,
     _resetArticlesState,
 } from './articles.js';
 import { _resetArticleActionsState, setQueuedArticleIds } from './article-actions.js';
@@ -239,5 +240,52 @@ describe('getIncludeReadUrl', () => {
             value: { pathname: '/settings' }, writable: true, configurable: true,
         });
         expect(getIncludeReadUrl()).toBeNull();
+    });
+});
+
+describe('initArticleListListeners', () => {
+    beforeEach(() => {
+        _resetArticlesState();
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({ articles: [] }),
+        }));
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it('delegates show-hidden-articles clicks', async () => {
+        // Set up a path so getIncludeReadUrl returns something
+        Object.defineProperty(window, 'location', {
+            value: { pathname: '/' }, writable: true, configurable: true,
+        });
+        document.body.innerHTML = `
+            <div id="articles-list">
+                <button data-action="show-hidden-articles">Show hidden articles</button>
+            </div>
+        `;
+        initArticleListListeners();
+
+        document.querySelector('[data-action="show-hidden-articles"]').click();
+        await new Promise(r => setTimeout(r, 10));
+
+        expect(fetch).toHaveBeenCalledWith('/api/articles/unread?include_read=1', expect.any(Object));
+    });
+
+    it('delegates show-read-articles clicks', () => {
+        document.body.innerHTML = `
+            <div id="articles-list">
+                <article class="article-card read" style="display: none;">Read article</article>
+                <button data-action="show-read-articles">Show read articles</button>
+            </div>
+        `;
+        initArticleListListeners();
+
+        document.querySelector('[data-action="show-read-articles"]').click();
+        // showReadArticles removes the display:none
+        const card = document.querySelector('.article-card.read');
+        expect(card.style.display).toBe('');
     });
 });

@@ -3,6 +3,7 @@ import {
     setView,
     getViewScope,
     initView,
+    initViewListeners,
     migrateLegacyViewDefaults,
     getDefaultViewForScope,
     applyDefaultViewForScope,
@@ -174,6 +175,38 @@ describe('views', () => {
             // Should not have called saveSetting for defaultView since it already exists
             const calls = saveSetting.mock.calls.filter(c => c[0] === 'defaultView');
             expect(calls).toHaveLength(0);
+        });
+    });
+
+    describe('initViewListeners', () => {
+        beforeEach(() => {
+            document.body.innerHTML = `
+                <div class="articles-view" data-view-scope="all">
+                    <div class="view-toggle">
+                        <button data-view="card">Card</button>
+                        <button data-view="list">List</button>
+                        <button data-view="magazine">Magazine</button>
+                        <button data-view="expanded">Expanded</button>
+                    </div>
+                    <div id="articles-list" class="view-card"></div>
+                </div>
+            `;
+        });
+
+        it('switches view when a view-toggle button is clicked', () => {
+            initViewListeners();
+            document.querySelector('[data-view="list"]').click();
+            const list = document.getElementById('articles-list');
+            expect(list.classList.contains('view-list')).toBe(true);
+            expect(list.classList.contains('view-card')).toBe(false);
+        });
+
+        it('ignores clicks outside view-toggle buttons', () => {
+            initViewListeners();
+            document.body.click();
+            const list = document.getElementById('articles-list');
+            // Should remain unchanged
+            expect(list.classList.contains('view-card')).toBe(true);
         });
     });
 });

@@ -1,19 +1,18 @@
 import { api } from './modules/api.js';
 import { getSetting, saveSetting, applyHideReadArticles, applyHideEmptyFeeds } from './modules/settings.js';
-import { toggleDropdown, initDropdownCloseListener } from './modules/dropdown.js';
+import { initDropdownCloseListener, initDropdownListeners } from './modules/dropdown.js';
 import { initTimestampTooltips } from './modules/timestamps.js';
-import { setView, initView } from './modules/views.js';
+import { initView, initViewListeners } from './modules/views.js';
 import { toggleSidebar, setSidebarLoadCategory, initSidebarListeners } from './modules/sidebar.js';
 import {
     renderArticleActions, renderArticles, updateReadButton,
-    showReadArticles, showHiddenArticles,
-    processEmbeds, applyUserPreferences, setArticlesDeps
+    processEmbeds, applyUserPreferences, setArticlesDeps,
+    initArticleListListeners,
 } from './modules/articles.js';
 import {
-    markRead, markUnread, toggleStar, toggleQueue, markAsRead,
-    markReadSilent, openArticle, openArticleExternal,
+    markRead, markUnread, toggleStar, toggleQueue,
     initAutoMarkRead, queuedArticleIds, setQueuedArticleIds, setQueuedIdsReady,
-    setArticleActionDeps
+    setArticleActionDeps, initArticleActionListeners,
 } from './modules/article-actions.js';
 import {
     updateEndOfArticlesIndicator, updatePaginationCursor,
@@ -23,7 +22,7 @@ import { updateCounts, setCountsDeps } from './modules/counts.js';
 import {
     loadFeedArticles, loadCategoryArticles, refreshFeed, deleteFeed,
     editFeed, saveFeed, filterFeeds, closeEditModal, setFeedCategory,
-    showFeedErrorBanner, removeFeedErrorBanner,
+    showFeedErrorBanner, removeFeedErrorBanner, initFeedActionListeners,
 } from './modules/feeds.js';
 import {
     openCreateFolderModal, closeCreateFolderModal, submitCreateFolder,
@@ -45,6 +44,13 @@ initDropdownCloseListener();
 
 // Initialize delegated sidebar event listeners (replaces inline onclick in base.html)
 initSidebarListeners();
+
+// Initialize delegated listeners for index.html elements
+initViewListeners();
+initDropdownListeners();
+initArticleActionListeners();
+initFeedActionListeners();
+initArticleListListeners();
 
 // Wire sidebar's late-bound dependency on loadCategoryArticles
 setSidebarLoadCategory((...args) => loadCategoryArticles(...args));
@@ -358,7 +364,6 @@ window.saveFeed = saveFeed;
 window.applyUserPreferences = applyUserPreferences;
 window.applyHideReadArticles = applyHideReadArticles;
 window.applyHideEmptyFeeds = applyHideEmptyFeeds;
-window.toggleDropdown = toggleDropdown;
 
 window.openCreateFolderModal = openCreateFolderModal;
 window.closeCreateFolderModal = closeCreateFolderModal;
@@ -370,19 +375,13 @@ window.editFeed = editFeed;
 window.exportOPML = exportOPML;
 window.importOPML = importOPML;
 window.filterFeeds = filterFeeds;
-window.markAsRead = markAsRead;
 window.markRead = markRead;
 window.markUnread = markUnread;
-window.markReadSilent = markReadSilent;
-window.openArticle = openArticle;
-window.openArticleExternal = openArticleExternal;
 window.refreshFeed = refreshFeed;
 window.renameCategory = renameCategory;
 window.runCleanup = runCleanup;
 window.setFeedCategory = setFeedCategory;
-window.setView = setView;
-window.showHiddenArticles = showHiddenArticles;
-window.showReadArticles = showReadArticles;
+
 window.toggleStar = toggleStar;
 window.toggleQueue = toggleQueue;
 window.unparentCategory = unparentCategory;

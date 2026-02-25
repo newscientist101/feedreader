@@ -3,7 +3,7 @@ import {
     initAutoMarkRead, observeNewArticles, flushMarkReadQueue,
     markCardAsRead, markReadSilent, openArticle, openArticleExternal,
     markRead, markUnread, toggleStar, toggleQueue, markAsRead,
-    findNextUnreadFolder,
+    findNextUnreadFolder, initArticleActionListeners,
     setArticleActionDeps, setQueuedArticleIds, setQueuedIdsReady,
     _resetArticleActionsState,
     _getAutoMarkReadObserver, _getMarkReadQueue,
@@ -232,5 +232,138 @@ describe('findNextUnreadFolder', () => {
             <span data-count="category-2">0</span>
         `;
         expect(findNextUnreadFolder('2')).toBe('/category/1');
+    });
+});
+
+describe('initArticleActionListeners', () => {
+    beforeEach(() => {
+        _resetArticleActionsState();
+        setArticleActionDeps({
+            updateReadButton: vi.fn(),
+            updateCounts: vi.fn(),
+            updateQueueCacheIfStandalone: vi.fn(),
+        });
+    });
+
+    it('delegates mark-as-read clicks to markAsRead', async () => {
+        document.body.innerHTML = `
+            <div class="dropdown" data-feed-id="5">
+                <button data-action="mark-as-read" data-scope="day">Older than one day</button>
+            </div>
+        `;
+        initArticleActionListeners();
+        // Mock fetch — markAsRead calls api() then location.reload()
+        const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+        vi.stubGlobal('fetch', fetchMock);
+        // Stub location to prevent jsdom navigation issues
+        delete window.location;
+        window.location = { reload: vi.fn(), href: '/' };
+
+        document.querySelector('[data-action="mark-as-read"]').click();
+        // markAsRead is async — wait for the promise chain
+        await vi.waitFor(() => {
+            expect(fetchMock).toHaveBeenCalledWith('/api/feeds/5/read-all?age=day', expect.any(Object));
+        });
+
+        vi.unstubAllGlobals();
+    });
+
+    it('opens article on article-body click', () => {
+        document.body.innerHTML = `
+            <article class="article-card" data-id="42">
+                <div class="article-body clickable">
+                    <p>Some content</p>
+                </div>
+            </article>
+        `;
+        initArticleActionListeners();
+        // markReadSilent (called by openArticle) needs the fetch mock
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }));
+        // openArticle sets window.location, mock it
+        const origLocation = window.location;
+        delete window.location;
+        window.location = '';
+
+        document.querySelector('.article-body.clickable p').click();
+        expect(window.location).toBe('/article/42');
+
+        window.location = origLocation;
+        vi.unstubAllGlobals();
+    });
+
+    it('does not open article when clicking a link inside article-body', () => {
+        document.body.innerHTML = `
+            <article class="article-card" data-id="42">
+                <div class="article-body clickable">
+                    <a href="/feed/1" class="feed-name">Feed</a>
+                </div>
+            </article>
+        `;
+        initArticleActionListeners();
+        const origLocation = window.location.href;
+
+        // Click the link — should NOT trigger openArticle
+        const link = document.querySelector('.feed-name');
+        link.click();
+        // location should not have changed to /article/42
+        // (it might navigate the link itself, but we check it didn't call openArticle)
+        expect(window.location.href).not.toBe('/article/42');
+    });
+
+    it('handles open-external action on title links', () => {
+        document.body.innerHTML = `
+            <article class="article-card" data-id="7">
+                <div class="article-body clickable">
+                    <h2 class="article-title">
+                        <a href="https://example.com/post" data-action="open-external">Title</a>
+                    </h2>
+                </div>
+            </article>
+        `;
+        initArticleActionListeners();
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }));
+        const openSpy = vi.fn();
+        vi.stubGlobal('open', openSpy);
+
+        document.querySelector('[data-action="open-external"]').click();
+        expect(openSpy).toHaveBeenCalledWith('https://example.com/post', '_blank');
+        vi.unstubAllGlobals();
+    });
+
+    it('handles mark-read-silent action on title links', () => {
+        document.body.innerHTML = `
+            <article class="article-card" data-id="9">
+                <div class="article-body clickable">
+                    <h2 class="article-title">
+                        <a href="/article/9" data-action="mark-read-silent">Title</a>
+                    </h2>
+                </div>
+            </article>
+        `;
+        initArticleActionListeners();
+
+        document.querySelector('[data-action="mark-read-silent"]').click();
+        // markReadSilent queues the id for batch flushing and marks the card as read in the DOM
+        const card = document.querySelector('.article-card[data-id="9"]');
+        expect(card.classList.contains('read')).toBe(true);
+        // The id should be in the mark-read queue
+        expect(_getMarkReadQueue()).toContain(9);
+    });
+
+    it('stops propagation and marks read on content-preview click', () => {
+        document.body.innerHTML = `
+            <article class="article-card" data-id="15">
+                <div class="article-body clickable">
+                    <div class="article-content-preview expanded-only">Preview text</div>
+                </div>
+            </article>
+        `;
+        initArticleActionListeners();
+
+        document.querySelector('.article-content-preview').click();
+        // markReadSilent queues the id and marks card as read
+        const card = document.querySelector('.article-card[data-id="15"]');
+        expect(card.classList.contains('read')).toBe(true);
+        expect(_getMarkReadQueue()).toContain(15);
     });
 });

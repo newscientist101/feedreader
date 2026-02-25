@@ -21,3 +21,13 @@ export function initDropdownCloseListener() {
         }
     });
 }
+
+// Delegated listener for dropdown toggle buttons (replaces inline onclick).
+export function initDropdownListeners() {
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.dropdown-toggle');
+        if (btn) {
+            toggleDropdown(btn);
+        }
+    });
+}

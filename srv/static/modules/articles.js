@@ -102,7 +102,7 @@ export function updateAllReadMessage() {
             </svg>
             <p>All caught up!</p>
             <p class="hint">All ${allCards.length} article${allCards.length === 1 ? '' : 's'} in this view have been read.</p>
-            <button onclick="showReadArticles()" class="btn btn-secondary" style="margin-top: 10px;">Show read articles</button>
+            <button data-action="show-read-articles" class="btn btn-secondary" style="margin-top: 10px;">Show read articles</button>
         `;
         articlesList.appendChild(msg);
     }
@@ -164,17 +164,17 @@ export function buildArticleCardHtml(a) {
                     <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
                 </svg>
             </div>`}
-            <div class="article-body clickable" onclick="openArticle(${a.id})">
+            <div class="article-body clickable">
                 <div class="article-meta">
-                    <a class="feed-name" href="/feed/${a.feed_id}" onclick="event.stopPropagation();">${a.feed_name || ''}</a>
+                    <a class="feed-name" href="/feed/${a.feed_id}">${a.feed_name || ''}</a>
                     ${a.author ? `<span class="article-author">${a.author}</span>` : ''}
                     <span class="article-date">${formatTimeAgo(a.published_at)}</span>
                 </div>
                 <h2 class="article-title">
-                    ${a.url ? `<a href="${a.url}" target="_blank" onclick="openArticleExternal(event, ${a.id}, '${a.url.replace(/'/g, "\\\'")}')">${a.title}</a>` : `<a href="/article/${a.id}" onclick="markReadSilent(${a.id})">${a.title}</a>`}
+                    ${a.url ? `<a href="${a.url}" target="_blank" data-action="open-external">${a.title}</a>` : `<a href="/article/${a.id}" data-action="mark-read-silent">${a.title}</a>`}
                 </h2>
                 ${a.summary ? `<p class="article-summary">${truncateText(stripHtml(a.summary), PREVIEW_TEXT_LIMIT)}</p>` : (a.content ? `<p class="article-summary">${truncateText(stripHtml(a.content), PREVIEW_TEXT_LIMIT)}</p>` : '')}
-                ${a.content ? `<div class="article-content-preview expanded-only" onclick="event.stopPropagation(); markReadSilent(${a.id})">${truncateText(stripHtml(a.content), PREVIEW_TEXT_LIMIT)}</div>` : (a.summary ? `<div class="article-content-preview expanded-only" onclick="event.stopPropagation(); markReadSilent(${a.id})">${truncateText(stripHtml(a.summary), PREVIEW_TEXT_LIMIT)}</div>` : '')}
+                ${a.content ? `<div class="article-content-preview expanded-only">${truncateText(stripHtml(a.content), PREVIEW_TEXT_LIMIT)}</div>` : (a.summary ? `<div class="article-content-preview expanded-only">${truncateText(stripHtml(a.summary), PREVIEW_TEXT_LIMIT)}</div>` : '')}
                 ${renderArticleActions(a)}
             </div>
         </article>
@@ -198,7 +198,7 @@ export async function renderArticles(articles) {
 
     if (!articles || articles.length === 0) {
         const showBtn = !showingHiddenArticles
-            ? `<button onclick="showHiddenArticles()" class="btn btn-secondary" style="margin-top: 10px;">Show hidden articles</button>`
+            ? `<button data-action="show-hidden-articles" class="btn btn-secondary" style="margin-top: 10px;">Show hidden articles</button>`
             : '';
         list.innerHTML = `
             <div class="empty-state">
@@ -290,4 +290,22 @@ export function extractYouTubeId(url) {
     // youtube.com/watch?v=ID, youtube.com/shorts/ID, youtube.com/embed/ID, youtu.be/ID
     const m = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/);
     return m ? m[1] : null;
+}
+
+// Delegated listeners for article list buttons (replaces inline onclick
+// in index.html and JS-built empty-state HTML).
+export function initArticleListListeners() {
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action="show-hidden-articles"]');
+        if (btn) {
+            showHiddenArticles();
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action="show-read-articles"]');
+        if (btn) {
+            showReadArticles();
+        }
+    });
 }

@@ -6,25 +6,25 @@
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
         </svg>
         <span>Last fetch failed: {{deref .CurrentFeed.LastError}}</span>
-        <button onclick="refreshFeed({{.CurrentFeed.ID}})" class="btn btn-small" data-feed-id="{{.CurrentFeed.ID}}">Retry</button>
+        <button class="btn btn-small" data-action="refresh-feed" data-feed-id="{{.CurrentFeed.ID}}">Retry</button>
     </div>
     {{end}}
     <header class="view-header">
         <h1>{{.Title}}</h1>
         <div class="view-toggle">
-                <button onclick="setView('card')" data-view="card" title="Card View">
+                <button data-view="card" title="Card View">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 5v13h17V5H4zm10 2v3h-3V7h3zM6 7h3v3H6V7zm0 9v-3h3v3H6zm5 0v-3h3v3h-3zm8 0h-3v-3h3v3zm0-5h-3V7h3v3z"/></svg>
                     <span class="view-label">Cards</span>
                 </button>
-                <button onclick="setView('list')" data-view="list" title="List View">
+                <button data-view="list" title="List View">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
                     <span class="view-label">List</span>
                 </button>
-                <button onclick="setView('magazine')" data-view="magazine" title="Magazine View">
+                <button data-view="magazine" title="Magazine View">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zm-9 9h7v7H4v-7zm9 0h7v7h-7v-7z"/></svg>
                     <span class="view-label">Magazine</span>
                 </button>
-                <button onclick="setView('expanded')" data-view="expanded" title="Expanded View">
+                <button data-view="expanded" title="Expanded View">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v2H4V4zm0 4h16v12H4V8zm2 2v8h12v-8H6z"/></svg>
                     <span class="view-label">Expanded</span>
                 </button>
@@ -35,7 +35,7 @@
             </div>
             {{if or .CurrentFeed .CurrentCategory (eq .Title "All Unread")}}
             <div class="dropdown" data-feed-id="{{if .CurrentFeed}}{{.CurrentFeed.ID}}{{end}}" data-category-id="{{if .CurrentCategory}}{{.CurrentCategory.ID}}{{end}}">
-                <button class="btn btn-secondary dropdown-toggle mark-read-toggle" onclick="toggleDropdown(this)">
+                <button class="btn btn-secondary dropdown-toggle mark-read-toggle">
                     <svg class="mark-read-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                         <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>
                     </svg>
@@ -45,27 +45,27 @@
                     </svg>
                 </button>
                 <div class="dropdown-menu">
-                    <button onclick="markAsRead(this, 'all')">All articles</button>
-                    <button onclick="markAsRead(this, 'day')">Older than one day</button>
-                    <button onclick="markAsRead(this, 'week')">Older than one week</button>
+                    <button data-action="mark-as-read" data-scope="all">All articles</button>
+                    <button data-action="mark-as-read" data-scope="day">Older than one day</button>
+                    <button data-action="mark-as-read" data-scope="week">Older than one week</button>
                 </div>
             </div>
             {{if .CurrentFeed}}
-            <button onclick="editFeed({{.CurrentFeed.ID}})" class="btn btn-secondary feed-action-btn" data-feed-action="edit" title="Edit Feed">
+            <button class="btn btn-secondary feed-action-btn" data-action="edit-feed" data-feed-id="{{.CurrentFeed.ID}}" title="Edit Feed">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
                 <span class="btn-label">Edit</span>
             </button>
-            <button onclick="refreshFeed({{.CurrentFeed.ID}})" class="btn btn-warning feed-action-btn" data-feed-id="{{.CurrentFeed.ID}}" data-feed-action="refresh" title="Refresh Feed">
+            <button class="btn btn-warning feed-action-btn" data-action="refresh-feed" data-feed-id="{{.CurrentFeed.ID}}" title="Refresh Feed">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
                 <span class="btn-label">Refresh</span>
             </button>
             <div class="dropdown feed-overflow-menu">
-                <button class="btn btn-secondary dropdown-toggle" onclick="toggleDropdown(this)" title="More actions">
+                <button class="btn btn-secondary dropdown-toggle" title="More actions">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
                 </button>
                 <div class="dropdown-menu">
-                    <button onclick="editFeed({{.CurrentFeed.ID}})">Edit Feed</button>
-                    <button onclick="refreshFeed({{.CurrentFeed.ID}})" data-feed-id="{{.CurrentFeed.ID}}">Refresh Feed</button>
+                    <button data-action="edit-feed" data-feed-id="{{.CurrentFeed.ID}}">Edit Feed</button>
+                    <button data-action="refresh-feed" data-feed-id="{{.CurrentFeed.ID}}">Refresh Feed</button>
                 </div>
             </div>
             {{end}}
@@ -83,7 +83,7 @@
             {{if eq .ActiveView "unread"}}
             <p class="hint">Add some feeds to get started!</p>
             {{end}}
-            <button onclick="showHiddenArticles()" class="btn btn-secondary" style="margin-top: 10px;">Show hidden articles</button>
+            <button data-action="show-hidden-articles" class="btn btn-secondary" style="margin-top: 10px;">Show hidden articles</button>
         </div>
         {{else}}
         {{range .Articles}}
@@ -101,14 +101,14 @@
                 </svg>
             </div>
             {{end}}
-            <div class="article-body clickable" onclick="openArticle({{.ID}})">
+            <div class="article-body clickable">
                 <div class="article-meta">
-                    <a class="feed-name" href="/feed/{{.FeedID}}" onclick="event.stopPropagation();">{{.FeedName}}</a>
+                    <a class="feed-name" href="/feed/{{.FeedID}}">{{.FeedName}}</a>
                     {{if .Author}}<span class="article-author">{{deref .Author}}</span>{{end}}
                     <span class="article-date" data-timestamp="{{formatDate .PublishedAt}}">{{timeAgo .PublishedAt}}</span>
                 </div>
                 <h2 class="article-title">
-                    {{if .Url}}<a href="{{deref .Url}}" target="_blank" onclick="openArticleExternal(event, {{.ID}}, this.href)">{{.Title}}</a>{{else}}<a href="/article/{{.ID}}" onclick="markReadSilent({{.ID}})">{{.Title}}</a>{{end}}
+                    {{if .Url}}<a href="{{deref .Url}}" target="_blank" data-action="open-external">{{.Title}}</a>{{else}}<a href="/article/{{.ID}}" data-action="mark-read-silent">{{.Title}}</a>{{end}}
                 </h2>
                 {{if .Summary}}
                 <p class="article-summary">{{previewText (deref .Summary)}}</p>

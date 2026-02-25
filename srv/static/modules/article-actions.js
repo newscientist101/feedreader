@@ -258,3 +258,71 @@ export function findNextUnreadFolder(currentCategoryId) {
     }
     return null;
 }
+
+// Delegated listeners for article actions (replaces inline onclick handlers in
+// index.html and dynamically-built article HTML).
+export function initArticleActionListeners() {
+    // data-action="mark-as-read" with data-scope on dropdown menu buttons
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action="mark-as-read"]');
+        if (btn) {
+            markAsRead(btn, btn.dataset.scope || 'all');
+        }
+    });
+
+    // Article body click — open article (delegated on .article-body.clickable)
+    document.addEventListener('click', (e) => {
+        const body = e.target.closest('.article-body.clickable');
+        if (!body) return;
+        // Don't handle if the click target is a link, button, or inside article-actions
+        if (e.target.closest('a, button, .article-actions')) return;
+        const card = body.closest('.article-card');
+        if (card) {
+            openArticle(Number(card.dataset.id));
+        }
+    });
+
+    // Article title link with external URL — open externally
+    document.addEventListener('click', (e) => {
+        const link = e.target.closest('.article-title a[data-action="open-external"]');
+        if (link) {
+            const card = link.closest('.article-card');
+            if (card) {
+                openArticleExternal(e, Number(card.dataset.id), link.href);
+            }
+        }
+    });
+
+    // Article title link without URL — mark read silently
+    document.addEventListener('click', (e) => {
+        const link = e.target.closest('.article-title a[data-action="mark-read-silent"]');
+        if (link) {
+            const card = link.closest('.article-card');
+            if (card) {
+                markReadSilent(Number(card.dataset.id));
+            }
+        }
+    });
+
+    // Feed name links inside article cards — just stop propagation
+    // so the article-body click handler doesn't fire
+    document.addEventListener('click', (e) => {
+        const feedLink = e.target.closest('.article-card .article-meta .feed-name');
+        if (feedLink) {
+            e.stopPropagation();
+        }
+    }, true);
+
+    // Expanded content preview — mark read silently on click, stop
+    // propagation so it doesn't trigger the article-body openArticle handler.
+    document.addEventListener('click', (e) => {
+        const preview = e.target.closest('.article-content-preview');
+        if (preview) {
+            e.stopPropagation();
+            const card = preview.closest('.article-card');
+            if (card) {
+                markReadSilent(Number(card.dataset.id));
+            }
+        }
+    }, true);
+}

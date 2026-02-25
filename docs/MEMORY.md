@@ -151,3 +151,33 @@
 **Next run:** Continue Phase 3 — tackle `index.html` (18 handlers) and `queue.html` (0 — already done). Index.html handlers include view switchers, mark-as-read dropdown, feed action buttons, and article body/link clicks. Consider grouping: view buttons → views.js `initViewListeners`, mark-read buttons → article-actions.js, feed buttons → feeds.js, article clicks → articles.js.
 
 **Total tests: 419 (111 app.test.js + 308 across module test files).**
+
+## Run 9 — Phase 3 continued (index.html, queue.html)
+
+**Completed:**
+- Replaced all 18 inline handlers in `index.html` with `data-action` attributes and delegated event listeners.
+- Confirmed `queue.html` already had 0 inline handlers (done in Run 7). Marked task complete.
+- Added delegated listener functions to 5 modules:
+  - `views.js`: `initViewListeners()` — delegates clicks on `.view-toggle [data-view]` buttons
+  - `dropdown.js`: `initDropdownListeners()` — delegates clicks on `.dropdown-toggle` buttons
+  - `article-actions.js`: `initArticleActionListeners()` — delegates `mark-as-read`, `open-external`, `mark-read-silent`, article-body clicks, content-preview clicks, feed-name stopPropagation
+  - `feeds.js`: `initFeedActionListeners()` — delegates `edit-feed` and `refresh-feed` buttons
+  - `articles.js`: `initArticleListListeners()` — delegates `show-hidden-articles` and `show-read-articles` buttons
+- Also updated JS-built HTML in `articles.js` (`buildArticleCardHtml`, `renderArticles`, `updateAllReadMessage`) and `feeds.js` (`showFeedErrorBanner`) to use `data-action` attributes instead of inline onclick strings — these are covered by the same delegated listeners.
+- Removed 8 `window.X` transitional exports that are no longer needed: `toggleDropdown`, `setView`, `markAsRead`, `showHiddenArticles`, `showReadArticles`, `openArticle`, `openArticleExternal`, `markReadSilent`.
+- Removed corresponding unused imports from `app.js`.
+- Added 16 new tests across 5 test files for the new delegated listener functions.
+- Updated `feeds.test.js` to expect `data-action` attributes instead of `onclick` in banner HTML.
+
+**Remaining JS-built onclick strings (for the separate TODO task):**
+- `articles.js` `renderArticleActions()`: `markRead`/`markUnread`, `toggleStar`, `toggleQueue` still use `onclick` in HTML strings
+- `articles.js` `updateReadButton()`: sets `onclick` attribute
+- `feeds.js` `createEditFeedModal()`: `closeEditModal`, `saveFeed` onsubmit
+- `article-actions.js` `toggleStar`/`toggleQueue`: use `querySelectorAll('[onclick="..."]')` to find buttons
+
+**Window exports still needed** (for feeds.html, scrapers.html, settings.html inline handlers + JS-built onclick):
+`api`, `getSetting`, `saveSetting`, `saveFeed`, `applyUserPreferences`, `applyHideReadArticles`, `applyHideEmptyFeeds`, `openCreateFolderModal`, `closeCreateFolderModal`, `closeEditModal`, `submitCreateFolder`, `deleteCategory`, `deleteFeed`, `editFeed`, `exportOPML`, `importOPML`, `filterFeeds`, `markRead`, `markUnread`, `refreshFeed`, `renameCategory`, `runCleanup`, `setFeedCategory`, `toggleStar`, `toggleQueue`, `unparentCategory`, `copyNewsletterAddress`, `generateNewsletterAddress`, `updateQueueCacheIfStandalone`
+
+**Next run:** Continue Phase 3 — tackle `feeds.html` (15 handlers) or `settings.html` (16 handlers). These are smaller than `scrapers.html` (34). Consider also tackling the "Replace onclick strings built in JS" task since several have already been partially done.
+
+**Total tests: 435 (111 in app.test.js, 324 across 20 module test files).**

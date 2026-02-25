@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { toggleDropdown, initDropdownCloseListener } from './dropdown.js';
+import { toggleDropdown, initDropdownCloseListener, initDropdownListeners } from './dropdown.js';
 
 describe('dropdown', () => {
     beforeEach(() => {
@@ -74,5 +74,42 @@ describe('dropdown', () => {
             // Note: toggleDropdown is not wired here, so the listener alone keeps it open
             expect(dd1.classList.contains('open')).toBe(true);
         });
+    });
+});
+
+describe('initDropdownListeners', () => {
+    beforeEach(() => {
+        document.body.innerHTML = `
+            <div class="dropdown" id="dd1">
+                <button class="dropdown-toggle">Menu 1</button>
+                <div class="dropdown-menu">Content 1</div>
+            </div>
+            <div class="dropdown" id="dd2">
+                <button class="dropdown-toggle">Menu 2</button>
+                <div class="dropdown-menu">Content 2</div>
+            </div>
+        `;
+    });
+
+    it('opens a dropdown when its toggle button is clicked', () => {
+        initDropdownListeners();
+        document.querySelector('#dd1 .dropdown-toggle').click();
+        expect(document.getElementById('dd1').classList.contains('open')).toBe(true);
+    });
+
+    it('closes an open dropdown on second click', () => {
+        initDropdownListeners();
+        const toggle = document.querySelector('#dd1 .dropdown-toggle');
+        toggle.click();
+        toggle.click();
+        expect(document.getElementById('dd1').classList.contains('open')).toBe(false);
+    });
+
+    it('closes other dropdowns when opening a new one', () => {
+        initDropdownListeners();
+        document.querySelector('#dd1 .dropdown-toggle').click();
+        document.querySelector('#dd2 .dropdown-toggle').click();
+        expect(document.getElementById('dd1').classList.contains('open')).toBe(false);
+        expect(document.getElementById('dd2').classList.contains('open')).toBe(true);
     });
 });

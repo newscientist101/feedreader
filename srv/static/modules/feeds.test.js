@@ -3,7 +3,8 @@ import {
     showFeedErrorBanner, removeFeedErrorBanner,
     loadCategoryArticles, loadFeedArticles,
     filterFeeds, closeEditModal, saveFeed,
-    deleteFeed, setFeedCategory,
+    deleteFeed, setFeedCategory, initFeedActionListeners,
+    refreshFeed, editFeed,
 } from './feeds.js';
 import { _resetArticlesState, setArticlesDeps } from './articles.js';
 import { _resetArticleActionsState, setQueuedArticleIds } from './article-actions.js';
@@ -35,7 +36,8 @@ describe('showFeedErrorBanner', () => {
         const banner = document.querySelector('.feed-error-banner');
         expect(banner).not.toBeNull();
         expect(banner.innerHTML).toContain('Connection timeout');
-        expect(banner.innerHTML).toContain('refreshFeed(42)');
+        expect(banner.innerHTML).toContain('data-action="refresh-feed"');
+        expect(banner.innerHTML).toContain('data-feed-id="42"');
     });
 
     it('updates existing banner', () => {
@@ -422,5 +424,60 @@ describe('setFeedCategory', () => {
         await setFeedCategory(5, 3);
 
         expect(window.alert).toHaveBeenCalledWith('Failed to move feed');
+    });
+});
+
+describe('initFeedActionListeners', () => {
+    beforeEach(() => {
+        document.body.innerHTML = '';
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({}),
+        }));
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it('delegates refresh-feed clicks', async () => {
+        document.body.innerHTML = `
+            <button data-action="refresh-feed" data-feed-id="42">Refresh</button>
+            <span data-feed-status="42"></span>
+        `;
+        initFeedActionListeners();
+
+        document.querySelector('[data-action="refresh-feed"]').click();
+        await new Promise(r => setTimeout(r, 10));
+
+        expect(fetch).toHaveBeenCalledWith('/api/feeds/42/refresh', expect.any(Object));
+    });
+
+    it('delegates edit-feed clicks', async () => {
+        document.body.innerHTML = `
+            <button data-action="edit-feed" data-feed-id="7">Edit</button>
+        `;
+        initFeedActionListeners();
+
+        // editFeed calls api('GET', '/api/feeds/7') then creates a modal
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: () => Promise.resolve({ id: 7, name: 'Test', url: 'http://example.com', interval: 60, content_filters: '' }),
+        });
+
+        document.querySelector('[data-action="edit-feed"]').click();
+        await new Promise(r => setTimeout(r, 10));
+
+        expect(fetch).toHaveBeenCalledWith('/api/feeds/7', expect.any(Object));
+    });
+
+    it('ignores clicks without feed id', () => {
+        document.body.innerHTML = `
+            <button data-action="refresh-feed">Refresh</button>
+        `;
+        initFeedActionListeners();
+
+        document.querySelector('[data-action="refresh-feed"]').click();
+        expect(fetch).not.toHaveBeenCalled();
     });
 });

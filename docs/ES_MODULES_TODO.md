@@ -37,12 +37,12 @@ See `ES_MODULES_PLAN.md` for context and rationale.
 
 - [x] Audit all `onclick`/`onchange`/`oninput`/`onsubmit` in templates (~90 occurrences across 7 files)
 - [x] Replace inline handlers in `base.html` (4) with `addEventListener`
-- [ ] Replace inline handlers in `index.html` (18) with `addEventListener` or `data-action` delegation
+- [x] Replace inline handlers in `index.html` (18) with `addEventListener` or `data-action` delegation
 - [ ] Replace inline handlers in `feeds.html` (15) with `addEventListener`
 - [ ] Replace inline handlers in `scrapers.html` (34) with `addEventListener`
 - [ ] Replace inline handlers in `settings.html` (16) with `addEventListener`
 - [x] Replace inline handlers in `category_settings.html` (2) with `addEventListener`
-- [ ] Replace inline handlers in `queue.html` (1) with `addEventListener`
+- [x] Replace inline handlers in `queue.html` (1) with `addEventListener`
 - [ ] Replace `onclick` strings built in JS (`renderArticleActions`, `buildArticleCardHtml`, `createEditFeedModal`, `showFeedErrorBanner`, etc.) with DOM element creation + `addEventListener`
 - [ ] Replace `document.querySelectorAll('[onclick="toggleStar(...)"]')` lookups with `data-*` attribute selectors
 - [ ] Remove all `window.X = X` transitional exports from `app.js`
