@@ -1,0 +1,131 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { initQueuePage, queueNext, setQueueDeps } from './queue.js';
+
+// Mock the api module
+vi.mock('./api.js', () => ({
+    api: vi.fn(),
+}));
+
+import { api } from './api.js';
+
+beforeEach(() => {
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+    // Reset deps
+    setQueueDeps({ updateQueueCacheIfStandalone: null });
+});
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
+
+describe('initQueuePage', () => {
+    it('does nothing when #queue-data is absent', () => {
+        document.body.innerHTML = '<div>Not the queue page</div>';
+        // Should not throw
+        initQueuePage();
+    });
+
+    it('does nothing when queue-data contains invalid JSON', () => {
+        document.body.innerHTML = '<script id="queue-data" type="application/json">not-json</script>';
+        expect(() => initQueuePage()).not.toThrow();
+    });
+
+    it('does nothing when queue-data is an empty array', () => {
+        document.body.innerHTML = '<script id="queue-data" type="application/json">[]</script>';
+        initQueuePage();
+        // No button wired up — no error
+    });
+
+    it('wires click on .queue-next-btn when IDs present', async () => {
+        api.mockResolvedValue({});
+        document.body.innerHTML =
+            '<script id="queue-data" type="application/json">[10,20,30]</script>' +
+            '<button class="queue-next-btn">Next</button>';
+
+        // Mock location.href
+        const origLocation = window.location;
+        delete window.location;
+        window.location = { href: '' };
+
+        initQueuePage();
+
+        const btn = document.querySelector('.queue-next-btn');
+        btn.click();
+
+        // Wait for async handler
+        await vi.waitFor(() => {
+            expect(api).toHaveBeenCalledWith('DELETE', '/api/articles/10/queue');
+        });
+
+        expect(window.location.href).toBe('/queue');
+
+        // Restore
+        window.location = origLocation;
+    });
+});
+
+describe('queueNext', () => {
+    it('does nothing with empty array', async () => {
+        await queueNext([]);
+        expect(api).not.toHaveBeenCalled();
+    });
+
+    it('does nothing with null', async () => {
+        await queueNext(null);
+        expect(api).not.toHaveBeenCalled();
+    });
+
+    it('deletes first article from queue and navigates', async () => {
+        api.mockResolvedValue({});
+        const origLocation = window.location;
+        delete window.location;
+        window.location = { href: '' };
+
+        await queueNext([42, 99]);
+
+        expect(api).toHaveBeenCalledWith('DELETE', '/api/articles/42/queue');
+        expect(window.location.href).toBe('/queue');
+
+        window.location = origLocation;
+    });
+
+    it('calls updateQueueCacheIfStandalone when wired', async () => {
+        api.mockResolvedValue({});
+        const origLocation = window.location;
+        delete window.location;
+        window.location = { href: '' };
+
+        const mockUpdate = vi.fn();
+        setQueueDeps({ updateQueueCacheIfStandalone: mockUpdate });
+
+        await queueNext([7]);
+
+        expect(mockUpdate).toHaveBeenCalled();
+
+        window.location = origLocation;
+    });
+
+    it('does not call updateQueueCacheIfStandalone when not wired', async () => {
+        api.mockResolvedValue({});
+        const origLocation = window.location;
+        delete window.location;
+        window.location = { href: '' };
+
+        setQueueDeps({ updateQueueCacheIfStandalone: null });
+
+        // Should not throw
+        await queueNext([7]);
+
+        window.location = origLocation;
+    });
+});
+
+describe('setQueueDeps', () => {
+    it('accepts and stores dependencies', () => {
+        const fn = vi.fn();
+        setQueueDeps({ updateQueueCacheIfStandalone: fn });
+        // Verified via queueNext calling it (tested above)
+    });
+});

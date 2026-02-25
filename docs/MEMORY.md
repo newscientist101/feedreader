@@ -108,3 +108,26 @@
 - Transitional `window.X = X` exports
 
 **Next run:** Extract `modules/queue.js` and `modules/offline.js`. Note: the `queue.js` task in the TODO refers to `queuedArticleIds`, `queuedIdsReady`, `queueNext` — but `queuedArticleIds` and `queuedIdsReady` are already in `article-actions.js`, and `queueNext` is inline in `queue.html` template. The queue.js task may be best marked as N/A or adapted to just extract any remaining queue-specific code. The `offline.js` extraction is straightforward — all offline functions are still in app.js.
+
+## Run 7 — Phase 2 completed (queue, offline)
+
+**Completed:**
+- Extracted `modules/queue.js`: `initQueuePage`, `queueNext`, `setQueueDeps`. Moved `queueNext` out of inline `<script>` in `queue.html` into the module. Queue article IDs are now passed via a `<script id="queue-data" type="application/json">` element instead of inline JS. Removed `onclick="queueNext()"` from the button; `initQueuePage()` wires it via `addEventListener`.
+- Extracted `modules/offline.js`: `initOfflineSupport`, `cacheQueueForOffline`, `handleOnlineStateChange`, `showOfflineBanner`, `disableNonQueueUI`, `enableAllUI`, `replayPendingActions`, `updateQueueCacheIfStandalone`, `_isStandalone`, `setOfflineDeps`. Uses `setOfflineDeps` late-binding for `updateCounts`.
+- Added `queue.test.js` (10 tests), `offline.test.js` (30 tests).
+- Removed offline tests from `app.test.js` (they're now in `offline.test.js`).
+- Marked all 4 remaining Phase 2 tasks complete (queue, offline, window exports, verify).
+
+**app.js reduced from 560 → 386 lines.** Phase 2 is now complete.
+
+**Remaining in app.js (entry point only):**
+- Import statements (~40 lines)
+- Module dependency wiring (~20 lines)
+- Two DOMContentLoaded blocks: main init + form handlers (~180 lines)
+- Dragstart prevention listener
+- Scroll listener for pagination
+- Transitional `window.X = X` exports (~40 lines)
+
+**Next run:** Begin Phase 3 — eliminate inline event handlers. Start with templates that have the fewest handlers (`queue.html` already done during this run, `category_settings.html` has 2). Then tackle `base.html` (4), working up to the larger files.
+
+**Total tests: 413 (111 in app.test.js, 302 across 19 module test files).**
