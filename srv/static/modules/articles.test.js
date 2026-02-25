@@ -4,16 +4,31 @@ import {
     showArticlesLoading, updateAllReadMessage, showReadArticles,
     processEmbeds, extractYouTubeId, applyUserPreferences,
     getIncludeReadUrl, setArticlesDeps, setShowingHiddenArticles,
-    initArticleListListeners, showHiddenArticles,
+    initArticleListListeners, showHiddenArticles, renderArticles,
     _resetArticlesState,
 } from './articles.js';
-import { _resetArticleActionsState, setQueuedArticleIds } from './article-actions.js';
+import {
+    _resetArticleActionsState, setQueuedArticleIds,
+    setArticleActionDeps, initAutoMarkRead, _getAutoMarkReadObserver,
+} from './article-actions.js';
+
+class MockIntersectionObserver {
+    constructor(callback) {
+        this._callback = callback;
+        this._entries = [];
+    }
+    observe(el) { this._entries.push(el); }
+    unobserve() {}
+    disconnect() { this._entries = []; }
+    _fire(entries) { this._callback(entries, this); }
+}
 
 beforeEach(() => {
     vi.spyOn(console, 'debug').mockImplementation(() => {});
     _resetArticlesState();
     _resetArticleActionsState();
     setQueuedArticleIds(new Set());
+    window.IntersectionObserver = MockIntersectionObserver;
     window.__settings = {};
     window.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }));
     document.body.innerHTML = '<div id="articles-list" class="articles-list"></div>';
@@ -21,6 +36,11 @@ beforeEach(() => {
         updatePaginationCursor: vi.fn(),
         updateEndOfArticlesIndicator: vi.fn(),
         setPaginationState: vi.fn(),
+    });
+    setArticleActionDeps({
+        updateReadButton: vi.fn(),
+        updateCounts: vi.fn(),
+        updateQueueCacheIfStandalone: vi.fn(),
     });
 });
 
@@ -204,6 +224,19 @@ describe('processEmbeds', () => {
     it('does nothing for null container', () => {
         processEmbeds(null); // Should not throw
     });
+
+    it('loads twitter widget script for tweet embeds', () => {
+        const container = document.createElement('div');
+        container.innerHTML = `
+            <div data-embed-type="tweet">
+                <blockquote class="twitter-tweet"></blockquote>
+            </div>
+        `;
+
+        processEmbeds(container);
+
+        expect(document.querySelector('script[src*="platform.twitter.com"]')).not.toBeNull();
+    });
 });
 
 describe('applyUserPreferences', () => {
@@ -247,6 +280,89 @@ describe('getIncludeReadUrl', () => {
     });
 });
 
+describe('renderArticles', () => {
+    beforeEach(() => {
+        window.__settings = { autoMarkRead: 'true' };
+        window.fetch = vi.fn(() => Promise.resolve({
+            ok: true, json: () => Promise.resolve({}),
+        }));
+        window.scrollTo = vi.fn();
+    });
+
+    afterEach(() => {
+        delete window.scrollTo;
+    });
+
+    it('renders articles into the list', async () => {
+        const articles = [
+            { id: 1, title: 'Article 1', is_read: 0, is_starred: 0 },
+            { id: 2, title: 'Article 2', is_read: 0, is_starred: 0 },
+        ];
+        await renderArticles(articles);
+
+        expect(window.scrollTo).toHaveBeenCalledWith(0, 0);
+        const cards = document.querySelectorAll('#articles-list .article-card');
+        expect(cards.length).toBe(2);
+        expect(cards[0].dataset.id).toBe('1');
+        expect(cards[1].dataset.id).toBe('2');
+    });
+
+    it('re-initializes the auto-mark-read observer', async () => {
+        initAutoMarkRead();
+        const firstObserver = _getAutoMarkReadObserver();
+
+        await renderArticles([
+            { id: 10, title: 'New', is_read: 0, is_starred: 0 },
+        ]);
+
+        expect(_getAutoMarkReadObserver()).not.toBeNull();
+        expect(_getAutoMarkReadObserver()).not.toBe(firstObserver);
+    });
+
+    it('handles empty article list', async () => {
+        await renderArticles([]);
+        const cards = document.querySelectorAll('#articles-list .article-card');
+        expect(cards.length).toBe(0);
+        expect(document.querySelector('#articles-list .empty-state')).not.toBeNull();
+    });
+
+    it('handles null articles', async () => {
+        await renderArticles(null);
+        expect(document.querySelector('#articles-list .empty-state')).not.toBeNull();
+    });
+});
+
+describe('showHiddenArticles', () => {
+    it('sets showingHiddenArticles and re-fetches articles', async () => {
+        Object.defineProperty(window, 'location', {
+            value: { pathname: '/', hostname: 'localhost' },
+            writable: true,
+            configurable: true,
+        });
+        setShowingHiddenArticles(false);
+        window.scrollTo = vi.fn();
+
+        window.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                articles: [{
+                    id: 1, title: 'Old', is_read: 1, feed_id: 1, guid: 'g1',
+                    fetched_at: new Date().toISOString(),
+                }],
+            }),
+        });
+
+        await showHiddenArticles();
+
+        const fetchUrl = window.fetch.mock.calls[0][0];
+        expect(fetchUrl).toContain('include_read=1');
+        const cards = document.querySelectorAll('.article-card');
+        expect(cards.length).toBe(1);
+
+        delete window.scrollTo;
+    });
+});
+
 describe('initArticleListListeners', () => {
     beforeEach(() => {
         _resetArticlesState();
@@ -265,6 +381,7 @@ describe('initArticleListListeners', () => {
         Object.defineProperty(window, 'location', {
             value: { pathname: '/' }, writable: true, configurable: true,
         });
+        window.scrollTo = vi.fn();
         document.body.innerHTML = `
             <div id="articles-list">
                 <button data-action="show-hidden-articles">Show hidden articles</button>

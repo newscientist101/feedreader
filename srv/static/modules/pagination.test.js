@@ -8,6 +8,7 @@ import {
 import { _resetArticleActionsState, setQueuedArticleIds, setQueuedIdsReady } from './article-actions.js';
 
 beforeEach(() => {
+    vi.useFakeTimers();
     vi.spyOn(console, 'debug').mockImplementation(() => {});
     _resetPaginationState();
     _resetArticleActionsState();
@@ -27,6 +28,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
 });
 
@@ -156,6 +158,40 @@ describe('loadMoreArticles', () => {
         await loadMoreArticles();
         expect(window.fetch).not.toHaveBeenCalled();
     });
+
+    it('appends new articles and observes them', async () => {
+        Object.defineProperty(window, 'location', {
+            value: { pathname: '/feed/8' }, writable: true, configurable: true,
+        });
+
+        setPaginationState({
+            done: false,
+            loading: false,
+            cursorTime: '2025-01-01T00:00:00Z',
+            cursorId: '999',
+        });
+        setQueuedIdsReady(Promise.resolve());
+
+        window.fetch = vi.fn(async () => ({
+            ok: true,
+            json: async () => ({
+                articles: [{
+                    id: 1,
+                    title: 'A',
+                    is_read: 0,
+                    is_starred: 0,
+                    published_at: new Date().toISOString(),
+                    content: '<p>hi</p>',
+                }],
+            }),
+            text: async () => '',
+        }));
+
+        await loadMoreArticles();
+
+        expect(document.querySelectorAll('.article-card').length).toBe(1);
+        expect(document.querySelector('.article-content-preview')).not.toBeNull();
+    });
 });
 
 describe('checkScrollForMore', () => {
@@ -163,5 +199,37 @@ describe('checkScrollForMore', () => {
         setPaginationState({ done: true });
         checkScrollForMore();
         expect(window.fetch).not.toHaveBeenCalled();
+    });
+
+    it('calls loadMoreArticles when near the bottom of the page', async () => {
+        vi.useRealTimers();  // loadMoreArticles uses await, real timers work better
+        Object.defineProperty(window, 'location', {
+            value: { pathname: '/feed/8' }, writable: true, configurable: true,
+        });
+
+        setPaginationState({
+            done: false,
+            loading: false,
+            cursorTime: '2025-01-01T00:00:00Z',
+            cursorId: '999',
+        });
+        setQueuedIdsReady(Promise.resolve());
+
+        // Simulate being near the bottom: scrollY + innerHeight >= offsetHeight - 600
+        Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true });
+        Object.defineProperty(window, 'scrollY', { value: 600, configurable: true, writable: true });
+        Object.defineProperty(document.body, 'offsetHeight', { value: 1000, configurable: true });
+
+        window.fetch = vi.fn(async () => ({
+            ok: true,
+            json: async () => ({ articles: [] }),
+            text: async () => '',
+        }));
+
+        checkScrollForMore();
+        // loadMoreArticles is async — give it time to resolve
+        await new Promise(r => setTimeout(r, 50));
+
+        expect(window.fetch).toHaveBeenCalled();
     });
 });

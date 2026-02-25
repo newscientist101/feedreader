@@ -51,11 +51,11 @@ See `ES_MODULES_PLAN.md` for context and rationale.
 
 ## Phase 4: Finalize
 
-- [ ] Change `<script src="/static/app.js">` to `<script type="module" src="/static/app.js">` in `base.html`
-- [ ] Delete `test-helper.js` and the `new Function()` eval machinery
+- [x] Change `<script src="/static/app.js">` to `<script type="module" src="/static/app.js">` in `base.html`
+- [x] Delete `test-helper.js` and the `new Function()` eval machinery
 - [ ] Implement import maps with version hashes
-- [ ] Rewrite all tests as direct ES module imports
+- [x] Rewrite all tests as direct ES module imports
 - [ ] Verify coverage reports meaningful numbers with `npx vitest run --coverage`
 - [ ] Update `AGENTS.md` code layout section for new module structure
-- [ ] Update `eslint.config.mjs` (remove globals/ignore patterns that no longer apply)
+- [x] Update `eslint.config.mjs` (remove globals/ignore patterns that no longer apply)
 - [ ] Final `make check`, commit

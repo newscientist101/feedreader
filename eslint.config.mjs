@@ -1,12 +1,12 @@
 export default [
   {
-    ignores: ["srv/static/**/*.test.js", "srv/static/test-helper.js"],
+    ignores: ["srv/static/**/*.test.js"],
   },
   {
     files: ["srv/static/**/*.js"],
     languageOptions: {
       ecmaVersion: 2022,
-      sourceType: "script",
+      sourceType: "module",
       globals: {
         // Browser globals
         window: "readonly",
@@ -73,16 +73,6 @@ export default [
       }],
       "no-undef": "error",
       "no-use-before-define": ["warn", { functions: false, classes: false }],
-    },
-  },
-  // ES module override for app.js and files in the modules/ directory
-  {
-    files: ["srv/static/app.js", "srv/static/modules/**/*.js"],
-    languageOptions: {
-      sourceType: "module",
-    },
-    rules: {
-      "no-unused-vars": ["warn", { args: "none", caughtErrors: "none" }],
     },
   },
 ];

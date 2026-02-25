@@ -8,7 +8,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['srv/static/**/*.js'],
-      exclude: ['srv/static/**/*.test.js', 'srv/static/test-helper.js', 'srv/static/sw.js'],
+      exclude: ['srv/static/**/*.test.js', 'srv/static/sw.js'],
       reporter: ['text', 'text-summary'],
     },
   },

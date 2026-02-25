@@ -8,6 +8,7 @@ import {
     _resetArticleActionsState,
     _getAutoMarkReadObserver, _getMarkReadQueue,
 } from './article-actions.js';
+import { renderArticles, _resetArticlesState, setArticlesDeps } from './articles.js';
 
 // Minimal IntersectionObserver mock
 class MockIntersectionObserver {
@@ -25,6 +26,7 @@ beforeEach(() => {
     vi.useFakeTimers();
     vi.spyOn(console, 'debug').mockImplementation(() => {});
     _resetArticleActionsState();
+    _resetArticlesState();
     window.IntersectionObserver = MockIntersectionObserver;
     window.__settings = {};
     window.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }));
@@ -33,6 +35,11 @@ beforeEach(() => {
         updateReadButton: vi.fn(),
         updateCounts: vi.fn(),
         updateQueueCacheIfStandalone: vi.fn(),
+    });
+    setArticlesDeps({
+        updatePaginationCursor: vi.fn(),
+        updateEndOfArticlesIndicator: vi.fn(),
+        setPaginationState: vi.fn(),
     });
 });
 
@@ -105,6 +112,39 @@ describe('markReadSilent', () => {
             '<div class="article-card" data-id="42"></div>';
         markReadSilent(42);
         expect(_getMarkReadQueue()).toContain(42);
+    });
+
+    it('flushes the queue after a timeout', () => {
+        window.fetch = vi.fn(() => Promise.resolve({
+            ok: true, json: () => Promise.resolve({ status: 'ok' }),
+        }));
+        markReadSilent(1);
+        markReadSilent(2);
+        expect(window.fetch).not.toHaveBeenCalled();
+
+        vi.advanceTimersByTime(500);
+        expect(window.fetch).toHaveBeenCalledTimes(1);
+
+        const [url, opts] = window.fetch.mock.calls[0];
+        expect(url).toBe('/api/articles/batch-read');
+        const body = JSON.parse(opts.body);
+        expect(body.ids).toEqual([1, 2]);
+    });
+
+    it('resets the timer when called rapidly', () => {
+        window.fetch = vi.fn(() => Promise.resolve({
+            ok: true, json: () => Promise.resolve({ status: 'ok' }),
+        }));
+        markReadSilent(1);
+        vi.advanceTimersByTime(150);
+        markReadSilent(2);
+        vi.advanceTimersByTime(150);
+        // Only 300ms total, but timer was reset at 150ms so another 100ms to go
+        expect(window.fetch).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(100);
+        expect(window.fetch).toHaveBeenCalledTimes(1);
+        const body = JSON.parse(window.fetch.mock.calls[0][1].body);
+        expect(body.ids).toEqual([1, 2]);
     });
 });
 
@@ -232,6 +272,115 @@ describe('findNextUnreadFolder', () => {
             <span data-count="category-2">0</span>
         `;
         expect(findNextUnreadFolder('2')).toBe('/category/1');
+    });
+});
+
+describe('auto-mark-read after client-side navigation (integration)', () => {
+    beforeEach(() => {
+        window.__settings = { autoMarkRead: 'true' };
+        window.fetch = vi.fn(() => Promise.resolve({
+            ok: true, json: () => Promise.resolve({ status: 'ok' }),
+        }));
+        window.scrollTo = vi.fn();
+    });
+
+    afterEach(() => {
+        delete window.scrollTo;
+    });
+
+    it('observer works on initial page load articles', () => {
+        document.getElementById('articles-list').innerHTML = `
+            <article class="article-card" data-id="1"></article>
+            <article class="article-card" data-id="2"></article>
+        `;
+
+        const observeSpy = vi.spyOn(MockIntersectionObserver.prototype, 'observe');
+        initAutoMarkRead();
+        expect(_getAutoMarkReadObserver()).not.toBeNull();
+        expect(observeSpy).toHaveBeenCalledTimes(2);
+        observeSpy.mockRestore();
+    });
+
+    it('observer is re-created after renderArticles (client-side nav)', async () => {
+        document.getElementById('articles-list').innerHTML =
+            '<article class="article-card" data-id="1"></article>';
+        initAutoMarkRead();
+        const initialObserver = _getAutoMarkReadObserver();
+
+        await renderArticles([
+            { id: 100, title: 'VR Article', is_read: 0, is_starred: 0, feed_name: 'VR Feed' },
+            { id: 101, title: 'VR News', is_read: 0, is_starred: 0, feed_name: 'VR Feed' },
+        ]);
+
+        expect(_getAutoMarkReadObserver()).not.toBe(initialObserver);
+        expect(_getAutoMarkReadObserver()).not.toBeNull();
+
+        const cards = document.querySelectorAll('#articles-list .article-card');
+        expect(cards.length).toBe(2);
+        expect(cards[0].dataset.id).toBe('100');
+    });
+
+    it('new paginated articles are observed', () => {
+        initAutoMarkRead();
+        const spy = vi.spyOn(_getAutoMarkReadObserver(), 'observe');
+
+        const temp = document.createElement('div');
+        temp.innerHTML = `
+            <article class="article-card" data-id="50"></article>
+            <article class="article-card" data-id="51"></article>
+            <article class="article-card" data-id="52"></article>
+        `;
+        observeNewArticles(temp);
+
+        expect(spy).toHaveBeenCalledTimes(3);
+    });
+
+    it('multiple navigations each get a fresh observer', async () => {
+        const observers = [];
+
+        for (let i = 0; i < 3; i++) {
+            await renderArticles([
+                { id: i * 10 + 1, title: `Article ${i}`, is_read: 0, is_starred: 0 },
+            ]);
+            observers.push(_getAutoMarkReadObserver());
+        }
+
+        expect(observers[0]).not.toBe(observers[1]);
+        expect(observers[1]).not.toBe(observers[2]);
+        observers.forEach(obs => expect(obs).not.toBeNull());
+    });
+});
+
+describe('markAsRead with category URL', () => {
+    it('posts to category URL and navigates to next unread folder', async () => {
+        const dropdown = document.createElement('div');
+        dropdown.className = 'dropdown';
+        dropdown.dataset.categoryId = '3';
+        const btn = document.createElement('button');
+        dropdown.appendChild(btn);
+        document.body.appendChild(dropdown);
+
+        window.fetch = vi.fn(async () => ({
+            ok: true,
+            json: async () => ({}),
+            text: async () => '',
+        }));
+
+        Object.defineProperty(window, 'location', {
+            value: { href: '', reload: vi.fn() }, writable: true, configurable: true,
+        });
+
+        // Add folder data so findNextUnreadFolder can work
+        document.body.innerHTML += `
+            <div class="folder-item" data-category-id="3"></div>
+            <span data-count="category-3">0</span>
+            <div class="folder-item" data-category-id="9"></div>
+            <span data-count="category-9">5</span>
+        `;
+
+        await markAsRead(btn, 'week');
+
+        expect(window.fetch).toHaveBeenCalledWith('/api/categories/3/read-all?age=week', expect.any(Object));
     });
 });
 

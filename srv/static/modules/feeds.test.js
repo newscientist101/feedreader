@@ -427,6 +427,69 @@ describe('setFeedCategory', () => {
     });
 });
 
+describe('refreshFeed', () => {
+    it('polls until fetch completes and updates the status cell', async () => {
+        vi.useFakeTimers();
+
+        let statusCall = 0;
+        vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+            if (url === '/api/feeds/9/status') {
+                statusCall += 1;
+                return {
+                    ok: true,
+                    json: async () => ({
+                        lastFetched: statusCall === 1 ? 't1' : 't2',
+                        lastError: statusCall === 1 ? null : 'boom',
+                    }),
+                    text: async () => '',
+                };
+            }
+            if (url === '/api/feeds/9/refresh') {
+                return { ok: true, json: async () => ({}), text: async () => '' };
+            }
+            if (url === '/api/counts') {
+                return {
+                    ok: true,
+                    json: async () => ({ unread: 0, starred: 0, queue: 0, categories: {}, feeds: {}, feedErrors: {} }),
+                    text: async () => '',
+                };
+            }
+            return { ok: true, json: async () => ({}), text: async () => '' };
+        });
+
+        document.body.innerHTML = `
+            <table>
+                <tbody>
+                    <tr data-feed-id="9">
+                        <td>Name</td>
+                        <td>Status</td>
+                        <td>Actions</td>
+                    </tr>
+                </tbody>
+            </table>
+            <button data-feed-id="9">Refresh</button>
+        `;
+
+        const promise = refreshFeed(9);
+        await Promise.resolve();
+        await vi.advanceTimersByTimeAsync(1000);
+        await Promise.resolve();
+
+        await promise;
+
+        const row = document.querySelector('tr[data-feed-id="9"]');
+        const statusCell = row.querySelectorAll('td')[1];
+        expect(statusCell.innerHTML).toContain('Error');
+        expect(row.dataset.hasError).toBe('true');
+
+        await vi.advanceTimersByTimeAsync(2000);
+
+        expect(document.querySelector('button[data-feed-id="9"]').disabled).toBe(false);
+
+        vi.useRealTimers();
+    });
+});
+
 describe('initFeedActionListeners', () => {
     beforeEach(() => {
         document.body.innerHTML = '';

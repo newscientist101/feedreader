@@ -209,3 +209,27 @@
 **Next run:** Begin Phase 4 — finalize. The `<script type="module">` change was already done in Run 2. Remaining: delete test-helper.js and rewrite tests as direct imports, verify coverage, update AGENTS.md and eslint config.
 
 **Known issue:** Browser caches ES module files aggressively. The server now sends `max-age=60, must-revalidate` for module files, but browsers that cached modules before the fix may not see updates immediately. A proper solution would be import maps with version hashes. This can be addressed in Phase 4 or as a follow-up.
+
+## Run 12 — Phase 4 started (test migration, eslint, script type)
+
+**Completed:**
+- Confirmed `<script type="module">` was already done in Run 2. Checked off the TODO item.
+- Deleted `test-helper.js` and `app.test.js` (the eval-based test infrastructure).
+- Migrated 16 unique test scenarios from `app.test.js` to their respective module test files:
+  - `articles.test.js`: 4 `renderArticles` tests, 1 `showHiddenArticles` test, 1 `processEmbeds` twitter test
+  - `article-actions.test.js`: 4 auto-mark-read integration tests, 2 `markReadSilent` timer/debounce tests, 1 `markAsRead` category test
+  - `pagination.test.js`: 1 `loadMoreArticles` success path test, 1 `checkScrollForMore` near-bottom test
+  - `feeds.test.js`: 1 `refreshFeed` polling test
+- The remaining 95 tests in `app.test.js` were duplicates of existing module tests and were dropped.
+- Updated `eslint.config.mjs`: removed `test-helper.js` from ignores, changed `sourceType` to `"module"` for all files (removed the separate script/module override), removed the now-unnecessary `sourceType: "module"` override block.
+- Updated `vitest.config.mjs`: removed `test-helper.js` from coverage excludes.
+
+**Test counts: 390 tests across 20 module test files.** Down from 501 (390 module + 111 app.test.js) but no coverage lost — the 111 dropped tests were either duplicates or the meta "test coverage check" which is no longer needed.
+
+**Remaining Phase 4 tasks:**
+- Implement import maps with version hashes (cache busting)
+- Verify coverage reports meaningful numbers with `npx vitest run --coverage`
+- Update `AGENTS.md` code layout section for new module structure
+- Final `make check`, commit
+
+**Next run:** Tackle import maps, coverage verification, and AGENTS.md update.
