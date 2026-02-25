@@ -59,3 +59,26 @@ See `ES_MODULES_PLAN.md` for context and rationale.
 - [x] Update `AGENTS.md` code layout section for new module structure
 - [x] Update `eslint.config.mjs` (remove globals/ignore patterns that no longer apply)
 - [x] Final `make check`, commit
+
+## Phase 5: Eliminate late-bound dependencies
+
+Replace `setXxxDeps()` late-binding with direct imports or small
+restructurings. See `ES_MODULES_PLAN.md` Phase 5 for rationale.
+
+### Non-circular (replace with direct imports)
+
+- [ ] `article-actions.js`: import `updateCounts` directly from `counts.js` (no cycle exists)
+- [ ] `article-actions.js`: import `updateQueueCacheIfStandalone` directly from `offline.js` (no cycle exists)
+- [ ] `counts.js`: import `applyUserPreferences` directly from `articles.js` (no cycle exists)
+- [ ] `offline.js`: import `updateCounts` directly from `counts.js` (no cycle exists)
+- [ ] `queue.js`: import `updateQueueCacheIfStandalone` directly from `offline.js` (no cycle exists)
+- [ ] Remove corresponding `setXxxDeps` parameters and wiring from `app.js`
+
+### Real cycles (restructure)
+
+- [ ] `article-actions ↔ articles`: extract `updateReadButton` into a shared module (e.g. `read-button.js`) so both can import it without a cycle
+- [ ] `articles ↔ pagination`: move pagination state functions (`updatePaginationCursor`, `updateEndOfArticlesIndicator`, `setPaginationState`) into `articles.js`, or extract shared rendering (`buildArticleCardHtml`, `processEmbeds`) into `article-rendering.js`
+- [ ] `counts ↔ feeds`: move `showFeedErrorBanner`/`removeFeedErrorBanner` out of `feeds.js` into `counts.js` or a new `feed-errors.js`
+- [ ] Keep `setSidebarLoadCategory` in `app.js` — this is legitimate top-down entry-point wiring, not a circular dependency hack
+- [ ] Remove all remaining `setXxxDeps` functions and late-bound `let _dep = null` variables
+- [ ] Verify `make check` passes, commit

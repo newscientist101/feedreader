@@ -9,16 +9,16 @@ Refactor `srv/static/app.js` (2277 lines, plain `<script>`) into ES modules.
 3. **Maintainability** — split monolith into focused, navigable modules
 4. **Tooling** — static analysis, go-to-definition, dead code detection
 
-## Current State
+## Current State (after Phase 4)
 
-- `app.js` is loaded as a plain `<script>` tag (not `type="module"`)
-- ~90 top-level functions, ~15 `let`/`const` state variables
-- 19 inline `onclick` attribute calls inside `app.js` itself (HTML strings)
-- ~90 inline `onclick`/`onchange`/`oninput` handlers across 7 template files
-- Tests use `test-helper.js` which evals `app.js` via `new Function()` and
-  auto-extracts top-level names onto `window`
-- ESLint has a giant `varsIgnorePattern` for functions called from HTML
-- 3 `DOMContentLoaded` listeners that wire up page initialization
+- `app.js` is a 363-line entry point loaded as `<script type="module">`
+- 20 ES modules in `srv/static/modules/`, each with a companion `.test.js`
+- 390 tests across 20 test files, all using direct ES module imports
+- Zero inline event handlers — all use `data-action` + `addEventListener`
+- Zero `window.X` global exports
+- Import maps provide cache busting for all module files
+- 82% statement / 85% function coverage on modules
+- 6 `setXxxDeps()` late-binding calls remain (Phase 5 target)
 
 ## Proposed Module Structure
 
@@ -112,6 +112,59 @@ and either calls them or registers them.
 18. Verify coverage reports meaningful numbers
 19. Update `AGENTS.md` code layout docs
 
+### Phase 5: Eliminate late-bound dependencies
+
+The `setXxxDeps()` pattern was used during Phase 2 to break circular
+import dependencies. Of the 6 uses, only 3 are actual cycles — the
+other 5 are unnecessary and can be replaced with direct imports. The
+3 real cycles can be eliminated through small restructurings.
+
+**Non-circular (replace with direct imports):**
+
+- `article-actions` → `counts.updateCounts` — no cycle
+- `article-actions` → `offline.updateQueueCacheIfStandalone` — no cycle
+- `counts` → `articles.applyUserPreferences` — no cycle
+- `offline` → `counts.updateCounts` — no cycle
+- `queue` → `offline.updateQueueCacheIfStandalone` — no cycle
+
+**Real cycles (restructure to eliminate):**
+
+20. `article-actions ↔ articles`: `article-actions` needs
+    `updateReadButton` from `articles`, and `articles` imports
+    `queuedArticleIds`, `queuedIdsReady`, `initAutoMarkRead` from
+    `article-actions`. Fix: extract `updateReadButton` into a small
+    shared module (e.g. `read-button.js`) — it's a pure DOM
+    manipulation function that updates a button's icon and data
+    attributes. Both modules import from it.
+
+21. `articles ↔ pagination`: `pagination` imports
+    `buildArticleCardHtml`, `processEmbeds`, `applyUserPreferences`,
+    `getShowingHiddenArticles` from `articles`, while `articles`
+    needs `updatePaginationCursor`, `updateEndOfArticlesIndicator`,
+    `setPaginationState` from `pagination`. Fix: the pagination state
+    functions that `articles` needs are really part of "rendering
+    articles" — move them into `articles.js`, making `pagination.js`
+    a pure "load more" module that calls into `articles`.
+    Alternatively, extract the shared rendering functions
+    (`buildArticleCardHtml`, `processEmbeds`) into a lower-level
+    `article-rendering.js`.
+
+22. `counts ↔ feeds` and `sidebar ↔ feeds`: `feeds` imports
+    `updateCounts` from `counts` and `setSidebarActive` from
+    `sidebar`. `counts` needs `showFeedErrorBanner` /
+    `removeFeedErrorBanner` from `feeds`. `sidebar` needs
+    `loadCategoryArticles` from `feeds`. Fix: move
+    `showFeedErrorBanner`/`removeFeedErrorBanner` into `counts.js`
+    (or a new `feed-errors.js`) since they're only called from
+    `updateFeedErrors` in counts. For sidebar → feeds,
+    `loadCategoryArticles` is a high-level orchestration function —
+    keep the callback from `app.js` (this is legitimate top-down
+    wiring, not a circular dependency hack).
+
+After this phase, the only remaining `setXxxDeps` call should be
+`setSidebarLoadCategory` in `app.js`, which is genuine top-down
+wiring from the entry point.
+
 ## Key Decisions
 
 ### No bundler
@@ -146,7 +199,7 @@ test helper remains functional for not-yet-extracted code.
 
 | Risk | Mitigation |
 |------|------------|
-| Circular dependencies between modules | Extract shared state into dedicated modules; dependency graph flows downward (utils → domain → UI) |
+| Circular dependencies between modules | 3 real cycles identified (see Phase 5); resolved via small restructurings — extract shared leaf modules or consolidate tightly-coupled state |
 | Breaking inline handlers mid-migration | Transitional `window` exports keep everything working |
 | `<script type="module">` is deferred (runs later than classic scripts) | This app already uses `DOMContentLoaded`; deferred execution is equivalent |
 | `type="module"` doesn't run in very old browsers | Not a concern — single-user app on modern browser |
