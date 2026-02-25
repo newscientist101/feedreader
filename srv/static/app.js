@@ -1,5 +1,4 @@
 import { api } from './modules/api.js';
-import { getSetting } from './modules/settings.js';
 import { initDropdownCloseListener, initDropdownListeners } from './modules/dropdown.js';
 import { initTimestampTooltips } from './modules/timestamps.js';
 import { initView, initViewListeners } from './modules/views.js';
@@ -10,7 +9,6 @@ import {
     initArticleListListeners,
 } from './modules/articles.js';
 import {
-    markRead, markUnread, toggleStar, toggleQueue,
     initAutoMarkRead, queuedArticleIds, setQueuedArticleIds, setQueuedIdsReady,
     setArticleActionDeps, initArticleActionListeners,
 } from './modules/article-actions.js';
@@ -21,14 +19,14 @@ import {
 import { updateCounts, setCountsDeps } from './modules/counts.js';
 import {
     loadFeedArticles, loadCategoryArticles,
-    saveFeed, closeEditModal,
     showFeedErrorBanner, removeFeedErrorBanner, initFeedActionListeners,
 } from './modules/feeds.js';
-import { unparentCategory, initFoldersPageListeners } from './modules/folders.js';
+import { initFoldersPageListeners, initCategorySettingsPage } from './modules/folders.js';
 import { initFolderDragDrop } from './modules/drag-drop.js';
 import { initOpmlListeners } from './modules/opml.js';
 import { initSettingsPage, initSettingsPageListeners } from './modules/settings-page.js';
 import { initQueuePage, setQueueDeps } from './modules/queue.js';
+import { initScraperPage, initScraperPageListeners } from './modules/scraper-page.js';
 import {
     initOfflineSupport, updateQueueCacheIfStandalone, setOfflineDeps,
 } from './modules/offline.js';
@@ -52,6 +50,9 @@ initOpmlListeners();
 
 // Initialize delegated listeners for settings.html page
 initSettingsPageListeners();
+
+// Initialize delegated listeners for scrapers.html page
+initScraperPageListeners();
 
 // Wire sidebar's late-bound dependency on loadCategoryArticles
 setSidebarLoadCategory((...args) => loadCategoryArticles(...args));
@@ -188,6 +189,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize queue page (no-op if not on queue page)
     initQueuePage();
+
+    // Initialize scraper page (no-op if not on scrapers page)
+    initScraperPage();
+
+    // Initialize category settings page (no-op if not on that page)
+    initCategorySettingsPage();
 
     // Initialize offline/PWA support (no-op outside standalone mode)
     initOfflineSupport();
@@ -354,20 +361,3 @@ document.addEventListener('dragstart', (event) => {
 
 window.addEventListener('scroll', checkScrollForMore);
 
-// --- Transitional window exports (Phase 2) ---
-// Functions called from inline onclick/onchange handlers in templates
-// or from <script> blocks in template files need to be global.
-// These will be removed in Phase 3 when inline handlers are eliminated.
-window.api = api;
-window.getSetting = getSetting;
-window.saveFeed = saveFeed;
-window.applyUserPreferences = applyUserPreferences;
-
-window.closeEditModal = closeEditModal;
-window.markRead = markRead;
-window.markUnread = markUnread;
-
-window.toggleStar = toggleStar;
-window.toggleQueue = toggleQueue;
-window.unparentCategory = unparentCategory;
-window.updateQueueCacheIfStandalone = updateQueueCacheIfStandalone;

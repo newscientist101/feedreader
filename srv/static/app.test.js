@@ -236,7 +236,7 @@ describe('observeNewArticles', () => {
 describe('markCardAsRead', () => {
   it('adds the "read" class and updates the read button', () => {
     document.getElementById('articles-list').innerHTML =
-      '<article class="article-card" data-id="99"><button class="btn-read-toggle" onclick="markRead(event, 99)" title="Mark read"><svg class="icon"><use href="#icon-mark-read"></use></svg></button></article>';
+      '<article class="article-card" data-id="99"><button class="btn-read-toggle" data-action="toggle-read" data-article-id="99" data-is-read="0" title="Mark read"><svg class="icon"><use href="#icon-mark-read"></use></svg></button></article>';
     window.markCardAsRead(99);
     const card = document.querySelector('.article-card[data-id="99"]');
     expect(card.classList.contains('read')).toBe(true);
@@ -696,13 +696,15 @@ describe('auto-mark-read after client-side navigation (bug fix)', () => {
 describe('renderArticleActions', () => {
   it('renders read button for unread article', () => {
     const html = window.renderArticleActions({ id: 1, is_read: 0, is_starred: 0, url: 'http://ex.com' });
-    expect(html).toContain('markRead');
+    expect(html).toContain('data-action="toggle-read"');
+    expect(html).toContain('data-is-read="0"');
     expect(html).toContain('btn-read-toggle');
   });
 
   it('renders unread button for read article', () => {
     const html = window.renderArticleActions({ id: 1, is_read: 1, is_starred: 0 });
-    expect(html).toContain('markUnread');
+    expect(html).toContain('data-is-read="1"');
+    expect(html).toContain('Mark unread');
   });
 
   it('renders external link when url provided', () => {

@@ -109,4 +109,52 @@ export function initFoldersPageListeners() {
         const form = e.target.closest('#create-folder-form');
         if (form) submitCreateFolder(e);
     });
+
+    // Unparent category button (category_settings.html)
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action="unparent-category"]');
+        if (btn) {
+            const id = Number(btn.dataset.categoryId);
+            if (id) unparentCategory(id);
+        }
+    });
+
+    // Delete exclusion rule button (category_settings.html)
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action="delete-exclusion"]');
+        if (btn) {
+            const id = Number(btn.dataset.exclusionId);
+            if (!id) return;
+            if (!confirm('Delete this exclusion rule?')) return;
+            api('DELETE', `/api/exclusions/${id}`)
+                .then(() => location.reload())
+                .catch(err => alert('Error: ' + err.message));
+        }
+    });
+}
+
+/**
+ * Initialize category settings page — wires up the exclusion form.
+ * No-op if not on the category settings page.
+ */
+export function initCategorySettingsPage() {
+    const view = document.querySelector('.settings-view[data-category-id]');
+    if (!view) return;
+    const categoryId = Number(view.dataset.categoryId);
+
+    const form = document.getElementById('add-exclusion-form');
+    if (form) {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const type = document.getElementById('exclusion-type').value;
+            const pattern = document.getElementById('exclusion-pattern').value;
+            const isRegex = document.getElementById('exclusion-regex').checked;
+            try {
+                await api('POST', `/api/categories/${categoryId}/exclusions`, { type, pattern, isRegex });
+                location.reload();
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        });
+    }
 }

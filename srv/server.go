@@ -210,9 +210,14 @@ func (s *Server) Handler() http.Handler {
 	// Static files – serve with long cache lifetime (files are cache-busted via ?v=hash)
 	staticFS := http.FileServer(http.Dir(s.StaticDir))
 	mux.Handle("/static/", http.StripPrefix("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("v") != "" {
+		switch {
+		case r.URL.Query().Get("v") != "":
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-		} else {
+		case strings.HasPrefix(r.URL.Path, "modules/"):
+			// ES module imports don't support cache-busting query params,
+			// so use a short cache with revalidation for module files.
+			w.Header().Set("Cache-Control", "public, max-age=60, must-revalidate")
+		default:
 			w.Header().Set("Cache-Control", "public, max-age=3600")
 		}
 		staticFS.ServeHTTP(w, r)

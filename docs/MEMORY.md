@@ -184,27 +184,28 @@
 
 ## Run 10 — Phase 3 continued (feeds.html, settings.html)
 
+**Completed:** Replaced 15 handlers in feeds.html and 16 in settings.html. See git log for details.
+
+## Run 11 — Phase 3 completed (scrapers.html, JS-built onclick, window exports, ESLint)
+
 **Completed:**
-- Replaced all 15 inline handlers in `feeds.html` with `data-action` attributes and delegated listeners:
-  - OPML export/import → `initOpmlListeners()` in opml.js
-  - Category rename/delete, create folder modal open/close/submit → `initFoldersPageListeners()` in folders.js
-  - Feed filter/search, edit/refresh/delete feed, set feed category → extended `initFeedActionListeners()` in feeds.js (added delete-feed, filter-feeds, set-feed-category delegation)
-- Replaced all 16 inline handlers in `settings.html` with `data-action`/`data-setting` attributes and delegated listeners:
-  - Settings radio/checkbox inputs use `data-setting="keyName"` + optional `data-apply="hideReadArticles"` etc. → `initSettingsPageListeners()` in settings-page.js
-  - Cleanup, newsletter generate/copy buttons → `data-action` handled by same function
-- Updated settings-page.js to import `saveSetting`, `applyHideReadArticles`, `applyHideEmptyFeeds` from settings.js (previously only used via window globals)
-- Removed 17 `window.X` transitional exports that are no longer needed (only `api`, `getSetting`, `saveFeed`, `applyUserPreferences`, `closeEditModal`, `markRead`, `markUnread`, `toggleStar`, `toggleQueue`, `unparentCategory`, `updateQueueCacheIfStandalone` remain)
-- Added 22 new tests: 6 in folders.test.js, 2 in opml.test.js, 8 in settings-page.test.js, 5 in feeds.test.js, 1 implicit
-- Updated settings.js mock in settings-page.test.js to include `applyHideReadArticles` and `applyHideEmptyFeeds`
+- **scrapers.html (34 inline handlers):** Created `modules/scraper-page.js` with all scraper page logic (AI status check, AI form, manual form, tab switching, schema panel, edit/delete/save scraper, insert-field helper). Replaced all 34 inline handlers with `data-action`/`data-*` attributes. Removed entire `<script>` block from template. Added `initScraperPage()` + `initScraperPageListeners()` called from app.js.
+- **JS-built onclick strings:** Replaced `onclick` attributes in `renderArticleActions()` (articles.js) with `data-action="toggle-read"`/`data-action="toggle-star"`/`data-action="toggle-queue"` + `data-article-id` + `data-is-read`. Updated `updateReadButton()` to use `data-is-read` attribute instead of `onclick`. Replaced `onclick`/`onsubmit` in `createEditFeedModal()` (feeds.js) with `data-action="close-edit-modal"` and delegated form submit.
+- **querySelectorAll lookups:** Replaced `querySelectorAll('[onclick="toggleStar(...)"]')` and `querySelectorAll('[onclick="toggleQueue(...)"]')` in article-actions.js with `data-action`+`data-article-id` selectors.
+- **Delegated handlers added:** `toggle-read`/`toggle-star`/`toggle-queue` in `initArticleActionListeners()`, `close-edit-modal`/`edit-feed-form submit` in `initFeedActionListeners()`.
+- **Window exports removed:** All 12 `window.X = X` transitional exports removed from app.js. No functions are global anymore.
+- **category_settings.html:** Moved inline `<script>` logic into `initCategorySettingsPage()` in folders.js + extended `initFoldersPageListeners()` with delegated handlers for `unparent-category` and `delete-exclusion`. Added `data-category-id` attribute to pass category ID from template.
+- **ESLint:** Removed `varsIgnorePattern` whitelist — no longer needed since no functions are called from inline handlers.
+- **Module caching fix:** Updated server.go static file handler to use short cache (`max-age=60, must-revalidate`) for files in `modules/` directory, since ES module imports can't use cache-busting query params.
+- Added `scraper-page.test.js` (30 tests) covering all scraper page functions and delegated listeners.
+- Updated tests in articles.test.js, article-actions.test.js, app.test.js to match new `data-action` output.
 
-**Window exports still needed:**
-- `api`, `getSetting` — used by category_settings.html inline script
-- `saveFeed`, `closeEditModal` — used by JS-built onclick in feeds.js `createEditFeedModal()`
-- `markRead`, `markUnread`, `toggleStar`, `toggleQueue` — used by JS-built onclick in articles.js `renderArticleActions()`/`updateReadButton()`
-- `applyUserPreferences` — used by app.js form handler (search restore)
-- `unparentCategory` — used by category_settings.html inline script
-- `updateQueueCacheIfStandalone` — used by queue.html inline script
+**Phase 3 is now complete.** All inline event handlers eliminated across all templates and JS-built HTML. Zero `onclick`/`onchange`/`onsubmit`/`oninput` attributes remain.
 
-**Next run:** Tackle `scrapers.html` (34 inline handlers) — it's the last template. After that, handle the "Replace onclick strings built in JS" task (articles.js renderArticleActions/updateReadButton, feeds.js createEditFeedModal), then the querySelectorAll cleanup and final window export removal.
+**app.js is now 363 lines** (down from 2277 original). It's a pure entry point: imports, dependency wiring, DOMContentLoaded init, form handlers, scroll listener.
 
-**Total tests: 455 (111 in app.test.js, 344 across 20 module test files).**
+**Total tests: 485 (111 in app.test.js, 374 across 21 module test files).**
+
+**Next run:** Begin Phase 4 — finalize. The `<script type="module">` change was already done in Run 2. Remaining: delete test-helper.js and rewrite tests as direct imports, verify coverage, update AGENTS.md and eslint config.
+
+**Known issue:** Browser caches ES module files aggressively. The server now sends `max-age=60, must-revalidate` for module files, but browsers that cached modules before the fix may not see updates immediately. A proper solution would be import maps with version hashes. This can be addressed in Phase 4 or as a follow-up.

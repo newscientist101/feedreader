@@ -170,7 +170,7 @@ export async function toggleStar(event, id) {
     try {
         await api('POST', `/api/articles/${id}/star`);
         // Toggle star button appearance
-        const btns = document.querySelectorAll(`[onclick="toggleStar(event, ${id})"]`);
+        const btns = document.querySelectorAll(`[data-action="toggle-star"][data-article-id="${id}"]`);
         btns.forEach(btn => {
             const isNowStarred = !btn.classList.contains('starred');
             btn.classList.toggle('starred', isNowStarred);
@@ -194,7 +194,7 @@ export async function toggleQueue(event, id) {
             queuedArticleIds.delete(id);
         }
         // Toggle queue button appearance
-        const btns = document.querySelectorAll(`[onclick="toggleQueue(event, ${id})"]`);
+        const btns = document.querySelectorAll(`[data-action="toggle-queue"][data-article-id="${id}"]`);
         btns.forEach(btn => {
             btn.classList.toggle('queued', isNowQueued);
             btn.title = isNowQueued ? 'Remove from queue' : 'Add to queue';
@@ -267,6 +267,29 @@ export function initArticleActionListeners() {
         const btn = e.target.closest('[data-action="mark-as-read"]');
         if (btn) {
             markAsRead(btn, btn.dataset.scope || 'all');
+        }
+    });
+
+    // Article action buttons: toggle-read, toggle-star, toggle-queue
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action="toggle-read"], [data-action="toggle-star"], [data-action="toggle-queue"]');
+        if (!btn) return;
+        const articleId = Number(btn.dataset.articleId);
+        if (!articleId) return;
+        switch (btn.dataset.action) {
+            case 'toggle-read':
+                if (btn.dataset.isRead === '1') {
+                    markUnread(e, articleId);
+                } else {
+                    markRead(e, articleId);
+                }
+                break;
+            case 'toggle-star':
+                toggleStar(e, articleId);
+                break;
+            case 'toggle-queue':
+                toggleQueue(e, articleId);
+                break;
         }
     });
 

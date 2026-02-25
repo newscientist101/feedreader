@@ -114,7 +114,8 @@ export async function loadFeedArticles(feedId, feedName) {
                 headerActions.appendChild(editBtn);
             }
             editBtn.style.display = '';
-            editBtn.onclick = () => editFeed(feedId);
+            editBtn.dataset.action = 'edit-feed';
+            editBtn.dataset.feedId = feedId;
 
             let refreshBtn = headerActions.querySelector('[data-feed-action="refresh"]');
             if (!refreshBtn) {
@@ -124,9 +125,9 @@ export async function loadFeedArticles(feedId, feedName) {
                 headerActions.appendChild(refreshBtn);
             }
             refreshBtn.style.display = '';
+            refreshBtn.dataset.action = 'refresh-feed';
             refreshBtn.dataset.feedId = feedId;
             refreshBtn.textContent = 'Refresh';
-            refreshBtn.onclick = () => refreshFeed(feedId);
         }
 
         if (feed && feed.last_error) {
@@ -276,17 +277,17 @@ export function createEditFeedModal() {
     modal.className = 'modal';
     modal.style.display = 'none';
     modal.innerHTML = `
-        <div class="modal-backdrop" onclick="closeEditModal()"></div>
+        <div class="modal-backdrop" data-action="close-edit-modal"></div>
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Edit Feed</h3>
-                <button onclick="closeEditModal()" class="btn-icon">
+                <button data-action="close-edit-modal" class="btn-icon">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                         <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
                     </svg>
                 </button>
             </div>
-            <form id="edit-feed-form" onsubmit="saveFeed(event)">
+            <form id="edit-feed-form">
                 <input type="hidden" id="edit-feed-id">
                 <div class="form-group">
                     <label for="edit-feed-name">Name</label>
@@ -306,7 +307,7 @@ export function createEditFeedModal() {
                     <textarea id="edit-feed-filters" rows="4" placeholder="div.ref-ar&#10;.advertisement&#10;#sidebar"></textarea>
                 </div>
                 <div class="modal-actions">
-                    <button type="button" onclick="closeEditModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="button" data-action="close-edit-modal" class="btn btn-secondary">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save</button>
                 </div>
             </form>
@@ -461,6 +462,19 @@ export function initFeedActionListeners() {
         if (select) {
             const feedId = Number(select.dataset.feedId);
             if (feedId) setFeedCategory(feedId, select.value);
+        }
+    });
+
+    // Close edit modal (backdrop, close button, cancel button)
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action="close-edit-modal"]');
+        if (btn) closeEditModal();
+    });
+
+    // Edit feed form submit
+    document.addEventListener('submit', (e) => {
+        if (e.target.id === 'edit-feed-form') {
+            saveFeed(e);
         }
     });
 }

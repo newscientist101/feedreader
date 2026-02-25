@@ -31,15 +31,17 @@ afterEach(() => {
 describe('renderArticleActions', () => {
     it('renders read/star/queue buttons for unread article', () => {
         const html = renderArticleActions({ id: 1, is_read: false, is_starred: false, url: 'https://example.com' });
-        expect(html).toContain('markRead');
-        expect(html).toContain('toggleStar');
-        expect(html).toContain('toggleQueue');
+        expect(html).toContain('data-action="toggle-read"');
+        expect(html).toContain('data-is-read="0"');
+        expect(html).toContain('data-action="toggle-star"');
+        expect(html).toContain('data-action="toggle-queue"');
         expect(html).toContain('Open original');
     });
 
     it('renders markUnread button for read article', () => {
         const html = renderArticleActions({ id: 1, is_read: true, is_starred: false });
-        expect(html).toContain('markUnread');
+        expect(html).toContain('data-is-read="1"');
+        expect(html).toContain('Mark unread');
     });
 
     it('omits external link when no url', () => {
@@ -56,18 +58,20 @@ describe('renderArticleActions', () => {
 describe('updateReadButton', () => {
     it('switches button to markUnread when isRead=true', () => {
         document.body.innerHTML =
-            '<div class="article-card" data-id="5"><button class="btn-read-toggle"></button></div>';
+            '<div class="article-card" data-id="5"><button class="btn-read-toggle" data-is-read="0"></button></div>';
         const card = document.querySelector('.article-card');
         updateReadButton(card, true);
-        expect(card.querySelector('.btn-read-toggle').getAttribute('onclick')).toContain('markUnread');
+        expect(card.querySelector('.btn-read-toggle').dataset.isRead).toBe('1');
+        expect(card.querySelector('.btn-read-toggle').title).toBe('Mark unread');
     });
 
     it('switches button to markRead when isRead=false', () => {
         document.body.innerHTML =
-            '<div class="article-card" data-id="5"><button class="btn-read-toggle"></button></div>';
+            '<div class="article-card" data-id="5"><button class="btn-read-toggle" data-is-read="1"></button></div>';
         const card = document.querySelector('.article-card');
         updateReadButton(card, false);
-        expect(card.querySelector('.btn-read-toggle').getAttribute('onclick')).toContain('markRead');
+        expect(card.querySelector('.btn-read-toggle').dataset.isRead).toBe('0');
+        expect(card.querySelector('.btn-read-toggle').title).toBe('Mark read');
     });
 
     it('does nothing for null card', () => {

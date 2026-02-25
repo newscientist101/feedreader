@@ -5,13 +5,13 @@
     </header>
 
     <div class="scraper-tabs">
-        <button class="scraper-tab active" data-tab="ai" onclick="switchScraperTab('ai')">
+        <button class="scraper-tab active" data-tab="ai" data-action="switch-scraper-tab">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
             </svg>
             Shelley-Powered
         </button>
-        <button class="scraper-tab" data-tab="manual" onclick="switchScraperTab('manual')">
+        <button class="scraper-tab" data-tab="manual" data-action="switch-scraper-tab">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                 <path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/>
             </svg>
@@ -64,7 +64,7 @@
                 </div>
                 <div class="form-group">
                     <label for="script-type">Type</label>
-                    <select id="script-type" onchange="updateConfigTemplate()">
+                    <select id="script-type">
                         <option value="json-config">HTML Scraper (CSS Selectors)</option>
                         <option value="json-api">JSON API Scraper</option>
                     </select>
@@ -77,7 +77,7 @@
             <div class="form-group">
                 <label for="scraper-script">
                     Configuration (JSON)
-                    <button type="button" class="btn-help" onclick="toggleSchemaPanel()" title="Show schema reference">
+                    <button type="button" class="btn-help" data-action="toggle-schema-panel" title="Show schema reference">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>
                         Schema
                     </button>
@@ -99,40 +99,40 @@
                     <div id="schema-panel" class="schema-panel" style="display: none;">
                         <div class="schema-panel-header">
                             <strong>Schema Reference</strong>
-                            <button type="button" class="schema-close" onclick="toggleSchemaPanel()">&times;</button>
+                            <button type="button" class="schema-close" data-action="toggle-schema-panel">&times;</button>
                         </div>
                         <div id="schema-html" class="schema-content">
                             <h4>HTML Scraper (CSS Selectors)</h4>
                             <dl>
-                                <dt onclick="insertField('type', 'html')">type</dt><dd>Must be <code>"html"</code> <em>(required)</em></dd>
-                                <dt onclick="insertField('itemSelector')">itemSelector</dt><dd>CSS selector for each item container <em>(required)</em></dd>
-                                <dt onclick="insertField('titleSelector')">titleSelector</dt><dd>Selector for title element (text content)</dd>
-                                <dt onclick="insertField('urlSelector')">urlSelector</dt><dd>Selector for link element</dd>
-                                <dt onclick="insertField('urlAttr', 'href')">urlAttr</dt><dd>Attribute for URL <em>(default: href)</em></dd>
-                                <dt onclick="insertField('summarySelector')">summarySelector</dt><dd>Selector for description text</dd>
-                                <dt onclick="insertField('authorSelector')">authorSelector</dt><dd>Selector for author name</dd>
-                                <dt onclick="insertField('imageSelector')">imageSelector</dt><dd>Selector for image element</dd>
-                                <dt onclick="insertField('imageAttr', 'src')">imageAttr</dt><dd>Attribute for image URL <em>(default: src)</em></dd>
-                                <dt onclick="insertField('dateSelector')">dateSelector</dt><dd>Selector for date element</dd>
-                                <dt onclick="insertField('dateAttr')">dateAttr</dt><dd>Attribute for date (text content if empty)</dd>
-                                <dt onclick="insertField('baseUrl')">baseUrl</dt><dd>Base URL for relative links</dd>
+                                <dt data-action="insert-field" data-field-key="type" data-field-default="html">type</dt><dd>Must be <code>"html"</code> <em>(required)</em></dd>
+                                <dt data-action="insert-field" data-field-key="itemSelector">itemSelector</dt><dd>CSS selector for each item container <em>(required)</em></dd>
+                                <dt data-action="insert-field" data-field-key="titleSelector">titleSelector</dt><dd>Selector for title element (text content)</dd>
+                                <dt data-action="insert-field" data-field-key="urlSelector">urlSelector</dt><dd>Selector for link element</dd>
+                                <dt data-action="insert-field" data-field-key="urlAttr" data-field-default="href">urlAttr</dt><dd>Attribute for URL <em>(default: href)</em></dd>
+                                <dt data-action="insert-field" data-field-key="summarySelector">summarySelector</dt><dd>Selector for description text</dd>
+                                <dt data-action="insert-field" data-field-key="authorSelector">authorSelector</dt><dd>Selector for author name</dd>
+                                <dt data-action="insert-field" data-field-key="imageSelector">imageSelector</dt><dd>Selector for image element</dd>
+                                <dt data-action="insert-field" data-field-key="imageAttr" data-field-default="src">imageAttr</dt><dd>Attribute for image URL <em>(default: src)</em></dd>
+                                <dt data-action="insert-field" data-field-key="dateSelector">dateSelector</dt><dd>Selector for date element</dd>
+                                <dt data-action="insert-field" data-field-key="dateAttr">dateAttr</dt><dd>Attribute for date (text content if empty)</dd>
+                                <dt data-action="insert-field" data-field-key="baseUrl">baseUrl</dt><dd>Base URL for relative links</dd>
                             </dl>
                         </div>
                         <div id="schema-json" class="schema-content" style="display: none;">
                             <h4>JSON API Scraper</h4>
                             <dl>
-                                <dt onclick="insertField('type', 'json')">type</dt><dd>Must be <code>"json"</code> <em>(required)</em></dd>
-                                <dt onclick="insertField('itemsPath')">itemsPath</dt><dd>Dot path to items array <em>(e.g. "data.items")</em></dd>
-                                <dt onclick="insertField('titlePath')">titlePath</dt><dd>Dot path to title</dd>
-                                <dt onclick="insertField('urlPath')">urlPath</dt><dd>Dot path to URL</dd>
-                                <dt onclick="insertField('summaryPath')">summaryPath</dt><dd>Dot path to summary/description</dd>
-                                <dt onclick="insertField('contentPath')">contentPath</dt><dd>Dot path to full content</dd>
-                                <dt onclick="insertField('authorPath')">authorPath</dt><dd>Dot path to author</dd>
-                                <dt onclick="insertField('imagePath')">imagePath</dt><dd>Dot path to image URL</dd>
-                                <dt onclick="insertField('datePath')">datePath</dt><dd>Dot path to date/timestamp</dd>
-                                <dt onclick="insertField('guidPath')">guidPath</dt><dd>Dot path to unique ID</dd>
-                                <dt onclick="insertField('baseUrl')">baseUrl</dt><dd>Base URL for relative links</dd>
-                                <dt onclick="insertField('consolidateDuplicates', true)">consolidateDuplicates</dt><dd>Merge consecutive same-title items <em>(boolean)</em></dd>
+                                <dt data-action="insert-field" data-field-key="type" data-field-default="json">type</dt><dd>Must be <code>"json"</code> <em>(required)</em></dd>
+                                <dt data-action="insert-field" data-field-key="itemsPath">itemsPath</dt><dd>Dot path to items array <em>(e.g. "data.items")</em></dd>
+                                <dt data-action="insert-field" data-field-key="titlePath">titlePath</dt><dd>Dot path to title</dd>
+                                <dt data-action="insert-field" data-field-key="urlPath">urlPath</dt><dd>Dot path to URL</dd>
+                                <dt data-action="insert-field" data-field-key="summaryPath">summaryPath</dt><dd>Dot path to summary/description</dd>
+                                <dt data-action="insert-field" data-field-key="contentPath">contentPath</dt><dd>Dot path to full content</dd>
+                                <dt data-action="insert-field" data-field-key="authorPath">authorPath</dt><dd>Dot path to author</dd>
+                                <dt data-action="insert-field" data-field-key="imagePath">imagePath</dt><dd>Dot path to image URL</dd>
+                                <dt data-action="insert-field" data-field-key="datePath">datePath</dt><dd>Dot path to date/timestamp</dd>
+                                <dt data-action="insert-field" data-field-key="guidPath">guidPath</dt><dd>Dot path to unique ID</dd>
+                                <dt data-action="insert-field" data-field-key="baseUrl">baseUrl</dt><dd>Base URL for relative links</dd>
+                                <dt data-action="insert-field" data-field-key="consolidateDuplicates" data-field-default="true">consolidateDuplicates</dt><dd>Merge consecutive same-title items <em>(boolean)</em></dd>
                             </dl>
                         </div>
                     </div>
@@ -156,8 +156,8 @@
                 <p class="scraper-description">{{.Description}}</p>
                 {{end}}
                 <div class="scraper-actions">
-                    <button onclick="editScraper({{.ID}})" class="btn btn-small">Edit</button>
-                    <button onclick="deleteScraper({{.ID}})" class="btn btn-small btn-danger">Delete</button>
+                    <button data-action="edit-scraper" data-scraper-id="{{.ID}}" class="btn btn-small">Edit</button>
+                    <button data-action="delete-scraper" data-scraper-id="{{.ID}}" class="btn btn-small btn-danger">Delete</button>
                 </div>
             </div>
             {{end}}
@@ -172,7 +172,7 @@
     <div class="modal-content">
         <div class="modal-header">
             <h3 id="modal-title">Edit Scraper</h3>
-            <button onclick="closeConfigModal()" class="modal-close">&times;</button>
+            <button data-action="close-config-modal" class="modal-close">&times;</button>
         </div>
         <input type="hidden" id="modal-scraper-id">
         <div class="form-group">
@@ -188,203 +188,10 @@
             <textarea id="modal-scraper-script" rows="12" spellcheck="false"></textarea>
         </div>
         <div class="modal-actions">
-            <button onclick="saveScraperConfig()" class="btn btn-primary">Save</button>
-            <button onclick="closeConfigModal()" class="btn btn-secondary">Cancel</button>
+            <button data-action="save-scraper-config" class="btn btn-primary">Save</button>
+            <button data-action="close-config-modal" class="btn btn-secondary">Cancel</button>
         </div>
     </div>
 </div>
 
-<script>
-// Check AI availability on page load
-document.addEventListener('DOMContentLoaded', async () => {
-    const statusEl = document.getElementById('ai-status');
-    try {
-        const data = await api('GET', '/api/ai/status');
-        if (data.available) {
-            statusEl.className = 'ai-status available';
-            statusEl.querySelector('.status-text').textContent = 'Shelley is available';
-
-        } else {
-            statusEl.className = 'ai-status unavailable';
-            statusEl.querySelector('.status-text').textContent = 'Shelley is not running';
-            document.getElementById('ai-generate-form').classList.add('disabled');
-            document.getElementById('ai-generate-btn').disabled = true;
-        }
-    } catch (err) {
-        statusEl.className = 'ai-status error';
-        statusEl.querySelector('.status-text').textContent = 'Could not check AI status';
-    }
-});
-
-// AI Generate form
-document.getElementById('ai-generate-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn = document.getElementById('ai-generate-btn');
-    const url = document.getElementById('ai-url').value;
-    const description = document.getElementById('ai-description').value;
-
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Shelley is analyzing the page...';
-
-    try {
-        const data = await api('POST', '/api/ai/generate-scraper', { url, description });
-        document.getElementById('scraper-name').value = data.name || 'Custom Scraper';
-        document.getElementById('scraper-script').value = data.config;
-        switchScraperTab('manual');
-    } catch (err) {
-        alert('Failed to generate: ' + err.message);
-    } finally {
-        btn.disabled = false; _scraperSubmitting = false;
-        btn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 9l-7 7-7-7"/></svg> Generate Scraper Config`;
-    }
-});
-
-function switchScraperTab(tab) {
-    document.querySelectorAll('.scraper-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-    document.querySelectorAll('.scraper-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === tab));
-}
-
-async function editScraper(id) {
-    try {
-        const scraper = await api('GET', `/api/scrapers/${id}`);
-        document.getElementById('modal-scraper-id').value = scraper.id;
-        document.getElementById('modal-scraper-name').value = scraper.name;
-        document.getElementById('modal-scraper-description').value = scraper.description || '';
-        try {
-            document.getElementById('modal-scraper-script').value = JSON.stringify(JSON.parse(scraper.script), null, 2);
-        } catch {
-            document.getElementById('modal-scraper-script').value = scraper.script;
-        }
-        document.getElementById('config-modal').style.display = 'flex';
-    } catch (err) {
-        alert('Failed to load scraper: ' + err.message);
-    }
-}
-
-function validateJSON(str) {
-    try {
-        JSON.parse(str);
-        return true;
-    } catch (err) {
-        alert('Invalid JSON: ' + err.message);
-        return false;
-    }
-}
-
-async function saveScraperConfig() {
-    const id = document.getElementById('modal-scraper-id').value;
-    const name = document.getElementById('modal-scraper-name').value;
-    const description = document.getElementById('modal-scraper-description').value;
-    const script = document.getElementById('modal-scraper-script').value;
-    if (!validateJSON(script)) return;
-
-    try {
-        await api('PUT', `/api/scrapers/${id}`, { name, description, script });
-        window.location.href = '/scrapers';
-    } catch (err) {
-        alert('Failed to save: ' + err.message);
-    }
-}
-
-function closeConfigModal() {
-    document.getElementById('config-modal').style.display = 'none';
-}
-
-async function deleteScraper(id) {
-    if (!confirm('Delete this scraper module?')) return;
-    api('DELETE', `/api/scrapers/${id}`)
-        .then(() => location.reload())
-        .catch(err => alert('Failed to delete: ' + err.message));
-}
-
-// Manual scraper form
-let _scraperSubmitting = false;
-document.getElementById('add-scraper-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (_scraperSubmitting) return;
-    _scraperSubmitting = true;
-    const btn = e.target.querySelector('button[type="submit"]');
-    btn.disabled = true;
-
-    const name = document.getElementById('scraper-name').value;
-    const description = document.getElementById('scraper-description').value;
-    const script = document.getElementById('scraper-script').value;
-    const scriptType = document.getElementById('script-type').value;
-    if (!validateJSON(script)) { btn.disabled = false; _scraperSubmitting = false; return; }
-
-    try {
-        await api('POST', '/api/scrapers', { name, description, script, script_type: scriptType });
-        window.location.href = '/scrapers';
-    } catch (err) {
-        alert('Failed to create: ' + err.message);
-        btn.disabled = false; _scraperSubmitting = false;
-    }
-});
-
-function insertField(key, defaultValue) {
-    const ta = document.getElementById('scraper-script');
-    const val = ta.value;
-
-    let valueStr = typeof defaultValue === 'boolean' ? String(defaultValue) : '"' + (defaultValue || '') + '"';
-    const newLine = '  "' + key + '": ' + valueStr;
-
-    if (val.trim() === '') {
-        ta.value = '{\n' + newLine + '\n}';
-        ta.selectionStart = ta.selectionEnd = 2 + newLine.length - (typeof defaultValue === 'boolean' ? 0 : 1);
-        ta.focus();
-        return;
-    }
-
-    const trimmed = val.trimEnd();
-    if (trimmed.endsWith('}')) {
-        const bracePos = val.lastIndexOf('}');
-        const beforeBrace = val.substring(0, bracePos).trimEnd();
-        if (beforeBrace.length > 0 && !beforeBrace.endsWith(',') && !beforeBrace.endsWith('{')) {
-            const lastCharPos = val.substring(0, bracePos).search(/\S\s*$/);
-            if (lastCharPos >= 0) {
-                ta.value = val.substring(0, lastCharPos + 1) + ',' + val.substring(lastCharPos + 1, bracePos) + newLine + '\n}';
-            } else {
-                ta.value = val.substring(0, bracePos) + newLine + '\n}';
-            }
-        } else {
-            ta.value = val.substring(0, bracePos) + newLine + '\n}';
-        }
-    } else {
-        ta.value = val + ',\n' + newLine;
-    }
-
-    const inserted = ta.value.lastIndexOf(newLine);
-    if (inserted >= 0) {
-        ta.selectionStart = ta.selectionEnd = inserted + newLine.length - (typeof defaultValue === 'boolean' ? 0 : 1);
-    }
-    ta.focus();
-}
-
-function toggleSchemaPanel() {
-    const panel = document.getElementById('schema-panel');
-    panel.style.display = panel.style.display === 'none' ? '' : 'none';
-    updateSchemaContent();
-}
-
-function updateSchemaContent() {
-    const type = document.getElementById('script-type').value;
-    document.getElementById('schema-html').style.display = type === 'json-api' ? 'none' : '';
-    document.getElementById('schema-json').style.display = type === 'json-api' ? '' : 'none';
-}
-
-function updateConfigTemplate() {
-    updateSchemaContent();
-    const type = document.getElementById('script-type').value;
-    const textarea = document.getElementById('scraper-script');
-    if (type === 'json-api') {
-        textarea.placeholder = '{\n  "type": "json",\n  "itemsPath": "data.items",\n  "titlePath": "title",\n  "urlPath": "url",\n  "summaryPath": "description",\n  "datePath": "timestamp",\n  "baseUrl": "https://example.com",\n  "consolidateDuplicates": false\n}';
-    } else {
-        textarea.placeholder = '{\n  "type": "html",\n  "itemSelector": "article.post",\n  "titleSelector": "h2.title",\n  "urlSelector": "a.permalink",\n  "urlAttr": "href",\n  "summarySelector": "p.summary",\n  "imageSelector": "img.thumb",\n  "imageAttr": "src",\n  "dateSelector": "time",\n  "dateAttr": "datetime",\n  "baseUrl": "https://example.com"\n}';
-    }
-}
-
-document.getElementById('config-modal').addEventListener('click', (e) => {
-    if (e.target.id === 'config-modal') closeConfigModal();
-});
-</script>
 {{end}}

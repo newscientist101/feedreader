@@ -1,5 +1,5 @@
 {{define "content"}}
-<div class="settings-view">
+<div class="settings-view" data-category-id="{{.CurrentCategory.ID}}">
     <header class="view-header">
         <div class="header-title">
             <a href="javascript:history.back()" class="back-link">
@@ -111,36 +111,4 @@
     </div>
 </div>
 
-<script>
-const categoryId = {{.CurrentCategory.ID}};
-
-document.getElementById('add-exclusion-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const type = document.getElementById('exclusion-type').value;
-    const pattern = document.getElementById('exclusion-pattern').value;
-    const isRegex = document.getElementById('exclusion-regex').checked;
-    try {
-        await api('POST', `/api/categories/${categoryId}/exclusions`, { type, pattern, isRegex });
-        location.reload();
-    } catch (e) {
-        alert('Error: ' + e.message);
-    }
-});
-
-// Delegated click handler for data-action buttons (replaces inline onclick)
-document.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    const action = btn.dataset.action;
-    if (action === 'unparent-category') {
-        unparentCategory(Number(btn.dataset.categoryId));
-    } else if (action === 'delete-exclusion') {
-        const id = Number(btn.dataset.exclusionId);
-        if (!confirm('Delete this exclusion rule?')) return;
-        api('DELETE', `/api/exclusions/${id}`)
-            .then(() => location.reload())
-            .catch(err => alert('Error: ' + err.message));
-    }
-});
-</script>
 {{end}}

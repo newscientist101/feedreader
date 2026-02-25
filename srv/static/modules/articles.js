@@ -39,13 +39,13 @@ export function _resetArticlesState() {
 // Render the standard set of action buttons for an article.
 // `a` must have: id, is_read, is_starred, url (optional), is_queued (optional).
 export function renderArticleActions(a) {
-    const readBtn = `<button onclick="${a.is_read ? 'markUnread' : 'markRead'}(event, ${a.id})" class="btn-icon btn-read-toggle" title="${a.is_read ? 'Mark unread' : 'Mark read'}">
+    const readBtn = `<button data-action="toggle-read" data-article-id="${a.id}" data-is-read="${a.is_read ? '1' : '0'}" class="btn-icon btn-read-toggle" title="${a.is_read ? 'Mark unread' : 'Mark read'}">
         ${a.is_read ? SVG_MARK_UNREAD : SVG_MARK_READ}
     </button>`;
-    const starBtn = `<button onclick="toggleStar(event, ${a.id})" class="btn-icon ${a.is_starred ? 'starred' : ''}" title="Star">
+    const starBtn = `<button data-action="toggle-star" data-article-id="${a.id}" class="btn-icon ${a.is_starred ? 'starred' : ''}" title="Star">
         ${a.is_starred ? SVG_STAR_FILLED : SVG_STAR_EMPTY}
     </button>`;
-    const queueBtn = `<button onclick="toggleQueue(event, ${a.id})" class="btn-icon btn-queue-toggle ${a.is_queued ? 'queued' : ''}" title="${a.is_queued ? 'Remove from queue' : 'Add to queue'}">
+    const queueBtn = `<button data-action="toggle-queue" data-article-id="${a.id}" class="btn-icon btn-queue-toggle ${a.is_queued ? 'queued' : ''}" title="${a.is_queued ? 'Remove from queue' : 'Add to queue'}">
         ${a.is_queued ? SVG_QUEUE_REMOVE : SVG_QUEUE_ADD}
     </button>`;
     const extBtn = a.url ? `<a href="${a.url}" target="_blank" class="btn-icon" title="Open original">${SVG_EXTERNAL}</a>` : '';
@@ -57,13 +57,11 @@ export function updateReadButton(card, isRead) {
     if (!card) return;
     const btn = card.querySelector('.btn-read-toggle');
     if (!btn) return;
-    const id = card.dataset.id;
+    btn.dataset.isRead = isRead ? '1' : '0';
     if (isRead) {
-        btn.setAttribute('onclick', `markUnread(event, ${id})`);
         btn.setAttribute('title', 'Mark unread');
         btn.innerHTML = SVG_MARK_UNREAD;
     } else {
-        btn.setAttribute('onclick', `markRead(event, ${id})`);
         btn.setAttribute('title', 'Mark read');
         btn.innerHTML = SVG_MARK_READ;
     }
