@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { exportOPML, importOPML } from './opml.js';
+import { exportOPML, importOPML, initOpmlListeners } from './opml.js';
 
 beforeEach(() => {
     document.body.innerHTML = '';
@@ -90,5 +90,39 @@ describe('importOPML', () => {
 
         expect(window.alert).toHaveBeenCalledWith('Failed to import OPML: Network error');
         expect(input.value).toBe('');
+    });
+});
+
+describe('initOpmlListeners', () => {
+    beforeEach(() => {
+        initOpmlListeners();
+    });
+
+    it('delegates export-opml click', () => {
+        document.body.innerHTML = '<button data-action="export-opml">Export</button>';
+        const mockLocation = { ...window.location, href: '' };
+        Object.defineProperty(window, 'location', {
+            value: mockLocation,
+            writable: true,
+            configurable: true,
+        });
+
+        document.querySelector('[data-action="export-opml"]').click();
+
+        expect(mockLocation.href).toBe('/api/opml/export');
+    });
+
+    it('delegates import-opml change', async () => {
+        document.body.innerHTML = '<input data-action="import-opml" type="file">';
+        const input = document.querySelector('[data-action="import-opml"]');
+        // Mock the files property
+        Object.defineProperty(input, 'files', { value: [], writable: true });
+        vi.spyOn(globalThis, 'fetch');
+
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise(r => setTimeout(r, 10));
+
+        // importOPML was called, but with no files, so no fetch
+        expect(fetch).not.toHaveBeenCalled();
     });
 });

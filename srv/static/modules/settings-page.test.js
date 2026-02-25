@@ -3,6 +3,7 @@ import {
     initSettingsPage, runCleanup,
     loadNewsletterAddress, generateNewsletterAddress,
     showNewsletterAddress, copyNewsletterAddress,
+    initSettingsPageListeners,
 } from './settings-page.js';
 
 // Mock the settings module
@@ -11,6 +12,8 @@ vi.mock('./settings.js', () => {
     return {
         getSetting: vi.fn((key) => store[key]),
         saveSetting: vi.fn((key, val) => { store[key] = val; }),
+        applyHideReadArticles: vi.fn(),
+        applyHideEmptyFeeds: vi.fn(),
         _store: store,
     };
 });
@@ -20,7 +23,7 @@ vi.mock('./api.js', () => ({
     api: vi.fn(),
 }));
 
-import { getSetting } from './settings.js';
+import { getSetting, saveSetting, applyHideReadArticles, applyHideEmptyFeeds } from './settings.js';
 import { api } from './api.js';
 
 beforeEach(() => {
@@ -263,5 +266,120 @@ describe('copyNewsletterAddress', () => {
 
         // Should not throw
         await copyNewsletterAddress();
+    });
+});
+
+describe('initSettingsPageListeners', () => {
+    beforeEach(() => {
+        initSettingsPageListeners();
+    });
+
+    it('delegates data-setting checkbox change', () => {
+        document.body.innerHTML = `
+            <input type="checkbox" data-setting="autoMarkRead" data-setting-type="checkbox">
+        `;
+        const input = document.querySelector('[data-setting]');
+        input.checked = true;
+
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+
+        expect(saveSetting).toHaveBeenCalledWith('autoMarkRead', 'true');
+    });
+
+    it('delegates data-setting radio change', () => {
+        document.body.innerHTML = `
+            <input type="radio" name="hide-read" value="hide" data-setting="hideReadArticles" data-apply="hideReadArticles">
+        `;
+        const input = document.querySelector('[data-setting]');
+        input.checked = true;
+
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+
+        expect(saveSetting).toHaveBeenCalledWith('hideReadArticles', 'hide');
+        expect(applyHideReadArticles).toHaveBeenCalledWith('hide');
+    });
+
+    it('delegates data-apply hideEmptyFeeds', () => {
+        document.body.innerHTML = `
+            <input type="radio" value="hide" data-setting="hideEmptyFeeds" data-apply="hideEmptyFeeds">
+        `;
+        const input = document.querySelector('[data-setting]');
+        input.checked = true;
+
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+
+        expect(saveSetting).toHaveBeenCalledWith('hideEmptyFeeds', 'hide');
+        expect(applyHideEmptyFeeds).toHaveBeenCalledWith('hide');
+    });
+
+    it('delegates view default radio without apply', () => {
+        document.body.innerHTML = `
+            <input type="radio" value="list" data-setting="defaultFolderView">
+        `;
+        const input = document.querySelector('[data-setting]');
+        input.checked = true;
+
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+
+        expect(saveSetting).toHaveBeenCalledWith('defaultFolderView', 'list');
+        // No apply function should be called
+        expect(applyHideReadArticles).not.toHaveBeenCalled();
+        expect(applyHideEmptyFeeds).not.toHaveBeenCalled();
+    });
+
+    it('delegates run-cleanup click', async () => {
+        document.body.innerHTML = `
+            <button data-action="run-cleanup">Cleanup</button>
+            <span id="cleanup-status"></span>
+            <span id="articles-to-delete">5</span>
+        `;
+        api.mockResolvedValue({ deleted: 5 });
+
+        document.querySelector('[data-action="run-cleanup"]').click();
+        await new Promise(r => setTimeout(r, 10));
+
+        expect(api).toHaveBeenCalledWith('POST', '/api/retention/cleanup');
+    });
+
+    it('delegates generate-newsletter click', async () => {
+        document.body.innerHTML = `
+            <button data-action="generate-newsletter">Generate</button>
+            <div id="newsletter-no-address"></div>
+            <div id="newsletter-has-address" style="display:none">
+                <span id="newsletter-address"></span>
+            </div>
+        `;
+        api.mockResolvedValue({ address: 'test@example.com' });
+
+        document.querySelector('[data-action="generate-newsletter"]').click();
+        await new Promise(r => setTimeout(r, 10));
+
+        expect(api).toHaveBeenCalledWith('POST', '/api/newsletter/generate-address');
+    });
+
+    it('delegates copy-newsletter click', async () => {
+        document.body.innerHTML = `
+            <span id="newsletter-address">test@example.com</span>
+            <button data-action="copy-newsletter">Copy</button>
+        `;
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'clipboard', {
+            value: { writeText },
+            writable: true,
+            configurable: true,
+        });
+
+        document.querySelector('[data-action="copy-newsletter"]').click();
+        await new Promise(r => setTimeout(r, 10));
+
+        expect(writeText).toHaveBeenCalledWith('test@example.com');
+    });
+
+    it('ignores change events without data-setting', () => {
+        document.body.innerHTML = '<input type="text" id="other-input">';
+
+        document.getElementById('other-input').dispatchEvent(new Event('change', { bubbles: true }));
+
+        expect(saveSetting).not.toHaveBeenCalled();
     });
 });

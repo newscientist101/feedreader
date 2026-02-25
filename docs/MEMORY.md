@@ -181,3 +181,30 @@
 **Next run:** Continue Phase 3 — tackle `feeds.html` (15 handlers) or `settings.html` (16 handlers). These are smaller than `scrapers.html` (34). Consider also tackling the "Replace onclick strings built in JS" task since several have already been partially done.
 
 **Total tests: 435 (111 in app.test.js, 324 across 20 module test files).**
+
+## Run 10 — Phase 3 continued (feeds.html, settings.html)
+
+**Completed:**
+- Replaced all 15 inline handlers in `feeds.html` with `data-action` attributes and delegated listeners:
+  - OPML export/import → `initOpmlListeners()` in opml.js
+  - Category rename/delete, create folder modal open/close/submit → `initFoldersPageListeners()` in folders.js
+  - Feed filter/search, edit/refresh/delete feed, set feed category → extended `initFeedActionListeners()` in feeds.js (added delete-feed, filter-feeds, set-feed-category delegation)
+- Replaced all 16 inline handlers in `settings.html` with `data-action`/`data-setting` attributes and delegated listeners:
+  - Settings radio/checkbox inputs use `data-setting="keyName"` + optional `data-apply="hideReadArticles"` etc. → `initSettingsPageListeners()` in settings-page.js
+  - Cleanup, newsletter generate/copy buttons → `data-action` handled by same function
+- Updated settings-page.js to import `saveSetting`, `applyHideReadArticles`, `applyHideEmptyFeeds` from settings.js (previously only used via window globals)
+- Removed 17 `window.X` transitional exports that are no longer needed (only `api`, `getSetting`, `saveFeed`, `applyUserPreferences`, `closeEditModal`, `markRead`, `markUnread`, `toggleStar`, `toggleQueue`, `unparentCategory`, `updateQueueCacheIfStandalone` remain)
+- Added 22 new tests: 6 in folders.test.js, 2 in opml.test.js, 8 in settings-page.test.js, 5 in feeds.test.js, 1 implicit
+- Updated settings.js mock in settings-page.test.js to include `applyHideReadArticles` and `applyHideEmptyFeeds`
+
+**Window exports still needed:**
+- `api`, `getSetting` — used by category_settings.html inline script
+- `saveFeed`, `closeEditModal` — used by JS-built onclick in feeds.js `createEditFeedModal()`
+- `markRead`, `markUnread`, `toggleStar`, `toggleQueue` — used by JS-built onclick in articles.js `renderArticleActions()`/`updateReadButton()`
+- `applyUserPreferences` — used by app.js form handler (search restore)
+- `unparentCategory` — used by category_settings.html inline script
+- `updateQueueCacheIfStandalone` — used by queue.html inline script
+
+**Next run:** Tackle `scrapers.html` (34 inline handlers) — it's the last template. After that, handle the "Replace onclick strings built in JS" task (articles.js renderArticleActions/updateReadButton, feeds.js createEditFeedModal), then the querySelectorAll cleanup and final window export removal.
+
+**Total tests: 455 (111 in app.test.js, 344 across 20 module test files).**

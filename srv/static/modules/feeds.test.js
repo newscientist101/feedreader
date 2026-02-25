@@ -480,4 +480,75 @@ describe('initFeedActionListeners', () => {
         document.querySelector('[data-action="refresh-feed"]').click();
         expect(fetch).not.toHaveBeenCalled();
     });
+
+    it('delegates delete-feed click', () => {
+        document.body.innerHTML = `
+            <button data-action="delete-feed" data-feed-id="9" data-feed-name="Old Blog">Delete</button>
+        `;
+        initFeedActionListeners();
+        vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+        document.querySelector('[data-action="delete-feed"]').click();
+
+        expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('Old Blog'));
+    });
+
+    it('delegates filter-feeds checkbox change', () => {
+        document.body.innerHTML = `
+            <input type="checkbox" data-action="filter-feeds" id="filter-errors">
+            <input type="search" id="feeds-search" value="">
+            <table class="feeds-table"><tbody>
+                <tr data-has-error="true"><td>Feed</td><td class="url-cell">url</td></tr>
+                <tr><td>Good Feed</td><td class="url-cell">url2</td></tr>
+            </tbody></table>
+        `;
+        initFeedActionListeners();
+
+        const checkbox = document.getElementById('filter-errors');
+        checkbox.checked = true;
+        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+
+        const rows = document.querySelectorAll('.feeds-table tbody tr');
+        expect(rows[0].style.display).toBe(''); // error row visible
+        expect(rows[1].style.display).toBe('none'); // non-error row hidden
+    });
+
+    it('delegates filter-feeds search input', () => {
+        document.body.innerHTML = `
+            <input type="checkbox" id="filter-errors">
+            <input type="search" data-action="filter-feeds" id="feeds-search" value="tech">
+            <table class="feeds-table"><tbody>
+                <tr><td>Tech Blog</td><td class="url-cell">url</td></tr>
+                <tr><td>News</td><td class="url-cell">url2</td></tr>
+            </tbody></table>
+        `;
+        initFeedActionListeners();
+
+        const search = document.getElementById('feeds-search');
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+
+        const rows = document.querySelectorAll('.feeds-table tbody tr');
+        expect(rows[0].style.display).toBe('');
+        expect(rows[1].style.display).toBe('none');
+    });
+
+    it('delegates set-feed-category change', async () => {
+        document.body.innerHTML = `
+            <select data-action="set-feed-category" data-feed-id="5">
+                <option value="0">None</option>
+                <option value="3">Tech</option>
+            </select>
+        `;
+        initFeedActionListeners();
+
+        const select = document.querySelector('[data-action="set-feed-category"]');
+        select.value = '3';
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise(r => setTimeout(r, 10));
+
+        expect(fetch).toHaveBeenCalledWith('/api/feeds/5/category', expect.objectContaining({
+            method: 'POST',
+            body: JSON.stringify({ categoryId: 3 }),
+        }));
+    });
 });

@@ -1,5 +1,5 @@
 import { api } from './modules/api.js';
-import { getSetting, saveSetting, applyHideReadArticles, applyHideEmptyFeeds } from './modules/settings.js';
+import { getSetting } from './modules/settings.js';
 import { initDropdownCloseListener, initDropdownListeners } from './modules/dropdown.js';
 import { initTimestampTooltips } from './modules/timestamps.js';
 import { initView, initViewListeners } from './modules/views.js';
@@ -20,20 +20,14 @@ import {
 } from './modules/pagination.js';
 import { updateCounts, setCountsDeps } from './modules/counts.js';
 import {
-    loadFeedArticles, loadCategoryArticles, refreshFeed, deleteFeed,
-    editFeed, saveFeed, filterFeeds, closeEditModal, setFeedCategory,
+    loadFeedArticles, loadCategoryArticles,
+    saveFeed, closeEditModal,
     showFeedErrorBanner, removeFeedErrorBanner, initFeedActionListeners,
 } from './modules/feeds.js';
-import {
-    openCreateFolderModal, closeCreateFolderModal, submitCreateFolder,
-    renameCategory, unparentCategory, deleteCategory,
-} from './modules/folders.js';
+import { unparentCategory, initFoldersPageListeners } from './modules/folders.js';
 import { initFolderDragDrop } from './modules/drag-drop.js';
-import { exportOPML, importOPML } from './modules/opml.js';
-import {
-    initSettingsPage, runCleanup,
-    generateNewsletterAddress, copyNewsletterAddress,
-} from './modules/settings-page.js';
+import { initOpmlListeners } from './modules/opml.js';
+import { initSettingsPage, initSettingsPageListeners } from './modules/settings-page.js';
 import { initQueuePage, setQueueDeps } from './modules/queue.js';
 import {
     initOfflineSupport, updateQueueCacheIfStandalone, setOfflineDeps,
@@ -51,6 +45,13 @@ initDropdownListeners();
 initArticleActionListeners();
 initFeedActionListeners();
 initArticleListListeners();
+
+// Initialize delegated listeners for feeds.html page
+initFoldersPageListeners();
+initOpmlListeners();
+
+// Initialize delegated listeners for settings.html page
+initSettingsPageListeners();
 
 // Wire sidebar's late-bound dependency on loadCategoryArticles
 setSidebarLoadCategory((...args) => loadCategoryArticles(...args));
@@ -359,32 +360,14 @@ window.addEventListener('scroll', checkScrollForMore);
 // These will be removed in Phase 3 when inline handlers are eliminated.
 window.api = api;
 window.getSetting = getSetting;
-window.saveSetting = saveSetting;
 window.saveFeed = saveFeed;
 window.applyUserPreferences = applyUserPreferences;
-window.applyHideReadArticles = applyHideReadArticles;
-window.applyHideEmptyFeeds = applyHideEmptyFeeds;
 
-window.openCreateFolderModal = openCreateFolderModal;
-window.closeCreateFolderModal = closeCreateFolderModal;
 window.closeEditModal = closeEditModal;
-window.submitCreateFolder = submitCreateFolder;
-window.deleteCategory = deleteCategory;
-window.deleteFeed = deleteFeed;
-window.editFeed = editFeed;
-window.exportOPML = exportOPML;
-window.importOPML = importOPML;
-window.filterFeeds = filterFeeds;
 window.markRead = markRead;
 window.markUnread = markUnread;
-window.refreshFeed = refreshFeed;
-window.renameCategory = renameCategory;
-window.runCleanup = runCleanup;
-window.setFeedCategory = setFeedCategory;
 
 window.toggleStar = toggleStar;
 window.toggleQueue = toggleQueue;
 window.unparentCategory = unparentCategory;
-window.copyNewsletterAddress = copyNewsletterAddress;
-window.generateNewsletterAddress = generateNewsletterAddress;
 window.updateQueueCacheIfStandalone = updateQueueCacheIfStandalone;

@@ -420,7 +420,7 @@ export async function setFeedCategory(feedId, categoryId) {
 }
 
 // Delegated listeners for feed action buttons (replaces inline onclick in
-// index.html: edit, refresh, retry).
+// index.html and feeds.html: edit, refresh, retry, delete, filter, category).
 export function initFeedActionListeners() {
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-action="edit-feed"]');
@@ -435,6 +435,32 @@ export function initFeedActionListeners() {
         if (btn) {
             const feedId = Number(btn.dataset.feedId);
             if (feedId) refreshFeed(feedId);
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action="delete-feed"]');
+        if (btn) {
+            const feedId = Number(btn.dataset.feedId);
+            const feedName = btn.dataset.feedName || '';
+            if (feedId) deleteFeed(feedId, feedName);
+        }
+    });
+
+    // Filter feeds: checkbox change and search input
+    document.addEventListener('change', (e) => {
+        if (e.target.closest('[data-action="filter-feeds"]')) filterFeeds();
+    });
+    document.addEventListener('input', (e) => {
+        if (e.target.closest('[data-action="filter-feeds"]')) filterFeeds();
+    });
+
+    // Set feed category from dropdown
+    document.addEventListener('change', (e) => {
+        const select = e.target.closest('[data-action="set-feed-category"]');
+        if (select) {
+            const feedId = Number(select.dataset.feedId);
+            if (feedId) setFeedCategory(feedId, select.value);
         }
     });
 }

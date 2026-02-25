@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
     openCreateFolderModal, closeCreateFolderModal, submitCreateFolder,
     renameCategory, unparentCategory, deleteCategory,
+    initFoldersPageListeners,
 } from './folders.js';
 
 beforeEach(() => {
@@ -244,5 +245,97 @@ describe('deleteCategory', () => {
         await deleteCategory(5, 'Tech');
 
         expect(fetch).not.toHaveBeenCalled();
+    });
+});
+
+describe('initFoldersPageListeners', () => {
+    beforeEach(() => {
+        initFoldersPageListeners();
+    });
+
+    it('delegates rename-category click', () => {
+        document.body.innerHTML = `
+            <button data-action="rename-category" data-category-id="5" data-category-name="Tech">Rename</button>
+        `;
+        vi.spyOn(window, 'prompt').mockReturnValue(null); // user cancels
+
+        document.querySelector('[data-action="rename-category"]').click();
+
+        expect(window.prompt).toHaveBeenCalledWith('Enter new name:', 'Tech');
+    });
+
+    it('delegates delete-category click', () => {
+        document.body.innerHTML = `
+            <button data-action="delete-category" data-category-id="5" data-category-name="Tech">Delete</button>
+        `;
+        vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+        document.querySelector('[data-action="delete-category"]').click();
+
+        expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('Tech'));
+    });
+
+    it('delegates open-create-folder click', () => {
+        document.body.innerHTML = `
+            <div data-action="open-create-folder">New Folder</div>
+            <div id="create-folder-modal" style="display: none">
+                <input id="new-folder-name" value="">
+                <select id="new-folder-parent"><option value="0">None</option></select>
+            </div>
+        `;
+
+        document.querySelector('[data-action="open-create-folder"]').click();
+
+        expect(document.getElementById('create-folder-modal').style.display).toBe('flex');
+    });
+
+    it('delegates close-create-folder click', () => {
+        document.body.innerHTML = `
+            <div id="create-folder-modal" style="display: flex">
+                <button data-action="close-create-folder">Close</button>
+            </div>
+        `;
+
+        document.querySelector('[data-action="close-create-folder"]').click();
+
+        expect(document.getElementById('create-folder-modal').style.display).toBe('none');
+    });
+
+    it('delegates create-folder-form submission', async () => {
+        document.body.innerHTML = `
+            <form id="create-folder-form">
+                <input id="new-folder-name" value="Test">
+                <select id="new-folder-parent"><option value="0">None</option></select>
+                <button type="submit">Create</button>
+            </form>
+        `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({ id: 10 }),
+        });
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: vi.fn() },
+            writable: true,
+            configurable: true,
+        });
+
+        const form = document.getElementById('create-folder-form');
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        await new Promise(r => setTimeout(r, 10));
+
+        expect(fetch).toHaveBeenCalledWith('/api/categories', expect.objectContaining({
+            method: 'POST',
+        }));
+    });
+
+    it('ignores rename-category without id', () => {
+        document.body.innerHTML = `
+            <button data-action="rename-category" data-category-name="Tech">Rename</button>
+        `;
+        vi.spyOn(window, 'prompt');
+
+        document.querySelector('[data-action="rename-category"]').click();
+
+        expect(window.prompt).not.toHaveBeenCalled();
     });
 });

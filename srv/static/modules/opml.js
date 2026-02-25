@@ -36,3 +36,18 @@ export async function importOPML(input) {
     // Clear the input
     input.value = '';
 }
+
+/**
+ * Initialize delegated listeners for OPML actions on the feeds page.
+ */
+export function initOpmlListeners() {
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action="export-opml"]');
+        if (btn) exportOPML();
+    });
+
+    document.addEventListener('change', (e) => {
+        const input = e.target.closest('[data-action="import-opml"]');
+        if (input) importOPML(input);
+    });
+}

@@ -1,7 +1,7 @@
 // Settings page initialization and controls.
 
 import { api } from './api.js';
-import { getSetting } from './settings.js';
+import { getSetting, saveSetting, applyHideReadArticles, applyHideEmptyFeeds } from './settings.js';
 
 /**
  * Initialize settings page controls from server settings.
@@ -115,4 +115,36 @@ export async function copyNewsletterAddress() {
         sel.removeAllRanges();
         sel.addRange(range);
     }
+}
+
+/**
+ * Initialize delegated listeners for settings page controls.
+ * Handles: data-setting radios/checkboxes, run-cleanup, generate-newsletter,
+ * copy-newsletter.
+ */
+export function initSettingsPageListeners() {
+    // Settings inputs: radios and checkboxes with data-setting attribute
+    document.addEventListener('change', (e) => {
+        const input = e.target.closest('[data-setting]');
+        if (!input) return;
+        const key = input.dataset.setting;
+        const value = input.dataset.settingType === 'checkbox' ? String(input.checked) : input.value;
+        saveSetting(key, value);
+        // Apply immediate UI effects if configured
+        const applyKey = input.dataset.apply;
+        if (applyKey === 'hideReadArticles') applyHideReadArticles(value);
+        if (applyKey === 'hideEmptyFeeds') applyHideEmptyFeeds(value);
+    });
+
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('[data-action="run-cleanup"]')) runCleanup();
+    });
+
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('[data-action="generate-newsletter"]')) generateNewsletterAddress();
+    });
+
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('[data-action="copy-newsletter"]')) copyNewsletterAddress();
+    });
 }

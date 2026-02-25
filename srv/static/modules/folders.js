@@ -70,3 +70,43 @@ export async function deleteCategory(id, name) {
         alert('Failed to delete folder: ' + e.message);
     }
 }
+
+/**
+ * Initialize delegated listeners for folder actions on the feeds page.
+ * Handles: rename-category, delete-category, open/close/submit create-folder.
+ */
+export function initFoldersPageListeners() {
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action="rename-category"]');
+        if (btn) {
+            const id = Number(btn.dataset.categoryId);
+            const name = btn.dataset.categoryName || '';
+            if (id) renameCategory(id, name);
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action="delete-category"]');
+        if (btn) {
+            const id = Number(btn.dataset.categoryId);
+            const name = btn.dataset.categoryName || '';
+            if (id) deleteCategory(id, name);
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        const el = e.target.closest('[data-action="open-create-folder"]');
+        if (el) openCreateFolderModal();
+    });
+
+    document.addEventListener('click', (e) => {
+        const el = e.target.closest('[data-action="close-create-folder"]');
+        if (el) closeCreateFolderModal();
+    });
+
+    // Handle create folder form submission
+    document.addEventListener('submit', (e) => {
+        const form = e.target.closest('#create-folder-form');
+        if (form) submitCreateFolder(e);
+    });
+}

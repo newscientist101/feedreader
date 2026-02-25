@@ -13,7 +13,7 @@
                 <p class="preference-description">Automatically mark articles as read when they scroll out of view</p>
             </div>
             <label class="toggle-switch">
-                <input type="checkbox" id="auto-mark-read" onchange="saveSetting('autoMarkRead', String(this.checked))">
+                <input type="checkbox" id="auto-mark-read" data-setting="autoMarkRead" data-setting-type="checkbox">
                 <span class="toggle-slider"></span>
             </label>
         </div>
@@ -25,11 +25,11 @@
             </div>
             <div class="radio-group">
                 <label class="radio-option">
-                    <input type="radio" name="hide-read" value="hide" onchange="saveSetting('hideReadArticles', 'hide'); applyHideReadArticles('hide')">
+                    <input type="radio" name="hide-read" value="hide" data-setting="hideReadArticles" data-apply="hideReadArticles">
                     <span>Hide</span>
                 </label>
                 <label class="radio-option">
-                    <input type="radio" name="hide-read" value="show" onchange="saveSetting('hideReadArticles', 'show'); applyHideReadArticles('show')" checked>
+                    <input type="radio" name="hide-read" value="show" data-setting="hideReadArticles" data-apply="hideReadArticles" checked>
                     <span>Show</span>
                 </label>
             </div>
@@ -42,11 +42,11 @@
             </div>
             <div class="radio-group">
                 <label class="radio-option">
-                    <input type="radio" name="hide-empty" value="hide" onchange="saveSetting('hideEmptyFeeds', 'hide'); applyHideEmptyFeeds('hide')">
+                    <input type="radio" name="hide-empty" value="hide" data-setting="hideEmptyFeeds" data-apply="hideEmptyFeeds">
                     <span>Hide</span>
                 </label>
                 <label class="radio-option">
-                    <input type="radio" name="hide-empty" value="show" onchange="saveSetting('hideEmptyFeeds', 'show'); applyHideEmptyFeeds('show')" checked>
+                    <input type="radio" name="hide-empty" value="show" data-setting="hideEmptyFeeds" data-apply="hideEmptyFeeds" checked>
                     <span>Show</span>
                 </label>
             </div>
@@ -62,10 +62,10 @@
                 <p class="preference-description">When viewing any folder, use this view mode by default</p>
             </div>
             <div class="radio-group" id="default-folder-view">
-                <label class="radio-option"><input type="radio" name="folder-view" value="card" onchange="saveSetting('defaultFolderView', 'card')"><span>Card</span></label>
-                <label class="radio-option"><input type="radio" name="folder-view" value="list" onchange="saveSetting('defaultFolderView', 'list')"><span>List</span></label>
-                <label class="radio-option"><input type="radio" name="folder-view" value="magazine" onchange="saveSetting('defaultFolderView', 'magazine')"><span>Magazine</span></label>
-                <label class="radio-option"><input type="radio" name="folder-view" value="expanded" onchange="saveSetting('defaultFolderView', 'expanded')"><span>Expanded</span></label>
+                <label class="radio-option"><input type="radio" name="folder-view" value="card" data-setting="defaultFolderView"><span>Card</span></label>
+                <label class="radio-option"><input type="radio" name="folder-view" value="list" data-setting="defaultFolderView"><span>List</span></label>
+                <label class="radio-option"><input type="radio" name="folder-view" value="magazine" data-setting="defaultFolderView"><span>Magazine</span></label>
+                <label class="radio-option"><input type="radio" name="folder-view" value="expanded" data-setting="defaultFolderView"><span>Expanded</span></label>
             </div>
         </div>
 
@@ -75,10 +75,10 @@
                 <p class="preference-description">When viewing any individual feed, use this view mode by default</p>
             </div>
             <div class="radio-group" id="default-feed-view">
-                <label class="radio-option"><input type="radio" name="feed-view" value="card" onchange="saveSetting('defaultFeedView', 'card')"><span>Card</span></label>
-                <label class="radio-option"><input type="radio" name="feed-view" value="list" onchange="saveSetting('defaultFeedView', 'list')"><span>List</span></label>
-                <label class="radio-option"><input type="radio" name="feed-view" value="magazine" onchange="saveSetting('defaultFeedView', 'magazine')"><span>Magazine</span></label>
-                <label class="radio-option"><input type="radio" name="feed-view" value="expanded" onchange="saveSetting('defaultFeedView', 'expanded')"><span>Expanded</span></label>
+                <label class="radio-option"><input type="radio" name="feed-view" value="card" data-setting="defaultFeedView"><span>Card</span></label>
+                <label class="radio-option"><input type="radio" name="feed-view" value="list" data-setting="defaultFeedView"><span>List</span></label>
+                <label class="radio-option"><input type="radio" name="feed-view" value="magazine" data-setting="defaultFeedView"><span>Magazine</span></label>
+                <label class="radio-option"><input type="radio" name="feed-view" value="expanded" data-setting="defaultFeedView"><span>Expanded</span></label>
             </div>
         </div>
     </section>
@@ -107,7 +107,7 @@
         </div>
 
         <div class="retention-actions">
-            <button onclick="runCleanup()" class="btn btn-secondary">
+            <button data-action="run-cleanup" class="btn btn-secondary">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14"/>
                 </svg>
@@ -130,7 +130,7 @@
         <div class="newsletter-address-container" id="newsletter-container">
             <div id="newsletter-no-address">
                 <p>Generate a unique email address to start receiving newsletters.</p>
-                <button onclick="generateNewsletterAddress()" class="btn btn-secondary">
+                <button data-action="generate-newsletter" class="btn btn-secondary">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                         <polyline points="22,6 12,13 2,6"/>
@@ -141,7 +141,7 @@
             <div id="newsletter-has-address" style="display:none">
                 <div class="newsletter-address-display">
                     <code id="newsletter-address" class="newsletter-email"></code>
-                    <button onclick="copyNewsletterAddress()" class="btn btn-icon" title="Copy to clipboard">
+                    <button data-action="copy-newsletter" class="btn btn-icon" title="Copy to clipboard">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                             <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
