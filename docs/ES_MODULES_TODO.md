@@ -25,10 +25,10 @@ See `ES_MODULES_PLAN.md` for context and rationale.
 - [x] Extract `modules/feeds.js` — `loadFeedArticles`, `loadCategoryArticles`, `refreshFeed`, `deleteFeed`, `editFeed`, `saveFeed`, `filterFeeds`, `setFeedCategory`, `showFeedErrorBanner`, `removeFeedErrorBanner`, `createEditFeedModal`, `closeEditModal`
 - [x] Extract `modules/folders.js` — `openCreateFolderModal`, `closeCreateFolderModal`, `submitCreateFolder`, `renameCategory`, `unparentCategory`, `deleteCategory`
 - [x] Extract `modules/counts.js` — `updateCounts`, `updateFeedStatusCell`, `updateFeedErrors`
-- [ ] Extract `modules/drag-drop.js` — `initDragDrop`, `initFolderDragDrop`, `syncFolderOrder`, `reorderElements`, `getDragAfterElementAmongSiblings`
-- [ ] Extract `modules/opml.js` — `exportOPML`, `importOPML`
+- [x] Extract `modules/drag-drop.js` — `initDragDrop`, `initFolderDragDrop`, `syncFolderOrder`, `reorderElements`, `getDragAfterElementAmongSiblings`
+- [x] Extract `modules/opml.js` — `exportOPML`, `importOPML`
 - [ ] Extract `modules/queue.js` — `queuedArticleIds`, `queuedIdsReady`, `queueNext`
-- [ ] Extract `modules/settings-page.js` — `initSettingsPage`, `runCleanup`, `loadNewsletterAddress`, `generateNewsletterAddress`, `showNewsletterAddress`, `copyNewsletterAddress`
+- [x] Extract `modules/settings-page.js` — `initSettingsPage`, `runCleanup`, `loadNewsletterAddress`, `generateNewsletterAddress`, `showNewsletterAddress`, `copyNewsletterAddress`
 - [ ] Extract `modules/offline.js` — `initOfflineSupport`, `cacheQueueForOffline`, `handleOnlineStateChange`, `showOfflineBanner`, `disableNonQueueUI`, `enableAllUI`, `replayPendingActions`, `updateQueueCacheIfStandalone`
 - [ ] Wire transitional `window.X = X` exports in `app.js` for all functions still called from `onclick`
 - [ ] Verify `make check` passes after each extraction, commit per module or small batch

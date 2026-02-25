@@ -86,3 +86,25 @@
 **app.js reduced from 1518 → 926 lines.**
 
 **Next run:** Continue Phase 2 — extract `drag-drop.js`, `opml.js`, `queue.js`. Then `settings-page.js` and `offline.js`. After those, Phase 2 will be complete except for the "Wire transitional window.X" and "Verify make check" tasks (which are ongoing and can be checked off). The remaining functions in app.js are: `exportOPML`, `importOPML`, drag-drop functions, settings-page functions, offline/service-worker functions, and the DOMContentLoaded/form-handler blocks.
+
+## Run 6 — Phase 2 continued (drag-drop, opml, settings-page)
+
+**Completed:**
+- Extracted `modules/drag-drop.js`: `initFolderDragDrop`, `initDragDrop`, `syncFolderOrder`, `reorderElements`, `getDragAfterElementAmongSiblings`. Imports `api` from api.js.
+- Extracted `modules/opml.js`: `exportOPML`, `importOPML`. No module dependencies (uses raw `fetch` for FormData upload).
+- Extracted `modules/settings-page.js`: `initSettingsPage`, `runCleanup`, `loadNewsletterAddress`, `generateNewsletterAddress`, `showNewsletterAddress`, `copyNewsletterAddress`. Imports `api` and `getSetting`.
+- Added `drag-drop.test.js` (16 tests), `opml.test.js` (5 tests), `settings-page.test.js` (17 tests).
+- Emptied `UNTESTED_FUNCTIONS` in `app.test.js` — all offline functions already had tests from a previous run, so they didn't need skip entries.
+
+**app.js reduced from 926 → 560 lines.**
+
+**Remaining in app.js:**
+- Offline/PWA functions: `initOfflineSupport`, `cacheQueueForOffline`, `handleOnlineStateChange`, `showOfflineBanner`, `disableNonQueueUI`, `enableAllUI`, `replayPendingActions`, `updateQueueCacheIfStandalone`, `_isStandalone`
+- DOMContentLoaded init blocks (2 of them)
+- Form handlers (add-feed form, search input)
+- Dragstart prevention for chevrons
+- Scroll listener for pagination
+- Wire-up calls for late-bound deps
+- Transitional `window.X = X` exports
+
+**Next run:** Extract `modules/queue.js` and `modules/offline.js`. Note: the `queue.js` task in the TODO refers to `queuedArticleIds`, `queuedIdsReady`, `queueNext` — but `queuedArticleIds` and `queuedIdsReady` are already in `article-actions.js`, and `queueNext` is inline in `queue.html` template. The queue.js task may be best marked as N/A or adapted to just extract any remaining queue-specific code. The `offline.js` extraction is straightforward — all offline functions are still in app.js.

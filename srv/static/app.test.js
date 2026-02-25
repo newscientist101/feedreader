@@ -1939,19 +1939,6 @@ describe('updateQueueCacheIfStandalone', () => {
 // Functions that are intentionally untested (with reasons).
 // Keep this list as small as possible — prefer writing tests.
 const UNTESTED_FUNCTIONS = {
-  // -- DOM event wiring / init functions --
-  initSettingsPage:          'settings page DOM wiring',
-
-  // -- Thin API wrappers (single fetch call + DOM update) --
-  copyNewsletterAddress:     'clipboard API wrapper',
-  exportOPML:                'window.location redirect',
-  generateNewsletterAddress: 'API call + DOM update',
-  importOPML:                'file upload + API call',
-  loadNewsletterAddress:     'API call + DOM update',
-  runCleanup:                'API call + DOM update',
-
-  // -- Functions with minimal logic --
-  showNewsletterAddress:     'DOM update',
 };
 
 describe('test coverage check', () => {
