@@ -53,6 +53,7 @@ See `ES_MODULES_PLAN.md` for context and rationale.
 
 - [ ] Change `<script src="/static/app.js">` to `<script type="module" src="/static/app.js">` in `base.html`
 - [ ] Delete `test-helper.js` and the `new Function()` eval machinery
+- [ ] Implement import maps with version hashes
 - [ ] Rewrite all tests as direct ES module imports
 - [ ] Verify coverage reports meaningful numbers with `npx vitest run --coverage`
 - [ ] Update `AGENTS.md` code layout section for new module structure
