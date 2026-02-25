@@ -338,3 +338,20 @@
 - Remove empty DOMContentLoaded blocks from app.js
 - Verify app.js is ~120 lines (currently 117 — ✓)
 - Final `make check`
+
+## Run 18 — Phase 6 completed (drag prevention, modulepreload, finalize)
+
+**Completed:**
+- Moved drag prevention (4 lines) from app.js → `drag-drop.js` as `initDragPrevention()`. Prevents dragstart on `.folder-chevron` elements via capture-phase document listener.
+- Added `modulePreloadTags` template function in `server.go` that generates `<link rel="modulepreload">` tags for all 23 module files with version hashes. Tags are sorted for deterministic output. Added to `base.html` before the import map.
+- Cleaned up app.js: removed trailing blank lines and double blank lines.
+- Added 2 tests to `drag-drop.test.js` for `initDragPrevention` (chevron prevented, non-chevron allowed).
+- Added `modulePreloadTags` stub to template linter's FuncMap.
+
+**app.js is now 126 lines** (down from 2277 original). Pure entry point: imports, listener init calls, DOMContentLoaded sequencing.
+
+**Phase 6 is complete. All phases (1–6) are done.**
+
+**Total: 425 tests across 23 test files. All `make check` passes clean.**
+
+**Only remaining items in TODO are Backlog (outside ES modules scope).**

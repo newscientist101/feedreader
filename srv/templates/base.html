@@ -159,6 +159,7 @@
         </main>
     </div>
     <script>window.__settings = {{toJSON .Settings}};</script>
+    {{modulePreloadTags}}
     <script type="importmap">{{moduleImportMap}}</script>
     <script type="module" src="{{staticPath "app.js"}}"></script>
     <script>

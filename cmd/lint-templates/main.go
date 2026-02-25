@@ -23,19 +23,20 @@ import (
 // templates parse without "function … not defined" errors.  The function
 // bodies are irrelevant — only the names matter for parsing.
 var stubFuncMap = template.FuncMap{
-	"timeAgo":         func() string { return "" },
-	"formatDate":      func() string { return "" },
-	"truncate":        func() string { return "" },
-	"previewText":     func() string { return "" },
-	"deref":           func() string { return "" },
-	"safeHTML":        func() template.HTML { return "" },
-	"toJSON":          func() template.JS { return "" },
-	"faviconURL":      func() string { return "" },
-	"staticPath":      func() string { return "" },
-	"add":             func() int64 { return 0 },
-	"sortTime":        func() string { return "" },
-	"dict":            func() map[string]any { return nil },
-	"moduleImportMap": func() template.HTML { return "" },
+	"timeAgo":           func() string { return "" },
+	"formatDate":        func() string { return "" },
+	"truncate":          func() string { return "" },
+	"previewText":       func() string { return "" },
+	"deref":             func() string { return "" },
+	"safeHTML":          func() template.HTML { return "" },
+	"toJSON":            func() template.JS { return "" },
+	"faviconURL":        func() string { return "" },
+	"staticPath":        func() string { return "" },
+	"add":               func() int64 { return 0 },
+	"sortTime":          func() string { return "" },
+	"dict":              func() map[string]any { return nil },
+	"moduleImportMap":   func() template.HTML { return "" },
+	"modulePreloadTags": func() template.HTML { return "" },
 }
 
 func main() {

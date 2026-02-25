@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
     initFolderDragDrop, initDragDrop, syncFolderOrder,
     reorderElements, getDragAfterElementAmongSiblings,
+    initDragPrevention,
 } from './drag-drop.js';
 
 beforeEach(() => {
@@ -258,5 +259,37 @@ describe('initDragDrop', () => {
         });
         container.dispatchEvent(event);
         expect(event.defaultPrevented).toBe(true);
+    });
+});
+
+describe('initDragPrevention', () => {
+    it('prevents dragstart on folder chevrons', () => {
+        document.body.innerHTML = `
+            <div class="folder-item">
+                <span class="folder-chevron">▶</span>
+                <span class="folder-name">Folder</span>
+            </div>
+        `;
+        initDragPrevention();
+
+        const chevron = document.querySelector('.folder-chevron');
+        const event = new Event('dragstart', { bubbles: true, cancelable: true });
+        chevron.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(true);
+    });
+
+    it('does not prevent dragstart on non-chevron elements', () => {
+        document.body.innerHTML = `
+            <div class="folder-item" draggable="true">
+                <span class="folder-chevron">▶</span>
+                <span class="folder-name">Folder</span>
+            </div>
+        `;
+        initDragPrevention();
+
+        const folderName = document.querySelector('.folder-name');
+        const event = new Event('dragstart', { bubbles: true, cancelable: true });
+        folderName.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(false);
     });
 });

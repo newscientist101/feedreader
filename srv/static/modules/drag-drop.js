@@ -256,3 +256,15 @@ export function getDragAfterElementAmongSiblings(siblings, y) {
         }
     }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
+
+/**
+ * Prevent starting a drag when clicking folder chevrons.
+ * Called once at module init time (top-level side effect from app.js).
+ */
+export function initDragPrevention() {
+    document.addEventListener('dragstart', (event) => {
+        if (event.target.closest('.folder-chevron')) {
+            event.preventDefault();
+        }
+    }, true);
+}

@@ -96,7 +96,7 @@ Phase 6 for rationale.
 - [x] Sidebar mobile close (8 lines) → `sidebar.js` as `initSidebarMobileClose()`
 - [x] Pagination bootstrap + scroll listener (11 lines) → `pagination.js` as `initPagination()`
 - [x] Queue hydration (16 lines) → `article-actions.js` as `initQueueState()`
-- [ ] Drag prevention (4 lines) → `drag-drop.js` as part of init
+- [x] Drag prevention (4 lines) → `drag-drop.js` as part of init
 
 ### New module
 
@@ -104,13 +104,13 @@ Phase 6 for rationale.
 
 ### Performance
 
-- [ ] Add `<link rel="modulepreload">` hints in `base.html` for all 20 modules — eliminates the import waterfall that added +328ms to cold DOMContentLoaded (browser discovers imports sequentially across 3 depth levels; modulepreload fetches all in parallel)
+- [x] Add `<link rel="modulepreload">` hints in `base.html` for all 23 modules — eliminates the import waterfall (browser discovers imports sequentially across 3 depth levels; modulepreload fetches all in parallel)
 
 ### Finalize
 
-- [ ] Remove empty DOMContentLoaded blocks from `app.js`
-- [ ] Verify `app.js` is ~120 lines (imports, init calls, DOMContentLoaded sequencing)
-- [ ] Verify `make check` passes, commit
+- [x] Remove empty DOMContentLoaded blocks from `app.js`
+- [x] Verify `app.js` is ~120 lines (imports, init calls, DOMContentLoaded sequencing) — 126 lines
+- [x] Verify `make check` passes, commit
 
 ## Backlog (outside ES modules scope)
 

@@ -20,6 +20,7 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -260,6 +261,16 @@ func (s *Server) renderTemplate(w http.ResponseWriter, name string, data any) er
 			data := map[string]any{"imports": imports}
 			b, _ := json.Marshal(data)
 			return template.HTML(b)
+		},
+		"modulePreloadTags": func() template.HTML {
+			var tags []string
+			for name, hash := range s.StaticHashes {
+				if strings.HasPrefix(name, "modules/") && strings.HasSuffix(name, ".js") && !strings.HasSuffix(name, ".test.js") {
+					tags = append(tags, fmt.Sprintf(`<link rel="modulepreload" href="/static/%s?v=%s">`, name, hash))
+				}
+			}
+			sort.Strings(tags)
+			return template.HTML(strings.Join(tags, "\n    "))
 		},
 		"add":      func(a, b int64) int64 { return a + b },
 		"sortTime": sortTimeFunc,

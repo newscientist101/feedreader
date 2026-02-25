@@ -19,7 +19,7 @@ import {
 } from './modules/feeds.js';
 import { initSearch } from './modules/search.js';
 import { initFoldersPageListeners, initCategorySettingsPage } from './modules/folders.js';
-import { initFolderDragDrop } from './modules/drag-drop.js';
+import { initFolderDragDrop, initDragPrevention } from './modules/drag-drop.js';
 import { initOpmlListeners } from './modules/opml.js';
 import { initSettingsPage, initSettingsPageListeners } from './modules/settings-page.js';
 import { initQueuePage } from './modules/queue.js';
@@ -49,6 +49,9 @@ initSettingsPageListeners();
 // Initialize delegated listeners for scrapers.html page
 initScraperPageListeners();
 
+// Prevent drag from chevrons (must be top-level, runs before DOMContentLoaded)
+initDragPrevention();
+
 // Wire sidebar's late-bound dependency on loadCategoryArticles
 setSidebarLoadCategory((...args) => loadCategoryArticles(...args));
 
@@ -74,7 +77,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Process embeds in article page content
     processEmbeds(document.querySelector('.article-body'));
-
 
     // Initialize auto-mark-read on scroll
     initAutoMarkRead();
@@ -121,13 +123,4 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize offline/PWA support (no-op outside standalone mode)
     initOfflineSupport();
 });
-
-
-// Prevent starting a drag when clicking chevrons.
-document.addEventListener('dragstart', (event) => {
-    if (event.target.closest('.folder-chevron')) {
-        event.preventDefault();
-    }
-}, true);
-
 
