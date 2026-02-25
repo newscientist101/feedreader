@@ -82,3 +82,28 @@ restructurings. See `ES_MODULES_PLAN.md` Phase 5 for rationale.
 - [ ] Keep `setSidebarLoadCategory` in `app.js` — this is legitimate top-down entry-point wiring, not a circular dependency hack
 - [ ] Remove all remaining `setXxxDeps` functions and late-bound `let _dep = null` variables
 - [ ] Verify `make check` passes, commit
+
+## Phase 6: Clean up app.js entry point
+
+Move page-specific logic out of `app.js` so it's a pure entry point
+(imports, dependency wiring, init calls). See `ES_MODULES_PLAN.md`
+Phase 6 for rationale.
+
+### Move to existing modules
+
+- [ ] Add feed form handler (72 lines) → `feeds.js` as `initAddFeedForm()`
+- [ ] Feed item click handler (12 lines) → `feeds.js` as part of `initFeedActionListeners()`
+- [ ] Sidebar mobile close (8 lines) → `sidebar.js` as part of `initSidebarListeners()`
+- [ ] Pagination bootstrap + scroll listener (11 lines) → `pagination.js` as `initPagination()`
+- [ ] Queue hydration (16 lines) → `article-actions.js` as `initQueueState()`
+- [ ] Drag prevention (4 lines) → `drag-drop.js` as part of init
+
+### New module
+
+- [ ] Search handler (36 lines) → new `search.js` module with `initSearch()`
+
+### Finalize
+
+- [ ] Remove empty DOMContentLoaded blocks from `app.js`
+- [ ] Verify `app.js` is ~120 lines (imports, init calls, DOMContentLoaded sequencing)
+- [ ] Verify `make check` passes, commit

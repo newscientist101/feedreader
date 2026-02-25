@@ -165,6 +165,56 @@ After this phase, the only remaining `setXxxDeps` call should be
 `setSidebarLoadCategory` in `app.js`, which is genuine top-down
 wiring from the entry point.
 
+### Phase 6: Clean up app.js entry point
+
+`app.js` still contains ~160 lines of page-specific logic that
+belongs in modules. The entry point should only import, wire
+dependencies, and call init functions.
+
+**Move to existing modules:**
+
+23. Add feed form handler (72 lines) → `feeds.js` as
+    `initAddFeedForm()`. Contains Reddit URL building, HuggingFace
+    config construction, category assignment — all feed-specific
+    logic with no entry-point concerns.
+
+24. Feed item click handler (12 lines) → `feeds.js` as part of
+    `initFeedActionListeners()`. SPA feed navigation that already
+    calls `loadFeedArticles`.
+
+25. Sidebar mobile close (8 lines) → `sidebar.js` as part of
+    `initSidebarListeners()`. Sidebar behavior.
+
+26. Pagination bootstrap + scroll listener (11 lines) →
+    `pagination.js` as `initPagination()`. Reads DOM for initial
+    cursor state and registers the scroll listener — pure pagination
+    concerns.
+
+27. Queue hydration (16 lines) → `article-actions.js` as
+    `initQueueState()`. Fetches queue IDs from the API, populates
+    `queuedArticleIds`, and renders action-button placeholders.
+    Already owns that state.
+
+28. Drag prevention (4 lines) → `drag-drop.js` as part of its init.
+
+**Move to new module:**
+
+29. Search handler (36 lines) → new `search.js` module. Self-contained
+    feature with its own state (`originalHTML`, `searchAbort`,
+    debounce timer) and no dependency on other app.js code.
+
+**Keep in app.js:**
+
+- Imports (~25 lines after cleanup)
+- Listener init calls (~16 lines)
+- Expand active folder parents (8 lines) — cross-cutting DOM init
+- One-liner init calls: `initView`, `initFolderDragDrop`, page inits
+- `setInterval(updateCounts, 60000)` — app-level polling policy
+- `setSidebarLoadCategory` wiring (legitimate top-down callback)
+
+After this phase, `app.js` should be ~120 lines — almost entirely
+imports, init calls, and DOMContentLoaded sequencing.
+
 ## Key Decisions
 
 ### No bundler
