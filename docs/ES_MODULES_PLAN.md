@@ -215,6 +215,12 @@ dependencies, and call init functions.
 After this phase, `app.js` should be ~120 lines — almost entirely
 imports, init calls, and DOMContentLoaded sequencing.
 
+Phase 6 also adds `<link rel="modulepreload">` hints in `base.html`
+for all 20 modules. The ES module import waterfall added +328ms to
+cold DOMContentLoaded (the browser discovers imports sequentially
+across 3 depth levels). Modulepreload lets the browser fetch all
+modules in parallel upfront, eliminating the waterfall.
+
 ## Key Decisions
 
 ### No bundler

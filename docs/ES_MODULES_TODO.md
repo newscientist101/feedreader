@@ -102,8 +102,16 @@ Phase 6 for rationale.
 
 - [ ] Search handler (36 lines) → new `search.js` module with `initSearch()`
 
+### Performance
+
+- [ ] Add `<link rel="modulepreload">` hints in `base.html` for all 20 modules — eliminates the import waterfall that added +328ms to cold DOMContentLoaded (browser discovers imports sequentially across 3 depth levels; modulepreload fetches all in parallel)
+
 ### Finalize
 
 - [ ] Remove empty DOMContentLoaded blocks from `app.js`
 - [ ] Verify `app.js` is ~120 lines (imports, init calls, DOMContentLoaded sequencing)
 - [ ] Verify `make check` passes, commit
+
+## Backlog (outside ES modules scope)
+
+- [ ] Consistent user-facing error handling — currently `folders.js` uses `alert()` on failure while `feeds.js`, `article-actions.js`, `counts.js`, `drag-drop.js` and others silently `console.error()`. The user sees nothing when a star toggle, feed load, or drag-drop reorder fails. Add a toast/notification system or at minimum surface errors visibly across all modules.
