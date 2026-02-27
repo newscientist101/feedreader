@@ -322,7 +322,7 @@ body {
     background: var(--bg-page);
     padding-top: 10px;
     padding-bottom: 10px;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .view-header h1 {
@@ -2602,7 +2602,7 @@ th {
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-dropdown);
     min-width: 180px;
-    z-index: 100;
+    z-index: 101;
     opacity: 0;
     visibility: hidden;
     transform: translateY(-10px);
