@@ -4,3 +4,7 @@ node_modules/
 /typecheck
 coverage.out
 logs/es-modules-refactor.log
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
