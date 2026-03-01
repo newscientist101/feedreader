@@ -1,6 +1,5 @@
 [Unit]
 Description=FeedReader - RSS/Scraper Feed Reader
-After=beads-dolt.service
 
 [Service]
 Type=simple
