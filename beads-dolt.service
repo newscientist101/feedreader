@@ -1,18 +1,17 @@
 [Unit]
-Description=FeedReader - RSS/Scraper Feed Reader
-After=beads-dolt.service
+Description=Beads Dolt SQL Server
+Before=feedreader.service
 
 [Service]
 Type=simple
 User=exedev
 Group=exedev
-WorkingDirectory=/home/exedev/feedreader
-ExecStart=/home/exedev/feedreader/feedreader
+WorkingDirectory=/home/exedev/feedreader/.beads/dolt
+ExecStart=/usr/local/bin/dolt sql-server -H 127.0.0.1 -P 3307
 Restart=always
 RestartSec=5
 Environment=HOME=/home/exedev
 Environment=USER=exedev
-EnvironmentFile=-/home/exedev/feedreader/.env
 StandardOutput=journal
 StandardError=journal
 
