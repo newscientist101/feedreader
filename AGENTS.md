@@ -181,88 +181,97 @@ sqlite3 db.sqlite3 "SELECT external_id, email FROM users;"
 <!-- BEGIN BEADS INTEGRATION -->
 ## Issue Tracking with bd (beads)
 
-**IMPORTANT**: This project uses **bd (beads)** for ALL issue tracking. Do NOT use markdown TODOs, task lists, or other tracking methods.
+All task tracking uses **bd** (beads). Do not use markdown TODOs or task lists.
+Issue IDs use the `feedreader-` prefix (e.g., `feedreader-fc2`).
 
-### Why bd?
+The Dolt server runs as a systemd service (`beads-dolt.service`) on port 3307.
+A task agent (`task-agent.service`) runs hourly via systemd timer, picks
+ready tasks, and works them autonomously.
 
-- Dependency-aware: Track blockers and relationships between issues
-- Git-friendly: Dolt-powered version control with native sync
-- Agent-optimized: JSON output, ready work detection, discovered-from links
-- Prevents duplicate tracking systems and confusion
-
-### Quick Start
-
-**Check for ready work:**
+### Finding and doing work
 
 ```bash
-bd ready --json
+bd ready                              # Show unblocked issues
+bd show <id>                          # Full details (description, design, notes, acceptance)
+bd update <id> --claim                # Claim a task (sets in_progress + assignee)
+# ... do the work, run make check ...
+bd close <id> -r "what was done"       # Complete it
 ```
 
-**Create new issues:**
+### Creating issues
 
 ```bash
-bd create "Issue title" --description="Detailed context" -t bug|feature|task -p 0-4 --json
-bd create "Issue title" --description="What this issue is about" -p 1 --deps discovered-from:bd-123 --json
+# Simple task
+bd create "Fix pagination bug" -t bug -p 1 -d "Description of what's broken"
+
+# Task discovered while working on another
+bd create "Edge case in feed parser" -t bug --deps discovered-from:feedreader-fc2
+
+# Batch from markdown file (## headings = issue titles, body = description)
+bd create -f tasks.md
 ```
 
-**Claim and update:**
+Types: `bug`, `feature`, `task`, `epic`, `chore`, `decision`
+Priorities: `0` (critical) through `4` (backlog), default `2`
+
+### Planning with epics
+
+For multi-step work, create an epic with children and dependencies:
 
 ```bash
-bd update <id> --claim --json
-bd update bd-42 --priority 1 --json
+# Create the epic
+bd create "Redesign settings page" -t epic -d "Goals and rationale" \
+  --design "Technical approach and architecture" \
+  --acceptance "Definition of done"
+
+# Create child tasks
+bd create "Extract settings components" -t task --parent <epic-id>
+bd create "Add validation" -t task --parent <epic-id>
+
+# Set ordering via dependencies
+bd dep add <validation-id> <extract-id>   # validation depends on extract
 ```
 
-**Complete work:**
+Epic fields:
+- **description** — why this work exists, goals
+- **design** — technical approach, architecture, module structure
+- **acceptance** — concrete done-criteria
+- **notes** — working memory, append with `bd update <id> --append-notes "..."`
+
+To set long-form fields from a file:
+```bash
+cat plan.md | EDITOR="cp /dev/stdin" bd edit <id> --design
+```
+
+### Dependencies and blocking
 
 ```bash
-bd close bd-42 --reason "Completed" --json
+bd dep add <issue> <depends-on>       # issue is blocked by depends-on
+bd blocked                            # Show all blocked issues
+bd dep tree <id>                      # Visualize dependency graph
 ```
 
-### Issue Types
+`bd ready` only shows issues with no open blockers.
 
-- `bug` - Something broken
-- `feature` - New functionality
-- `task` - Work item (tests, docs, refactoring)
-- `epic` - Large feature with subtasks
-- `chore` - Maintenance (dependencies, tooling)
+### Other useful commands
 
-### Priorities
+```bash
+bd list                               # Open issues
+bd list --all                         # Include closed
+bd search "keyword"                   # Full-text search
+bd children <epic-id>                 # Show child issues
+bd comments add <id> "note"           # Add a comment
+bd update <id> --append-notes "..."   # Append to working memory
+```
 
-- `0` - Critical (security, data loss, broken builds)
-- `1` - High (major features, important bugs)
-- `2` - Medium (default, nice-to-have)
-- `3` - Low (polish, optimization)
-- `4` - Backlog (future ideas)
+### Rules
 
-### Workflow for AI Agents
-
-1. **Check ready work**: `bd ready` shows unblocked issues
-2. **Claim your task atomically**: `bd update <id> --claim`
-3. **Work on it**: Implement, test, document
-4. **Discover new work?** Create linked issue:
-   - `bd create "Found bug" --description="Details about what was found" -p 1 --deps discovered-from:<parent-id>`
-5. **Complete**: `bd close <id> --reason "Done"`
-
-### Auto-Sync
-
-bd automatically syncs via Dolt:
-
-- Each write auto-commits to Dolt history
-- Use `bd dolt push`/`bd dolt pull` for remote sync
-- No manual export/import needed!
-
-### Important Rules
-
-- ✅ Use bd for ALL task tracking
-- ✅ Always use `--json` flag for programmatic use
-- ✅ Link discovered work with `discovered-from` dependencies
-- ✅ Check `bd ready` before asking "what should I work on?"
-- ❌ Do NOT create markdown TODO lists
-- ❌ Do NOT use external issue trackers
-- ❌ Do NOT duplicate tracking systems
-
-For more details, see README.md and docs/QUICKSTART.md.
-
+- Track all work in bd — no markdown TODOs, no ad-hoc task lists
+- Check `bd ready` before starting work
+- Claim before working: `bd update <id> --claim`
+- Always run `make check` before closing a task
+- Link discovered work with `--deps discovered-from:<id>`
+- Do NOT use `bd edit` without the stdin pipe pattern (it opens vim)
 <!-- END BEADS INTEGRATION -->
 
 ## Landing the Plane (Session Completion)
