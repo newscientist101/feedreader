@@ -11,6 +11,7 @@ import { renderArticles, applyUserPreferences } from './articles.js';
 
 beforeEach(() => {
     document.body.innerHTML = '';
+    vi.useFakeTimers();
     vi.restoreAllMocks();
     vi.clearAllMocks();
     _resetSearchState();
@@ -22,6 +23,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
     _resetSearchState();
 });
@@ -51,17 +53,15 @@ describe('initSearch', () => {
         input.value = 'test query';
         input.dispatchEvent(new Event('input'));
 
-        // Wait for the debounce (300ms)
-        await vi.waitFor(() => {
-            expect(fetch).toHaveBeenCalled();
-        }, { timeout: 500 });
+        // Advance past debounce
+        await vi.advanceTimersByTimeAsync(300);
+        expect(fetch).toHaveBeenCalled();
 
         // Now clear the input
         input.value = '';
         input.dispatchEvent(new Event('input'));
 
-        // Wait for debounce
-        await new Promise(r => setTimeout(r, 400));
+        await vi.advanceTimersByTimeAsync(300);
 
         // applyUserPreferences should be called when restoring
         expect(applyUserPreferences).toHaveBeenCalled();
@@ -75,7 +75,7 @@ describe('initSearch', () => {
         input.value = 'a';
         input.dispatchEvent(new Event('input'));
 
-        await new Promise(r => setTimeout(r, 400));
+        await vi.advanceTimersByTimeAsync(300);
         expect(fetch).not.toHaveBeenCalled();
     });
 
@@ -93,13 +93,12 @@ describe('initSearch', () => {
         expect(fetch).not.toHaveBeenCalled();
 
         // After debounce
-        await vi.waitFor(() => {
-            expect(fetch).toHaveBeenCalledWith(
-                '/api/search?q=test',
-                expect.objectContaining({ signal: expect.any(AbortSignal) })
-            );
-        }, { timeout: 500 });
+        await vi.advanceTimersByTimeAsync(300);
 
+        expect(fetch).toHaveBeenCalledWith(
+            '/api/search?q=test',
+            expect.objectContaining({ signal: expect.any(AbortSignal) })
+        );
         expect(renderArticles).toHaveBeenCalledWith(articles);
     });
 
@@ -117,12 +116,12 @@ describe('initSearch', () => {
         input.value = 'query';
         input.dispatchEvent(new Event('input'));
 
-        await vi.waitFor(() => {
-            expect(fetch).toHaveBeenCalledWith(
-                '/api/search?q=query&feed_id=42',
-                expect.any(Object)
-            );
-        }, { timeout: 500 });
+        await vi.advanceTimersByTimeAsync(300);
+
+        expect(fetch).toHaveBeenCalledWith(
+            '/api/search?q=query&feed_id=42',
+            expect.any(Object)
+        );
 
         // Restore
         Object.defineProperty(window, 'location', {
@@ -145,12 +144,12 @@ describe('initSearch', () => {
         input.value = 'query';
         input.dispatchEvent(new Event('input'));
 
-        await vi.waitFor(() => {
-            expect(fetch).toHaveBeenCalledWith(
-                '/api/search?q=query&category_id=7',
-                expect.any(Object)
-            );
-        }, { timeout: 500 });
+        await vi.advanceTimersByTimeAsync(300);
+
+        expect(fetch).toHaveBeenCalledWith(
+            '/api/search?q=query&category_id=7',
+            expect.any(Object)
+        );
 
         Object.defineProperty(window, 'location', {
             value: { ...window.location, pathname: '/' },
@@ -175,13 +174,13 @@ describe('initSearch', () => {
         input.value = 'first';
         input.dispatchEvent(new Event('input'));
 
-        await new Promise(r => setTimeout(r, 350));
+        await vi.advanceTimersByTimeAsync(300);
 
         // Second search should abort the first
         input.value = 'second';
         input.dispatchEvent(new Event('input'));
 
-        await new Promise(r => setTimeout(r, 350));
+        await vi.advanceTimersByTimeAsync(300);
 
         // The second fetch should have been called
         expect(fetch).toHaveBeenCalledTimes(2);
@@ -200,10 +199,9 @@ describe('initSearch', () => {
         input.value = 'test';
         input.dispatchEvent(new Event('input'));
 
-        await vi.waitFor(() => {
-            expect(consoleSpy).toHaveBeenCalledWith('Search failed:', expect.any(Error));
-        }, { timeout: 500 });
+        await vi.advanceTimersByTimeAsync(300);
 
+        expect(consoleSpy).toHaveBeenCalledWith('Search failed:', expect.any(Error));
         expect(renderArticles).not.toHaveBeenCalled();
     });
 });
