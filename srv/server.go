@@ -52,6 +52,10 @@ type Server struct {
 
 	CountsCache *CountsCache // per-user article count cache
 
+	// templateCache holds pre-parsed templates keyed by page name.
+	// Populated by initTemplates(); nil disables caching (re-parse each request).
+	templateCache map[string]*template.Template
+
 	// bgCtx is the context for background goroutines (feed fetches, etc.).
 	// Cancelled by Close() to ensure clean shutdown.
 	bgCtx    context.Context
@@ -85,6 +89,10 @@ func New(dbPath, hostname string) (*Server, error) {
 		}
 	}
 	srv.StaticHashes = hashStaticFiles(srv.StaticDir)
+	if err := srv.initTemplates(); err != nil {
+		cancel()
+		return nil, fmt.Errorf("init templates: %w", err)
+	}
 	return srv, nil
 }
 
@@ -286,9 +294,10 @@ func (s *Server) Handler() http.Handler {
 	return gzipMiddleware(loggingMiddleware(securityHeaders(bodyLimitMiddleware(s.AuthMiddleware(csrfMiddleware(rateLimitMiddleware(rl)(mux)))))))
 }
 
-// Template helpers
-func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name string, data any) error {
-	funcMap := template.FuncMap{
+// templateFuncMap returns the shared template function map.
+// All closures capture s, which is safe since StaticHashes is immutable after init.
+func (s *Server) templateFuncMap() template.FuncMap {
+	return template.FuncMap{
 		"timeAgo":     timeAgo,
 		"formatDate":  formatDate,
 		"truncate":    truncate,
@@ -339,11 +348,54 @@ func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name str
 			return m
 		},
 	}
-	path := filepath.Join(s.TemplatesDir, name)
+}
+
+// initTemplates pre-parses all page templates with base.html.
+// Call after StaticHashes is set.
+func (s *Server) initTemplates() error {
+	pages := []string{
+		"index.html",
+		"article.html",
+		"feeds.html",
+		"scrapers.html",
+		"settings.html",
+		"queue.html",
+		"history.html",
+		"category_settings.html",
+	}
+	funcMap := s.templateFuncMap()
 	basePath := filepath.Join(s.TemplatesDir, "base.html")
-	tmpl, err := template.New("base.html").Funcs(funcMap).ParseFiles(basePath, path)
-	if err != nil {
-		return fmt.Errorf("parse template %q: %w", name, err)
+	s.templateCache = make(map[string]*template.Template, len(pages))
+	for _, name := range pages {
+		path := filepath.Join(s.TemplatesDir, name)
+		tmpl, err := template.New("base.html").Funcs(funcMap).ParseFiles(basePath, path)
+		if err != nil {
+			return fmt.Errorf("parse template %q: %w", name, err)
+		}
+		s.templateCache[name] = tmpl
+	}
+	return nil
+}
+
+// Template helpers
+func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name string, data any) error {
+	var tmpl *template.Template
+	if s.templateCache != nil {
+		var ok bool
+		tmpl, ok = s.templateCache[name]
+		if !ok {
+			return fmt.Errorf("template %q not in cache", name)
+		}
+	} else {
+		// Fallback: parse on the fly (used when initTemplates was not called)
+		funcMap := s.templateFuncMap()
+		path := filepath.Join(s.TemplatesDir, name)
+		basePath := filepath.Join(s.TemplatesDir, "base.html")
+		var err error
+		tmpl, err = template.New("base.html").Funcs(funcMap).ParseFiles(basePath, path)
+		if err != nil {
+			return fmt.Errorf("parse template %q: %w", name, err)
+		}
 	}
 
 	// Buffer the rendered output to compute an ETag.
@@ -366,8 +418,8 @@ func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name str
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, err = w.Write(buf.Bytes())
-	return err
+	_, writeErr := w.Write(buf.Bytes())
+	return writeErr
 }
 
 func timeAgo(v any) string {
