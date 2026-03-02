@@ -370,7 +370,8 @@ func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name str
 	return err
 }
 
-func timeAgo(t *time.Time) string {
+func timeAgo(v any) string {
+	t := toTimePtr(v)
 	if t == nil {
 		return ""
 	}
@@ -405,12 +406,25 @@ func timeAgo(t *time.Time) string {
 	}
 }
 
-func formatDate(t *time.Time) string {
+func formatDate(v any) string {
+	t := toTimePtr(v)
 	if t == nil {
 		return ""
 	}
 	// Return ISO 8601 format for JavaScript to parse
 	return t.UTC().Format(time.RFC3339)
+}
+
+// toTimePtr converts *time.Time or time.Time to *time.Time for template funcs.
+func toTimePtr(v any) *time.Time {
+	switch val := v.(type) {
+	case *time.Time:
+		return val
+	case time.Time:
+		return &val
+	default:
+		return nil
+	}
 }
 
 // articlePageSize is the number of articles returned per page.
