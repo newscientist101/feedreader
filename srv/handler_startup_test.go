@@ -8,12 +8,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // --------------- fetchSteamAppName ---------------
 
 func TestFetchSteamAppName_Success(t *testing.T) {
-	t.Parallel()
 	// Mock the Steam API response for appID "440" (Team Fortress 2)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		appIDs := r.URL.Query().Get("appids")
@@ -34,14 +34,13 @@ func TestFetchSteamAppName_Success(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	// fetchSteamAppName uses http.Get with a hardcoded URL, so we need to
-	// override the default transport to redirect requests to our test server.
-	originalTransport := http.DefaultTransport
-	http.DefaultTransport = &rewriteTransport{
-		base:   originalTransport,
-		target: ts.URL,
+	// Swap the steamClient to redirect requests to our test server.
+	origClient := steamClient
+	steamClient = &http.Client{
+		Timeout:   4 * time.Second,
+		Transport: &rewriteTransport{base: http.DefaultTransport, target: ts.URL},
 	}
-	defer func() { http.DefaultTransport = originalTransport }()
+	defer func() { steamClient = origClient }()
 
 	name := fetchSteamAppName("440")
 	if name != "Team Fortress 2" {
@@ -50,7 +49,6 @@ func TestFetchSteamAppName_Success(t *testing.T) {
 }
 
 func TestFetchSteamAppName_NotFound(t *testing.T) {
-	t.Parallel()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		appIDs := r.URL.Query().Get("appids")
 		resp := map[string]any{
@@ -63,12 +61,12 @@ func TestFetchSteamAppName_NotFound(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	originalTransport := http.DefaultTransport
-	http.DefaultTransport = &rewriteTransport{
-		base:   originalTransport,
-		target: ts.URL,
+	origClient := steamClient
+	steamClient = &http.Client{
+		Timeout:   4 * time.Second,
+		Transport: &rewriteTransport{base: http.DefaultTransport, target: ts.URL},
 	}
-	defer func() { http.DefaultTransport = originalTransport }()
+	defer func() { steamClient = origClient }()
 
 	name := fetchSteamAppName("9999999")
 	if name != "" {
@@ -77,19 +75,18 @@ func TestFetchSteamAppName_NotFound(t *testing.T) {
 }
 
 func TestFetchSteamAppName_InvalidJSON(t *testing.T) {
-	t.Parallel()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, "not json at all")
 	}))
 	defer ts.Close()
 
-	originalTransport := http.DefaultTransport
-	http.DefaultTransport = &rewriteTransport{
-		base:   originalTransport,
-		target: ts.URL,
+	origClient := steamClient
+	steamClient = &http.Client{
+		Timeout:   4 * time.Second,
+		Transport: &rewriteTransport{base: http.DefaultTransport, target: ts.URL},
 	}
-	defer func() { http.DefaultTransport = originalTransport }()
+	defer func() { steamClient = origClient }()
 
 	name := fetchSteamAppName("440")
 	if name != "" {
@@ -98,18 +95,17 @@ func TestFetchSteamAppName_InvalidJSON(t *testing.T) {
 }
 
 func TestFetchSteamAppName_ServerError(t *testing.T) {
-	t.Parallel()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 	}))
 	defer ts.Close()
 
-	originalTransport := http.DefaultTransport
-	http.DefaultTransport = &rewriteTransport{
-		base:   originalTransport,
-		target: ts.URL,
+	origClient := steamClient
+	steamClient = &http.Client{
+		Timeout:   4 * time.Second,
+		Transport: &rewriteTransport{base: http.DefaultTransport, target: ts.URL},
 	}
-	defer func() { http.DefaultTransport = originalTransport }()
+	defer func() { steamClient = origClient }()
 
 	// Even with 500, http.Get succeeds (just returns error body).
 	// The JSON decode will fail or "success" will be missing.

@@ -17,6 +17,7 @@ import (
 
 	"github.com/newscientist101/feedreader/db/dbgen"
 	"github.com/newscientist101/feedreader/srv/huggingface"
+	"github.com/newscientist101/feedreader/srv/safenet"
 	"github.com/newscientist101/feedreader/srv/scrapers"
 )
 
@@ -48,11 +49,8 @@ func NewFetcher(db *sql.DB, scraperRunner *scrapers.Runner) *Fetcher {
 		},
 	}
 	return &Fetcher{
-		DB: db,
-		Client: &http.Client{
-			Timeout:   30 * time.Second,
-			Transport: transport,
-		},
+		DB:            db,
+		Client:        safenet.NewSafeClient(30*time.Second, transport),
 		ScraperRunner: scraperRunner,
 	}
 }

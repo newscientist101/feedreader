@@ -31,6 +31,7 @@ import (
 	"github.com/newscientist101/feedreader/srv/feeds"
 	"github.com/newscientist101/feedreader/srv/huggingface"
 	"github.com/newscientist101/feedreader/srv/opml"
+	"github.com/newscientist101/feedreader/srv/safenet"
 	"github.com/newscientist101/feedreader/srv/scrapers"
 )
 
@@ -45,7 +46,8 @@ type Server struct {
 	RetentionManager *RetentionManager
 	ShelleyGenerator *ShelleyScraperGenerator
 	EmailWatcher     *email.Watcher
-	FaviconBaseURL   string // upstream favicon service; default Google S2
+	FaviconBaseURL   string       // upstream favicon service; default Google S2
+	FaviconClient    *http.Client // HTTP client for favicon fetches; defaults to safe client
 
 	// bgCtx is the context for background goroutines (feed fetches, etc.).
 	// Cancelled by Close() to ensure clean shutdown.
@@ -245,8 +247,9 @@ func (s *Server) Handler() http.Handler {
 		http.ServeFile(w, r, filepath.Join(s.StaticDir, "sw.js"))
 	})
 
-	// Wrap with auth middleware, security headers, then gzip compression
-	return gzipMiddleware(securityHeaders(s.AuthMiddleware(mux)))
+	// Wrap with auth middleware, security headers, gzip compression, and logging.
+	// Order (outermost first): gzip → logging → security → auth → mux
+	return gzipMiddleware(loggingMiddleware(securityHeaders(s.AuthMiddleware(mux))))
 }
 
 // Template helpers
@@ -804,6 +807,12 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate URL to prevent SSRF (block private IPs, non-HTTP schemes, etc.)
+	if err := safenet.ValidateURL(req.URL); err != nil {
+		jsonError(w, "Invalid feed URL: "+err.Error(), 400)
+		return
+	}
+
 	if req.FeedType == "" {
 		req.FeedType = "rss"
 	}
@@ -962,6 +971,14 @@ func (s *Server) apiUpdateFeed(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonError(w, "Invalid request body", 400)
 		return
+	}
+
+	// Validate new URL if provided
+	if req.URL != "" {
+		if err := safenet.ValidateURL(req.URL); err != nil {
+			jsonError(w, "Invalid feed URL: "+err.Error(), 400)
+			return
+		}
 	}
 
 	// Use existing values if not provided
@@ -1644,7 +1661,8 @@ func faviconURL(siteURL, feedURL string) string {
 //go:embed static/icons/icon.svg
 var fallbackFavicon []byte
 
-var faviconClient = &http.Client{Timeout: 4 * time.Second}
+// defaultFaviconClient is used when Server.FaviconClient is nil.
+var defaultFaviconClient = safenet.NewSafeClient(4*time.Second, nil)
 
 func (s *Server) serveFallbackFavicon(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "image/svg+xml")
@@ -1664,7 +1682,11 @@ func (s *Server) apiFavicon(w http.ResponseWriter, r *http.Request) {
 		baseURL = "https://www.google.com/s2/favicons"
 	}
 	upstream := baseURL + "?domain=" + url.QueryEscape(domain) + "&sz=32"
-	resp, err := faviconClient.Get(upstream)
+	client := s.FaviconClient
+	if client == nil {
+		client = defaultFaviconClient
+	}
+	resp, err := client.Get(upstream)
 	if err != nil || resp.StatusCode != 200 {
 		if resp != nil {
 			_ = resp.Body.Close()
@@ -1683,9 +1705,14 @@ func (s *Server) apiFavicon(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, resp.Body)
 }
 
-// fetchSteamAppName gets the game name from the Steam store API
+// steamClient is a safe HTTP client for Steam API requests.
+// Tests can replace it to redirect requests to a mock server.
+var steamClient *http.Client = safenet.NewSafeClient(10*time.Second, nil)
+
+// fetchSteamAppName gets the game name from the Steam store API.
+// The appID is already validated by the steamFeedAppRe regex (digits only).
 func fetchSteamAppName(appID string) string {
-	resp, err := http.Get("https://store.steampowered.com/api/appdetails?appids=" + appID)
+	resp, err := steamClient.Get("https://store.steampowered.com/api/appdetails?appids=" + url.QueryEscape(appID))
 	if err != nil {
 		return ""
 	}

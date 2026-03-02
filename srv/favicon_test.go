@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 // --------------- faviconDomain unit tests ---------------
@@ -104,6 +105,7 @@ func TestApiFavicon_UpstreamSuccess(t *testing.T) {
 
 	s := testServer(t)
 	s.FaviconBaseURL = upstream.URL
+	s.FaviconClient = &http.Client{Timeout: 4 * time.Second}
 
 	ctx := context.Background()
 	w := serveAPI(t, s.apiFavicon, "GET", "/api/favicon?domain=example.com", "", ctx)
@@ -139,6 +141,7 @@ func TestApiFavicon_UpstreamEmptyContentType(t *testing.T) {
 
 	s := testServer(t)
 	s.FaviconBaseURL = upstream.URL
+	s.FaviconClient = &http.Client{Timeout: 4 * time.Second}
 
 	ctx := context.Background()
 	w := serveAPI(t, s.apiFavicon, "GET", "/api/favicon?domain=example.com", "", ctx)
@@ -160,6 +163,7 @@ func TestApiFavicon_Upstream404(t *testing.T) {
 
 	s := testServer(t)
 	s.FaviconBaseURL = upstream.URL
+	s.FaviconClient = &http.Client{Timeout: 4 * time.Second}
 
 	ctx := context.Background()
 	w := serveAPI(t, s.apiFavicon, "GET", "/api/favicon?domain=unknown.example", "", ctx)
@@ -187,6 +191,7 @@ func TestApiFavicon_Upstream500(t *testing.T) {
 
 	s := testServer(t)
 	s.FaviconBaseURL = upstream.URL
+	s.FaviconClient = &http.Client{Timeout: 4 * time.Second}
 
 	ctx := context.Background()
 	w := serveAPI(t, s.apiFavicon, "GET", "/api/favicon?domain=broken.example", "", ctx)
@@ -204,6 +209,7 @@ func TestApiFavicon_UpstreamUnreachable(t *testing.T) {
 	s := testServer(t)
 	// Point to a port that's not listening
 	s.FaviconBaseURL = "http://127.0.0.1:1"
+	s.FaviconClient = &http.Client{Timeout: 4 * time.Second}
 
 	ctx := context.Background()
 	w := serveAPI(t, s.apiFavicon, "GET", "/api/favicon?domain=example.com", "", ctx)
@@ -229,6 +235,7 @@ func TestApiFavicon_PreservesUpstreamContentType(t *testing.T) {
 
 	s := testServer(t)
 	s.FaviconBaseURL = upstream.URL
+	s.FaviconClient = &http.Client{Timeout: 4 * time.Second}
 
 	ctx := context.Background()
 	w := serveAPI(t, s.apiFavicon, "GET", "/api/favicon?domain=example.com", "", ctx)
