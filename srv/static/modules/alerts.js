@@ -135,6 +135,15 @@ export async function submitCreateAlert() {
 
     if (!name || !pattern) return;
 
+    if (isRegex) {
+        try {
+            new RegExp(pattern);
+        } catch {
+            showToast('Invalid regular expression');
+            return;
+        }
+    }
+
     try {
         await api('POST', '/api/alerts', {
             name,
@@ -249,6 +258,15 @@ export async function saveAlert(alertId) {
     const matchField = document.getElementById('edit-alert-match-field').value;
 
     if (!name || !pattern) return;
+
+    if (isRegex) {
+        try {
+            new RegExp(pattern);
+        } catch {
+            showToast('Invalid regular expression');
+            return;
+        }
+    }
 
     try {
         await api('PUT', `/api/alerts/${alertId}`, {

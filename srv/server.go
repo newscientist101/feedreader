@@ -2733,8 +2733,8 @@ func (s *Server) apiCreateAlert(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name       string `json:"name"`
 		Pattern    string `json:"pattern"`
-		IsRegex    bool   `json:"isRegex"`
-		MatchField string `json:"matchField"` // "title", "summary", or "both"
+		IsRegex    bool   `json:"is_regex"`
+		MatchField string `json:"match_field"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonError(w, "Invalid request", 400)
@@ -2749,10 +2749,10 @@ func (s *Server) apiCreateAlert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.MatchField == "" {
-		req.MatchField = "both"
+		req.MatchField = "title_and_content"
 	}
-	if req.MatchField != "title" && req.MatchField != "summary" && req.MatchField != "both" {
-		jsonError(w, "matchField must be 'title', 'summary', or 'both'", 400)
+	if req.MatchField != "title" && req.MatchField != "content" && req.MatchField != "title_and_content" {
+		jsonError(w, "match_field must be 'title', 'content', or 'title_and_content'", 400)
 		return
 	}
 	if req.IsRegex {
@@ -2845,8 +2845,8 @@ func (s *Server) apiUpdateAlert(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name       string `json:"name"`
 		Pattern    string `json:"pattern"`
-		IsRegex    bool   `json:"isRegex"`
-		MatchField string `json:"matchField"`
+		IsRegex    bool   `json:"is_regex"`
+		MatchField string `json:"match_field"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonError(w, "Invalid request", 400)
@@ -2861,10 +2861,10 @@ func (s *Server) apiUpdateAlert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.MatchField == "" {
-		req.MatchField = "both"
+		req.MatchField = "title_and_content"
 	}
-	if req.MatchField != "title" && req.MatchField != "summary" && req.MatchField != "both" {
-		jsonError(w, "matchField must be 'title', 'summary', or 'both'", 400)
+	if req.MatchField != "title" && req.MatchField != "content" && req.MatchField != "title_and_content" {
+		jsonError(w, "match_field must be 'title', 'content', or 'title_and_content'", 400)
 		return
 	}
 	if req.IsRegex {

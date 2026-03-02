@@ -99,16 +99,16 @@ func (s *Server) EvaluateAlertsForFeed(ctx context.Context, feedID int64) {
 func alertMatches(ca *compiledAlert, title, summary string) bool {
 	matchField := ca.alert.MatchField
 	if matchField == "" {
-		matchField = "both" // default: match title+summary
+		matchField = "title_and_content" // default: match title+content
 	}
 
 	var fields []string
 	switch matchField {
 	case "title":
 		fields = []string{title}
-	case "summary":
+	case "content":
 		fields = []string{summary}
-	default: // "both"
+	default: // "title_and_content"
 		fields = []string{title, summary}
 	}
 

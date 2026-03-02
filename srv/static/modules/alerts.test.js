@@ -173,6 +173,17 @@ describe('submitCreateAlert', () => {
         await submitCreateAlert();
         expect(api).not.toHaveBeenCalled();
     });
+
+    it('shows toast and does not call API for invalid regex', async () => {
+        document.body.innerHTML = `
+            <input id="alert-name" value="Bad Regex">
+            <input id="alert-pattern" value="[invalid">
+            <input id="alert-is-regex" type="checkbox" checked>
+            <select id="alert-match-field"><option value="title" selected>Title</option></select>`;
+        await submitCreateAlert();
+        expect(api).not.toHaveBeenCalled();
+        expect(showToast).toHaveBeenCalledWith('Invalid regular expression');
+    });
 });
 
 describe('initAlertDetailPage', () => {
@@ -260,6 +271,17 @@ describe('saveAlert', () => {
             <select id="edit-alert-match-field"><option value="title" selected>Title</option></select>`;
         await saveAlert('5');
         expect(showToast).toHaveBeenCalledWith('Failed to update alert');
+    });
+
+    it('shows toast and does not call API for invalid regex', async () => {
+        document.body.innerHTML = `
+            <input id="edit-alert-name" value="Test">
+            <input id="edit-alert-pattern" value="(unclosed">
+            <input id="edit-alert-is-regex" type="checkbox" checked>
+            <select id="edit-alert-match-field"><option value="title" selected>Title</option></select>`;
+        await saveAlert('5');
+        expect(api).not.toHaveBeenCalled();
+        expect(showToast).toHaveBeenCalledWith('Invalid regular expression');
     });
 });
 
