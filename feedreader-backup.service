@@ -1,0 +1,12 @@
+[Unit]
+Description=Feedreader SQLite database backup
+After=feedreader.service
+
+[Service]
+Type=oneshot
+User=exedev
+WorkingDirectory=/home/exedev/feedreader
+ExecStart=/home/exedev/feedreader/scripts/backup-db.sh
+Environment=DB_PATH=/home/exedev/feedreader/db.sqlite3
+Environment=BACKUP_DIR=/home/exedev/feedreader/backups
+Environment=KEEP_COUNT=7

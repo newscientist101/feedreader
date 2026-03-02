@@ -12,6 +12,7 @@ export async function updateCounts() {
         const unreadBadge = document.querySelector('[data-count="unread"]');
         if (unreadBadge) {
             unreadBadge.textContent = counts.unread || '';
+            unreadBadge.setAttribute('aria-label', counts.unread ? `${counts.unread} unread articles` : '');
         }
 
         // Update starred count
@@ -24,18 +25,21 @@ export async function updateCounts() {
         const queueBadge = document.querySelector('[data-count="queue"]');
         if (queueBadge) {
             queueBadge.textContent = counts.queue || '';
+            queueBadge.setAttribute('aria-label', counts.queue ? `${counts.queue} queued articles` : '');
         }
 
         // Update category counts — zero all first, then set from response
         // (categories with 0 unread are omitted from the response)
         document.querySelectorAll('[data-count^="category-"]').forEach(badge => {
             badge.textContent = '';
+            badge.setAttribute('aria-label', '');
         });
         if (counts.categories) {
             for (const [catId, count] of Object.entries(counts.categories)) {
                 const badge = document.querySelector(`[data-count="category-${catId}"]`);
                 if (badge) {
                     badge.textContent = count || '';
+                    badge.setAttribute('aria-label', count ? `${count} unread` : '');
                 }
             }
         }
@@ -54,6 +58,7 @@ export async function updateCounts() {
                     if (!badge.classList.contains('pending') || count > 0) {
                         badge.textContent = count || '';
                         badge.classList.remove('pending');
+                        badge.setAttribute('aria-label', count ? `${count} unread` : '');
                     }
                 });
             }

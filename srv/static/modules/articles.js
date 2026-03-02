@@ -130,6 +130,7 @@ export function showArticlesLoading() {
     showingHiddenArticles = false;
     const list = document.getElementById('articles-list');
     if (list) {
+        list.setAttribute('aria-busy', 'true');
         list.innerHTML = `
             <div class="loading-state">
                 <div class="spinner"></div>
@@ -200,6 +201,7 @@ export async function renderArticles(articles) {
         `;
         setPaginationState({ done: true });
         updateEndOfArticlesIndicator();
+        list.setAttribute('aria-busy', 'false');
         return;
     }
 
@@ -221,6 +223,8 @@ export async function renderArticles(articles) {
 
     // Re-initialize auto-mark-read observer for new article set
     initAutoMarkRead();
+
+    list.setAttribute('aria-busy', 'false');
 }
 
 export function processEmbeds(container) {

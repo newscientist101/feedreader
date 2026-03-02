@@ -79,7 +79,7 @@
                         <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>
                     </svg>
                     <span>Unread</span>
-                    <span class="badge" data-count="unread">{{if .UnreadCount}}{{.UnreadCount}}{{end}}</span>
+                    <span class="badge" data-count="unread" {{if .UnreadCount}}aria-label="{{.UnreadCount}} unread articles"{{end}}>{{if .UnreadCount}}{{.UnreadCount}}{{end}}</span>
                 </a>
                 <a href="/starred" class="nav-item {{if eq .ActiveView "starred"}}active{{end}}">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
@@ -92,7 +92,7 @@
                         <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/>
                     </svg>
                     <span>Queue</span>
-                    <span class="badge" data-count="queue">{{if .QueueCount}}{{.QueueCount}}{{end}}</span>
+                    <span class="badge" data-count="queue" {{if .QueueCount}}aria-label="{{.QueueCount}} queued articles"{{end}}>{{if .QueueCount}}{{.QueueCount}}{{end}}</span>
                 </a>
                 <a href="/history" class="nav-item {{if eq .ActiveView "history"}}active{{end}}">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
