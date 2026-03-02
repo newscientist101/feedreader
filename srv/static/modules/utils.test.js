@@ -6,6 +6,7 @@ import {
     stripHtml,
     truncateText,
     getArticleSortTime,
+    escapeHtml,
 } from './utils.js';
 
 describe('utils', () => {
@@ -96,6 +97,38 @@ describe('utils', () => {
                 published_at: null,
                 fetched_at: '2024-02-01',
             })).toBe('2024-02-01');
+        });
+    });
+
+    describe('escapeHtml', () => {
+        it('escapes ampersands', () => {
+            expect(escapeHtml('A&B')).toBe('A&amp;B');
+        });
+
+        it('escapes angle brackets', () => {
+            expect(escapeHtml('<script>alert(1)</script>')).toBe('&lt;script&gt;alert(1)&lt;/script&gt;');
+        });
+
+        it('escapes double quotes', () => {
+            expect(escapeHtml('a"b')).toBe('a&quot;b');
+        });
+
+        it('escapes single quotes', () => {
+            expect(escapeHtml("a'b")).toBe('a&#39;b');
+        });
+
+        it('returns empty string for falsy input', () => {
+            expect(escapeHtml('')).toBe('');
+            expect(escapeHtml(null)).toBe('');
+            expect(escapeHtml(undefined)).toBe('');
+        });
+
+        it('handles strings with no special characters', () => {
+            expect(escapeHtml('hello world')).toBe('hello world');
+        });
+
+        it('handles multiple special characters', () => {
+            expect(escapeHtml('<img onerror="alert(\'xss\')">')).toBe('&lt;img onerror=&quot;alert(&#39;xss&#39;)&quot;&gt;');
         });
     });
 });

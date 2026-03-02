@@ -1,6 +1,8 @@
 // Toast notification system for user-facing feedback.
 // Replaces alert() and silent console.error() with non-blocking toasts.
 
+import { escapeHtml } from './utils.js';
+
 let container = null;
 
 function getContainer() {
@@ -58,10 +60,5 @@ function dismiss(toast) {
     setTimeout(() => toast.remove(), 300);
 }
 
-function escapeHtml(s) {
-    const div = document.createElement('div');
-    div.textContent = s;
-    return div.innerHTML;
-}
 
 

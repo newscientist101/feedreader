@@ -2,7 +2,7 @@
 
 import { api } from './api.js';
 import { showToast } from './toast.js';
-import { formatTimeAgo, stripHtml, truncateText, PREVIEW_TEXT_LIMIT } from './utils.js';
+import { formatTimeAgo, stripHtml, truncateText, escapeHtml, PREVIEW_TEXT_LIMIT } from './utils.js';
 import {
     SVG_MARK_READ, SVG_MARK_UNREAD, SVG_STAR_FILLED, SVG_STAR_EMPTY,
     SVG_EXTERNAL, SVG_QUEUE_ADD, SVG_QUEUE_REMOVE
@@ -44,7 +44,7 @@ export function renderArticleActions(a) {
     const queueBtn = `<button data-action="toggle-queue" data-article-id="${a.id}" class="btn-icon btn-queue-toggle ${a.is_queued ? 'queued' : ''}" title="${a.is_queued ? 'Remove from queue' : 'Add to queue'}" aria-label="${a.is_queued ? 'Remove from queue' : 'Add to queue'}">
         ${a.is_queued ? SVG_QUEUE_REMOVE : SVG_QUEUE_ADD}
     </button>`;
-    const extBtn = a.url ? `<a href="${a.url}" target="_blank" class="btn-icon" title="Open original" aria-label="Open original">${SVG_EXTERNAL}</a>` : '';
+    const extBtn = a.url ? `<a href="${escapeHtml(a.url)}" target="_blank" class="btn-icon" title="Open original" aria-label="Open original">${SVG_EXTERNAL}</a>` : '';
     return `<div class="article-actions">${readBtn}${starBtn}${queueBtn}${extBtn}</div>`;
 }
 
@@ -141,24 +141,31 @@ export function showArticlesLoading() {
 
 export function buildArticleCardHtml(a) {
     a.is_queued = queuedArticleIds.has(a.id);
+    const safeTitle = escapeHtml(a.title);
+    const safeFeedName = escapeHtml(a.feed_name || '');
+    const safeAuthor = escapeHtml(a.author);
+    const safeUrl = escapeHtml(a.url);
+    const safeImageUrl = escapeHtml(a.image_url);
+    const safeSummary = escapeHtml(truncateText(stripHtml(a.summary), PREVIEW_TEXT_LIMIT));
+    const safeContent = escapeHtml(truncateText(stripHtml(a.content), PREVIEW_TEXT_LIMIT));
     return `
-        <article class="article-card ${a.is_read ? 'read' : ''}${a.image_url ? ' has-image' : ''}" data-id="${a.id}" data-sort-time="${a.published_at || a.fetched_at}">
-            ${a.image_url ? `<div class="article-image magazine-expanded-only"><img src="${a.image_url}" alt="" loading="lazy"></div>` : `<div class="article-image-placeholder magazine-only">
+        <article class="article-card ${a.is_read ? 'read' : ''}${a.image_url ? ' has-image' : ''}" data-id="${a.id}" data-sort-time="${escapeHtml(a.published_at || a.fetched_at)}">
+            ${a.image_url ? `<div class="article-image magazine-expanded-only"><img src="${safeImageUrl}" alt="" loading="lazy"></div>` : `<div class="article-image-placeholder magazine-only">
                 <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
                     <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
                 </svg>
             </div>`}
             <div class="article-body clickable">
                 <div class="article-meta">
-                    <a class="feed-name" href="/feed/${a.feed_id}">${a.feed_name || ''}</a>
-                    ${a.author ? `<span class="article-author">${a.author}</span>` : ''}
+                    <a class="feed-name" href="/feed/${a.feed_id}">${safeFeedName}</a>
+                    ${a.author ? `<span class="article-author">${safeAuthor}</span>` : ''}
                     <span class="article-date">${formatTimeAgo(a.published_at)}</span>
                 </div>
                 <h2 class="article-title">
-                    ${a.url ? `<a href="${a.url}" target="_blank" data-action="open-external">${a.title}</a>` : `<a href="/article/${a.id}" data-action="mark-read-silent">${a.title}</a>`}
+                    ${a.url ? `<a href="${safeUrl}" target="_blank" data-action="open-external">${safeTitle}</a>` : `<a href="/article/${a.id}" data-action="mark-read-silent">${safeTitle}</a>`}
                 </h2>
-                ${a.summary ? `<p class="article-summary">${truncateText(stripHtml(a.summary), PREVIEW_TEXT_LIMIT)}</p>` : (a.content ? `<p class="article-summary">${truncateText(stripHtml(a.content), PREVIEW_TEXT_LIMIT)}</p>` : '')}
-                ${a.content ? `<div class="article-content-preview expanded-only">${truncateText(stripHtml(a.content), PREVIEW_TEXT_LIMIT)}</div>` : (a.summary ? `<div class="article-content-preview expanded-only">${truncateText(stripHtml(a.summary), PREVIEW_TEXT_LIMIT)}</div>` : '')}
+                ${a.summary ? `<p class="article-summary">${safeSummary}</p>` : (a.content ? `<p class="article-summary">${safeContent}</p>` : '')}
+                ${a.content ? `<div class="article-content-preview expanded-only">${safeContent}</div>` : (a.summary ? `<div class="article-content-preview expanded-only">${safeSummary}</div>` : '')}
                 ${renderArticleActions(a)}
             </div>
         </article>

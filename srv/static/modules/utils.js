@@ -47,3 +47,17 @@ export function truncateText(text, maxLen) {
 export function getArticleSortTime(article) {
     return article.published_at || article.fetched_at;
 }
+
+/**
+ * Escape a string for safe insertion into HTML.
+ * Handles &, <, >, ", and ' to prevent XSS when building HTML strings.
+ */
+export function escapeHtml(s) {
+    if (!s) return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}

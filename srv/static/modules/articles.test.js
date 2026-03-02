@@ -173,6 +173,30 @@ describe('buildArticleCardHtml', () => {
         expect(html).toContain('img.jpg');
         expect(html).toContain('has-image');
     });
+
+    it('escapes HTML in user-controlled fields to prevent XSS', () => {
+        const html = buildArticleCardHtml({
+            id: 1,
+            title: '<img onerror="alert(1)">',
+            feed_id: 1,
+            feed_name: '<script>alert(2)</script>',
+            author: '" onclick="alert(3)',
+            url: 'https://example.com/a?b=1&c=2',
+            published_at: '2025-01-01T00:00:00Z',
+            is_read: false,
+            is_starred: false,
+        });
+        // Title should be escaped
+        expect(html).toContain('&lt;img onerror=&quot;alert(1)&quot;&gt;');
+        expect(html).not.toContain('<img onerror=');
+        // Feed name should be escaped
+        expect(html).toContain('&lt;script&gt;alert(2)&lt;/script&gt;');
+        expect(html).not.toContain('<script>alert(2)');
+        // Author should be escaped
+        expect(html).toContain('&quot; onclick=&quot;alert(3)');
+        // URL ampersand should be escaped in attribute
+        expect(html).toContain('https://example.com/a?b=1&amp;c=2');
+    });
 });
 
 describe('extractYouTubeId', () => {

@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { showToast } from './toast.js';
+import { escapeHtml } from './utils.js';
 import { applyUserPreferences } from './articles.js';
 import { showFeedErrorBanner, removeFeedErrorBanner } from './feed-errors.js';
 
@@ -80,7 +81,7 @@ export function updateFeedStatusCell(feedId, lastError) {
     if (!statusCell) return;
 
     if (lastError) {
-        statusCell.innerHTML = `<span class="status-error" title="${lastError}">Error</span>`;
+        statusCell.innerHTML = `<span class="status-error" title="${escapeHtml(lastError)}">Error</span>`;
         row.dataset.hasError = 'true';
     } else {
         statusCell.innerHTML = '<span class="status-ok">OK</span>';
