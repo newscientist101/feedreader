@@ -87,8 +87,10 @@ describe('dismissAllMatches', () => {
     });
 
     it('shows toast on error', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
         api.mockRejectedValue(new Error('fail'));
         await dismissAllMatches('7');
+        expect(console.error).toHaveBeenCalledWith('Failed to dismiss alert matches:', expect.any(Error));
         expect(showToast).toHaveBeenCalledWith('Failed to dismiss matches');
     });
 });
@@ -263,6 +265,7 @@ describe('saveAlert', () => {
     });
 
     it('shows error toast on failure', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
         api.mockRejectedValue(new Error('fail'));
         document.body.innerHTML = `
             <input id="edit-alert-name" value="Test">
@@ -270,6 +273,7 @@ describe('saveAlert', () => {
             <input id="edit-alert-is-regex" type="checkbox">
             <select id="edit-alert-match-field"><option value="title" selected>Title</option></select>`;
         await saveAlert('5');
+        expect(console.error).toHaveBeenCalledWith('Failed to update alert:', expect.any(Error));
         expect(showToast).toHaveBeenCalledWith('Failed to update alert');
     });
 
