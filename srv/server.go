@@ -245,8 +245,8 @@ func (s *Server) Handler() http.Handler {
 		http.ServeFile(w, r, filepath.Join(s.StaticDir, "sw.js"))
 	})
 
-	// Wrap with auth middleware, then gzip compression
-	return gzipMiddleware(s.AuthMiddleware(mux))
+	// Wrap with auth middleware, security headers, then gzip compression
+	return gzipMiddleware(securityHeaders(s.AuthMiddleware(mux)))
 }
 
 // Template helpers
@@ -257,7 +257,7 @@ func (s *Server) renderTemplate(w http.ResponseWriter, name string, data any) er
 		"truncate":    truncate,
 		"previewText": previewText,
 		"deref":       deref,
-		"safeHTML":    safeHTML,
+		"safeHTML":    sanitizeHTML,
 		"toJSON": func(v any) template.JS {
 			b, _ := json.Marshal(v)
 			return template.JS(b)
@@ -1681,10 +1681,6 @@ func (s *Server) apiFavicon(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", ct)
 	w.Header().Set("Cache-Control", "public, max-age=604800")
 	_, _ = io.Copy(w, resp.Body)
-}
-
-func safeHTML(s string) template.HTML {
-	return template.HTML(s)
 }
 
 // fetchSteamAppName gets the game name from the Steam store API

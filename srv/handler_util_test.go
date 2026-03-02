@@ -132,10 +132,10 @@ func TestConvertSteamNewsURL(t *testing.T) {
 	}
 }
 
-func TestSafeHTML(t *testing.T) {
-	got := safeHTML("<b>bold</b>")
+func TestSanitizeHTMLBasic(t *testing.T) {
+	got := sanitizeHTML("<b>bold</b>")
 	if string(got) != "<b>bold</b>" {
-		t.Errorf("safeHTML = %q", got)
+		t.Errorf("sanitizeHTML = %q", got)
 	}
 }
 
