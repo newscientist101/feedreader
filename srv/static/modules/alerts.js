@@ -84,9 +84,10 @@ export function createAlertModal() {
                     <label for="alert-pattern">Pattern</label>
                     <input type="text" id="alert-pattern" required>
                 </div>
-                <div class="form-group">
+                <div class="form-group checkbox-group">
                     <label>
-                        <input type="checkbox" id="alert-is-regex"> Regular expression
+                        <input type="checkbox" id="alert-is-regex">
+                        <span>Regular expression</span>
                     </label>
                 </div>
                 <div class="form-group">
