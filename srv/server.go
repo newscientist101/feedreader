@@ -238,6 +238,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/exclusions/{id}", s.apiDeleteExclusion)
 	mux.HandleFunc("GET /category/{id}/settings", s.handleCategorySettings)
 
+	// News alerts endpoints
+	mux.HandleFunc("POST /api/alerts", s.apiCreateAlert)
+	mux.HandleFunc("GET /api/alerts", s.apiListAlerts)
+	mux.HandleFunc("GET /api/alerts/{id}", s.apiGetAlert)
+	mux.HandleFunc("PUT /api/alerts/{id}", s.apiUpdateAlert)
+	mux.HandleFunc("DELETE /api/alerts/{id}", s.apiDeleteAlert)
+	mux.HandleFunc("POST /api/alerts/{id}/dismiss", s.apiDismissAllForAlert)
+	mux.HandleFunc("POST /api/article-alerts/{id}/dismiss", s.apiDismissArticleAlert)
+
 	// Static files – serve with long cache lifetime (files are cache-busted via ?v=hash)
 	staticFS := http.FileServer(http.Dir(s.StaticDir))
 	mux.Handle("/static/", http.StripPrefix("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2612,6 +2621,237 @@ func (s *Server) apiGenerateScraper(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonResponse(w, resp)
+}
+
+// ---------------------------------------------------------------------------
+// News Alerts API handlers
+// ---------------------------------------------------------------------------
+
+func (s *Server) apiCreateAlert(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	var req struct {
+		Name       string `json:"name"`
+		Pattern    string `json:"pattern"`
+		IsRegex    bool   `json:"isRegex"`
+		MatchField string `json:"matchField"` // "title", "summary", or "both"
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request", 400)
+		return
+	}
+	if req.Name == "" {
+		jsonError(w, "Name is required", 400)
+		return
+	}
+	if req.Pattern == "" {
+		jsonError(w, "Pattern is required", 400)
+		return
+	}
+	if req.MatchField == "" {
+		req.MatchField = "both"
+	}
+	if req.MatchField != "title" && req.MatchField != "summary" && req.MatchField != "both" {
+		jsonError(w, "matchField must be 'title', 'summary', or 'both'", 400)
+		return
+	}
+	if req.IsRegex {
+		if _, err := regexp.Compile("(?i)" + req.Pattern); err != nil {
+			jsonError(w, "Invalid regex pattern: "+err.Error(), 400)
+			return
+		}
+	}
+
+	var isRegex int64
+	if req.IsRegex {
+		isRegex = 1
+	}
+
+	alert, err := q.CreateAlert(ctx, dbgen.CreateAlertParams{
+		UserID:     user.ID,
+		Name:       req.Name,
+		Pattern:    req.Pattern,
+		IsRegex:    isRegex,
+		MatchField: req.MatchField,
+	})
+	if err != nil {
+		jsonError(w, "Failed to create alert: "+err.Error(), 500)
+		return
+	}
+
+	jsonResponse(w, alert)
+}
+
+func (s *Server) apiListAlerts(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	alerts, err := q.ListAlertsByUser(ctx, user.ID)
+	if err != nil {
+		jsonError(w, "Failed to list alerts", 500)
+		return
+	}
+
+	jsonResponse(w, alerts)
+}
+
+func (s *Server) apiGetAlert(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid alert ID", 400)
+		return
+	}
+
+	alert, err := q.GetAlert(ctx, dbgen.GetAlertParams{ID: id, UserID: user.ID})
+	if err != nil {
+		jsonError(w, "Alert not found", 404)
+		return
+	}
+
+	// Also fetch matched articles.
+	matches, err := q.ListAlertArticles(ctx, dbgen.ListAlertArticlesParams{
+		AlertID: id,
+		UserID:  user.ID,
+		Limit:   50,
+		Offset:  0,
+	})
+	if err != nil {
+		jsonError(w, "Failed to list alert articles", 500)
+		return
+	}
+
+	jsonResponse(w, map[string]any{
+		"alert":   alert,
+		"matches": matches,
+	})
+}
+
+func (s *Server) apiUpdateAlert(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid alert ID", 400)
+		return
+	}
+
+	var req struct {
+		Name       string `json:"name"`
+		Pattern    string `json:"pattern"`
+		IsRegex    bool   `json:"isRegex"`
+		MatchField string `json:"matchField"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request", 400)
+		return
+	}
+	if req.Name == "" {
+		jsonError(w, "Name is required", 400)
+		return
+	}
+	if req.Pattern == "" {
+		jsonError(w, "Pattern is required", 400)
+		return
+	}
+	if req.MatchField == "" {
+		req.MatchField = "both"
+	}
+	if req.MatchField != "title" && req.MatchField != "summary" && req.MatchField != "both" {
+		jsonError(w, "matchField must be 'title', 'summary', or 'both'", 400)
+		return
+	}
+	if req.IsRegex {
+		if _, err := regexp.Compile("(?i)" + req.Pattern); err != nil {
+			jsonError(w, "Invalid regex pattern: "+err.Error(), 400)
+			return
+		}
+	}
+
+	var isRegex int64
+	if req.IsRegex {
+		isRegex = 1
+	}
+
+	alert, err := q.UpdateAlert(ctx, dbgen.UpdateAlertParams{
+		ID:         id,
+		UserID:     user.ID,
+		Name:       req.Name,
+		Pattern:    req.Pattern,
+		IsRegex:    isRegex,
+		MatchField: req.MatchField,
+	})
+	if err != nil {
+		jsonError(w, "Failed to update alert", 500)
+		return
+	}
+
+	jsonResponse(w, alert)
+}
+
+func (s *Server) apiDeleteAlert(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid alert ID", 400)
+		return
+	}
+
+	if err := q.DeleteAlert(ctx, dbgen.DeleteAlertParams{ID: id, UserID: user.ID}); err != nil {
+		jsonError(w, "Failed to delete alert", 500)
+		return
+	}
+
+	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) apiDismissAllForAlert(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid alert ID", 400)
+		return
+	}
+
+	if err := q.DismissAllForAlert(ctx, dbgen.DismissAllForAlertParams{AlertID: id, UserID: user.ID}); err != nil {
+		jsonError(w, "Failed to dismiss alerts", 500)
+		return
+	}
+
+	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) apiDismissArticleAlert(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid article-alert ID", 400)
+		return
+	}
+
+	if err := q.DismissArticleAlert(ctx, dbgen.DismissArticleAlertParams{ID: id, UserID: user.ID}); err != nil {
+		jsonError(w, "Failed to dismiss article alert", 500)
+		return
+	}
+
+	jsonResponse(w, map[string]string{"status": "ok"})
 }
 
 // gzipResponseWriter wraps http.ResponseWriter to compress responses.
