@@ -286,7 +286,6 @@ bd update <id> --append-notes "..."   # Append to working memory
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
-   bd dolt push
    git push
    git status  # MUST show "up to date with origin"
    ```
