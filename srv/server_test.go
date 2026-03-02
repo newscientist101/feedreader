@@ -64,7 +64,11 @@ func testServer(t *testing.T) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { sqlDB.Close() })
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() {
+		cancel()
+		sqlDB.Close()
+	})
 	if _, err := sqlDB.Exec(schema); err != nil {
 		t.Fatal(err)
 	}
@@ -74,6 +78,8 @@ func testServer(t *testing.T) *Server {
 		ScraperRunner:    scrapers.NewRunner(),
 		StaticHashes:     map[string]string{},
 		ShelleyGenerator: NewShelleyScraperGenerator(),
+		bgCtx:            ctx,
+		bgCancel:         cancel,
 	}
 	s.RetentionManager = &RetentionManager{server: s, retentionDays: 30}
 	return s

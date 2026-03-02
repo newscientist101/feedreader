@@ -46,24 +46,40 @@ type Server struct {
 	ShelleyGenerator *ShelleyScraperGenerator
 	EmailWatcher     *email.Watcher
 	FaviconBaseURL   string // upstream favicon service; default Google S2
+
+	// bgCtx is the context for background goroutines (feed fetches, etc.).
+	// Cancelled by Close() to ensure clean shutdown.
+	bgCtx    context.Context
+	bgCancel context.CancelFunc
 }
 
 func New(dbPath, hostname string) (*Server, error) {
 	_, thisFile, _, _ := runtime.Caller(0)
 	baseDir := filepath.Dir(thisFile)
+	ctx, cancel := context.WithCancel(context.Background())
 	srv := &Server{
 		Hostname:      hostname,
 		TemplatesDir:  filepath.Join(baseDir, "templates"),
 		StaticDir:     filepath.Join(baseDir, "static"),
 		ScraperRunner: scrapers.NewRunner(),
+		bgCtx:         ctx,
+		bgCancel:      cancel,
 	}
 	if err := srv.setUpDatabase(dbPath); err != nil {
+		cancel()
 		return nil, err
 	}
 	srv.Fetcher = feeds.NewFetcher(srv.DB, srv.ScraperRunner)
 	srv.Fetcher.OnFeedFetched = srv.MarkExcludedArticlesReadForFeed
 	srv.StaticHashes = hashStaticFiles(srv.StaticDir)
 	return srv, nil
+}
+
+// Close cancels background goroutines. Safe to call multiple times.
+func (s *Server) Close() {
+	if s.bgCancel != nil {
+		s.bgCancel()
+	}
 }
 
 // hashStaticFiles computes short SHA-256 hashes for static files for cache busting.
@@ -108,6 +124,8 @@ func (s *Server) setUpDatabase(dbPath string) error {
 }
 
 func (s *Server) Serve(addr string) error {
+	defer s.Close()
+
 	// Start background fetcher
 	s.Fetcher.Start(5 * time.Minute)
 	defer s.Fetcher.Stop()
@@ -865,8 +883,10 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 
 	// Trigger immediate fetch
 	go func() {
-		if err := s.Fetcher.FetchFeed(context.Background(), &feed); err != nil {
-			slog.Warn("background feed fetch failed", "error", err, "feed_id", feed.ID)
+		if err := s.Fetcher.FetchFeed(s.bgCtx, &feed); err != nil {
+			if s.bgCtx.Err() == nil {
+				slog.Warn("background feed fetch failed", "error", err, "feed_id", feed.ID)
+			}
 		}
 	}()
 
@@ -1011,8 +1031,10 @@ func (s *Server) apiRefreshFeed(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		slog.Info("starting manual feed refresh", "feed_id", feed.ID, "name", feed.Name)
-		if err := s.Fetcher.FetchFeed(context.Background(), &feed); err != nil {
-			slog.Warn("manual feed refresh failed", "feed_id", feed.ID, "error", err)
+		if err := s.Fetcher.FetchFeed(s.bgCtx, &feed); err != nil {
+			if s.bgCtx.Err() == nil {
+				slog.Warn("manual feed refresh failed", "feed_id", feed.ID, "error", err)
+			}
 		} else {
 			slog.Info("manual feed refresh completed", "feed_id", feed.ID)
 		}
@@ -2209,8 +2231,13 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 	// Run in background so we can return the response immediately
 	go func() {
 		for i := range importedFeeds {
-			if err := s.Fetcher.FetchFeed(context.Background(), &importedFeeds[i]); err != nil {
-				slog.Warn("import: background feed fetch failed", "error", err, "feed_id", importedFeeds[i].ID)
+			if s.bgCtx.Err() != nil {
+				return
+			}
+			if err := s.Fetcher.FetchFeed(s.bgCtx, &importedFeeds[i]); err != nil {
+				if s.bgCtx.Err() == nil {
+					slog.Warn("import: background feed fetch failed", "error", err, "feed_id", importedFeeds[i].ID)
+				}
 			}
 		}
 	}()
