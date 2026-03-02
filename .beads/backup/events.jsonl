@@ -48,3 +48,10 @@
 {"actor":"exe.dev user","comment":null,"created_at":"2026-03-02T01:15:37Z","event_type":"closed","id":48,"issue_id":"feedreader-e2l.1","new_value":"Won't fix — browser already caches favicons via Cache-Control header. Server-side LRU adds complexity for negligible benefit on a self-hosted app.","old_value":""}
 {"actor":"exe.dev user","comment":null,"created_at":"2026-03-02T01:15:41Z","event_type":"closed","id":49,"issue_id":"feedreader-e2l.3","new_value":"Won't fix — premature optimization. SQLite handles 25k articles with single-column indexes in ~5-30ms per endpoint. Composite indexes not needed at this scale.","old_value":""}
 {"actor":"exe.dev user","comment":null,"created_at":"2026-03-02T01:20:45Z","event_type":"created","id":50,"issue_id":"feedreader-mfn","new_value":"","old_value":""}
+{"actor":"exe.dev user","comment":null,"created_at":"2026-03-02T01:21:08Z","event_type":"created","id":51,"issue_id":"feedreader-mfn.1","new_value":"","old_value":""}
+{"actor":"exe.dev user","comment":null,"created_at":"2026-03-02T01:21:08Z","event_type":"created","id":52,"issue_id":"feedreader-mfn.2","new_value":"","old_value":""}
+{"actor":"exe.dev user","comment":null,"created_at":"2026-03-02T01:21:08Z","event_type":"created","id":53,"issue_id":"feedreader-mfn.3","new_value":"","old_value":""}
+{"actor":"exe.dev user","comment":null,"created_at":"2026-03-02T01:21:08Z","event_type":"created","id":54,"issue_id":"feedreader-mfn.4","new_value":"","old_value":""}
+{"actor":"exe.dev user","comment":null,"created_at":"2026-03-02T01:21:08Z","event_type":"created","id":55,"issue_id":"feedreader-mfn.5","new_value":"","old_value":""}
+{"actor":"exe.dev user","comment":null,"created_at":"2026-03-02T01:21:08Z","event_type":"created","id":56,"issue_id":"feedreader-mfn.6","new_value":"","old_value":""}
+{"actor":"exe.dev user","comment":null,"created_at":"2026-03-02T01:45:32Z","event_type":"created","id":57,"issue_id":"feedreader-5mv","new_value":"","old_value":""}

@@ -19,5 +19,13 @@
 {"created_at":"2026-03-02T01:05:43Z","created_by":"exe.dev user","depends_on_id":"feedreader-mah","issue_id":"feedreader-mah.7","type":"parent-child"}
 {"created_at":"2026-03-02T01:05:47Z","created_by":"exe.dev user","depends_on_id":"feedreader-mah.1","issue_id":"feedreader-mah.7","type":"blocks"}
 {"created_at":"2026-03-02T01:05:43Z","created_by":"exe.dev user","depends_on_id":"feedreader-mah","issue_id":"feedreader-mah.8","type":"parent-child"}
+{"created_at":"2026-03-02T01:21:08Z","created_by":"exe.dev user","depends_on_id":"feedreader-mfn","issue_id":"feedreader-mfn.1","type":"parent-child"}
+{"created_at":"2026-03-02T01:21:08Z","created_by":"exe.dev user","depends_on_id":"feedreader-mfn","issue_id":"feedreader-mfn.2","type":"parent-child"}
+{"created_at":"2026-03-02T01:21:08Z","created_by":"exe.dev user","depends_on_id":"feedreader-mfn","issue_id":"feedreader-mfn.3","type":"parent-child"}
+{"created_at":"2026-03-02T01:21:13Z","created_by":"exe.dev user","depends_on_id":"feedreader-mfn.1","issue_id":"feedreader-mfn.3","type":"blocks"}
+{"created_at":"2026-03-02T01:21:08Z","created_by":"exe.dev user","depends_on_id":"feedreader-mfn","issue_id":"feedreader-mfn.4","type":"parent-child"}
+{"created_at":"2026-03-02T01:21:13Z","created_by":"exe.dev user","depends_on_id":"feedreader-mfn.5","issue_id":"feedreader-mfn.4","type":"blocks"}
+{"created_at":"2026-03-02T01:21:08Z","created_by":"exe.dev user","depends_on_id":"feedreader-mfn","issue_id":"feedreader-mfn.5","type":"parent-child"}
+{"created_at":"2026-03-02T01:21:08Z","created_by":"exe.dev user","depends_on_id":"feedreader-mfn","issue_id":"feedreader-mfn.6","type":"parent-child"}
 {"created_at":"2026-03-01T23:34:11Z","created_by":"exe.dev user","depends_on_id":"feedreader-xzaw","issue_id":"feedreader-q45e","type":"parent-child"}
 {"created_at":"2026-03-01T23:34:10Z","created_by":"exe.dev user","depends_on_id":"feedreader-xzaw","issue_id":"feedreader-z5xp","type":"parent-child"}
