@@ -68,3 +68,10 @@ FROM articles a
 JOIN feeds f ON a.feed_id = f.id
 WHERE a.feed_id = ? AND f.user_id = ? AND a.is_read = 0
 ORDER BY a.fetched_at DESC;
+
+-- name: UndismissArticleAlert :exec
+UPDATE article_alerts SET dismissed = 0
+WHERE article_alerts.id = ? AND alert_id IN (SELECT news_alerts.id FROM news_alerts WHERE user_id = ?);
+
+-- name: CountUndismissedForAlert :one
+SELECT COUNT(*) FROM article_alerts WHERE alert_id = ? AND dismissed = 0;

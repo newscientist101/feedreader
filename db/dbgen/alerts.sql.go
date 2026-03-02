@@ -23,6 +23,17 @@ func (q *Queries) CountUndismissedAlerts(ctx context.Context, userID int64) (int
 	return count, err
 }
 
+const countUndismissedForAlert = `-- name: CountUndismissedForAlert :one
+SELECT COUNT(*) FROM article_alerts WHERE alert_id = ? AND dismissed = 0
+`
+
+func (q *Queries) CountUndismissedForAlert(ctx context.Context, alertID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countUndismissedForAlert, alertID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAlert = `-- name: CreateAlert :one
 INSERT INTO news_alerts (user_id, name, pattern, is_regex, match_field)
 VALUES (?, ?, ?, ?, ?)
@@ -375,6 +386,21 @@ func (q *Queries) ListUnreadArticlesByFeedForAlerts(ctx context.Context, arg Lis
 		return nil, err
 	}
 	return items, nil
+}
+
+const undismissArticleAlert = `-- name: UndismissArticleAlert :exec
+UPDATE article_alerts SET dismissed = 0
+WHERE article_alerts.id = ? AND alert_id IN (SELECT news_alerts.id FROM news_alerts WHERE user_id = ?)
+`
+
+type UndismissArticleAlertParams struct {
+	ID     int64 `json:"id"`
+	UserID int64 `json:"user_id"`
+}
+
+func (q *Queries) UndismissArticleAlert(ctx context.Context, arg UndismissArticleAlertParams) error {
+	_, err := q.db.ExecContext(ctx, undismissArticleAlert, arg.ID, arg.UserID)
+	return err
 }
 
 const updateAlert = `-- name: UpdateAlert :one

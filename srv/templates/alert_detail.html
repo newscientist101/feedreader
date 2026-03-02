@@ -1,0 +1,90 @@
+{{define "content"}}
+<div class="alert-detail-view" data-alert-id="{{.Alert.ID}}">
+    <header class="view-header">
+        <div class="header-title">
+            <a href="/alerts" class="back-link">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                    <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+                </svg>
+            </a>
+            <h1>{{.Alert.Name}}</h1>
+        </div>
+        <button data-action="delete-alert" class="btn btn-danger">Delete Alert</button>
+    </header>
+
+    <div class="settings-section">
+        <h2>Alert Settings</h2>
+        <form id="edit-alert-form">
+            <div class="form-row">
+                <div class="form-group flex-2">
+                    <label for="edit-alert-name">Name</label>
+                    <input type="text" id="edit-alert-name" value="{{.Alert.Name}}" required>
+                </div>
+                <div class="form-group flex-2">
+                    <label for="edit-alert-pattern">Pattern</label>
+                    <input type="text" id="edit-alert-pattern" value="{{.Alert.Pattern}}" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit-alert-match-field">Match field</label>
+                    <select id="edit-alert-match-field">
+                        <option value="title" {{if eq .Alert.MatchField "title"}}selected{{end}}>Title</option>
+                        <option value="content" {{if eq .Alert.MatchField "content"}}selected{{end}}>Content</option>
+                        <option value="title_and_content" {{if eq .Alert.MatchField "title_and_content"}}selected{{end}}>Title &amp; Content</option>
+                    </select>
+                </div>
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="edit-alert-is-regex" {{if .Alert.IsRegex}}checked{{end}}>
+                        <span>Regular expression</span>
+                    </label>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+        </form>
+    </div>
+
+    <div class="settings-section">
+        <h2>Matched Articles</h2>
+        <p class="section-description">All articles matching this alert, including dismissed ones.</p>
+
+        {{if .AlertMatches}}
+        <div class="article-list alert-match-list">
+            {{range .AlertMatches}}
+            <div class="article-alert-item {{if .Dismissed}}dismissed{{end}}" data-article-alert-id="{{.ID}}">
+                <div class="article-row-content">
+                    <a href="/article/{{.ArticleID}}" class="article-row-title">{{.ArticleTitle}}</a>
+                    <div class="article-row-meta">
+                        <span class="feed-name">{{.FeedName}}</span>
+                        <span class="date" data-timestamp="{{formatDate .MatchedAt}}">{{timeAgo .MatchedAt}}</span>
+                        {{if .Dismissed}}<span class="dismissed-badge">Dismissed</span>{{end}}
+                    </div>
+                </div>
+                {{if .Dismissed}}
+                <button data-action="undismiss-article-alert" data-article-alert-id="{{.ID}}" class="btn btn-sm btn-secondary" title="Undismiss" aria-label="Undismiss">Undismiss</button>
+                {{else}}
+                <button data-action="dismiss-article-alert" data-article-alert-id="{{.ID}}" class="btn btn-sm btn-secondary" title="Dismiss" aria-label="Dismiss">Dismiss</button>
+                {{end}}
+            </div>
+            {{end}}
+        </div>
+
+        {{if .HasMore}}
+        <div class="load-more">
+            <a href="/alerts/{{.Alert.ID}}?offset={{add .Offset 50}}" class="btn btn-secondary">Load more</a>
+        </div>
+        {{end}}
+
+        {{else}}
+        <div class="empty-state small">
+            <p>No articles have matched this alert yet.</p>
+        </div>
+        {{end}}
+    </div>
+
+    <div class="alert-info">
+        <p class="muted">Created <span data-timestamp="{{formatDate .Alert.CreatedAt}}">{{timeAgo .Alert.CreatedAt}}</span></p>
+    </div>
+</div>
+{{end}}

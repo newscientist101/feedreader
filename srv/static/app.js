@@ -25,6 +25,7 @@ import { initSettingsPage, initSettingsPageListeners } from './modules/settings-
 import { initQueuePage } from './modules/queue.js';
 import { initScraperPage, initScraperPageListeners } from './modules/scraper-page.js';
 import { initOfflineSupport } from './modules/offline.js';
+import { initAlertsPage, initAlertDetailPage } from './modules/alerts.js';
 
 // Initialize click-outside listener and keyboard navigation for dropdowns
 initDropdownCloseListener();
@@ -120,6 +121,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize category settings page (no-op if not on that page)
     initCategorySettingsPage();
+
+    // Initialize alerts pages (no-op if not on alerts page)
+    initAlertsPage();
+    initAlertDetailPage();
 
     // Initialize offline/PWA support (no-op outside standalone mode)
     initOfflineSupport();

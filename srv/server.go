@@ -175,6 +175,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /starred", s.handleStarred)
 	mux.HandleFunc("GET /queue", s.handleQueue)
 	mux.HandleFunc("GET /history", s.handleHistory)
+	mux.HandleFunc("GET /alerts", s.handleAlerts)
+	mux.HandleFunc("GET /alerts/{id}", s.handleAlertDetail)
 	mux.HandleFunc("GET /feed/{id}", s.handleFeedArticles)
 	mux.HandleFunc("GET /article/{id}", s.handleArticle)
 	mux.HandleFunc("GET /scrapers", s.handleScrapers)
@@ -249,6 +251,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/alerts/{id}", s.apiDeleteAlert)
 	mux.HandleFunc("POST /api/alerts/{id}/dismiss", s.apiDismissAllForAlert)
 	mux.HandleFunc("POST /api/article-alerts/{id}/dismiss", s.apiDismissArticleAlert)
+	mux.HandleFunc("POST /api/article-alerts/{id}/undismiss", s.apiUndismissArticleAlert)
 
 	// Static files – serve with long cache lifetime (files are cache-busted via ?v=hash)
 	staticFS := http.FileServer(http.Dir(s.StaticDir))
@@ -753,6 +756,93 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.renderTemplate(w, r, "history.html", data); err != nil {
+		slog.Warn("render template", "error", err)
+		http.Error(w, "Internal Server Error", 500)
+	}
+}
+
+func (s *Server) handleAlerts(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+	user := GetUser(ctx)
+
+	offset := parseOffset(r)
+	matches, _ := q.ListAlertArticlesGrouped(ctx, dbgen.ListAlertArticlesGroupedParams{
+		UserID: user.ID,
+		Limit:  articlePageSize,
+		Offset: offset,
+	})
+
+	alerts, _ := q.ListAlertsByUser(ctx, user.ID)
+
+	// Group matches by alert ID for template rendering.
+	type alertGroup struct {
+		AlertID   int64
+		AlertName string
+		Matches   []dbgen.ListAlertArticlesGroupedRow
+	}
+	var groups []alertGroup
+	groupMap := make(map[int64]int) // alertID -> index in groups
+	for i := range matches {
+		idx, ok := groupMap[matches[i].AlertID]
+		if !ok {
+			idx = len(groups)
+			groupMap[matches[i].AlertID] = idx
+			groups = append(groups, alertGroup{AlertID: matches[i].AlertID, AlertName: matches[i].AlertName})
+		}
+		groups[idx].Matches = append(groups[idx].Matches, matches[i])
+	}
+
+	data := s.getCommonData(ctx)
+	data["Title"] = "Alerts"
+	data["ActiveView"] = "alerts"
+	data["AlertGroups"] = groups
+	data["Alerts"] = alerts
+	data["Offset"] = offset
+	data["HasMore"] = len(matches) == articlePageSize
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.renderTemplate(w, r, "alerts.html", data); err != nil {
+		slog.Warn("render template", "error", err)
+		http.Error(w, "Internal Server Error", 500)
+	}
+}
+
+func (s *Server) handleAlertDetail(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := dbgen.New(s.DB)
+	user := GetUser(ctx)
+
+	alertID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid alert ID", 400)
+		return
+	}
+
+	alert, err := q.GetAlert(ctx, dbgen.GetAlertParams{ID: alertID, UserID: user.ID})
+	if err != nil {
+		http.Error(w, "Alert not found", 404)
+		return
+	}
+
+	offset := parseOffset(r)
+	matches, _ := q.ListAlertArticles(ctx, dbgen.ListAlertArticlesParams{
+		AlertID: alertID,
+		UserID:  user.ID,
+		Limit:   articlePageSize,
+		Offset:  offset,
+	})
+
+	data := s.getCommonData(ctx)
+	data["Title"] = alert.Name + " — Alert"
+	data["ActiveView"] = "alerts"
+	data["Alert"] = alert
+	data["AlertMatches"] = matches
+	data["Offset"] = offset
+	data["HasMore"] = len(matches) == articlePageSize
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.renderTemplate(w, r, "alert_detail.html", data); err != nil {
 		slog.Warn("render template", "error", err)
 		http.Error(w, "Internal Server Error", 500)
 	}
@@ -2856,6 +2946,25 @@ func (s *Server) apiDismissArticleAlert(w http.ResponseWriter, r *http.Request) 
 
 	if err := q.DismissArticleAlert(ctx, dbgen.DismissArticleAlertParams{ID: id, UserID: user.ID}); err != nil {
 		jsonError(w, "Failed to dismiss article alert", 500)
+		return
+	}
+
+	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) apiUndismissArticleAlert(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid article-alert ID", 400)
+		return
+	}
+
+	if err := q.UndismissArticleAlert(ctx, dbgen.UndismissArticleAlertParams{ID: id, UserID: user.ID}); err != nil {
+		jsonError(w, "Failed to undismiss article alert", 500)
 		return
 	}
 
