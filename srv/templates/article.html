@@ -22,7 +22,7 @@
             <span class="date" data-timestamp="{{formatDate .Article.PublishedAt}}">{{timeAgo .Article.PublishedAt}}</span>
         </div>
         
-        <h1>{{.Article.Title}}</h1>
+        <h1>{{if .Article.Url}}<a href="{{deref .Article.Url}}" target="_blank" rel="noopener noreferrer">{{.Article.Title}}</a>{{else}}{{.Article.Title}}{{end}}</h1>
 
         <div class="article-body">
             {{if .Article.Content}}

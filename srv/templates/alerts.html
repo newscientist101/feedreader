@@ -6,8 +6,18 @@
     </div>
 
     {{if .Alerts}}
-    <div class="alerts-rules-summary">
-        <span class="muted">{{len .Alerts}} alert rule{{if gt (len .Alerts) 1}}s{{end}}</span>
+    <div class="alerts-rules-list">
+        <h2>Alert Rules</h2>
+        <div class="alert-rules-table">
+            {{range .Alerts}}
+            <div class="alert-rule-row">
+                <a href="/alerts/{{.ID}}" class="alert-rule-name">{{.Name}}</a>
+                <span class="alert-rule-meta muted">
+                    {{.MatchField}} · {{if .IsRegex}}regex{{else}}keyword{{end}} · <code>{{.Pattern}}</code>
+                </span>
+            </div>
+            {{end}}
+        </div>
     </div>
     {{end}}
 

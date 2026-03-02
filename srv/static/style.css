@@ -888,9 +888,49 @@ body {
     margin: 0;
 }
 
-.alerts-rules-summary {
-    margin-bottom: 12px;
-    font-size: 0.9rem;
+.alerts-rules-list {
+    margin-bottom: 24px;
+}
+
+.alerts-rules-list h2 {
+    font-size: 1rem;
+    margin: 0 0 8px;
+}
+
+.alert-rules-table {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.alert-rule-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: var(--bg-secondary);
+}
+
+.alert-rule-name {
+    font-weight: 500;
+    color: var(--text-primary);
+    text-decoration: none;
+}
+
+.alert-rule-name:hover {
+    color: var(--accent);
+}
+
+.alert-rule-meta {
+    font-size: 0.85rem;
+}
+
+.alert-rule-meta code {
+    background: var(--bg-tertiary);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.85em;
 }
 
 .alert-groups {
