@@ -790,10 +790,16 @@ describe('initFeedItemClickListeners', () => {
             <div class="articles-view">
                 <div class="view-header"><h1>Title</h1></div>
             </div>
+            <div id="articles-list"></div>
             <a class="feed-item" data-feed-id="42" data-feed-name="Test Feed" href="/feed/42">
                 <span class="feed-name">Test Feed</span>
             </a>
         `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: async () => ({ feed: { id: 42 }, articles: [] }),
+        });
+        vi.spyOn(window.history, 'pushState').mockImplementation(() => {});
         initFeedItemClickListeners();
 
         const link = document.querySelector('.feed-item');

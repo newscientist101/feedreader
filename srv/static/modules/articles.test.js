@@ -230,9 +230,23 @@ describe('processEmbeds', () => {
             </div>
         `;
 
+        // Intercept appendChild to prevent happy-dom from attempting to
+        // load the external Twitter script (which logs a NotSupportedError).
+        const origAppendChild = document.body.appendChild.bind(document.body);
+        let capturedScript = null;
+        vi.spyOn(document.body, 'appendChild').mockImplementation((node) => {
+            if (node.tagName === 'SCRIPT' && node.src?.includes('platform.twitter.com')) {
+                capturedScript = node;
+                return node;
+            }
+            return origAppendChild(node);
+        });
+
         processEmbeds(container);
 
-        expect(document.querySelector('script[src*="platform.twitter.com"]')).not.toBeNull();
+        expect(capturedScript).not.toBeNull();
+        expect(capturedScript.src).toContain('platform.twitter.com/widgets.js');
+        document.body.appendChild.mockRestore();
     });
 });
 
