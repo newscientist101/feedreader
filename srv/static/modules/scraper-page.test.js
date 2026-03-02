@@ -32,6 +32,9 @@ beforeEach(() => {
     vi.restoreAllMocks();
     api.mockReset();
     _resetScraperPageState();
+    // Ensure dialog functions exist for happy-dom compatibility
+    window.confirm ??= () => false;
+    window.prompt ??= () => null;
 });
 
 describe('switchScraperTab', () => {

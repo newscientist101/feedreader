@@ -28,6 +28,9 @@ beforeEach(() => {
     _resetArticleActionsState();
     setQueuedArticleIds(new Set());
     window.__settings = {};
+    // Ensure dialog functions exist for happy-dom compatibility
+    window.confirm ??= () => false;
+    window.prompt ??= () => null;
 });
 
 afterEach(() => {
