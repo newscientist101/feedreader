@@ -86,6 +86,9 @@ func (rm *RetentionManager) cleanup() {
 	}
 
 	deleted, _ := result.RowsAffected()
+	if deleted > 0 {
+		rm.server.CountsCache.InvalidateAll()
+	}
 	slog.Info("retention: cleaned up old articles", "deleted", deleted, "retention_days", rm.retentionDays)
 }
 
@@ -100,7 +103,11 @@ func (rm *RetentionManager) RunCleanupNow() (int64, error) {
 		return 0, err
 	}
 
-	return result.RowsAffected()
+	deleted, err := result.RowsAffected()
+	if deleted > 0 {
+		rm.server.CountsCache.InvalidateAll()
+	}
+	return deleted, err
 }
 
 // GetStats returns retention statistics

@@ -50,6 +50,8 @@ type Server struct {
 	FaviconBaseURL   string       // upstream favicon service; default Google S2
 	FaviconClient    *http.Client // HTTP client for favicon fetches; defaults to safe client
 
+	CountsCache *CountsCache // per-user article count cache
+
 	// bgCtx is the context for background goroutines (feed fetches, etc.).
 	// Cancelled by Close() to ensure clean shutdown.
 	bgCtx    context.Context
@@ -65,6 +67,7 @@ func New(dbPath, hostname string) (*Server, error) {
 		TemplatesDir:  filepath.Join(baseDir, "templates"),
 		StaticDir:     filepath.Join(baseDir, "static"),
 		ScraperRunner: scrapers.NewRunner(),
+		CountsCache:   NewCountsCache(30 * time.Second),
 		bgCtx:         ctx,
 		bgCancel:      cancel,
 	}
@@ -76,6 +79,10 @@ func New(dbPath, hostname string) (*Server, error) {
 	srv.Fetcher.OnFeedFetched = func(ctx context.Context, feedID int64) {
 		srv.MarkExcludedArticlesReadForFeed(ctx, feedID)
 		srv.EvaluateAlertsForFeed(ctx, feedID)
+		// Invalidate counts cache for the feed owner since new articles arrived.
+		if ownerID, err := dbgen.New(srv.DB).GetFeedOwner(ctx, feedID); err == nil && ownerID != nil {
+			srv.CountsCache.Invalidate(*ownerID)
+		}
 	}
 	srv.StaticHashes = hashStaticFiles(srv.StaticDir)
 	return srv, nil
@@ -516,7 +523,12 @@ type articleCounts struct {
 }
 
 // getArticleCounts fetches all count data for a user in batch.
+// Results are cached per-user and invalidated by state-changing operations.
 func (s *Server) getArticleCounts(ctx context.Context, userID int64) articleCounts {
+	if cached, ok := s.CountsCache.Get(userID); ok {
+		return cached
+	}
+
 	q := dbgen.New(s.DB)
 	unreadCount, _ := q.GetUnreadCount(ctx, &userID)
 	starredCount, _ := q.GetStarredCount(ctx, &userID)
@@ -535,7 +547,7 @@ func (s *Server) getArticleCounts(ctx context.Context, userID int64) articleCoun
 		catCounts[row.CategoryID] = row.Count
 	}
 
-	return articleCounts{
+	counts := articleCounts{
 		Unread:     unreadCount,
 		Starred:    starredCount,
 		Queue:      queueCount,
@@ -543,6 +555,8 @@ func (s *Server) getArticleCounts(ctx context.Context, userID int64) articleCoun
 		FeedCounts: feedCounts,
 		CatCounts:  catCounts,
 	}
+	s.CountsCache.Set(userID, counts)
+	return counts
 }
 
 // Page Handlers
@@ -869,6 +883,7 @@ func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 	if err := q.MarkArticleRead(ctx, dbgen.MarkArticleReadParams{ID: articleID, UserID: &user.ID}); err != nil {
 		slog.Warn("failed to mark article read", "error", err)
 	}
+	s.CountsCache.Invalidate(user.ID)
 
 	// Add to history
 	if err := q.AddToHistory(ctx, dbgen.AddToHistoryParams{UserID: user.ID, ArticleID: articleID}); err != nil {
@@ -1054,6 +1069,7 @@ func (s *Server) apiDeleteFeed(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Failed to delete feed", 500)
 		return
 	}
+	s.CountsCache.Invalidate(user.ID)
 
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
@@ -1326,6 +1342,7 @@ func (s *Server) apiMarkRead(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Failed to mark read", 500)
 		return
 	}
+	s.CountsCache.Invalidate(user.ID)
 
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
@@ -1356,6 +1373,7 @@ func (s *Server) apiBatchMarkRead(w http.ResponseWriter, r *http.Request) {
 			slog.Error("failed to mark article read (batch)", "article_id", id, "user_id", user.ID, "error", err)
 		}
 	}
+	s.CountsCache.Invalidate(user.ID)
 
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
@@ -1375,6 +1393,7 @@ func (s *Server) apiMarkUnread(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Failed to mark unread", 500)
 		return
 	}
+	s.CountsCache.Invalidate(user.ID)
 
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
@@ -1394,6 +1413,7 @@ func (s *Server) apiToggleStar(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Failed to toggle star", 500)
 		return
 	}
+	s.CountsCache.Invalidate(user.ID)
 
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
@@ -1415,12 +1435,14 @@ func (s *Server) apiToggleQueue(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "Failed to remove from queue", 500)
 			return
 		}
+		s.CountsCache.Invalidate(user.ID)
 		jsonResponse(w, map[string]any{"status": "ok", "queued": false})
 	} else {
 		if err := q.AddToQueue(ctx, dbgen.AddToQueueParams{UserID: user.ID, ArticleID: articleID}); err != nil {
 			jsonError(w, "Failed to add to queue", 500)
 			return
 		}
+		s.CountsCache.Invalidate(user.ID)
 		jsonResponse(w, map[string]any{"status": "ok", "queued": true})
 	}
 }
@@ -1440,6 +1462,7 @@ func (s *Server) apiRemoveFromQueue(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Failed to remove from queue", 500)
 		return
 	}
+	s.CountsCache.Invalidate(user.ID)
 
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
@@ -1482,6 +1505,7 @@ func (s *Server) apiMarkAllRead(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Failed to mark all read", 500)
 		return
 	}
+	s.CountsCache.Invalidate(user.ID)
 
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
@@ -1519,6 +1543,7 @@ func (s *Server) apiMarkFeedRead(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Failed to mark feed read", 500)
 		return
 	}
+	s.CountsCache.Invalidate(user.ID)
 
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
@@ -2259,6 +2284,7 @@ func (s *Server) apiMarkCategoryRead(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Failed to mark category read", 500)
 		return
 	}
+	s.CountsCache.Invalidate(user.ID)
 
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
@@ -2479,6 +2505,7 @@ func (s *Server) apiCreateExclusion(w http.ResponseWriter, r *http.Request) {
 
 	// Mark existing unread articles matching the new rule as read
 	s.MarkExcludedArticlesReadForCategory(ctx, catID, user.ID)
+	s.CountsCache.Invalidate(user.ID)
 
 	jsonResponse(w, exclusion)
 }
@@ -2910,6 +2937,7 @@ func (s *Server) apiDeleteAlert(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Failed to delete alert", 500)
 		return
 	}
+	s.CountsCache.Invalidate(user.ID)
 
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
@@ -2929,6 +2957,7 @@ func (s *Server) apiDismissAllForAlert(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "Failed to dismiss alerts", 500)
 		return
 	}
+	s.CountsCache.Invalidate(user.ID)
 
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
@@ -2948,6 +2977,7 @@ func (s *Server) apiDismissArticleAlert(w http.ResponseWriter, r *http.Request) 
 		jsonError(w, "Failed to dismiss article alert", 500)
 		return
 	}
+	s.CountsCache.Invalidate(user.ID)
 
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
@@ -2967,6 +2997,7 @@ func (s *Server) apiUndismissArticleAlert(w http.ResponseWriter, r *http.Request
 		jsonError(w, "Failed to undismiss article alert", 500)
 		return
 	}
+	s.CountsCache.Invalidate(user.ID)
 
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
