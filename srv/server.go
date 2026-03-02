@@ -73,7 +73,10 @@ func New(dbPath, hostname string) (*Server, error) {
 		return nil, err
 	}
 	srv.Fetcher = feeds.NewFetcher(srv.DB, srv.ScraperRunner)
-	srv.Fetcher.OnFeedFetched = srv.MarkExcludedArticlesReadForFeed
+	srv.Fetcher.OnFeedFetched = func(ctx context.Context, feedID int64) {
+		srv.MarkExcludedArticlesReadForFeed(ctx, feedID)
+		srv.EvaluateAlertsForFeed(ctx, feedID)
+	}
 	srv.StaticHashes = hashStaticFiles(srv.StaticDir)
 	return srv, nil
 }
@@ -504,6 +507,7 @@ type articleCounts struct {
 	Unread     int64
 	Starred    int64
 	Queue      int64
+	Alerts     int64
 	FeedCounts map[int64]int64
 	CatCounts  map[int64]int64
 }
@@ -514,6 +518,7 @@ func (s *Server) getArticleCounts(ctx context.Context, userID int64) articleCoun
 	unreadCount, _ := q.GetUnreadCount(ctx, &userID)
 	starredCount, _ := q.GetStarredCount(ctx, &userID)
 	queueCount, _ := q.GetQueueCount(ctx, userID)
+	alertsCount, _ := q.CountUndismissedAlerts(ctx, userID)
 
 	feedCounts := make(map[int64]int64)
 	feedCountRows, _ := q.GetAllFeedUnreadCounts(ctx, &userID)
@@ -531,6 +536,7 @@ func (s *Server) getArticleCounts(ctx context.Context, userID int64) articleCoun
 		Unread:     unreadCount,
 		Starred:    starredCount,
 		Queue:      queueCount,
+		Alerts:     alertsCount,
 		FeedCounts: feedCounts,
 		CatCounts:  catCounts,
 	}
@@ -579,6 +585,7 @@ func (s *Server) getCommonData(ctx context.Context) map[string]any {
 		"UnreadCount":    counts.Unread,
 		"StarredCount":   counts.Starred,
 		"QueueCount":     counts.Queue,
+		"AlertsCount":    counts.Alerts,
 		"User":           user,
 		"Settings":       settings,
 	}
@@ -1120,6 +1127,7 @@ func (s *Server) apiGetCounts(w http.ResponseWriter, r *http.Request) {
 		"unread":     counts.Unread,
 		"starred":    counts.Starred,
 		"queue":      counts.Queue,
+		"alerts":     counts.Alerts,
 		"feeds":      counts.FeedCounts,
 		"categories": counts.CatCounts,
 		"feedErrors": feedErrors,

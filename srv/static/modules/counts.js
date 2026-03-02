@@ -28,6 +28,13 @@ export async function updateCounts() {
             queueBadge.setAttribute('aria-label', counts.queue ? `${counts.queue} queued articles` : '');
         }
 
+        // Update alerts count
+        const alertsBadge = document.querySelector('[data-count="alerts"]');
+        if (alertsBadge) {
+            alertsBadge.textContent = counts.alerts || '';
+            alertsBadge.setAttribute('aria-label', counts.alerts ? `${counts.alerts} alerts` : '');
+        }
+
         // Update category counts — zero all first, then set from response
         // (categories with 0 unread are omitted from the response)
         document.querySelectorAll('[data-count^="category-"]').forEach(badge => {
