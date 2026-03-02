@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"srv.exe.dev/db"
-	"srv.exe.dev/db/dbgen"
+	"github.com/newscientist101/feedreader/db"
+	"github.com/newscientist101/feedreader/db/dbgen"
 )
 
 // --------------- Newsletter handlers ---------------

@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"srv.exe.dev/db/dbgen"
+	"github.com/newscientist101/feedreader/db/dbgen"
 )
 
 // Watcher polls ~/Maildir/new/ for incoming emails and processes them.

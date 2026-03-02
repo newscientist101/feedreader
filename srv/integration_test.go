@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"srv.exe.dev/srv/feeds"
+	"github.com/newscientist101/feedreader/srv/feeds"
 )
 
 // integrationServer creates a full httptest.Server running the real mux,

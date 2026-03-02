@@ -1,114 +1,153 @@
 # FeedReader
 
-A modern feed reader with RSS/Atom support and a modular scraper system for non-RSS sources.
+A self-hosted feed reader built with Go and SQLite. Supports RSS/Atom feeds,
+custom web scrapers for sites without feeds, and AI-powered scraper generation.
+
+![FeedReader screenshot](screenshot.png)
 
 ## Features
 
-- **RSS/Atom Feeds**: Subscribe to standard RSS and Atom feeds
-- **Folders/Categories**: Organize feeds into folders with OPML import/export
-- **Custom Scrapers**: Create scrapers for websites without RSS feeds
-- **AI-Powered Config**: Let Claude analyze a page and generate scraper configuration
-- **Exclusion Rules**: Filter out articles by keyword or author per folder
-- **Data Retention**: Automatic cleanup of old articles (starred items preserved)
-- **Multiple Views**: Card, List, Magazine, and Expanded views
-- **Reading Queue**: Save articles to read later
-- **Reading History**: Track recently read articles
-- **Newsletter Support**: Receive newsletters as feed items via email
-- **Responsive UI**: Works on desktop, tablet, and mobile
+- **RSS/Atom feeds** — subscribe to standard feeds with conditional GET support
+- **Custom scrapers** — CSS-selector-based scrapers for sites without RSS
+- **AI scraper generation** — paste a URL and let Claude generate the scraper config
+- **Folders & categories** — organize feeds into nested folders
+- **Multiple views** — card, list, magazine, and expanded layouts
+- **Reading queue** — save articles to read later
+- **Reading history** — track recently read articles
+- **Exclusion rules** — filter articles by keyword or author per folder
+- **OPML import/export** — migrate to and from other feed readers
+- **Newsletter support** — receive newsletters as feed items via SMTP
+- **Data retention** — automatic cleanup of old articles (starred items preserved)
+- **Multi-user** — each user gets their own feeds, folders, and settings
+- **Responsive UI** — works on desktop, tablet, and mobile
+- **Offline support** — service worker for offline reading
 
-## Building and Running
+## Quick Start
+
+### Prerequisites
+
+- Go 1.22+
+- Node.js 18+ (for JS tests and linting only)
+
+### Build and Run
 
 ```bash
-# Build
+# Install JS dev dependencies (for tests/linting)
+npm install
+
+# Build the binary
 make build
 
-# Run
+# Run (listens on port 8000)
 ./feedreader
 ```
 
-The server listens on port 8000 by default.
+The database (`db.sqlite3`) is created automatically on first run with all
+migrations applied.
 
-## Viewing the App
+### Authentication
 
-The app requires exe.dev authentication headers (`X-Exedev-Userid` and
-`X-Exedev-Email`). Without them, all non-static requests redirect to
-`/__exe.dev/login`.
+FeedReader expects authentication headers on each request:
 
-### Via the exe.dev proxy (production)
+| Header | Description |
+|---|---|
+| `X-Exedev-Userid` | Unique user identifier |
+| `X-Exedev-Email` | User's email address |
 
-Access `https://lynx-fairy.exe.xyz:8000/` in a browser where you are
-logged into exe.dev. The proxy injects the auth headers automatically.
-
-### Local development (Shelley / browser tool)
-
-The built-in browser tool cannot authenticate through the exe.dev proxy.
-Use **mitmdump** as a reverse proxy on a second port to inject the
-required headers:
+In production, a reverse proxy injects these headers. For local development,
+use a proxy like [mitmdump](https://mitmproxy.org/) to add them:
 
 ```bash
 mitmdump \
   --mode reverse:http://localhost:8000 \
   --listen-port 3000 \
-  --set modify_headers='/~q/X-Exedev-Email/dev@localhost' \
-  --set modify_headers='/~q/X-Exedev-Userid/dev-user-1'
+  --set modify_headers='/~q/X-Exedev-Email/you@example.com' \
+  --set modify_headers='/~q/X-Exedev-Userid/user-1'
 ```
 
-Then browse to `http://localhost:3000/`.
+Then open `http://localhost:3000/`.
 
-To view as a specific existing user, look up their credentials:
+A new user record is created automatically on first login.
 
-```bash
-sqlite3 db.sqlite3 "SELECT external_id, email FROM users;"
+### Configuration
+
+Optional environment variables (or `.env` file):
+
+| Variable | Description |
+|---|---|
+| `ANTHROPIC_API_KEY` | Enables AI-powered scraper generation via Claude |
+
+## Tech Stack
+
+- **Go** standard library `net/http` router — no web framework
+- **SQLite** via [modernc.org/sqlite](https://pkg.go.dev/modernc.org/sqlite) (pure Go, no CGO)
+- **sqlc** for type-safe SQL queries
+- **Server-rendered HTML** with `html/template`
+- **Vanilla JS** frontend — native ES modules, no bundler, no framework
+- **goquery** for CSS-selector scraping
+
+## Project Structure
+
+```
+cmd/srv/main.go            Entry point
+srv/
+  server.go                HTTP handlers
+  auth.go                  Auth middleware
+  filter.go                Folder exclusion-rule filtering
+  content_filter.go        Per-feed content transform filters
+  category_tree.go         Nested folder tree builder
+  retention.go             Data retention / cleanup
+  ai_scraper.go            Claude API integration for scraper generation
+  feeds/                   RSS/Atom fetcher and parser
+  scrapers/                CSS-selector and JSON API scrapers
+  huggingface/             Hugging Face model feed source
+  opml/                    OPML import/export
+  email/                   Newsletter SMTP receiver
+  templates/               Server-rendered HTML templates
+  static/                  CSS, JS, icons
+    app.js                 JS entry point
+    modules/               ES modules (each with a .test.js companion)
+    style.css              Styles
+db/
+  db.go                    Database setup, migrations, pragmas
+  migrations/              Numbered SQL migrations (001–015)
+  queries/                 SQL queries for sqlc
+  dbgen/                   Generated Go code (do not edit)
 ```
 
-Then use the matching `external_id` and `email` in the headers:
+## Development
+
+### Validation
+
+Run all checks before committing:
 
 ```bash
-mitmdump \
-  --mode reverse:http://localhost:8000 \
-  --listen-port 3000 \
-  --set modify_headers='/~q/X-Exedev-Email/<EMAIL>' \
-  --set modify_headers='/~q/X-Exedev-Userid/<EXTERNAL_ID>'
+make check
 ```
 
-**Note:** When viewing the app (e.g. for development or testing), always
-use the real user's credentials from the database so you see their actual
-feeds, folders, and read state.
+This runs, in order:
 
-## Configuration
+| Step | Command | What it does |
+|---|---|---|
+| Format | `make fmt-check` | Verify `goimports` formatting |
+| Fix | `make fix-check` | Verify `go fix` has nothing to apply |
+| Lint | `make lint` | Go (golangci-lint) + JS (eslint) + CSS (stylelint) + HTML (djlint) + template validation |
+| Test | `make test` | Go tests + JS tests (vitest) |
+| Vulncheck | `make vulncheck` | Scan dependencies for known vulnerabilities |
 
-Create a `.env` file for environment variables:
+To auto-fix Go formatting: `make fmt`
 
-```bash
-# For AI-powered scraper generation (optional)
-ANTHROPIC_API_KEY=your-api-key-here
-```
+### Database Migrations
 
-## Running as a systemd service
+Migrations in `db/migrations/` are applied automatically on startup.
+Add new ones as sequentially numbered `.sql` files.
 
-```bash
-# Install the service file
-sudo cp srv.service /etc/systemd/system/feedreader.service
+### sqlc Workflow
 
-# Reload systemd and enable the service
-sudo systemctl daemon-reload
-sudo systemctl enable feedreader.service
-
-# Start the service
-sudo systemctl start feedreader
-
-# Check status
-systemctl status feedreader
-
-# View logs
-journalctl -u feedreader -f
-```
-
-To restart after code changes:
+Edit SQL in `db/queries/*.sql`, then regenerate:
 
 ```bash
-make build
-sudo systemctl restart feedreader
+go generate ./db/...
 ```
 
 ## Scraper System
@@ -116,14 +155,13 @@ sudo systemctl restart feedreader
 ### AI-Powered Generation
 
 1. Set `ANTHROPIC_API_KEY` in your `.env` file
-2. Go to Scrapers page
-3. Enter the URL and describe what you want to extract
-4. Click "Generate Scraper Config"
-5. Review and use the generated configuration
+2. Go to **Scrapers** → click **AI Generate**
+3. Enter the URL and describe what to extract
+4. Review and save the generated configuration
 
 ### Manual Configuration
 
-Create a JSON config with CSS selectors:
+Scraper configs use CSS selectors to extract articles from HTML pages:
 
 ```json
 {
@@ -132,6 +170,7 @@ Create a JSON config with CSS selectors:
   "urlSelector": "a.permalink",
   "urlAttr": "href",
   "summarySelector": "p.summary",
+  "authorSelector": "span.author",
   "imageSelector": "img.thumb",
   "imageAttr": "src",
   "dateSelector": "time",
@@ -140,104 +179,97 @@ Create a JSON config with CSS selectors:
 }
 ```
 
-### Available Selectors
+Only `itemSelector` is required. All other selectors are optional.
 
-- `itemSelector` - CSS selector for each item container (required)
-- `titleSelector` - Selector for title element (uses text content)
-- `urlSelector` - Selector for link element
-- `urlAttr` - Attribute to extract URL from (default: `href`)
-- `summarySelector` - Selector for description (optional)
-- `authorSelector` - Selector for author name (optional)
-- `imageSelector` - Selector for image element (optional)
-- `imageAttr` - Attribute to extract image URL from (default: `src`)
-- `dateSelector` - Selector for date element (optional)
-- `dateAttr` - Attribute to extract date from (uses text content if empty)
-- `baseUrl` - Base URL for relative links
+## API
 
-## Folder Exclusion Rules
+All endpoints require authentication headers.
 
-Filter unwanted content per folder:
-
-1. Hover over a folder → click ⚙️ gear icon
-2. Add keyword or author exclusion rules
-3. Supports plain text or regex patterns
-
-## API Endpoints
+<details>
+<summary>Full API reference</summary>
 
 ### Feeds
-- `GET /api/feeds/{id}` - Get feed details
-- `GET /api/feeds/{id}/articles` - Get feed articles
-- `GET /api/feeds/{id}/status` - Get feed fetch status
-- `POST /api/feeds` - Create feed
-- `PUT /api/feeds/{id}` - Update feed
-- `DELETE /api/feeds/{id}` - Delete feed
-- `POST /api/feeds/{id}/refresh` - Refresh feed
-- `POST /api/feeds/{id}/category` - Set feed category
-- `POST /api/feeds/{id}/read-all` - Mark all feed articles read
+- `GET /api/feeds/{id}` — feed details
+- `GET /api/feeds/{id}/articles` — feed articles
+- `GET /api/feeds/{id}/status` — fetch status
+- `POST /api/feeds` — create feed
+- `PUT /api/feeds/{id}` — update feed
+- `DELETE /api/feeds/{id}` — delete feed
+- `POST /api/feeds/{id}/refresh` — refresh now
+- `POST /api/feeds/{id}/category` — set category
+- `POST /api/feeds/{id}/read-all` — mark all read
 
 ### Articles
-- `GET /api/articles/unread` - Get unread articles
-- `POST /api/articles/{id}/read` - Mark as read
-- `POST /api/articles/{id}/unread` - Mark as unread
-- `POST /api/articles/{id}/star` - Toggle star
-- `POST /api/articles/batch-read` - Batch mark as read
-- `POST /api/articles/read-all` - Mark all articles read
-- `GET /api/search` - Search articles
+- `GET /api/articles/unread` — unread articles
+- `POST /api/articles/{id}/read` — mark read
+- `POST /api/articles/{id}/unread` — mark unread
+- `POST /api/articles/{id}/star` — toggle star
+- `POST /api/articles/batch-read` — batch mark read
+- `POST /api/articles/read-all` — mark all read
+- `GET /api/search` — search articles
 
 ### Categories
-- `POST /api/categories` - Create category
-- `PUT /api/categories/{id}` - Update category
-- `DELETE /api/categories/{id}` - Delete category
-- `GET /api/categories/{id}/articles` - Get category articles
-- `POST /api/categories/reorder` - Reorder categories
-- `POST /api/categories/{id}/parent` - Set parent category
-- `POST /api/categories/{id}/read-all` - Mark all category articles read
-- `GET /api/categories/{id}/exclusions` - List exclusion rules
-- `POST /api/categories/{id}/exclusions` - Create exclusion rule
-- `DELETE /api/exclusions/{id}` - Delete exclusion rule
+- `POST /api/categories` — create
+- `PUT /api/categories/{id}` — update
+- `DELETE /api/categories/{id}` — delete
+- `GET /api/categories/{id}/articles` — category articles
+- `POST /api/categories/reorder` — reorder
+- `POST /api/categories/{id}/parent` — set parent
+- `POST /api/categories/{id}/read-all` — mark all read
+- `GET /api/categories/{id}/exclusions` — list exclusion rules
+- `POST /api/categories/{id}/exclusions` — create rule
+- `DELETE /api/exclusions/{id}` — delete rule
 
 ### Queue & History
-- `GET /api/queue` - List queued articles
-- `POST /api/articles/{id}/queue` - Toggle queue status
-- `DELETE /api/articles/{id}/queue` - Remove from queue
+- `GET /api/queue` — list queued articles
+- `POST /api/articles/{id}/queue` — toggle queue
+- `DELETE /api/articles/{id}/queue` — remove from queue
 
 ### OPML
-- `GET /api/opml/export` - Export as OPML
-- `POST /api/opml/import` - Import OPML file
+- `GET /api/opml/export` — export feeds
+- `POST /api/opml/import` — import OPML file
 
 ### Scrapers
-- `GET /api/scrapers/{id}` - Get scraper
-- `POST /api/scrapers` - Create scraper
-- `PUT /api/scrapers/{id}` - Update scraper
-- `DELETE /api/scrapers/{id}` - Delete scraper
-- `POST /api/ai/generate-scraper` - Generate config with AI
-- `GET /api/ai/status` - Check AI availability
+- `GET /api/scrapers/{id}` — get scraper
+- `POST /api/scrapers` — create scraper
+- `PUT /api/scrapers/{id}` — update scraper
+- `DELETE /api/scrapers/{id}` — delete scraper
+- `POST /api/ai/generate-scraper` — AI generate config
+- `GET /api/ai/status` — AI availability
 
 ### Newsletter
-- `GET /api/newsletter/address` - Get newsletter email address
-- `POST /api/newsletter/generate-address` - Generate new newsletter address
+- `GET /api/newsletter/address` — get address
+- `POST /api/newsletter/generate-address` — generate new address
 
 ### Settings & Counts
-- `GET /api/settings` - Get user settings
-- `PUT /api/settings` - Update user settings
-- `GET /api/counts` - Get unread/starred/feed counts
-- `GET /api/favicon` - Fetch site favicon
-- `GET /api/retention/stats` - Retention statistics
-- `POST /api/retention/cleanup` - Run cleanup
+- `GET /api/settings` — get settings
+- `PUT /api/settings` — update settings
+- `GET /api/counts` — unread/starred/feed counts
+- `GET /api/favicon` — fetch site favicon
+- `GET /api/retention/stats` — retention statistics
+- `POST /api/retention/cleanup` — run cleanup
 
-## Database
+</details>
 
-SQLite database (`db.sqlite3`) with migrations in `db/migrations/`.
+## Deployment
 
-## Code Layout
+FeedReader is a single binary + SQLite database. Deploy however you like.
 
-- `cmd/srv/` - Main binary entrypoint
-- `srv/` - HTTP server, handlers, templates
-- `srv/feeds/` - RSS/Atom parser and fetcher
-- `srv/scrapers/` - Custom scraper engine
-- `srv/opml/` - OPML import/export
-- `srv/email/` - Newsletter email receiving
-- `srv/huggingface/` - Hugging Face feed source
-- `srv/templates/` - HTML templates
-- `srv/static/` - CSS and JavaScript
-- `db/` - Database, migrations, queries
+Example with systemd:
+
+```bash
+# Copy and edit the service file
+sudo cp srv.service /etc/systemd/system/feedreader.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now feedreader
+
+# Restart after updates
+make build && sudo systemctl restart feedreader
+```
+
+Put a reverse proxy (nginx, Caddy, etc.) in front to handle TLS and
+inject the authentication headers.
+
+## License
+
+[MIT](LICENSE)

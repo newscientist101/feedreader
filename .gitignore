@@ -3,8 +3,18 @@
 node_modules/
 /typecheck
 coverage.out
-logs/es-modules-refactor.log
+logs/
 
-# Dolt database files (added by bd init)
+# Dolt database files
 .dolt/
 *.db
+
+# Internal infrastructure
+.beads/
+beads-dolt.service
+task-agent.service
+es-modules-refactor.timer
+scripts/task-agent.sh
+
+# Environment
+.env

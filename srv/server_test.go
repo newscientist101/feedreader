@@ -11,9 +11,9 @@ import (
 	"sync"
 	"testing"
 
-	"srv.exe.dev/db"
-	"srv.exe.dev/db/dbgen"
-	"srv.exe.dev/srv/scrapers"
+	"github.com/newscientist101/feedreader/db"
+	"github.com/newscientist101/feedreader/db/dbgen"
+	"github.com/newscientist101/feedreader/srv/scrapers"
 )
 
 // cachedSchema holds the fully-migrated schema SQL so we only run

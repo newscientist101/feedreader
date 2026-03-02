@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"srv.exe.dev/db/dbgen"
+	"github.com/newscientist101/feedreader/db/dbgen"
 )
 
 // FilterArticles applies exclusion rules to a list of articles

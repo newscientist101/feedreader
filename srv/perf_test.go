@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"srv.exe.dev/db/dbgen"
-	"srv.exe.dev/srv/feeds"
+	"github.com/newscientist101/feedreader/db/dbgen"
+	"github.com/newscientist101/feedreader/srv/feeds"
 )
 
 // drainClose fully reads and closes the response body to avoid broken pipe

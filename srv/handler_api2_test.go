@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"srv.exe.dev/db/dbgen"
-	"srv.exe.dev/srv/feeds"
+	"github.com/newscientist101/feedreader/db/dbgen"
+	"github.com/newscientist101/feedreader/srv/feeds"
 )
 
 // testFetcher creates a Fetcher backed by the server's DB.

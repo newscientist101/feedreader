@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"srv.exe.dev/db/dbgen"
+	"github.com/newscientist101/feedreader/db/dbgen"
 )
 
 // testServerWithTemplates returns a test server configured to render real templates.

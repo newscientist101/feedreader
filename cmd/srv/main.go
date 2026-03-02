@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"srv.exe.dev/srv"
+	"github.com/newscientist101/feedreader/srv"
 )
 
 var flagListenAddr = flag.String("listen", ":8000", "address to listen on")

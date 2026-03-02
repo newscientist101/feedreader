@@ -3,7 +3,7 @@ package srv
 import (
 	"testing"
 
-	"srv.exe.dev/db/dbgen"
+	"github.com/newscientist101/feedreader/db/dbgen"
 )
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 package srv
 
 import (
-	"srv.exe.dev/db/dbgen"
+	"github.com/newscientist101/feedreader/db/dbgen"
 )
 
 // CategoryNode represents a category with its children

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"srv.exe.dev/db/dbgen"
+	"github.com/newscientist101/feedreader/db/dbgen"
 )
 
 // Context key for user

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"srv.exe.dev/db/dbgen"
+	"github.com/newscientist101/feedreader/db/dbgen"
 )
 
 // --------------- Article actions ---------------

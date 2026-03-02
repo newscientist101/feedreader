@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"srv.exe.dev/db/dbgen"
+	"github.com/newscientist101/feedreader/db/dbgen"
 )
 
 // ---------------------------------------------------------------------------

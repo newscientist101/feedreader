@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"srv.exe.dev/db/dbgen"
+	"github.com/newscientist101/feedreader/db/dbgen"
 )
 
 // RetentionManager handles automatic cleanup of old articles

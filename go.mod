@@ -1,4 +1,4 @@
-module srv.exe.dev
+module github.com/newscientist101/feedreader
 
 go 1.26.0
 

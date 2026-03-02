@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"srv.exe.dev/db/dbgen"
-	"srv.exe.dev/srv/huggingface"
-	"srv.exe.dev/srv/scrapers"
+	"github.com/newscientist101/feedreader/db/dbgen"
+	"github.com/newscientist101/feedreader/srv/huggingface"
+	"github.com/newscientist101/feedreader/srv/scrapers"
 )
 
 // Fetcher handles fetching and updating feeds

@@ -25,13 +25,13 @@ import (
 	"strings"
 	"time"
 
-	"srv.exe.dev/db"
-	"srv.exe.dev/db/dbgen"
-	"srv.exe.dev/srv/email"
-	"srv.exe.dev/srv/feeds"
-	"srv.exe.dev/srv/huggingface"
-	"srv.exe.dev/srv/opml"
-	"srv.exe.dev/srv/scrapers"
+	"github.com/newscientist101/feedreader/db"
+	"github.com/newscientist101/feedreader/db/dbgen"
+	"github.com/newscientist101/feedreader/srv/email"
+	"github.com/newscientist101/feedreader/srv/feeds"
+	"github.com/newscientist101/feedreader/srv/huggingface"
+	"github.com/newscientist101/feedreader/srv/opml"
+	"github.com/newscientist101/feedreader/srv/scrapers"
 )
 
 type Server struct {
