@@ -27,7 +27,7 @@ beforeEach(() => {
     _resetArticlesState();
     _resetArticleActionsState();
     setQueuedArticleIds(new Set());
-    window.__settings = {};
+    window.__settings = { autoMarkRead: 'true' };
     // Ensure dialog functions exist for happy-dom compatibility
     window.confirm ??= () => false;
     window.prompt ??= () => null;
