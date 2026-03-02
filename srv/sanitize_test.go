@@ -74,3 +74,25 @@ func TestSanitizeHTML_StripsFormElements(t *testing.T) {
 		t.Errorf("expected input to be stripped, got: %s", got)
 	}
 }
+
+func TestSanitizeHTML_AddsTargetBlankToExternalLinks(t *testing.T) {
+	input := `<a href="https://example.com/article">Read more</a>`
+	got := string(sanitizeHTML(input))
+	if !strings.Contains(got, `target="_blank"`) {
+		t.Errorf("expected target=_blank to be added, got: %s", got)
+	}
+	if !strings.Contains(got, `rel="`) {
+		t.Errorf("expected rel attribute to be added, got: %s", got)
+	}
+	if !strings.Contains(got, "noopener") {
+		t.Errorf("expected noopener in rel, got: %s", got)
+	}
+}
+
+func TestSanitizeHTML_PreservesExistingTargetBlank(t *testing.T) {
+	input := `<a href="https://example.com" target="_blank">Link</a>`
+	got := string(sanitizeHTML(input))
+	if !strings.Contains(got, `target="_blank"`) {
+		t.Errorf("expected target=_blank to be preserved, got: %s", got)
+	}
+}

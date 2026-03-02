@@ -54,7 +54,11 @@ export { updateReadButton } from './read-button.js';
 
 // Apply user preferences from settings
 export function applyUserPreferences() {
-    applyHideReadArticles(getSetting('hideReadArticles'));
+    // When explicitly showing hidden/read articles (or during search),
+    // skip hiding read articles — the user asked to see them.
+    if (!showingHiddenArticles) {
+        applyHideReadArticles(getSetting('hideReadArticles'));
+    }
     updateAllReadMessage();
     applyHideEmptyFeeds(getSetting('hideEmptyFeeds'));
 }
@@ -69,7 +73,7 @@ export function updateAllReadMessage() {
     if (existingMsg) existingMsg.remove();
 
     const hideRead = getSetting('hideReadArticles') === 'hide';
-    if (!hideRead) return;
+    if (!hideRead || showingHiddenArticles) return;
 
     // Check if there are articles but all are hidden
     const allCards = articlesList.querySelectorAll('.article-card');

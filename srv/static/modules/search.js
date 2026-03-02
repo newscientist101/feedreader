@@ -1,6 +1,6 @@
 // Search: debounced article search with abort support and context scoping.
 
-import { renderArticles, applyUserPreferences } from './articles.js';
+import { renderArticles, applyUserPreferences, setShowingHiddenArticles } from './articles.js';
 import { showToast } from './toast.js';
 
 let timeout;
@@ -23,6 +23,7 @@ export function initSearch() {
                     const list = document.getElementById('articles-list');
                     if (list) list.innerHTML = originalHTML;
                     originalHTML = null;
+                    setShowingHiddenArticles(false);
                     applyUserPreferences();
                 }
                 return;
@@ -45,6 +46,8 @@ export function initSearch() {
                 const articles = await res.json();
                 searchAbort = null;
                 if (!res.ok) throw new Error(articles.error || 'Search failed');
+                // Show all matching articles regardless of hideRead setting
+                setShowingHiddenArticles(true);
                 renderArticles(articles);
             } catch (err) {
                 if (err.name === 'AbortError') return; // cancelled, ignore
@@ -62,4 +65,5 @@ export function _resetSearchState() {
     if (searchAbort) { searchAbort.abort(); }
     searchAbort = null;
     originalHTML = null;
+    setShowingHiddenArticles(false);
 }

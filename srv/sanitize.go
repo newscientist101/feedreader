@@ -55,6 +55,9 @@ func articleSanitizePolicy() *bluemonday.Policy {
 			"height", "max-height", "float", "clear",
 			"border", "border-radius", "vertical-align").Globally()
 
+		// Open all external links in a new tab with noopener/noreferrer.
+		p.AddTargetBlankToFullyQualifiedLinks(true)
+
 		sanitizePolicy = p
 	})
 	return sanitizePolicy

@@ -5,6 +5,7 @@ import { initSearch, _resetSearchState } from './search.js';
 vi.mock('./articles.js', () => ({
     renderArticles: vi.fn(),
     applyUserPreferences: vi.fn(),
+    setShowingHiddenArticles: vi.fn(),
 }));
 
 import { renderArticles, applyUserPreferences } from './articles.js';
