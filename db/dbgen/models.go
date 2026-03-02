@@ -24,6 +24,14 @@ type Article struct {
 	IsStarred   *int64     `json:"is_starred"`
 }
 
+type ArticleAlert struct {
+	ID        int64     `json:"id"`
+	ArticleID int64     `json:"article_id"`
+	AlertID   int64     `json:"alert_id"`
+	MatchedAt time.Time `json:"matched_at"`
+	Dismissed int64     `json:"dismissed"`
+}
+
 type Category struct {
 	ID        int64     `json:"id"`
 	Name      string    `json:"name"`
@@ -84,6 +92,16 @@ type Migration struct {
 	MigrationNumber int64     `json:"migration_number"`
 	MigrationName   string    `json:"migration_name"`
 	ExecutedAt      time.Time `json:"executed_at"`
+}
+
+type NewsAlert struct {
+	ID         int64     `json:"id"`
+	UserID     int64     `json:"user_id"`
+	Name       string    `json:"name"`
+	Pattern    string    `json:"pattern"`
+	IsRegex    int64     `json:"is_regex"`
+	MatchField string    `json:"match_field"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 type QueueArticle struct {
