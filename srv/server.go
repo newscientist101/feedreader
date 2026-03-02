@@ -1,6 +1,7 @@
 package srv
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -264,7 +265,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 // Template helpers
-func (s *Server) renderTemplate(w http.ResponseWriter, name string, data any) error {
+func (s *Server) renderTemplate(w http.ResponseWriter, r *http.Request, name string, data any) error {
 	funcMap := template.FuncMap{
 		"timeAgo":     timeAgo,
 		"formatDate":  formatDate,
@@ -322,10 +323,29 @@ func (s *Server) renderTemplate(w http.ResponseWriter, name string, data any) er
 	if err != nil {
 		return fmt.Errorf("parse template %q: %w", name, err)
 	}
-	if err := tmpl.Execute(w, data); err != nil {
+
+	// Buffer the rendered output to compute an ETag.
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
 		return fmt.Errorf("execute template %q: %w", name, err)
 	}
-	return nil
+
+	// Compute weak ETag from content hash.
+	h := sha256.Sum256(buf.Bytes())
+	etag := `W/"` + hex.EncodeToString(h[:8]) + `"`
+	w.Header().Set("ETag", etag)
+
+	// Check If-None-Match for conditional response.
+	if match := r.Header.Get("If-None-Match"); match != "" {
+		if strings.Contains(match, etag) {
+			w.WriteHeader(http.StatusNotModified)
+			return nil
+		}
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, err = w.Write(buf.Bytes())
+	return err
 }
 
 func timeAgo(t *time.Time) string {
@@ -575,7 +595,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	data["ActiveView"] = "unread"
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.renderTemplate(w, "index.html", data); err != nil {
+	if err := s.renderTemplate(w, r, "index.html", data); err != nil {
 		slog.Warn("render template", "error", err)
 		http.Error(w, "Internal Server Error", 500)
 	}
@@ -594,7 +614,7 @@ func (s *Server) handleFeeds(w http.ResponseWriter, r *http.Request) {
 	data["ActiveView"] = "feeds"
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.renderTemplate(w, "feeds.html", data); err != nil {
+	if err := s.renderTemplate(w, r, "feeds.html", data); err != nil {
 		slog.Warn("render template", "error", err)
 		http.Error(w, "Internal Server Error", 500)
 	}
@@ -613,7 +633,7 @@ func (s *Server) handleStarred(w http.ResponseWriter, r *http.Request) {
 	data["ActiveView"] = "starred"
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.renderTemplate(w, "index.html", data); err != nil {
+	if err := s.renderTemplate(w, r, "index.html", data); err != nil {
 		slog.Warn("render template", "error", err)
 		http.Error(w, "Internal Server Error", 500)
 	}
@@ -652,7 +672,7 @@ func (s *Server) handleQueue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.renderTemplate(w, "queue.html", data); err != nil {
+	if err := s.renderTemplate(w, r, "queue.html", data); err != nil {
 		slog.Warn("render template", "error", err)
 		http.Error(w, "Internal Server Error", 500)
 	}
@@ -690,7 +710,7 @@ func (s *Server) handleFeedArticles(w http.ResponseWriter, r *http.Request) {
 	data["CurrentFeed"] = feed
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.renderTemplate(w, "index.html", data); err != nil {
+	if err := s.renderTemplate(w, r, "index.html", data); err != nil {
 		slog.Warn("render template", "error", err)
 		http.Error(w, "Internal Server Error", 500)
 	}
@@ -716,7 +736,7 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 	data["HasMore"] = len(articles) == articlePageSize
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.renderTemplate(w, "history.html", data); err != nil {
+	if err := s.renderTemplate(w, r, "history.html", data); err != nil {
 		slog.Warn("render template", "error", err)
 		http.Error(w, "Internal Server Error", 500)
 	}
@@ -767,7 +787,7 @@ func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 	data["Feed"] = feed
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.renderTemplate(w, "article.html", data); err != nil {
+	if err := s.renderTemplate(w, r, "article.html", data); err != nil {
 		slog.Warn("render template", "error", err)
 		http.Error(w, "Internal Server Error", 500)
 	}
@@ -786,7 +806,7 @@ func (s *Server) handleScrapers(w http.ResponseWriter, r *http.Request) {
 	data["ActiveView"] = "scrapers"
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.renderTemplate(w, "scrapers.html", data); err != nil {
+	if err := s.renderTemplate(w, r, "scrapers.html", data); err != nil {
 		slog.Warn("render template", "error", err)
 		http.Error(w, "Internal Server Error", 500)
 	}
@@ -1791,7 +1811,7 @@ func (s *Server) handleCategoryArticles(w http.ResponseWriter, r *http.Request) 
 	data["CurrentCategory"] = category
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.renderTemplate(w, "index.html", data); err != nil {
+	if err := s.renderTemplate(w, r, "index.html", data); err != nil {
 		slog.Warn("render template", "error", err)
 		http.Error(w, "Internal Server Error", 500)
 	}
@@ -2402,7 +2422,7 @@ func (s *Server) handleCategorySettings(w http.ResponseWriter, r *http.Request) 
 	data["ActiveView"] = "settings"
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.renderTemplate(w, "category_settings.html", data); err != nil {
+	if err := s.renderTemplate(w, r, "category_settings.html", data); err != nil {
 		slog.Warn("render template", "error", err)
 		http.Error(w, "Internal Server Error", 500)
 	}
@@ -2502,7 +2522,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	data["RetentionStats"] = stats
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.renderTemplate(w, "settings.html", data); err != nil {
+	if err := s.renderTemplate(w, r, "settings.html", data); err != nil {
 		slog.Warn("render template", "error", err)
 		http.Error(w, "Internal Server Error", 500)
 	}
