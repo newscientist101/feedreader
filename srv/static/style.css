@@ -4,6 +4,11 @@
     box-sizing: border-box;
 }
 
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
 :root {
     /* Background colors */
     --bg-primary: #1a1a2e;
@@ -359,8 +364,13 @@ body {
 }
 
 .search-box input:focus {
-    outline: none;
     border-color: var(--accent);
+    outline: none;
+}
+
+.search-box input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
 /* Articles List */
@@ -1189,8 +1199,15 @@ body {
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {
-    outline: none;
     border-color: var(--accent);
+    outline: none;
+}
+
+.form-group input:focus-visible,
+.form-group select:focus-visible,
+.form-group textarea:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
 .form-group textarea {
@@ -1334,8 +1351,13 @@ th {
 }
 
 .feeds-search input:focus {
-    outline: none;
     border-color: var(--accent);
+    outline: none;
+}
+
+.feeds-search input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
 /* Modal */
@@ -2019,8 +2041,13 @@ th {
 }
 
 .feed-category-select:focus {
-    outline: none;
     border-color: var(--accent);
+    outline: none;
+}
+
+.feed-category-select:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
 /* Settings Page */

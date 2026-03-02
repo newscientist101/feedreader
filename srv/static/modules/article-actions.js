@@ -191,6 +191,7 @@ export async function toggleStar(event, id) {
             const isNowStarred = !btn.classList.contains('starred');
             btn.classList.toggle('starred', isNowStarred);
             btn.title = isNowStarred ? 'Unstar' : 'Star';
+            btn.setAttribute('aria-label', isNowStarred ? 'Unstar' : 'Star');
             btn.innerHTML = isNowStarred ? SVG_STAR_FILLED : SVG_STAR_EMPTY;
         });
         updateCounts();
@@ -215,6 +216,7 @@ export async function toggleQueue(event, id) {
         btns.forEach(btn => {
             btn.classList.toggle('queued', isNowQueued);
             btn.title = isNowQueued ? 'Remove from queue' : 'Add to queue';
+            btn.setAttribute('aria-label', isNowQueued ? 'Remove from queue' : 'Add to queue');
             btn.innerHTML = isNowQueued ? SVG_QUEUE_REMOVE : SVG_QUEUE_ADD;
         });
         updateCounts();

@@ -10,9 +10,11 @@ export function updateReadButton(card, isRead) {
     btn.dataset.isRead = isRead ? '1' : '0';
     if (isRead) {
         btn.setAttribute('title', 'Mark unread');
+        btn.setAttribute('aria-label', 'Mark unread');
         btn.innerHTML = SVG_MARK_UNREAD;
     } else {
         btn.setAttribute('title', 'Mark read');
+        btn.setAttribute('aria-label', 'Mark read');
         btn.innerHTML = SVG_MARK_READ;
     }
 }

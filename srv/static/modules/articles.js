@@ -35,16 +35,16 @@ export function _resetArticlesState() {
 // Render the standard set of action buttons for an article.
 // `a` must have: id, is_read, is_starred, url (optional), is_queued (optional).
 export function renderArticleActions(a) {
-    const readBtn = `<button data-action="toggle-read" data-article-id="${a.id}" data-is-read="${a.is_read ? '1' : '0'}" class="btn-icon btn-read-toggle" title="${a.is_read ? 'Mark unread' : 'Mark read'}">
+    const readBtn = `<button data-action="toggle-read" data-article-id="${a.id}" data-is-read="${a.is_read ? '1' : '0'}" class="btn-icon btn-read-toggle" title="${a.is_read ? 'Mark unread' : 'Mark read'}" aria-label="${a.is_read ? 'Mark unread' : 'Mark read'}">
         ${a.is_read ? SVG_MARK_UNREAD : SVG_MARK_READ}
     </button>`;
-    const starBtn = `<button data-action="toggle-star" data-article-id="${a.id}" class="btn-icon ${a.is_starred ? 'starred' : ''}" title="Star">
+    const starBtn = `<button data-action="toggle-star" data-article-id="${a.id}" class="btn-icon ${a.is_starred ? 'starred' : ''}" title="${a.is_starred ? 'Unstar' : 'Star'}" aria-label="${a.is_starred ? 'Unstar' : 'Star'}">
         ${a.is_starred ? SVG_STAR_FILLED : SVG_STAR_EMPTY}
     </button>`;
-    const queueBtn = `<button data-action="toggle-queue" data-article-id="${a.id}" class="btn-icon btn-queue-toggle ${a.is_queued ? 'queued' : ''}" title="${a.is_queued ? 'Remove from queue' : 'Add to queue'}">
+    const queueBtn = `<button data-action="toggle-queue" data-article-id="${a.id}" class="btn-icon btn-queue-toggle ${a.is_queued ? 'queued' : ''}" title="${a.is_queued ? 'Remove from queue' : 'Add to queue'}" aria-label="${a.is_queued ? 'Remove from queue' : 'Add to queue'}">
         ${a.is_queued ? SVG_QUEUE_REMOVE : SVG_QUEUE_ADD}
     </button>`;
-    const extBtn = a.url ? `<a href="${a.url}" target="_blank" class="btn-icon" title="Open original">${SVG_EXTERNAL}</a>` : '';
+    const extBtn = a.url ? `<a href="${a.url}" target="_blank" class="btn-icon" title="Open original" aria-label="Open original">${SVG_EXTERNAL}</a>` : '';
     return `<div class="article-actions">${readBtn}${starBtn}${queueBtn}${extBtn}</div>`;
 }
 
