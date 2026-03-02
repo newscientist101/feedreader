@@ -23,6 +23,7 @@ export async function importOPML(input) {
     try {
         const res = await fetch('/api/opml/import', {
             method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
             body: formData
         });
         const result = await res.json();

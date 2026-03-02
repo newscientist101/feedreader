@@ -256,9 +256,11 @@ func (s *Server) Handler() http.Handler {
 		http.ServeFile(w, r, filepath.Join(s.StaticDir, "sw.js"))
 	})
 
-	// Wrap with auth middleware, security headers, gzip compression, and logging.
-	// Order (outermost first): gzip → logging → security → auth → mux
-	return gzipMiddleware(loggingMiddleware(securityHeaders(bodyLimitMiddleware(s.AuthMiddleware(mux)))))
+	// Wrap with auth middleware, security headers, gzip compression, logging,
+	// CSRF protection, and per-user rate limiting.
+	// Order (outermost first): gzip → logging → security → bodyLimit → auth → csrf → rateLimit → mux
+	rl := newRateLimiter()
+	return gzipMiddleware(loggingMiddleware(securityHeaders(bodyLimitMiddleware(s.AuthMiddleware(csrfMiddleware(rateLimitMiddleware(rl)(mux)))))))
 }
 
 // Template helpers

@@ -52,7 +52,7 @@ describe('settings', () => {
             saveSetting('theme', 'dark');
             expect(fetchSpy).toHaveBeenCalledWith('/api/settings', {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 body: JSON.stringify({ theme: 'dark' }),
             });
         });

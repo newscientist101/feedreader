@@ -51,6 +51,7 @@ func authPost(t *testing.T, ts *httptest.Server, path, body string) *http.Respon
 	req.Header.Set("X-Exedev-Userid", "integ-user")
 	req.Header.Set("X-Exedev-Email", "integ@test.com")
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Requested-With", "XMLHttpRequest")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("POST %s: %v", path, err)
@@ -68,6 +69,7 @@ func authDo(t *testing.T, ts *httptest.Server, method, path, body string) *http.
 	req, _ := http.NewRequest(method, ts.URL+path, bodyReader)
 	req.Header.Set("X-Exedev-Userid", "integ-user")
 	req.Header.Set("X-Exedev-Email", "integ@test.com")
+	req.Header.Set("X-Requested-With", "XMLHttpRequest")
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}

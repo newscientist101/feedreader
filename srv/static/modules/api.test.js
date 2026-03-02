@@ -17,7 +17,7 @@ describe('api', () => {
         expect(result).toEqual(mockData);
         expect(fetch).toHaveBeenCalledWith('/api/test', {
             method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         });
     });
 
@@ -30,7 +30,7 @@ describe('api', () => {
         await api('POST', '/api/test', { name: 'foo' });
         expect(fetch).toHaveBeenCalledWith('/api/test', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             body: JSON.stringify({ name: 'foo' }),
         });
     });

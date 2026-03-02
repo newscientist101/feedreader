@@ -349,7 +349,7 @@ const RECONNECT_SCRIPT = `
           var actions = evt.data.actions || [];
           var promises = actions.map(function(a) {
             if (a.type === 'dequeue') {
-              return fetch('/api/articles/' + a.articleId + '/queue', { method: 'DELETE' }).catch(function() {});
+              return fetch('/api/articles/' + a.articleId + '/queue', { method: 'DELETE', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).catch(function() {});
             }
             return Promise.resolve();
           });

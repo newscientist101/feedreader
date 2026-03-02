@@ -3,7 +3,10 @@
 export async function api(method, url, data = null) {
     const options = {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
     };
     if (data) {
         options.body = JSON.stringify(data);

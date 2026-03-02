@@ -14,7 +14,10 @@ export function saveSetting(key, value) {
     window.__settings[key] = value;
     fetch('/api/settings', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
         body: JSON.stringify({ [key]: value }),
     }).catch(e => { console.error('Failed to save setting:', e); showToast('Failed to save setting'); });
 }
