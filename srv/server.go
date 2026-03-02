@@ -147,8 +147,17 @@ func (s *Server) Serve(addr string) error {
 
 	handler := s.Handler()
 
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadTimeout:       15 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1 MB
+	}
 	slog.Info("starting server", "addr", addr)
-	return http.ListenAndServe(addr, handler)
+	return srv.ListenAndServe()
 }
 
 // Handler builds the full HTTP handler with routing, auth middleware, and gzip.
@@ -249,7 +258,7 @@ func (s *Server) Handler() http.Handler {
 
 	// Wrap with auth middleware, security headers, gzip compression, and logging.
 	// Order (outermost first): gzip → logging → security → auth → mux
-	return gzipMiddleware(loggingMiddleware(securityHeaders(s.AuthMiddleware(mux))))
+	return gzipMiddleware(loggingMiddleware(securityHeaders(bodyLimitMiddleware(s.AuthMiddleware(mux)))))
 }
 
 // Template helpers
