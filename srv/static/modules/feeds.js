@@ -3,6 +3,7 @@ import { showToast } from './toast.js';
 import { showArticlesLoading, renderArticles } from './articles.js';
 import { setSidebarActive } from './sidebar.js';
 import { applyDefaultViewForScope } from './views.js';
+import { openModal, closeModal } from './modal.js';
 import { updateCounts, updateFeedStatusCell } from './counts.js';
 import { showFeedErrorBanner, removeFeedErrorBanner } from './feed-errors.js';
 
@@ -321,6 +322,7 @@ export async function editFeed(id) {
         }
 
         modal.style.display = 'flex';
+        openModal(modal, closeEditModal);
     } catch (e) {
         console.error('Failed to load feed:', e);
         showToast('Failed to load feed details');
@@ -330,6 +332,7 @@ export async function editFeed(id) {
 export function closeEditModal() {
     const modal = document.getElementById('edit-feed-modal');
     if (modal) modal.style.display = 'none';
+    closeModal();
 }
 
 export async function saveFeed(event) {

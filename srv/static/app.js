@@ -1,4 +1,4 @@
-import { initDropdownCloseListener, initDropdownListeners } from './modules/dropdown.js';
+import { initDropdownCloseListener, initDropdownListeners, initDropdownKeyboardNav } from './modules/dropdown.js';
 import { initTimestampTooltips } from './modules/timestamps.js';
 import { initView, initViewListeners } from './modules/views.js';
 import { setSidebarLoadCategory, initSidebarListeners, initSidebarMobileClose } from './modules/sidebar.js';
@@ -26,8 +26,9 @@ import { initQueuePage } from './modules/queue.js';
 import { initScraperPage, initScraperPageListeners } from './modules/scraper-page.js';
 import { initOfflineSupport } from './modules/offline.js';
 
-// Initialize click-outside listener for dropdowns (was top-level in original code)
+// Initialize click-outside listener and keyboard navigation for dropdowns
 initDropdownCloseListener();
+initDropdownKeyboardNav();
 
 // Initialize delegated sidebar event listeners (replaces inline onclick in base.html)
 initSidebarListeners();

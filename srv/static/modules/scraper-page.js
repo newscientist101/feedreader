@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { showToast } from './toast.js';
+import { openModal, closeModal } from './modal.js';
 
 let _scraperSubmitting = false;
 
@@ -164,7 +165,9 @@ export async function editScraper(id) {
         } catch {
             document.getElementById('modal-scraper-script').value = scraper.script;
         }
-        document.getElementById('config-modal').style.display = 'flex';
+        const modal = document.getElementById('config-modal');
+        modal.style.display = 'flex';
+        openModal(modal, closeConfigModal);
     } catch (err) {
         showToast('Failed to load scraper: ' + err.message);
     }
@@ -198,6 +201,7 @@ export async function saveScraperConfig() {
 export function closeConfigModal() {
     const modal = document.getElementById('config-modal');
     if (modal) modal.style.display = 'none';
+    closeModal();
 }
 
 export async function deleteScraper(id) {

@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { showToast } from './toast.js';
+import { openModal, closeModal } from './modal.js';
 
 export function openCreateFolderModal() {
     const modal = document.getElementById('create-folder-modal');
@@ -7,12 +8,14 @@ export function openCreateFolderModal() {
     document.getElementById('new-folder-name').value = '';
     document.getElementById('new-folder-parent').value = '0';
     modal.style.display = 'flex';
-    document.getElementById('new-folder-name').focus();
+    const nameInput = document.getElementById('new-folder-name');
+    openModal(modal, closeCreateFolderModal, nameInput);
 }
 
 export function closeCreateFolderModal() {
     const modal = document.getElementById('create-folder-modal');
     if (modal) modal.style.display = 'none';
+    closeModal();
 }
 
 export async function submitCreateFolder(e) {
