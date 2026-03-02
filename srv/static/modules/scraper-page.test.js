@@ -5,7 +5,12 @@ vi.mock('./api.js', () => ({
     api: vi.fn(),
 }));
 
+vi.mock('./toast.js', () => ({
+    showToast: vi.fn(),
+}));
+
 import { api } from './api.js';
+import { showToast } from './toast.js';
 import {
     switchScraperTab,
     insertField,
@@ -157,14 +162,12 @@ describe('updateConfigTemplate', () => {
 
 describe('validateJSON', () => {
     it('returns true for valid JSON', () => {
-        vi.spyOn(window, 'alert').mockImplementation(() => {});
         expect(validateJSON('{"a": 1}')).toBe(true);
     });
 
-    it('returns false and alerts for invalid JSON', () => {
-        const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    it('returns false and shows toast for invalid JSON', () => {
         expect(validateJSON('not json')).toBe(false);
-        expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid JSON'));
+        expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Invalid JSON'));
     });
 });
 
@@ -192,12 +195,11 @@ describe('editScraper', () => {
         expect(document.getElementById('config-modal').style.display).toBe('flex');
     });
 
-    it('alerts on error', async () => {
+    it('shows toast on error', async () => {
         document.body.innerHTML = '';
         api.mockRejectedValue(new Error('not found'));
-        const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
         await editScraper(999);
-        expect(alertSpy).toHaveBeenCalledWith('Failed to load scraper: not found');
+        expect(showToast).toHaveBeenCalledWith('Failed to load scraper: not found');
     });
 });
 
@@ -213,7 +215,6 @@ describe('saveScraperConfig', () => {
         // Mock window.location
         delete window.location;
         window.location = { href: '' };
-        vi.spyOn(window, 'alert').mockImplementation(() => {});
         await saveScraperConfig();
         expect(api).toHaveBeenCalledWith('PUT', '/api/scrapers/42', {
             name: 'Updated',
@@ -230,7 +231,6 @@ describe('saveScraperConfig', () => {
             <input type="text" id="modal-scraper-description" value="">
             <textarea id="modal-scraper-script">NOT JSON</textarea>
         `;
-        vi.spyOn(window, 'alert').mockImplementation(() => {});
         await saveScraperConfig();
         expect(api).not.toHaveBeenCalled();
     });

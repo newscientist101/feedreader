@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import { showToast } from './toast.js';
 
 let _scraperSubmitting = false;
 
@@ -107,7 +108,7 @@ function initAiForm() {
             document.getElementById('scraper-script').value = data.config;
             switchScraperTab('manual');
         } catch (err) {
-            alert('Failed to generate: ' + err.message);
+            showToast('Failed to generate: ' + err.message);
         } finally {
             btn.disabled = false;
             _scraperSubmitting = false;
@@ -140,7 +141,7 @@ function initManualForm() {
             await api('POST', '/api/scrapers', { name, description, script, script_type: scriptType });
             window.location.href = '/scrapers';
         } catch (err) {
-            alert('Failed to create: ' + err.message);
+            showToast('Failed to create: ' + err.message);
             btn.disabled = false;
             _scraperSubmitting = false;
         }
@@ -165,7 +166,7 @@ export async function editScraper(id) {
         }
         document.getElementById('config-modal').style.display = 'flex';
     } catch (err) {
-        alert('Failed to load scraper: ' + err.message);
+        showToast('Failed to load scraper: ' + err.message);
     }
 }
 
@@ -174,7 +175,7 @@ export function validateJSON(str) {
         JSON.parse(str);
         return true;
     } catch (err) {
-        alert('Invalid JSON: ' + err.message);
+        showToast('Invalid JSON: ' + err.message);
         return false;
     }
 }
@@ -190,7 +191,7 @@ export async function saveScraperConfig() {
         await api('PUT', `/api/scrapers/${id}`, { name, description, script });
         window.location.href = '/scrapers';
     } catch (err) {
-        alert('Failed to save: ' + err.message);
+        showToast('Failed to save: ' + err.message);
     }
 }
 
@@ -205,7 +206,7 @@ export async function deleteScraper(id) {
         await api('DELETE', `/api/scrapers/${id}`);
         location.reload();
     } catch (err) {
-        alert('Failed to delete: ' + err.message);
+        showToast('Failed to delete: ' + err.message);
     }
 }
 

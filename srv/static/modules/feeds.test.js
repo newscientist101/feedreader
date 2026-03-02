@@ -8,6 +8,11 @@ import {
 } from './feeds.js';
 import { _resetArticlesState } from './articles.js';
 import { _resetArticleActionsState, setQueuedArticleIds } from './article-actions.js';
+import { showToast } from './toast.js';
+
+vi.mock('./toast.js', () => ({
+    showToast: vi.fn(),
+}));
 
 // Mock pagination (articles.js directly imports from pagination.js)
 vi.mock('./pagination.js', () => ({
@@ -317,12 +322,11 @@ describe('saveFeed', () => {
             text: () => Promise.resolve(JSON.stringify({ error: 'Not found' })),
         });
         vi.spyOn(console, 'error').mockImplementation(() => {});
-        vi.spyOn(window, 'alert').mockImplementation(() => {});
         const event = { preventDefault: vi.fn() };
 
         await saveFeed(event);
 
-        expect(window.alert).toHaveBeenCalledWith('Failed to save feed');
+        expect(showToast).toHaveBeenCalledWith('Failed to save feed');
     });
 });
 
@@ -378,11 +382,10 @@ describe('setFeedCategory', () => {
             text: () => Promise.resolve(JSON.stringify({ error: 'fail' })),
         });
         vi.spyOn(console, 'error').mockImplementation(() => {});
-        vi.spyOn(window, 'alert').mockImplementation(() => {});
 
         await setFeedCategory(5, 3);
 
-        expect(window.alert).toHaveBeenCalledWith('Failed to move feed');
+        expect(showToast).toHaveBeenCalledWith('Failed to move feed');
     });
 });
 
@@ -670,7 +673,6 @@ describe('initAddFeedForm', () => {
                 <input id="feed-interval" value="60">
             </form>
         `;
-        const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {});
         const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
         initAddFeedForm();
@@ -680,7 +682,7 @@ describe('initAddFeedForm', () => {
 
         await new Promise(r => setTimeout(r, 50));
 
-        expect(alertMock).toHaveBeenCalledWith('Please enter a subreddit name');
+        expect(showToast).toHaveBeenCalledWith('Please enter a subreddit name', 'info');
         expect(fetchSpy).not.toHaveBeenCalled();
     });
 
@@ -754,7 +756,7 @@ describe('initAddFeedForm', () => {
         }));
     });
 
-    it('shows alert on API failure', async () => {
+    it('shows toast on API failure', async () => {
         document.body.innerHTML = `
             <form id="add-feed-form">
                 <input id="feed-url" value="https://example.com/feed.xml">
@@ -767,7 +769,6 @@ describe('initAddFeedForm', () => {
             ok: false,
             json: async () => ({ error: 'Bad URL' }),
         });
-        const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {});
 
         initAddFeedForm();
         document.getElementById('add-feed-form').dispatchEvent(
@@ -776,7 +777,7 @@ describe('initAddFeedForm', () => {
 
         await new Promise(r => setTimeout(r, 50));
 
-        expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Failed to add feed'));
+        expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Failed to add feed'));
     });
 });
 

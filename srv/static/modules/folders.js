@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import { showToast } from './toast.js';
 
 export function openCreateFolderModal() {
     const modal = document.getElementById('create-folder-modal');
@@ -30,7 +31,7 @@ export async function submitCreateFolder(e) {
         }
         location.reload();
     } catch (e) {
-        alert('Failed to create folder: ' + e.message);
+        showToast('Failed to create folder: ' + e.message);
     }
 }
 
@@ -42,7 +43,7 @@ export async function renameCategory(id, currentName) {
         await api('PUT', `/api/categories/${id}`, { name });
         location.reload();
     } catch (e) {
-        alert('Failed to rename folder: ' + e.message);
+        showToast('Failed to rename folder: ' + e.message);
     }
 }
 
@@ -55,7 +56,7 @@ export async function unparentCategory(id) {
         location.reload();
     } catch (e) {
         console.error('Failed to unparent category:', e);
-        alert('Failed to move folder to top level');
+        showToast('Failed to move folder to top level');
     }
 }
 
@@ -67,7 +68,7 @@ export async function deleteCategory(id, name) {
         await api('DELETE', `/api/categories/${id}`);
         location.reload();
     } catch (e) {
-        alert('Failed to delete folder: ' + e.message);
+        showToast('Failed to delete folder: ' + e.message);
     }
 }
 
@@ -128,7 +129,7 @@ export function initFoldersPageListeners() {
             if (!confirm('Delete this exclusion rule?')) return;
             api('DELETE', `/api/exclusions/${id}`)
                 .then(() => location.reload())
-                .catch(err => alert('Error: ' + err.message));
+                .catch(err => showToast('Failed to delete rule: ' + err.message));
         }
     });
 }
@@ -153,7 +154,7 @@ export function initCategorySettingsPage() {
                 await api('POST', `/api/categories/${categoryId}/exclusions`, { type, pattern, isRegex });
                 location.reload();
             } catch (err) {
-                alert('Error: ' + err.message);
+                showToast('Failed to add exclusion: ' + err.message);
             }
         });
     }

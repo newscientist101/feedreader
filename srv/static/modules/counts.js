@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import { showToast } from './toast.js';
 import { applyUserPreferences } from './articles.js';
 import { showFeedErrorBanner, removeFeedErrorBanner } from './feed-errors.js';
 
@@ -64,6 +65,7 @@ export async function updateCounts() {
         applyUserPreferences();
     } catch (e) {
         console.error('Failed to update counts:', e);
+        showToast('Failed to update counts');
     }
 }
 

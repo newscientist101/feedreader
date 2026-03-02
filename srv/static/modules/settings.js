@@ -1,5 +1,7 @@
 // User settings: read/write settings object, apply UI preferences.
 
+import { showToast } from './toast.js';
+
 // Read a setting value from the server-injected settings object.
 export function getSetting(key, defaultValue) {
     const val = (window.__settings || {})[key];
@@ -14,7 +16,7 @@ export function saveSetting(key, value) {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [key]: value }),
-    }).catch(e => console.error('Failed to save setting:', e));
+    }).catch(e => { console.error('Failed to save setting:', e); showToast('Failed to save setting'); });
 }
 
 // Hide/show read article cards based on setting value.

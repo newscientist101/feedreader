@@ -1,6 +1,7 @@
 // Settings page initialization and controls.
 
 import { api } from './api.js';
+import { showToast } from './toast.js';
 import { getSetting, saveSetting, applyHideReadArticles, applyHideEmptyFeeds } from './settings.js';
 
 /**
@@ -77,7 +78,7 @@ export async function generateNewsletterAddress() {
             showNewsletterAddress(data.address);
         }
     } catch (e) {
-        alert('Failed to generate address: ' + e.message);
+        showToast('Failed to generate address: ' + e.message);
     }
 }
 

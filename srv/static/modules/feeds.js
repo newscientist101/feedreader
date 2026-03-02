@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import { showToast } from './toast.js';
 import { showArticlesLoading, renderArticles } from './articles.js';
 import { setSidebarActive } from './sidebar.js';
 import { applyDefaultViewForScope } from './views.js';
@@ -48,6 +49,7 @@ export async function loadCategoryArticles(categoryId, categoryName) {
         applyDefaultViewForScope('folder');
     } catch (e) {
         console.error('Failed to load category articles:', e);
+        showToast('Failed to load articles');
     }
 }
 
@@ -116,6 +118,7 @@ export async function loadFeedArticles(feedId, feedName) {
         applyDefaultViewForScope('feed');
     } catch (e) {
         console.error('Failed to load feed articles:', e);
+        showToast('Failed to load articles');
     }
 }
 
@@ -189,6 +192,7 @@ export async function refreshFeed(id) {
 
     } catch (e) {
         console.error('Failed to refresh feed:', e);
+        showToast('Failed to refresh feed');
         buttons.forEach((btn, i) => {
             btn.disabled = false;
             btn.innerHTML = '<span class="error-icon">✗</span> Failed';
@@ -208,7 +212,7 @@ export async function deleteFeed(id, name) {
         location.reload();
     } catch (e) {
         console.error('Failed to delete feed:', e);
-        alert('Failed to delete feed');
+        showToast('Failed to delete feed');
     }
 }
 
@@ -319,7 +323,7 @@ export async function editFeed(id) {
         modal.style.display = 'flex';
     } catch (e) {
         console.error('Failed to load feed:', e);
-        alert('Failed to load feed details');
+        showToast('Failed to load feed details');
     }
 }
 
@@ -384,7 +388,7 @@ export async function saveFeed(event) {
         }
     } catch (e) {
         console.error('Failed to save feed:', e);
-        alert('Failed to save feed');
+        showToast('Failed to save feed');
     }
 }
 
@@ -393,7 +397,7 @@ export async function setFeedCategory(feedId, categoryId) {
         await api('POST', `/api/feeds/${feedId}/category`, { categoryId: parseInt(categoryId) });
     } catch (e) {
         console.error('Failed to set category:', e);
-        alert('Failed to move feed');
+        showToast('Failed to move feed');
     }
 }
 
@@ -419,7 +423,7 @@ export function initAddFeedForm() {
         if (feedType === 'reddit') {
             let subreddit = document.getElementById('reddit-subreddit').value.trim();
             if (!subreddit) {
-                alert('Please enter a subreddit name');
+                showToast('Please enter a subreddit name', 'info');
                 return;
             }
             // Strip leading r/ if present
@@ -443,7 +447,7 @@ export function initAddFeedForm() {
             const hfIdentifier = document.getElementById('hf-identifier').value;
 
             if (!hfIdentifier && hfType !== 'daily_papers') {
-                alert('Please enter a username, organization, or collection slug');
+                showToast('Please enter a username, organization, or collection slug', 'info');
                 return;
             }
 
@@ -488,7 +492,7 @@ export function initAddFeedForm() {
 
             location.reload();
         } catch (err) {
-            alert('Failed to add feed: ' + err.message);
+            showToast('Failed to add feed: ' + err.message);
         }
     });
 }

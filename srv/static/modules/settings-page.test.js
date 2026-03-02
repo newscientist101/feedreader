@@ -23,8 +23,13 @@ vi.mock('./api.js', () => ({
     api: vi.fn(),
 }));
 
+vi.mock('./toast.js', () => ({
+    showToast: vi.fn(),
+}));
+
 import { getSetting, saveSetting, applyHideReadArticles, applyHideEmptyFeeds } from './settings.js';
 import { api } from './api.js';
+import { showToast } from './toast.js';
 
 beforeEach(() => {
     document.body.innerHTML = '';
@@ -219,13 +224,12 @@ describe('generateNewsletterAddress', () => {
         expect(document.getElementById('newsletter-address').textContent).toBe('new@feed.example.com');
     });
 
-    it('shows alert on failure', async () => {
+    it('shows toast on failure', async () => {
         api.mockRejectedValue(new Error('rate limit'));
-        vi.spyOn(window, 'alert').mockImplementation(() => {});
 
         await generateNewsletterAddress();
 
-        expect(window.alert).toHaveBeenCalledWith('Failed to generate address: rate limit');
+        expect(showToast).toHaveBeenCalledWith('Failed to generate address: rate limit');
     });
 });
 

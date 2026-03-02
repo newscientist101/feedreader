@@ -1,5 +1,7 @@
 // OPML import/export functions.
 
+import { showToast } from './toast.js';
+
 /**
  * Export feeds as OPML by redirecting to the export endpoint.
  */
@@ -27,10 +29,10 @@ export async function importOPML(input) {
         if (!res.ok) {
             throw new Error(result.error || 'Import failed');
         }
-        alert(`Imported ${result.imported} feeds (${result.skipped} skipped, already exist)`);
+        showToast(`Imported ${result.imported} feeds (${result.skipped} skipped)`, 'success');
         location.reload();
     } catch (e) {
-        alert('Failed to import OPML: ' + e.message);
+        showToast('Failed to import OPML: ' + e.message);
     }
 
     // Clear the input

@@ -1,6 +1,7 @@
 // Search: debounced article search with abort support and context scoping.
 
 import { renderArticles, applyUserPreferences } from './articles.js';
+import { showToast } from './toast.js';
 
 let timeout;
 let searchAbort = null;
@@ -48,6 +49,7 @@ export function initSearch() {
             } catch (err) {
                 if (err.name === 'AbortError') return; // cancelled, ignore
                 console.error('Search failed:', err);
+                showToast('Search failed');
             }
         }, 300);
     });

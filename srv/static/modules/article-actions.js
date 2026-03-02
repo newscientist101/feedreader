@@ -1,6 +1,7 @@
 // Article action handlers: mark read/unread, star, queue, open, auto-mark-read.
 
 import { api } from './api.js';
+import { showToast } from './toast.js';
 import { getSetting } from './settings.js';
 import {
     SVG_STAR_FILLED, SVG_STAR_EMPTY, SVG_QUEUE_ADD, SVG_QUEUE_REMOVE
@@ -119,7 +120,7 @@ export function flushMarkReadQueue() {
     console.debug(`[auto-mark-read] flushing batch of ${ids.length} article(s):`, ids);
     api('POST', '/api/articles/batch-read', { ids })
         .then(() => { updateCounts(); })
-        .catch(e => console.error('Failed to batch mark read:', e));
+        .catch(e => { console.error('Failed to batch mark read:', e); showToast('Failed to sync read status'); });
 }
 
 // Mark as read in the DOM without page reload (for auto-mark feature)
@@ -160,6 +161,7 @@ export async function markRead(event, id) {
         updateCounts();
     } catch (e) {
         console.error('Failed to mark read:', e);
+        showToast('Failed to mark as read');
     }
 }
 
@@ -175,6 +177,7 @@ export async function markUnread(event, id) {
         updateCounts();
     } catch (e) {
         console.error('Failed to mark unread:', e);
+        showToast('Failed to mark as unread');
     }
 }
 
@@ -193,6 +196,7 @@ export async function toggleStar(event, id) {
         updateCounts();
     } catch (e) {
         console.error('Failed to toggle star:', e);
+        showToast('Failed to toggle star');
     }
 }
 
@@ -217,6 +221,7 @@ export async function toggleQueue(event, id) {
         updateQueueCacheIfStandalone();
     } catch (e) {
         console.error('Failed to toggle queue:', e);
+        showToast('Failed to update queue');
     }
 }
 
@@ -250,6 +255,7 @@ export async function markAsRead(btn, age = 'all') {
         location.reload();
     } catch (e) {
         console.error('Failed to mark as read:', e);
+        showToast('Failed to mark as read');
     }
 }
 

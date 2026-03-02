@@ -1,6 +1,7 @@
 // Pagination: cursor-based infinite scroll for article lists.
 
 import { api } from './api.js';
+import { showToast } from './toast.js';
 import { getArticleSortTime } from './utils.js';
 import { queuedIdsReady, observeNewArticles } from './article-actions.js';
 import {
@@ -105,6 +106,7 @@ export async function loadMoreArticles() {
         applyUserPreferences();
     } catch (e) {
         console.error('Failed to load more articles:', e);
+        showToast('Failed to load more articles');
     } finally {
         paginationLoading = false;
         updateEndOfArticlesIndicator();

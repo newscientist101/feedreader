@@ -4,6 +4,11 @@ import {
     renameCategory, unparentCategory, deleteCategory,
     initFoldersPageListeners,
 } from './folders.js';
+import { showToast } from './toast.js';
+
+vi.mock('./toast.js', () => ({
+    showToast: vi.fn(),
+}));
 
 beforeEach(() => {
     document.body.innerHTML = '';
@@ -127,17 +132,16 @@ describe('submitCreateFolder', () => {
         expect(fetch).not.toHaveBeenCalled();
     });
 
-    it('shows alert on error', async () => {
+    it('shows toast on error', async () => {
         vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: false,
             text: () => Promise.resolve(JSON.stringify({ error: 'Duplicate' })),
         });
-        vi.spyOn(window, 'alert').mockImplementation(() => {});
         const event = { preventDefault: vi.fn() };
 
         await submitCreateFolder(event);
 
-        expect(window.alert).toHaveBeenCalledWith(expect.stringContaining('Failed to create folder'));
+        expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Failed to create folder'));
     });
 });
 
@@ -210,11 +214,10 @@ describe('unparentCategory', () => {
             text: () => Promise.resolve(JSON.stringify({ error: 'fail' })),
         });
         vi.spyOn(console, 'error').mockImplementation(() => {});
-        vi.spyOn(window, 'alert').mockImplementation(() => {});
 
         await unparentCategory(5);
 
-        expect(window.alert).toHaveBeenCalledWith('Failed to move folder to top level');
+        expect(showToast).toHaveBeenCalledWith('Failed to move folder to top level');
     });
 });
 

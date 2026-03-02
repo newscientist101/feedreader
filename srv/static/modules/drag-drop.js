@@ -1,6 +1,7 @@
 // Drag-and-drop reordering for folders/categories.
 
 import { api } from './api.js';
+import { showToast } from './toast.js';
 
 /**
  * Initialize drag-drop on sidebar folders and feeds-page category cards.
@@ -154,6 +155,7 @@ export function initDragDrop(container, itemSelector, idAttr) {
                 location.reload();
             } catch (err) {
                 console.error('Failed to nest folder:', err);
+                showToast('Failed to move folder');
             }
             return;
         }
@@ -179,6 +181,7 @@ export function initDragDrop(container, itemSelector, idAttr) {
             syncFolderOrder(order, container, draggedParentId);
         } catch (err) {
             console.error('Failed to save folder order:', err);
+            showToast('Failed to save folder order');
         }
     });
 }

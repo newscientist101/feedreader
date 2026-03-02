@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { exportOPML, importOPML, initOpmlListeners } from './opml.js';
+import { showToast } from './toast.js';
+
+vi.mock('./toast.js', () => ({
+    showToast: vi.fn(),
+}));
 
 beforeEach(() => {
     document.body.innerHTML = '';
@@ -48,7 +53,6 @@ describe('importOPML', () => {
             ok: true,
             json: () => Promise.resolve({ imported: 5, skipped: 2 }),
         });
-        vi.spyOn(window, 'alert').mockImplementation(() => {});
         Object.defineProperty(window, 'location', {
             value: { ...window.location, reload: vi.fn() },
             writable: true,
@@ -61,7 +65,7 @@ describe('importOPML', () => {
         expect(fetch).toHaveBeenCalledWith('/api/opml/import', expect.objectContaining({
             method: 'POST',
         }));
-        expect(window.alert).toHaveBeenCalledWith('Imported 5 feeds (2 skipped, already exist)');
+        expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Imported 5 feeds'), 'success');
         expect(input.value).toBe('');
     });
 
@@ -71,24 +75,22 @@ describe('importOPML', () => {
             ok: false,
             json: () => Promise.resolve({ error: 'Invalid OPML' }),
         });
-        vi.spyOn(window, 'alert').mockImplementation(() => {});
         const input = { files: [mockFile], value: 'bad.opml' };
 
         await importOPML(input);
 
-        expect(window.alert).toHaveBeenCalledWith('Failed to import OPML: Invalid OPML');
+        expect(showToast).toHaveBeenCalledWith('Failed to import OPML: Invalid OPML');
         expect(input.value).toBe('');
     });
 
     it('shows error alert when fetch throws', async () => {
         const mockFile = new File(['data'], 'feeds.opml');
         vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Network error'));
-        vi.spyOn(window, 'alert').mockImplementation(() => {});
         const input = { files: [mockFile], value: 'feeds.opml' };
 
         await importOPML(input);
 
-        expect(window.alert).toHaveBeenCalledWith('Failed to import OPML: Network error');
+        expect(showToast).toHaveBeenCalledWith('Failed to import OPML: Network error');
         expect(input.value).toBe('');
     });
 });

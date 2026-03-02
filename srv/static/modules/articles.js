@@ -1,6 +1,7 @@
 // Article rendering: card HTML, article list, embeds, user preferences.
 
 import { api } from './api.js';
+import { showToast } from './toast.js';
 import { formatTimeAgo, stripHtml, truncateText, PREVIEW_TEXT_LIMIT } from './utils.js';
 import {
     SVG_MARK_READ, SVG_MARK_UNREAD, SVG_STAR_FILLED, SVG_STAR_EMPTY,
@@ -109,6 +110,7 @@ export async function showHiddenArticles() {
         renderArticles(data.articles || []);
     } catch (e) {
         console.error('Failed to load hidden articles:', e);
+        showToast('Failed to load hidden articles');
     }
 }
 
