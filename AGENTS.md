@@ -173,9 +173,24 @@ See README.md for full details. Quick options:
 1. **With auth proxy**: Use `mitmdump` on port 3000 to inject auth headers,
    then browse `http://localhost:3000/`.
 
-Look up real user credentials with:
+### Test Users
+
+All testing and development should use **user 1** (`external_id: dev-user-1`,
+`email: test@example.com`) unless explicitly asked to use another user.
+
+- **Do not** modify user 4 — this is the real production user.
+- **Do not** create additional users.
+
+For the auth proxy, inject these headers:
 ```bash
-sqlite3 db.sqlite3 "SELECT external_id, email FROM users;"
+mitmdump -p 3000 --mode reverse:http://localhost:8000 \
+  --set modify_headers='/~q/X-Exedev-Userid/dev-user-1' \
+  --set modify_headers='/~q/X-Exedev-Email/test@example.com'
+```
+
+Look up user credentials with:
+```bash
+sqlite3 db.sqlite3 "SELECT id, external_id, email FROM users;"
 ```
 
 <!-- BEGIN BEADS INTEGRATION -->
