@@ -833,11 +833,17 @@ describe('initOfflineSupport', () => {
         });
         Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
 
-        // Add a link element for static URL collection
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = '/static/style.css';
-        document.head.appendChild(link);
+        // Mock querySelectorAll to return a fake stylesheet link element.
+        // Appending a real <link rel="stylesheet"> to the DOM triggers
+        // happy-dom's stylesheet fetcher, which races with environment
+        // teardown and produces spurious AbortError / NetworkError.
+        const origQSA = document.querySelectorAll.bind(document);
+        vi.spyOn(document, 'querySelectorAll').mockImplementation((sel) => {
+            if (sel === 'link[rel="stylesheet"]') {
+                return [{ href: 'http://localhost:3000/static/style.css' }];
+            }
+            return origQSA(sel);
+        });
 
         const addEventSpy = vi.spyOn(window, 'addEventListener');
 
@@ -858,7 +864,7 @@ describe('initOfflineSupport', () => {
         expect(addEventSpy).toHaveBeenCalledWith('online', handleOnlineStateChange);
         expect(addEventSpy).toHaveBeenCalledWith('offline', handleOnlineStateChange);
 
-        document.head.removeChild(link);
+        document.querySelectorAll.mockRestore();
     });
 
     it('collects script[src] URLs containing /static/', async () => {

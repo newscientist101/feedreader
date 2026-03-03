@@ -504,10 +504,15 @@ describe('processEmbeds', () => {
     });
 
     it('calls twttr.widgets.load when Twitter script already exists', () => {
-        // Add a fake twitter script element
-        const script = document.createElement('script');
-        script.src = 'https://platform.twitter.com/widgets.js';
-        document.body.appendChild(script);
+        // Stub querySelector to report Twitter script is already present,
+        // avoiding a real <script> append that triggers happy-dom's loader.
+        const origQS = document.querySelector.bind(document);
+        vi.spyOn(document, 'querySelector').mockImplementation((sel) => {
+            if (sel === 'script[src*="platform.twitter.com"]') {
+                return document.createElement('script'); // truthy sentinel
+            }
+            return origQS(sel);
+        });
 
         const loadFn = vi.fn();
         window.twttr = { widgets: { load: loadFn } };
@@ -518,6 +523,7 @@ describe('processEmbeds', () => {
 
         expect(loadFn).toHaveBeenCalledWith(container);
         delete window.twttr;
+        document.querySelector.mockRestore();
     });
 });
 
