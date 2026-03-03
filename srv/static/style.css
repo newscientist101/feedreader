@@ -1697,6 +1697,10 @@ th {
     .header-actions .dropdown.feed-overflow-menu {
         display: inline-block;
     }
+
+    .search-box {
+        max-width: none;
+    }
 }
 
 /* Responsive - Mobile */
