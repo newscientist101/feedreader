@@ -9,6 +9,8 @@ import {
 import { _resetArticlesState } from './articles.js';
 import { _resetArticleActionsState, setQueuedArticleIds } from './article-actions.js';
 import { showToast } from './toast.js';
+import { applyDefaultViewForScope } from './views.js';
+import { showFeedErrorBanner, removeFeedErrorBanner } from './feed-errors.js';
 
 vi.mock('./toast.js', () => ({
     showToast: vi.fn(),
@@ -19,6 +21,15 @@ vi.mock('./pagination.js', () => ({
     updatePaginationCursor: vi.fn(),
     updateEndOfArticlesIndicator: vi.fn(),
     setPaginationState: vi.fn(),
+}));
+
+vi.mock('./views.js', () => ({
+    applyDefaultViewForScope: vi.fn(),
+}));
+
+vi.mock('./feed-errors.js', () => ({
+    showFeedErrorBanner: vi.fn(),
+    removeFeedErrorBanner: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -67,6 +78,8 @@ describe('loadCategoryArticles', () => {
         const dropdown = document.querySelector('.dropdown');
         expect(dropdown.dataset.feedId).toBe('');
         expect(dropdown.dataset.categoryId).toBe('3');
+        expect(removeFeedErrorBanner).toHaveBeenCalled();
+        expect(applyDefaultViewForScope).toHaveBeenCalledWith('folder');
     });
 
     it('hides feed action buttons', async () => {
@@ -124,6 +137,8 @@ describe('loadFeedArticles', () => {
         const dropdown = document.querySelector('.dropdown');
         expect(dropdown.dataset.feedId).toBe('7');
         expect(dropdown.dataset.categoryId).toBe('');
+        expect(removeFeedErrorBanner).toHaveBeenCalled();
+        expect(applyDefaultViewForScope).toHaveBeenCalledWith('feed');
     });
 
     it('sets active state on matching feed items', async () => {
@@ -151,9 +166,7 @@ describe('loadFeedArticles', () => {
 
         await loadFeedArticles(7, 'Feed');
 
-        const banner = document.querySelector('.feed-error-banner');
-        expect(banner).not.toBeNull();
-        expect(banner.innerHTML).toContain('Timeout');
+        expect(showFeedErrorBanner).toHaveBeenCalledWith(7, 'Timeout');
     });
 
     it('creates edit and refresh buttons in header-actions', async () => {
@@ -731,9 +744,8 @@ describe('initFeedActionListeners', () => {
         initFeedActionListeners();
 
         document.querySelector('[data-action="refresh-feed"]').click();
-        await new Promise(r => setTimeout(r, 10));
 
-        expect(fetch).toHaveBeenCalledWith('/api/feeds/42/refresh', expect.any(Object));
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/feeds/42/refresh', expect.any(Object)), { interval: 1 });
     });
 
     it('delegates edit-feed clicks', async () => {
@@ -749,9 +761,8 @@ describe('initFeedActionListeners', () => {
         });
 
         document.querySelector('[data-action="edit-feed"]').click();
-        await new Promise(r => setTimeout(r, 10));
 
-        expect(fetch).toHaveBeenCalledWith('/api/feeds/7', expect.any(Object));
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/feeds/7', expect.any(Object)), { interval: 1 });
     });
 
     it('ignores clicks without feed id', () => {
@@ -827,12 +838,11 @@ describe('initFeedActionListeners', () => {
         const select = document.querySelector('[data-action="set-feed-category"]');
         select.value = '3';
         select.dispatchEvent(new Event('change', { bubbles: true }));
-        await new Promise(r => setTimeout(r, 10));
 
-        expect(fetch).toHaveBeenCalledWith('/api/feeds/5/category', expect.objectContaining({
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/feeds/5/category', expect.objectContaining({
             method: 'POST',
             body: JSON.stringify({ categoryId: 3 }),
-        }));
+        })), { interval: 1 });
     });
 });
 
@@ -867,7 +877,7 @@ describe('initAddFeedForm', () => {
             new Event('submit', { cancelable: true })
         );
 
-        await new Promise(r => setTimeout(r, 50));
+        await vi.waitFor(() => expect(reloadMock).toHaveBeenCalled(), { interval: 1 });
 
         expect(fetch).toHaveBeenCalledWith('/api/feeds', expect.objectContaining({
             method: 'POST',
@@ -880,7 +890,6 @@ describe('initAddFeedForm', () => {
                 interval: 60,
             }),
         }));
-        expect(reloadMock).toHaveBeenCalled();
     });
 
     it('builds Reddit RSS URL from subreddit', async () => {
@@ -911,7 +920,7 @@ describe('initAddFeedForm', () => {
             new Event('submit', { cancelable: true })
         );
 
-        await new Promise(r => setTimeout(r, 50));
+        await vi.waitFor(() => expect(reloadMock).toHaveBeenCalled(), { interval: 1 });
 
         expect(fetch).toHaveBeenCalledWith('/api/feeds', expect.objectContaining({
             method: 'POST',
@@ -938,9 +947,7 @@ describe('initAddFeedForm', () => {
             new Event('submit', { cancelable: true })
         );
 
-        await new Promise(r => setTimeout(r, 50));
-
-        expect(showToast).toHaveBeenCalledWith('Please enter a subreddit name', 'info');
+        await vi.waitFor(() => expect(showToast).toHaveBeenCalledWith('Please enter a subreddit name', 'info'), { interval: 1 });
         expect(fetchSpy).not.toHaveBeenCalled();
     });
 
@@ -971,7 +978,7 @@ describe('initAddFeedForm', () => {
             new Event('submit', { cancelable: true })
         );
 
-        await new Promise(r => setTimeout(r, 50));
+        await vi.waitFor(() => expect(reloadMock).toHaveBeenCalled(), { interval: 1 });
 
         expect(fetch).toHaveBeenCalledWith('/api/feeds', expect.objectContaining({
             method: 'POST',
@@ -1004,7 +1011,7 @@ describe('initAddFeedForm', () => {
             new Event('submit', { cancelable: true })
         );
 
-        await new Promise(r => setTimeout(r, 50));
+        await vi.waitFor(() => expect(reloadMock).toHaveBeenCalled(), { interval: 1 });
 
         // First call: create feed, second call: set category
         expect(fetch).toHaveBeenCalledTimes(2);
@@ -1033,9 +1040,51 @@ describe('initAddFeedForm', () => {
             new Event('submit', { cancelable: true })
         );
 
-        await new Promise(r => setTimeout(r, 50));
+        await vi.waitFor(() => expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Failed to add feed')), { interval: 1 });
+    });
 
-        expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Failed to add feed'));
+    it('includes scraper module when selected', async () => {
+        document.body.innerHTML = `
+            <form id="add-feed-form">
+                <input id="feed-url" value="https://example.com/news">
+                <input id="feed-name" value="News Scraper">
+                <select id="feed-type"><option value="rss" selected>RSS</option></select>
+                <select id="scraper-module">
+                    <option value="">None</option>
+                    <option value="my-scraper" selected>My Scraper</option>
+                </select>
+                <input id="feed-interval" value="30">
+            </form>
+        `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: async () => ({ id: 7 }),
+        });
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
+
+        initAddFeedForm();
+        document.getElementById('add-feed-form').dispatchEvent(
+            new Event('submit', { cancelable: true })
+        );
+
+        await vi.waitFor(() => expect(reloadMock).toHaveBeenCalled(), { interval: 1 });
+
+        expect(fetch).toHaveBeenCalledWith('/api/feeds', expect.objectContaining({
+            method: 'POST',
+            body: JSON.stringify({
+                url: 'https://example.com/news',
+                name: 'News Scraper',
+                feedType: 'rss',
+                scraperModule: 'my-scraper',
+                scraperConfig: '',
+                interval: 30,
+            }),
+        }));
     });
 });
 
