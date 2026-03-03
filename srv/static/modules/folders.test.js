@@ -220,6 +220,7 @@ describe('unparentCategory', () => {
 
         await unparentCategory(5);
 
+        expect(console.error).toHaveBeenCalledWith('Failed to unparent category:', expect.any(Error));
         expect(showToast).toHaveBeenCalledWith('Failed to move folder to top level');
     });
 });

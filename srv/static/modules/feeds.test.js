@@ -329,6 +329,7 @@ describe('saveFeed', () => {
 
         await saveFeed(event);
 
+        expect(console.error).toHaveBeenCalledWith('Failed to save feed:', expect.any(Error));
         expect(showToast).toHaveBeenCalledWith('Failed to save feed');
     });
 });
@@ -388,6 +389,7 @@ describe('setFeedCategory', () => {
 
         await setFeedCategory(5, 3);
 
+        expect(console.error).toHaveBeenCalledWith('Failed to set category:', expect.any(Error));
         expect(showToast).toHaveBeenCalledWith('Failed to move feed');
     });
 });
