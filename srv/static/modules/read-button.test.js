@@ -56,4 +56,45 @@ describe('updateReadButton', () => {
 
         expect(readIcon).not.toBe(unreadIcon);
     });
+
+    it('sets aria-label to "Mark unread" when isRead is true', () => {
+        const card = makeCard(false);
+        updateReadButton(card, true);
+        const btn = card.querySelector('.btn-read-toggle');
+        expect(btn.getAttribute('aria-label')).toBe('Mark unread');
+    });
+
+    it('sets aria-label to "Mark read" when isRead is false', () => {
+        const card = makeCard(true);
+        updateReadButton(card, false);
+        const btn = card.querySelector('.btn-read-toggle');
+        expect(btn.getAttribute('aria-label')).toBe('Mark read');
+    });
+
+    it('handles toggling back and forth', () => {
+        const card = makeCard(false);
+        updateReadButton(card, true);
+        updateReadButton(card, false);
+        updateReadButton(card, true);
+        const btn = card.querySelector('.btn-read-toggle');
+        expect(btn.dataset.isRead).toBe('1');
+        expect(btn.title).toBe('Mark unread');
+        expect(btn.getAttribute('aria-label')).toBe('Mark unread');
+    });
+
+    it('treats falsy isRead values as unread', () => {
+        const card = makeCard(true);
+        updateReadButton(card, 0);
+        const btn = card.querySelector('.btn-read-toggle');
+        expect(btn.dataset.isRead).toBe('0');
+        expect(btn.title).toBe('Mark read');
+    });
+
+    it('treats truthy isRead values as read', () => {
+        const card = makeCard(false);
+        updateReadButton(card, 1);
+        const btn = card.querySelector('.btn-read-toggle');
+        expect(btn.dataset.isRead).toBe('1');
+        expect(btn.title).toBe('Mark unread');
+    });
 });
