@@ -1152,6 +1152,124 @@ describe('initAddFeedForm', () => {
         await vi.waitFor(() => expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Failed to add feed')), { interval: 1 });
     });
 
+    it('sends empty name for RSS feed when no name provided', async () => {
+        document.body.innerHTML = `
+            <form id="add-feed-form">
+                <input id="feed-url" value="https://store.steampowered.com/news/app/123">
+                <input id="feed-name" value="">
+                <select id="feed-type"><option value="rss" selected>RSS</option></select>
+                <input id="feed-interval" value="60">
+            </form>
+        `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: async () => ({ id: 1 }),
+        });
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
+
+        initAddFeedForm();
+        document.getElementById('add-feed-form').dispatchEvent(
+            new Event('submit', { cancelable: true })
+        );
+
+        await vi.waitFor(() => expect(reloadMock).toHaveBeenCalled(), { interval: 1 });
+
+        expect(fetch).toHaveBeenCalledWith('/api/feeds', expect.objectContaining({
+            method: 'POST',
+            body: JSON.stringify({
+                url: 'https://store.steampowered.com/news/app/123',
+                name: '',
+                feedType: 'rss',
+                scraperModule: '',
+                scraperConfig: '',
+                interval: 60,
+            }),
+        }));
+    });
+
+    it('sends empty name for Reddit feed when no name provided', async () => {
+        document.body.innerHTML = `
+            <form id="add-feed-form">
+                <input id="feed-url" value="">
+                <input id="feed-name" value="">
+                <select id="feed-type"><option value="reddit" selected>Reddit</option></select>
+                <input id="reddit-subreddit" value="r/gaming">
+                <select id="reddit-sort"><option value="hot" selected>Hot</option></select>
+                <select id="reddit-top-period"><option value="day" selected>Day</option></select>
+                <input id="feed-interval" value="60">
+            </form>
+        `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: async () => ({ id: 2 }),
+        });
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
+
+        initAddFeedForm();
+        document.getElementById('add-feed-form').dispatchEvent(
+            new Event('submit', { cancelable: true })
+        );
+
+        await vi.waitFor(() => expect(reloadMock).toHaveBeenCalled(), { interval: 1 });
+
+        expect(fetch).toHaveBeenCalledWith('/api/feeds', expect.objectContaining({
+            method: 'POST',
+            body: JSON.stringify({
+                url: 'https://www.reddit.com/r/gaming/hot/.rss',
+                name: '',
+                feedType: 'rss',
+                scraperModule: '',
+                scraperConfig: '',
+                interval: 60,
+            }),
+        }));
+    });
+
+    it('sends empty name for HuggingFace feed when no name provided', async () => {
+        document.body.innerHTML = `
+            <form id="add-feed-form">
+                <input id="feed-url" value="">
+                <input id="feed-name" value="">
+                <select id="feed-type"><option value="huggingface" selected>HF</option></select>
+                <select id="hf-type"><option value="daily_papers" selected>Daily Papers</option></select>
+                <input id="hf-identifier" value="">
+                <input id="feed-interval" value="60">
+            </form>
+        `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: async () => ({ id: 3 }),
+        });
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
+
+        initAddFeedForm();
+        document.getElementById('add-feed-form').dispatchEvent(
+            new Event('submit', { cancelable: true })
+        );
+
+        await vi.waitFor(() => expect(reloadMock).toHaveBeenCalled(), { interval: 1 });
+
+        expect(fetch).toHaveBeenCalledWith('/api/feeds', expect.objectContaining({
+            method: 'POST',
+            body: expect.stringContaining('"name":""'),
+        }));
+    });
+
     it('includes scraper module when selected', async () => {
         document.body.innerHTML = `
             <form id="add-feed-form">
