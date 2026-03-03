@@ -375,7 +375,6 @@ body {
 .search-box {
     flex: 1 1 150px;
     min-width: 80px;
-    max-width: 250px;
 }
 
 .search-box input {
@@ -1698,9 +1697,6 @@ th {
         display: inline-block;
     }
 
-    .search-box {
-        max-width: none;
-    }
 }
 
 /* Responsive - Mobile */
@@ -1805,7 +1801,6 @@ th {
     .header-actions .search-box {
         flex: 1 1 50px;
         min-width: 40px;
-        max-width: none;
     }
 
     .header-actions .search-box input {
