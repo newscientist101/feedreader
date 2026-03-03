@@ -44,7 +44,6 @@ class MockIntersectionObserver {
 
 beforeEach(() => {
     vi.useFakeTimers();
-    vi.spyOn(console, 'debug').mockImplementation(() => {});
     _resetArticleActionsState();
     _resetArticlesState();
     window.IntersectionObserver = MockIntersectionObserver;

@@ -31,7 +31,6 @@ class MockIntersectionObserver {
 }
 
 beforeEach(() => {
-    vi.spyOn(console, 'debug').mockImplementation(() => {});
     _resetArticlesState();
     _resetArticleActionsState();
     setQueuedArticleIds(new Set());
