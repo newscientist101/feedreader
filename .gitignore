@@ -1,18 +1,11 @@
 /db.sqlite3*
 /feedreader
 node_modules/
-/typecheck
 coverage.out
 logs/
 
-# Dolt database files
-.dolt/
-*.db
-
 # Internal infrastructure
 .beads/
-beads-dolt.service
-es-modules-refactor.timer
 
 # Environment
 .env
