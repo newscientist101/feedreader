@@ -7,7 +7,7 @@ import { openModal, closeModal } from './modal.js';
 import { updateCounts, updateFeedStatusCell } from './counts.js';
 import { showFeedErrorBanner, removeFeedErrorBanner } from './feed-errors.js';
 
-export async function loadCategoryArticles(categoryId, categoryName) {
+export async function loadCategoryArticles(categoryId, categoryName, { pushState = true } = {}) {
     showArticlesLoading();
 
     // Update page title immediately for responsiveness
@@ -27,7 +27,9 @@ export async function loadCategoryArticles(categoryId, categoryName) {
         const data = await api('GET', `/api/categories/${categoryId}/articles`);
 
         // Update URL without reload
-        history.pushState({ categoryId }, categoryName, `/category/${categoryId}`);
+        if (pushState) {
+            history.pushState({ spaNav: true, categoryId }, categoryName, `/category/${categoryId}`);
+        }
 
         // Render articles
         renderArticles(data.articles);
@@ -54,7 +56,7 @@ export async function loadCategoryArticles(categoryId, categoryName) {
     }
 }
 
-export async function loadFeedArticles(feedId, feedName) {
+export async function loadFeedArticles(feedId, feedName, { pushState = true } = {}) {
     showArticlesLoading();
 
     document.querySelector('.view-header h1').textContent = feedName;
@@ -73,7 +75,9 @@ export async function loadFeedArticles(feedId, feedName) {
         const data = await api('GET', `/api/feeds/${feedId}/articles`);
         const feed = data.feed;
 
-        history.pushState({ feedId }, feedName, `/feed/${feedId}`);
+        if (pushState) {
+            history.pushState({ spaNav: true, feedId }, feedName, `/feed/${feedId}`);
+        }
 
         renderArticles(data.articles);
 

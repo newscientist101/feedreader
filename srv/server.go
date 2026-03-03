@@ -213,6 +213,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/articles/{id}/queue", s.apiRemoveFromQueue)
 	mux.HandleFunc("GET /api/queue", s.apiListQueue)
 	mux.HandleFunc("GET /api/articles/unread", s.apiGetUnreadArticles)
+	mux.HandleFunc("GET /api/articles/starred", s.apiGetStarredArticles)
 	mux.HandleFunc("POST /api/feeds/{id}/read-all", s.apiMarkFeedRead)
 	mux.HandleFunc("POST /api/articles/read-all", s.apiMarkAllRead)
 	mux.HandleFunc("GET /api/scrapers/{id}", s.apiGetScraper)
@@ -1395,6 +1396,30 @@ func (s *Server) apiGetUnreadArticles(w http.ResponseWriter, r *http.Request) {
 	articles = s.FilterAllUnreadArticles(ctx, articles, userID)
 	if len(articles) > articlePageSize {
 		articles = articles[:articlePageSize]
+	}
+
+	jsonResponse(w, map[string]any{"articles": articles})
+}
+
+func (s *Server) apiGetStarredArticles(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	beforeTime, beforeID, hasCursor := parseCursor(r)
+
+	var articles []dbgen.ListStarredArticlesRow
+	if hasCursor {
+		cursorRows, _ := q.ListStarredArticlesCursor(ctx, dbgen.ListStarredArticlesCursorParams{
+			UserID: &user.ID, BeforeTime: beforeTime, BeforeTimeEq: beforeTime, BeforeID: beforeID, Limit: articlePageSize,
+		})
+		for i := range cursorRows {
+			articles = append(articles, dbgen.ListStarredArticlesRow(cursorRows[i]))
+		}
+	} else {
+		articles, _ = q.ListStarredArticles(ctx, dbgen.ListStarredArticlesParams{
+			UserID: &user.ID, Limit: articlePageSize, Offset: 0,
+		})
 	}
 
 	jsonResponse(w, map[string]any{"articles": articles})

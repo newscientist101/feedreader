@@ -65,6 +65,7 @@ export function getPaginationUrl() {
     const catMatch = path.match(/^\/category\/(\d+)/);
     if (catMatch) return `/api/categories/${catMatch[1]}/articles`;
     if (path === '/') return '/api/articles/unread';
+    if (path === '/starred') return '/api/articles/starred';
     return null;
 }
 

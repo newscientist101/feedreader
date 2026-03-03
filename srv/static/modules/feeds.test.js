@@ -63,7 +63,7 @@ describe('loadCategoryArticles', () => {
 
         expect(document.querySelector('.view-header h1').textContent).toBe('Tech');
         expect(document.title).toBe('Tech - FeedReader');
-        expect(history.pushState).toHaveBeenCalledWith({ categoryId: 3 }, 'Tech', '/category/3');
+        expect(history.pushState).toHaveBeenCalledWith({ spaNav: true, categoryId: 3 }, 'Tech', '/category/3');
         const dropdown = document.querySelector('.dropdown');
         expect(dropdown.dataset.feedId).toBe('');
         expect(dropdown.dataset.categoryId).toBe('3');
@@ -120,7 +120,7 @@ describe('loadFeedArticles', () => {
 
         expect(document.querySelector('.view-header h1').textContent).toBe('Feed');
         expect(document.title).toBe('Feed - FeedReader');
-        expect(history.pushState).toHaveBeenCalledWith({ feedId: 7 }, 'Feed', '/feed/7');
+        expect(history.pushState).toHaveBeenCalledWith({ spaNav: true, feedId: 7 }, 'Feed', '/feed/7');
         const dropdown = document.querySelector('.dropdown');
         expect(dropdown.dataset.feedId).toBe('7');
         expect(dropdown.dataset.categoryId).toBe('');

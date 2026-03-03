@@ -78,7 +78,7 @@ describe('sidebar', () => {
             const loadFn = vi.fn();
             setSidebarLoadCategory(loadFn);
             document.body.innerHTML = `
-                <div id="articles-list"></div>
+                <div class="articles-view"><div id="articles-list"></div></div>
                 <div class="folder-item" data-category-id="42">
                     <span class="folder-name">Tech</span>
                 </div>
@@ -90,7 +90,7 @@ describe('sidebar', () => {
         });
 
         it('returns false when folder not found on articles page', () => {
-            document.body.innerHTML = '<div id="articles-list"></div>';
+            document.body.innerHTML = '<div class="articles-view"><div id="articles-list"></div></div>';
             const event = { preventDefault: vi.fn() };
             const result = navigateFolder(event, 999);
             expect(result).toBe(false);
@@ -199,7 +199,7 @@ describe('sidebar', () => {
             const loadFn = vi.fn();
             setSidebarLoadCategory(loadFn);
             document.body.innerHTML = `
-                <div id="articles-list"></div>
+                <div class="articles-view"><div id="articles-list"></div></div>
                 <div class="folder-item" data-category-id="7">
                     <a href="/category/7" data-action="navigate-folder" data-category-id="7">
                         <span class="folder-name">News</span>

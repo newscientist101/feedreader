@@ -26,6 +26,7 @@ import { initQueuePage } from './modules/queue.js';
 import { initScraperPage, initScraperPageListeners } from './modules/scraper-page.js';
 import { initOfflineSupport } from './modules/offline.js';
 import { initAlertsPage, initAlertDetailPage } from './modules/alerts.js';
+import { initSpaNav } from './modules/spa-nav.js';
 
 // Initialize click-outside listener and keyboard navigation for dropdowns
 initDropdownCloseListener();
@@ -33,6 +34,9 @@ initDropdownKeyboardNav();
 
 // Initialize delegated sidebar event listeners (replaces inline onclick in base.html)
 initSidebarListeners();
+
+// Initialize SPA navigation for article-list pages (/, /starred, /feed/*, /category/*)
+initSpaNav();
 
 // Initialize delegated listeners for index.html elements
 initViewListeners();

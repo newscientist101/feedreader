@@ -795,6 +795,85 @@ func (q *Queries) ListStarredArticles(ctx context.Context, arg ListStarredArticl
 	return items, nil
 }
 
+const listStarredArticlesCursor = `-- name: ListStarredArticlesCursor :many
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+WHERE a.is_starred = 1 AND f.user_id = ?
+  AND (COALESCE(a.published_at, a.fetched_at) < ?
+       OR (COALESCE(a.published_at, a.fetched_at) = ? AND a.id < ?))
+ORDER BY COALESCE(a.published_at, a.fetched_at) DESC, a.id DESC
+LIMIT ?
+`
+
+type ListStarredArticlesCursorParams struct {
+	UserID       *int64     `json:"user_id"`
+	BeforeTime   *time.Time `json:"before_time"`
+	BeforeTimeEq *time.Time `json:"before_time_eq"`
+	BeforeID     int64      `json:"before_id"`
+	Limit        int64      `json:"limit"`
+}
+
+type ListStarredArticlesCursorRow struct {
+	ID          int64      `json:"id"`
+	FeedID      int64      `json:"feed_id"`
+	Guid        string     `json:"guid"`
+	Title       string     `json:"title"`
+	Url         *string    `json:"url"`
+	Author      *string    `json:"author"`
+	Content     *string    `json:"content"`
+	Summary     *string    `json:"summary"`
+	ImageUrl    *string    `json:"image_url"`
+	PublishedAt *time.Time `json:"published_at"`
+	FetchedAt   time.Time  `json:"fetched_at"`
+	IsRead      *int64     `json:"is_read"`
+	IsStarred   *int64     `json:"is_starred"`
+	FeedName    string     `json:"feed_name"`
+}
+
+func (q *Queries) ListStarredArticlesCursor(ctx context.Context, arg ListStarredArticlesCursorParams) ([]ListStarredArticlesCursorRow, error) {
+	rows, err := q.db.QueryContext(ctx, listStarredArticlesCursor,
+		arg.UserID,
+		arg.BeforeTime,
+		arg.BeforeTimeEq,
+		arg.BeforeID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListStarredArticlesCursorRow{}
+	for rows.Next() {
+		var i ListStarredArticlesCursorRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FeedID,
+			&i.Guid,
+			&i.Title,
+			&i.Url,
+			&i.Author,
+			&i.Content,
+			&i.Summary,
+			&i.ImageUrl,
+			&i.PublishedAt,
+			&i.FetchedAt,
+			&i.IsRead,
+			&i.IsStarred,
+			&i.FeedName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUnreadArticles = `-- name: ListUnreadArticles :many
 SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
 JOIN feeds f ON a.feed_id = f.id

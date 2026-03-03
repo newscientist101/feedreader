@@ -49,6 +49,15 @@ WHERE a.is_starred = 1 AND f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?;
 
+-- name: ListStarredArticlesCursor :many
+SELECT a.*, f.name as feed_name FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+WHERE a.is_starred = 1 AND f.user_id = ?
+  AND (COALESCE(a.published_at, a.fetched_at) < @before_time
+       OR (COALESCE(a.published_at, a.fetched_at) = @before_time_eq AND a.id < @before_id))
+ORDER BY COALESCE(a.published_at, a.fetched_at) DESC, a.id DESC
+LIMIT ?;
+
 -- name: ListArticlesCursor :many
 SELECT a.*, f.name as feed_name FROM articles a
 JOIN feeds f ON a.feed_id = f.id
