@@ -787,17 +787,107 @@ describe('initArticleActionListeners', () => {
         expect(card.classList.contains('read')).toBe(true);
         expect(_getMarkReadQueue()).toContain(15);
     });
+
+    it('toggle-read with data-is-read="0" dispatches markRead', async () => {
+        document.body.innerHTML = `
+            <div id="articles-list">
+                <div class="article-card" data-id="20">
+                    <button data-action="toggle-read" data-article-id="20" data-is-read="0">Read</button>
+                </div>
+            </div>
+        `;
+        initArticleActionListeners();
+
+        document.querySelector('[data-action="toggle-read"]').click();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(window.fetch).toHaveBeenCalledWith('/api/articles/20/read', expect.objectContaining({ method: 'POST' }));
+        const card = document.querySelector('.article-card[data-id="20"]');
+        expect(card.classList.contains('read')).toBe(true);
+        expect(updateReadButton).toHaveBeenCalledWith(card, true);
+        expect(updateCounts).toHaveBeenCalled();
+    });
+
+    it('toggle-read with data-is-read="1" dispatches markUnread', async () => {
+        document.body.innerHTML = `
+            <div id="articles-list">
+                <div class="article-card read" data-id="21">
+                    <button data-action="toggle-read" data-article-id="21" data-is-read="1">Unread</button>
+                </div>
+            </div>
+        `;
+        initArticleActionListeners();
+
+        document.querySelector('[data-action="toggle-read"]').click();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(window.fetch).toHaveBeenCalledWith('/api/articles/21/unread', expect.objectContaining({ method: 'POST' }));
+        const card = document.querySelector('.article-card[data-id="21"]');
+        expect(card.classList.contains('read')).toBe(false);
+        expect(updateReadButton).toHaveBeenCalledWith(card, false);
+        expect(updateCounts).toHaveBeenCalled();
+    });
+
+    it('toggle-star dispatches toggleStar via delegation', async () => {
+        document.body.innerHTML = `
+            <div id="articles-list">
+                <button data-action="toggle-star" data-article-id="22"
+                    title="Star" aria-label="Star">${SVG_STAR_EMPTY}</button>
+            </div>
+        `;
+        initArticleActionListeners();
+
+        document.querySelector('[data-action="toggle-star"]').click();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(window.fetch).toHaveBeenCalledWith('/api/articles/22/star', expect.objectContaining({ method: 'POST' }));
+        const btn = document.querySelector('[data-action="toggle-star"]');
+        expect(btn.classList.contains('starred')).toBe(true);
+        expect(btn.getAttribute('aria-label')).toBe('Unstar');
+        expect(updateCounts).toHaveBeenCalled();
+    });
+
+    it('toggle-queue dispatches toggleQueue via delegation', async () => {
+        window.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({ queued: true }),
+        });
+        document.body.innerHTML = `
+            <div id="articles-list">
+                <button data-action="toggle-queue" data-article-id="23"
+                    title="Add to queue" aria-label="Add to queue">${SVG_QUEUE_ADD}</button>
+            </div>
+        `;
+        initArticleActionListeners();
+
+        document.querySelector('[data-action="toggle-queue"]').click();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(window.fetch).toHaveBeenCalledWith('/api/articles/23/queue', expect.objectContaining({ method: 'POST' }));
+        const btn = document.querySelector('[data-action="toggle-queue"]');
+        expect(btn.classList.contains('queued')).toBe(true);
+        expect(btn.getAttribute('aria-label')).toBe('Remove from queue');
+        expect(queuedArticleIds.has(23)).toBe(true);
+        expect(updateCounts).toHaveBeenCalled();
+        expect(updateQueueCacheIfStandalone).toHaveBeenCalled();
+    });
+
+    it('toggle-read ignores button without data-article-id', async () => {
+        document.body.innerHTML = `
+            <div id="articles-list">
+                <button data-action="toggle-read" data-is-read="0">Read</button>
+            </div>
+        `;
+        initArticleActionListeners();
+
+        document.querySelector('[data-action="toggle-read"]').click();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(window.fetch).not.toHaveBeenCalled();
+    });
 });
 
 describe('initQueueState', () => {
-    beforeEach(() => {
-        vi.useRealTimers();
-    });
-
-    afterEach(() => {
-        vi.useFakeTimers();
-    });
-
     it('fetches queue and populates queuedArticleIds', async () => {
         window.fetch = vi.fn().mockResolvedValue({
             ok: true,
@@ -806,8 +896,8 @@ describe('initQueueState', () => {
         const renderFn = vi.fn().mockReturnValue('<span>actions</span>');
 
         initQueueState(renderFn);
-        // Wait for the internal promise chain to settle
-        await new Promise(r => setTimeout(r, 50));
+        // Flush the microtask queue so the promise chain settles
+        await vi.advanceTimersByTimeAsync(0);
 
         expect(queuedArticleIds.has(10)).toBe(true);
         expect(queuedArticleIds.has(20)).toBe(true);
@@ -830,7 +920,7 @@ describe('initQueueState', () => {
         const renderFn = vi.fn().mockReturnValue('<span class="rendered">actions</span>');
 
         initQueueState(renderFn);
-        await new Promise(r => setTimeout(r, 50));
+        await vi.advanceTimersByTimeAsync(0);
 
         expect(renderFn).toHaveBeenCalledWith(expect.objectContaining({
             id: 5,
@@ -851,7 +941,7 @@ describe('initQueueState', () => {
         const renderFn = vi.fn();
 
         initQueueState(renderFn);
-        await new Promise(r => setTimeout(r, 50));
+        await vi.advanceTimersByTimeAsync(0);
 
         // Should not throw, renderFn should not be called since the catch swallows the error
         expect(renderFn).not.toHaveBeenCalled();
