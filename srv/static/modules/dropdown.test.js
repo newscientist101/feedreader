@@ -196,6 +196,145 @@ describe('initDropdownKeyboardNav', () => {
         // Focus should not change since no dropdown is open
         expect(document.activeElement).toBe(item1);
     });
+
+    it('activates menu item on Enter and closes dropdown', () => {
+        const dd1 = document.getElementById('dd1');
+        dd1.classList.add('open');
+        const item1 = document.getElementById('item1');
+        const clickSpy = vi.fn();
+        item1.addEventListener('click', clickSpy);
+        item1.focus();
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+        expect(clickSpy).toHaveBeenCalledTimes(1);
+        expect(dd1.classList.contains('open')).toBe(false);
+    });
+
+    it('activates menu item on Space and closes dropdown', () => {
+        const dd1 = document.getElementById('dd1');
+        dd1.classList.add('open');
+        const item2 = document.getElementById('item2');
+        const clickSpy = vi.fn();
+        item2.addEventListener('click', clickSpy);
+        item2.focus();
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+
+        expect(clickSpy).toHaveBeenCalledTimes(1);
+        expect(dd1.classList.contains('open')).toBe(false);
+    });
+
+    it('does nothing on Enter/Space when focus is not on a menu item', () => {
+        const dd1 = document.getElementById('dd1');
+        dd1.classList.add('open');
+        const toggle = dd1.querySelector('.dropdown-toggle');
+        toggle.focus();
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+        // Dropdown should remain open since focus was on toggle, not a menu item
+        expect(dd1.classList.contains('open')).toBe(true);
+    });
+
+    it('does nothing on Enter/Space when no dropdown is open', () => {
+        document.getElementById('item1').focus();
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+        // No error, no dropdown to close
+        expect(document.querySelectorAll('.dropdown.open')).toHaveLength(0);
+    });
+
+    it('does nothing on Escape when no dropdown is open', () => {
+        const toggle = document.querySelector('.dropdown-toggle');
+        toggle.focus();
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+        // No error, focus unchanged
+        expect(document.activeElement).toBe(toggle);
+    });
+
+    it('handles ArrowDown when focus is not on any menu item', () => {
+        const dd1 = document.getElementById('dd1');
+        dd1.classList.add('open');
+        // Focus on toggle, not a menu item — indexOf returns -1
+        dd1.querySelector('.dropdown-toggle').focus();
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+
+        // With currentIndex=-1, ArrowDown: -1 < 2 → nextIndex=0 → first item
+        expect(document.activeElement.id).toBe('item1');
+    });
+
+    it('handles ArrowUp when focus is not on any menu item', () => {
+        const dd1 = document.getElementById('dd1');
+        dd1.classList.add('open');
+        dd1.querySelector('.dropdown-toggle').focus();
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+
+        // With currentIndex=-1, ArrowUp: -1 > 0 is false → nextIndex=items.length-1 → last item
+        expect(document.activeElement.id).toBe('item3');
+    });
+});
+
+describe('toggleDropdown first-item focus', () => {
+    beforeEach(() => {
+        document.body.innerHTML = `
+            <div class="dropdown" id="dd1">
+                <button class="dropdown-toggle" aria-haspopup="true" aria-expanded="false">Menu</button>
+                <div class="dropdown-menu" role="menu">
+                    <button role="menuitem" id="item1">Item 1</button>
+                    <button role="menuitem" id="item2">Item 2</button>
+                </div>
+            </div>
+        `;
+    });
+
+    it('focuses first menu item when opening', () => {
+        const toggle = document.querySelector('#dd1 .dropdown-toggle');
+        toggleDropdown(toggle);
+        expect(document.activeElement.id).toBe('item1');
+    });
+
+    it('does not throw when no menu items exist', () => {
+        document.body.innerHTML = `
+            <div class="dropdown" id="dd1">
+                <button class="dropdown-toggle" aria-expanded="false">Menu</button>
+                <div class="dropdown-menu" role="menu"></div>
+            </div>
+        `;
+        const toggle = document.querySelector('#dd1 .dropdown-toggle');
+        expect(() => toggleDropdown(toggle)).not.toThrow();
+        expect(document.getElementById('dd1').classList.contains('open')).toBe(true);
+    });
+});
+
+describe('initDropdownKeyboardNav empty menu', () => {
+    let initialized = false;
+    beforeEach(() => {
+        document.body.innerHTML = `
+            <div class="dropdown open" id="dd1">
+                <button class="dropdown-toggle" aria-expanded="true">Menu</button>
+                <div class="dropdown-menu" role="menu"></div>
+            </div>
+        `;
+        if (!initialized) {
+            initDropdownKeyboardNav();
+            initialized = true;
+        }
+    });
+
+    it('does nothing with arrow keys when menu has no items', () => {
+        document.querySelector('.dropdown-toggle').focus();
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+
+        // No error, dropdown still open
+        expect(document.getElementById('dd1').classList.contains('open')).toBe(true);
+    });
 });
 
 describe('toggleDropdown aria-expanded', () => {

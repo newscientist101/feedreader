@@ -61,4 +61,58 @@ describe('api', () => {
 
         await expect(api('GET', '/api/broken')).rejects.toThrow('Request failed');
     });
+
+    it('throws generic message when JSON error field is missing', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: false,
+            text: () => Promise.resolve(JSON.stringify({ status: 'error' })),
+        });
+
+        await expect(api('GET', '/api/broken')).rejects.toThrow('Request failed');
+    });
+
+    it('propagates network errors from fetch', async () => {
+        vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
+
+        await expect(api('GET', '/api/test')).rejects.toThrow('Failed to fetch');
+    });
+
+    it('does not include body for GET requests with null data', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({}),
+        });
+
+        await api('GET', '/api/test', null);
+        const callOptions = fetch.mock.calls[0][1];
+        expect(callOptions.body).toBeUndefined();
+    });
+
+    it('sends body for PUT and DELETE methods', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({}),
+        });
+
+        await api('PUT', '/api/item/1', { name: 'updated' });
+        expect(fetch).toHaveBeenCalledWith('/api/item/1', expect.objectContaining({
+            method: 'PUT',
+            body: JSON.stringify({ name: 'updated' }),
+        }));
+
+        await api('DELETE', '/api/item/1', { id: 1 });
+        expect(fetch).toHaveBeenCalledWith('/api/item/1', expect.objectContaining({
+            method: 'DELETE',
+            body: JSON.stringify({ id: 1 }),
+        }));
+    });
+
+    it('throws generic message when JSON error field is empty string', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: false,
+            text: () => Promise.resolve(JSON.stringify({ error: '' })),
+        });
+
+        await expect(api('GET', '/api/broken')).rejects.toThrow('Request failed');
+    });
 });
