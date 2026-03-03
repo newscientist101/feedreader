@@ -36,7 +36,7 @@ afterEach(() => {
 });
 
 describe('_isStandalone', () => {
-    it('is false in jsdom (no matchMedia match)', () => {
+    it('is false in happy-dom (no matchMedia match)', () => {
         expect(_isStandalone).toBe(false);
     });
 });
@@ -82,6 +82,12 @@ describe('showOfflineBanner', () => {
     it('prepends banner to document.body', () => {
         showOfflineBanner();
         expect(document.body.firstElementChild.id).toBe('offline-banner');
+    });
+
+    it('banner contains offline text', () => {
+        showOfflineBanner();
+        const banner = document.getElementById('offline-banner');
+        expect(banner.textContent).toContain("You're offline");
     });
 });
 
@@ -179,6 +185,22 @@ describe('disableNonQueueUI', () => {
         expect(overlay.querySelector('a[href="/queue"]')).not.toBeNull();
     });
 
+    it('sets content position to relative when overlay is created', () => {
+        setupSidebar();
+        const content = document.createElement('div');
+        content.className = 'content';
+        document.body.appendChild(content);
+
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, pathname: '/' },
+            writable: true,
+            configurable: true,
+        });
+        disableNonQueueUI();
+
+        expect(content.style.position).toBe('relative');
+    });
+
     it('does not show overlay on queue page', () => {
         setupSidebar();
         const content = document.createElement('div');
@@ -210,6 +232,36 @@ describe('disableNonQueueUI', () => {
         disableNonQueueUI();
 
         expect(document.querySelectorAll('#offline-overlay').length).toBe(1);
+    });
+
+    it('does not create overlay when .content element is absent', () => {
+        setupSidebar();
+        // No .content element in the DOM
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, pathname: '/' },
+            writable: true,
+            configurable: true,
+        });
+        disableNonQueueUI();
+
+        expect(document.getElementById('offline-overlay')).toBeNull();
+    });
+
+    it('disables nav items without href attribute', () => {
+        const sidebar = document.createElement('div');
+        sidebar.className = 'sidebar';
+        sidebar.innerHTML = '<span class="nav-item">No Link</span>';
+        document.body.appendChild(sidebar);
+
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, pathname: '/' },
+            writable: true,
+            configurable: true,
+        });
+        disableNonQueueUI();
+
+        const noLink = document.querySelector('.nav-item');
+        expect(noLink.classList.contains('offline-disabled')).toBe(true);
     });
 });
 
@@ -246,6 +298,38 @@ describe('enableAllUI', () => {
     it('does nothing if no offline-disabled elements or overlay exist', () => {
         expect(() => enableAllUI()).not.toThrow();
     });
+
+    it('round-trip: reverses disableNonQueueUI', () => {
+        // Setup sidebar and content
+        const sidebar = document.createElement('div');
+        sidebar.className = 'sidebar';
+        sidebar.innerHTML = `
+            <a class="nav-item" href="/">Home</a>
+            <a class="nav-item" href="/queue">Queue</a>
+            <div class="feeds-section">Feeds</div>
+        `;
+        document.body.appendChild(sidebar);
+        const content = document.createElement('div');
+        content.className = 'content';
+        document.body.appendChild(content);
+
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, pathname: '/' },
+            writable: true,
+            configurable: true,
+        });
+
+        disableNonQueueUI();
+        // Verify disabled state
+        expect(document.querySelector('.nav-item[href="/"]').classList.contains('offline-disabled')).toBe(true);
+        expect(document.getElementById('offline-overlay')).not.toBeNull();
+
+        enableAllUI();
+        // Everything should be restored
+        expect(document.querySelector('.nav-item[href="/"]').classList.contains('offline-disabled')).toBe(false);
+        expect(document.querySelector('.nav-item[href="/"]').hasAttribute('data-offline-disabled')).toBe(false);
+        expect(document.getElementById('offline-overlay')).toBeNull();
+    });
 });
 
 describe('replayPendingActions', () => {
@@ -277,6 +361,22 @@ describe('replayPendingActions', () => {
     it('does not throw when called without callback and no SW', () => {
         delete navigator.serviceWorker;
         expect(() => replayPendingActions()).not.toThrow();
+    });
+
+    it('does not throw when called without callback and SW controller present', () => {
+        const postMessage = vi.fn();
+        Object.defineProperty(navigator, 'serviceWorker', {
+            value: {
+                controller: { postMessage },
+                addEventListener: vi.fn(),
+                removeEventListener: vi.fn(),
+            },
+            configurable: true,
+        });
+
+        expect(() => replayPendingActions()).not.toThrow();
+        // Safety timeout fires without callback — should not throw
+        expect(() => vi.advanceTimersByTime(3000)).not.toThrow();
     });
 
     it('sends GET_PENDING_ACTIONS to SW controller when present', () => {
@@ -331,11 +431,186 @@ describe('replayPendingActions', () => {
         // Flush microtasks
         await vi.advanceTimersByTimeAsync(0);
 
+        expect(api).toHaveBeenCalledTimes(2);
         expect(api).toHaveBeenCalledWith('DELETE', '/api/articles/123/queue');
         expect(api).toHaveBeenCalledWith('DELETE', '/api/articles/456/queue');
         expect(updateCounts).toHaveBeenCalled();
         expect(cb).toHaveBeenCalledOnce();
         expect(removeEventListener).toHaveBeenCalledWith('message', messageHandler);
+    });
+
+    it('ignores non-PENDING_ACTIONS messages', async () => {
+        const postMessage = vi.fn();
+        let messageHandler;
+        const addEventListener = vi.fn((_event, handler) => { messageHandler = handler; });
+        const removeEventListener = vi.fn();
+        Object.defineProperty(navigator, 'serviceWorker', {
+            value: {
+                controller: { postMessage },
+                addEventListener,
+                removeEventListener,
+            },
+            configurable: true,
+        });
+
+        const cb = vi.fn();
+        replayPendingActions(cb);
+
+        // Send a non-matching message
+        messageHandler({ data: { type: 'OTHER_MESSAGE' } });
+
+        // Handler should not have been removed and callback should not fire
+        expect(removeEventListener).not.toHaveBeenCalled();
+        expect(cb).not.toHaveBeenCalled();
+    });
+
+    it('handles message with null data via optional chaining', async () => {
+        const postMessage = vi.fn();
+        let messageHandler;
+        const addEventListener = vi.fn((_event, handler) => { messageHandler = handler; });
+        const removeEventListener = vi.fn();
+        Object.defineProperty(navigator, 'serviceWorker', {
+            value: {
+                controller: { postMessage },
+                addEventListener,
+                removeEventListener,
+            },
+            configurable: true,
+        });
+
+        const cb = vi.fn();
+        replayPendingActions(cb);
+
+        // Send message with null/undefined data
+        expect(() => messageHandler({ data: null })).not.toThrow();
+        expect(() => messageHandler({ data: undefined })).not.toThrow();
+        expect(cb).not.toHaveBeenCalled();
+    });
+
+    it('calls callback with empty actions and does not call updateCounts', async () => {
+        const postMessage = vi.fn();
+        let messageHandler;
+        const addEventListener = vi.fn((_event, handler) => { messageHandler = handler; });
+        const removeEventListener = vi.fn();
+        Object.defineProperty(navigator, 'serviceWorker', {
+            value: {
+                controller: { postMessage },
+                addEventListener,
+                removeEventListener,
+            },
+            configurable: true,
+        });
+
+        const cb = vi.fn();
+        replayPendingActions(cb);
+
+        messageHandler({
+            data: { type: 'PENDING_ACTIONS', actions: [] },
+        });
+
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(updateCounts).not.toHaveBeenCalled();
+        expect(cb).toHaveBeenCalledOnce();
+    });
+
+    it('falls back to empty array when actions field is missing', async () => {
+        const postMessage = vi.fn();
+        let messageHandler;
+        const addEventListener = vi.fn((_event, handler) => { messageHandler = handler; });
+        const removeEventListener = vi.fn();
+        Object.defineProperty(navigator, 'serviceWorker', {
+            value: {
+                controller: { postMessage },
+                addEventListener,
+                removeEventListener,
+            },
+            configurable: true,
+        });
+
+        const cb = vi.fn();
+        replayPendingActions(cb);
+
+        messageHandler({
+            data: { type: 'PENDING_ACTIONS' }, // no actions field
+        });
+
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(api).not.toHaveBeenCalled();
+        expect(updateCounts).not.toHaveBeenCalled();
+        expect(cb).toHaveBeenCalledOnce();
+    });
+
+    it('skips unknown action types and still calls callback', async () => {
+        const postMessage = vi.fn();
+        let messageHandler;
+        const addEventListener = vi.fn((_event, handler) => { messageHandler = handler; });
+        const removeEventListener = vi.fn();
+        Object.defineProperty(navigator, 'serviceWorker', {
+            value: {
+                controller: { postMessage },
+                addEventListener,
+                removeEventListener,
+            },
+            configurable: true,
+        });
+
+        const cb = vi.fn();
+        replayPendingActions(cb);
+
+        messageHandler({
+            data: {
+                type: 'PENDING_ACTIONS',
+                actions: [
+                    { type: 'unknown-action', articleId: '99' },
+                ],
+            },
+        });
+
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(api).not.toHaveBeenCalled();
+        // updateCounts is called because actions.length > 0
+        expect(updateCounts).toHaveBeenCalled();
+        expect(cb).toHaveBeenCalledOnce();
+    });
+
+    it('still calls callback when dequeue API calls fail', async () => {
+        const postMessage = vi.fn();
+        let messageHandler;
+        const addEventListener = vi.fn((_event, handler) => { messageHandler = handler; });
+        const removeEventListener = vi.fn();
+        Object.defineProperty(navigator, 'serviceWorker', {
+            value: {
+                controller: { postMessage },
+                addEventListener,
+                removeEventListener,
+            },
+            configurable: true,
+        });
+
+        api.mockRejectedValue(new Error('API error'));
+
+        const cb = vi.fn();
+        replayPendingActions(cb);
+
+        messageHandler({
+            data: {
+                type: 'PENDING_ACTIONS',
+                actions: [
+                    { type: 'dequeue', articleId: '123' },
+                    { type: 'dequeue', articleId: '456' },
+                ],
+            },
+        });
+
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(api).toHaveBeenCalledTimes(2);
+        // Callback and updateCounts still called despite failures
+        expect(updateCounts).toHaveBeenCalled();
+        expect(cb).toHaveBeenCalledOnce();
     });
 
     it('calls callback after safety timeout if SW does not respond', () => {
@@ -393,6 +668,21 @@ describe('cacheQueueForOffline', () => {
         });
     });
 
+    it('sends empty array when api returns empty array', async () => {
+        api.mockResolvedValue([]);
+
+        const sw = { postMessage: vi.fn() };
+        cacheQueueForOffline(sw);
+
+        await vi.runAllTimersAsync();
+
+        expect(api).toHaveBeenCalledWith('GET', '/api/queue');
+        expect(sw.postMessage).toHaveBeenCalledWith({
+            type: 'CACHE_QUEUE',
+            data: { articles: [] },
+        });
+    });
+
     it('does not throw when fetch fails', async () => {
         api.mockRejectedValue(new Error('network error'));
 
@@ -404,13 +694,15 @@ describe('cacheQueueForOffline', () => {
         expect(sw.postMessage).not.toHaveBeenCalled();
     });
 
-    it('does not call postMessage when sw is null', async () => {
-        api.mockResolvedValue([]);
+    it('does not call postMessage when sw is null but still calls api', async () => {
+        api.mockResolvedValue([{ id: 1 }]);
 
         cacheQueueForOffline(null);
 
         await vi.runAllTimersAsync();
-        // Should not throw
+
+        expect(api).toHaveBeenCalledWith('GET', '/api/queue');
+        // Should not throw — the if(sw) guard prevents postMessage on null
     });
 });
 
@@ -436,5 +728,3 @@ describe('updateQueueCacheIfStandalone', () => {
         updateQueueCacheIfStandalone();
     });
 });
-
-
