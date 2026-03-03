@@ -141,8 +141,8 @@ export function markReadSilent(id) {
 
 export function openArticle(id) {
     markReadSilent(id);
-    flushMarkReadQueue();
     window.location = `/article/${id}`;
+    flushMarkReadQueue();
 }
 
 export function openArticleExternal(event, id, url) {
