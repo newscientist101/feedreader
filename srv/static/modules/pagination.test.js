@@ -6,6 +6,12 @@ import {
     _resetPaginationState,
 } from './pagination.js';
 import { _resetArticleActionsState, setQueuedArticleIds, setQueuedIdsReady } from './article-actions.js';
+import { setShowingHiddenArticles } from './articles.js';
+import { showToast } from './toast.js';
+
+vi.mock('./toast.js', () => ({
+    showToast: vi.fn(),
+}));
 
 beforeEach(() => {
     vi.useFakeTimers();
@@ -13,6 +19,7 @@ beforeEach(() => {
     _resetArticleActionsState();
     setQueuedArticleIds(new Set());
     setQueuedIdsReady(Promise.resolve());
+    setShowingHiddenArticles(false);
     window.__settings = {};
     window.fetch = vi.fn(() => Promise.resolve({
         ok: true,
@@ -24,6 +31,7 @@ beforeEach(() => {
             <div class="end-of-articles" id="end-of-articles"></div>
         </div>
     `;
+    vi.clearAllMocks();
 });
 
 afterEach(() => {
@@ -75,6 +83,11 @@ describe('updatePaginationCursor', () => {
         expect(getPaginationState().cursorTime).toBeNull();
     });
 
+    it('does nothing for undefined', () => {
+        updatePaginationCursor(undefined);
+        expect(getPaginationState().cursorTime).toBeNull();
+    });
+
     it('uses fetched_at when published_at is null', () => {
         updatePaginationCursor([
             { id: 1, fetched_at: '2025-06-01T00:00:00Z' },
@@ -103,6 +116,13 @@ describe('getPaginationUrl', () => {
             value: { pathname: '/category/7' }, writable: true, configurable: true,
         });
         expect(getPaginationUrl()).toBe('/api/categories/7/articles');
+    });
+
+    it('returns starred URL for /starred', () => {
+        Object.defineProperty(window, 'location', {
+            value: { pathname: '/starred' }, writable: true, configurable: true,
+        });
+        expect(getPaginationUrl()).toBe('/api/articles/starred');
     });
 
     it('returns null for unknown paths', () => {
@@ -135,6 +155,12 @@ describe('updateEndOfArticlesIndicator', () => {
         updateEndOfArticlesIndicator();
         expect(document.getElementById('end-of-articles').classList.contains('visible')).toBe(false);
     });
+
+    it('does nothing when element is missing', () => {
+        document.body.innerHTML = '<div id="articles-list"></div>';
+        setPaginationState({ done: true });
+        updateEndOfArticlesIndicator(); // should not throw
+    });
 });
 
 describe('loadMoreArticles', () => {
@@ -153,6 +179,18 @@ describe('loadMoreArticles', () => {
     it('does nothing without cursor', async () => {
         Object.defineProperty(window, 'location', {
             value: { pathname: '/' }, writable: true, configurable: true,
+        });
+        await loadMoreArticles();
+        expect(window.fetch).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when URL is null (unknown path)', async () => {
+        Object.defineProperty(window, 'location', {
+            value: { pathname: '/settings' }, writable: true, configurable: true,
+        });
+        setPaginationState({
+            cursorTime: '2025-01-01T00:00:00Z',
+            cursorId: '999',
         });
         await loadMoreArticles();
         expect(window.fetch).not.toHaveBeenCalled();
@@ -190,6 +228,200 @@ describe('loadMoreArticles', () => {
 
         expect(document.querySelectorAll('.article-card').length).toBe(1);
         expect(document.querySelector('.article-content-preview')).not.toBeNull();
+        // loading should be reset in finally block
+        expect(getPaginationState().loading).toBe(false);
+        // 1 article < PAGE_SIZE, so done should be true
+        expect(getPaginationState().done).toBe(true);
+        expect(showToast).not.toHaveBeenCalled();
+    });
+
+    it('sets done when API returns empty articles', async () => {
+        Object.defineProperty(window, 'location', {
+            value: { pathname: '/' }, writable: true, configurable: true,
+        });
+        setPaginationState({
+            done: false,
+            loading: false,
+            cursorTime: '2025-01-01T00:00:00Z',
+            cursorId: '999',
+        });
+
+        window.fetch = vi.fn(async () => ({
+            ok: true,
+            json: async () => ({ articles: [] }),
+            text: async () => '',
+        }));
+
+        await loadMoreArticles();
+
+        expect(getPaginationState().done).toBe(true);
+        expect(getPaginationState().loading).toBe(false);
+    });
+
+    it('does not set done when articles.length equals PAGE_SIZE', async () => {
+        Object.defineProperty(window, 'location', {
+            value: { pathname: '/' }, writable: true, configurable: true,
+        });
+        setPaginationState({
+            done: false,
+            loading: false,
+            cursorTime: '2025-01-01T00:00:00Z',
+            cursorId: '999',
+        });
+        setQueuedIdsReady(Promise.resolve());
+
+        const articles = Array.from({ length: PAGE_SIZE }, (_, i) => ({
+            id: i + 1,
+            title: `Article ${i}`,
+            is_read: 0,
+            is_starred: 0,
+            published_at: new Date().toISOString(),
+            content: '<p>content</p>',
+        }));
+
+        window.fetch = vi.fn(async () => ({
+            ok: true,
+            json: async () => ({ articles }),
+            text: async () => '',
+        }));
+
+        await loadMoreArticles();
+
+        expect(getPaginationState().done).toBe(false);
+        expect(document.querySelectorAll('.article-card').length).toBe(PAGE_SIZE);
+    });
+
+    it('includes include_read param when showing hidden articles', async () => {
+        Object.defineProperty(window, 'location', {
+            value: { pathname: '/feed/8' }, writable: true, configurable: true,
+        });
+        setPaginationState({
+            done: false,
+            loading: false,
+            cursorTime: '2025-01-01T00:00:00Z',
+            cursorId: '999',
+        });
+        setShowingHiddenArticles(true);
+
+        window.fetch = vi.fn(async () => ({
+            ok: true,
+            json: async () => ({ articles: [] }),
+            text: async () => '',
+        }));
+
+        await loadMoreArticles();
+
+        const url = window.fetch.mock.calls[0][0];
+        expect(url).toContain('include_read=1');
+    });
+
+    it('does not include include_read param by default', async () => {
+        Object.defineProperty(window, 'location', {
+            value: { pathname: '/feed/8' }, writable: true, configurable: true,
+        });
+        setPaginationState({
+            done: false,
+            loading: false,
+            cursorTime: '2025-01-01T00:00:00Z',
+            cursorId: '999',
+        });
+
+        window.fetch = vi.fn(async () => ({
+            ok: true,
+            json: async () => ({ articles: [] }),
+            text: async () => '',
+        }));
+
+        await loadMoreArticles();
+
+        const url = window.fetch.mock.calls[0][0];
+        expect(url).not.toContain('include_read');
+    });
+
+    it('shows toast and logs error on API failure', async () => {
+        Object.defineProperty(window, 'location', {
+            value: { pathname: '/' }, writable: true, configurable: true,
+        });
+        setPaginationState({
+            done: false,
+            loading: false,
+            cursorTime: '2025-01-01T00:00:00Z',
+            cursorId: '999',
+        });
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        // Ensure checkScrollForMore in finally block doesn't re-trigger load
+        Object.defineProperty(document.body, 'offsetHeight', { value: 100000, configurable: true });
+
+        window.fetch = vi.fn(async () => ({
+            ok: false,
+            text: async () => JSON.stringify({ error: 'Server error' }),
+        }));
+
+        await loadMoreArticles();
+
+        expect(console.error).toHaveBeenCalledWith('Failed to load more articles:', expect.any(Error));
+        expect(showToast).toHaveBeenCalledWith('Failed to load more articles');
+        // loading should still be reset in finally block
+        expect(getPaginationState().loading).toBe(false);
+    });
+
+    it('handles missing articles-list element gracefully', async () => {
+        document.body.innerHTML = ''; // remove articles-list
+        Object.defineProperty(window, 'location', {
+            value: { pathname: '/' }, writable: true, configurable: true,
+        });
+        setPaginationState({
+            done: false,
+            loading: false,
+            cursorTime: '2025-01-01T00:00:00Z',
+            cursorId: '999',
+        });
+        setQueuedIdsReady(Promise.resolve());
+
+        window.fetch = vi.fn(async () => ({
+            ok: true,
+            json: async () => ({
+                articles: [{
+                    id: 1, title: 'A', is_read: 0, is_starred: 0,
+                    published_at: new Date().toISOString(), content: '<p>hi</p>',
+                }],
+            }),
+            text: async () => '',
+        }));
+
+        await loadMoreArticles();
+
+        // Should not throw, loading should still be reset
+        expect(getPaginationState().loading).toBe(false);
+    });
+
+    it('updates cursor from loaded articles', async () => {
+        Object.defineProperty(window, 'location', {
+            value: { pathname: '/' }, writable: true, configurable: true,
+        });
+        setPaginationState({
+            done: false,
+            loading: false,
+            cursorTime: '2025-01-01T00:00:00Z',
+            cursorId: '999',
+        });
+        setQueuedIdsReady(Promise.resolve());
+
+        window.fetch = vi.fn(async () => ({
+            ok: true,
+            json: async () => ({
+                articles: [{
+                    id: 42, title: 'B', is_read: 0, is_starred: 0,
+                    published_at: '2025-06-15T12:00:00Z', content: '<p>text</p>',
+                }],
+            }),
+            text: async () => '',
+        }));
+
+        await loadMoreArticles();
+
+        expect(getPaginationState().cursorTime).toBe('2025-06-15T12:00:00Z');
+        expect(getPaginationState().cursorId).toBe(42);
     });
 });
 
@@ -197,6 +429,32 @@ describe('checkScrollForMore', () => {
     it('does nothing when pagination is done', () => {
         setPaginationState({ done: true });
         checkScrollForMore();
+        expect(window.fetch).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when loading', () => {
+        setPaginationState({ loading: true });
+        checkScrollForMore();
+        expect(window.fetch).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when far from bottom', () => {
+        Object.defineProperty(window, 'location', {
+            value: { pathname: '/' }, writable: true, configurable: true,
+        });
+        setPaginationState({
+            done: false,
+            loading: false,
+            cursorTime: '2025-01-01T00:00:00Z',
+            cursorId: '999',
+        });
+        // Far from bottom: scrollY + innerHeight is much less than offsetHeight - 600
+        Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true });
+        Object.defineProperty(window, 'scrollY', { value: 0, configurable: true, writable: true });
+        Object.defineProperty(document.body, 'offsetHeight', { value: 5000, configurable: true });
+
+        checkScrollForMore();
+
         expect(window.fetch).not.toHaveBeenCalled();
     });
 
@@ -277,5 +535,28 @@ describe('initPagination', () => {
     it('registers scroll listener', () => {
         initPagination();
         expect(scrollHandler).toBeInstanceOf(Function);
+    });
+
+    it('updates end-of-articles indicator', () => {
+        // With no articles and done=true, indicator should NOT be visible
+        initPagination();
+        expect(document.getElementById('end-of-articles').classList.contains('visible')).toBe(false);
+
+        // Reset and add articles
+        _resetPaginationState();
+        document.getElementById('articles-list').innerHTML =
+            '<div class="article-card" data-sort-time="2025-01-01" data-id="1"></div>';
+        initPagination();
+        // done=true (1 < PAGE_SIZE) and has articles, so indicator should be visible
+        expect(document.getElementById('end-of-articles').classList.contains('visible')).toBe(true);
+    });
+
+    it('uses null for missing data attributes', () => {
+        document.getElementById('articles-list').innerHTML =
+            '<div class="article-card"></div>';
+        initPagination();
+        const state = getPaginationState();
+        expect(state.cursorTime).toBeNull();
+        expect(state.cursorId).toBeNull();
     });
 });

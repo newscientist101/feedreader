@@ -2,17 +2,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
     openCreateFolderModal, closeCreateFolderModal, submitCreateFolder,
     renameCategory, unparentCategory, deleteCategory,
-    initFoldersPageListeners,
+    initFoldersPageListeners, initCategorySettingsPage,
 } from './folders.js';
 import { showToast } from './toast.js';
+import { openModal, closeModal } from './modal.js';
 
 vi.mock('./toast.js', () => ({
     showToast: vi.fn(),
 }));
 
+vi.mock('./modal.js', () => ({
+    openModal: vi.fn(),
+    closeModal: vi.fn(),
+}));
+
 beforeEach(() => {
     document.body.innerHTML = '';
     vi.restoreAllMocks();
+    vi.clearAllMocks();
     // Ensure dialog functions exist for happy-dom compatibility
     window.confirm ??= () => false;
     window.prompt ??= () => null;
@@ -23,7 +30,7 @@ afterEach(() => {
 });
 
 describe('openCreateFolderModal', () => {
-    it('shows the modal and focuses input', () => {
+    it('shows the modal, resets fields, and calls openModal', () => {
         document.body.innerHTML = `
             <div id="create-folder-modal" style="display: none">
                 <input id="new-folder-name" value="Old">
@@ -41,26 +48,34 @@ describe('openCreateFolderModal', () => {
         expect(document.getElementById('create-folder-modal').style.display).toBe('flex');
         expect(document.getElementById('new-folder-name').value).toBe('');
         expect(document.getElementById('new-folder-parent').value).toBe('0');
+        expect(openModal).toHaveBeenCalledWith(
+            document.getElementById('create-folder-modal'),
+            expect.any(Function),
+            document.getElementById('new-folder-name'),
+        );
     });
 
     it('does nothing when modal not found', () => {
         document.body.innerHTML = '<div>Content</div>';
         openCreateFolderModal(); // should not throw
+        expect(openModal).not.toHaveBeenCalled();
     });
 });
 
 describe('closeCreateFolderModal', () => {
-    it('hides the modal', () => {
+    it('hides the modal and calls closeModal', () => {
         document.body.innerHTML = '<div id="create-folder-modal" style="display: flex"></div>';
 
         closeCreateFolderModal();
 
         expect(document.getElementById('create-folder-modal').style.display).toBe('none');
+        expect(closeModal).toHaveBeenCalled();
     });
 
-    it('does nothing when modal not found', () => {
+    it('calls closeModal even when modal element not found', () => {
         document.body.innerHTML = '<div>Content</div>';
-        closeCreateFolderModal(); // should not throw
+        closeCreateFolderModal();
+        expect(closeModal).toHaveBeenCalled();
     });
 });
 
@@ -77,7 +92,7 @@ describe('submitCreateFolder', () => {
         `;
     });
 
-    it('creates a folder with no parent', async () => {
+    it('creates a folder with no parent and reloads', async () => {
         vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: true,
             json: () => Promise.resolve({ id: 10 }),
@@ -93,13 +108,16 @@ describe('submitCreateFolder', () => {
         await submitCreateFolder(event);
 
         expect(event.preventDefault).toHaveBeenCalled();
+        expect(fetch).toHaveBeenCalledOnce();
         expect(fetch).toHaveBeenCalledWith('/api/categories', expect.objectContaining({
             method: 'POST',
             body: JSON.stringify({ name: 'New Folder' }),
         }));
+        expect(reloadMock).toHaveBeenCalled();
+        expect(showToast).not.toHaveBeenCalled();
     });
 
-    it('creates a folder with parent', async () => {
+    it('creates a folder with parent and sets parent', async () => {
         document.getElementById('new-folder-parent').value = '5';
         const fetchMock = vi.spyOn(globalThis, 'fetch')
             .mockResolvedValueOnce({
@@ -123,6 +141,28 @@ describe('submitCreateFolder', () => {
         expect(fetchMock).toHaveBeenCalledTimes(2);
         // Second call sets the parent
         expect(fetchMock.mock.calls[1][0]).toBe('/api/categories/10/parent');
+        expect(reloadMock).toHaveBeenCalled();
+    });
+
+    it('skips parent call when cat.id is falsy', async () => {
+        document.getElementById('new-folder-parent').value = '5';
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({}), // no id in response
+        });
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
+        const event = { preventDefault: vi.fn() };
+
+        await submitCreateFolder(event);
+
+        // Only one call — the create, no parent call
+        expect(fetch).toHaveBeenCalledOnce();
+        expect(reloadMock).toHaveBeenCalled();
     });
 
     it('does nothing when name is empty', async () => {
@@ -132,6 +172,7 @@ describe('submitCreateFolder', () => {
 
         await submitCreateFolder(event);
 
+        expect(event.preventDefault).toHaveBeenCalled();
         expect(fetch).not.toHaveBeenCalled();
     });
 
@@ -140,16 +181,23 @@ describe('submitCreateFolder', () => {
             ok: false,
             text: () => Promise.resolve(JSON.stringify({ error: 'Duplicate' })),
         });
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
         const event = { preventDefault: vi.fn() };
 
         await submitCreateFolder(event);
 
         expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Failed to create folder'));
+        expect(reloadMock).not.toHaveBeenCalled();
     });
 });
 
 describe('renameCategory', () => {
-    it('renames on user input', async () => {
+    it('renames on user input and reloads', async () => {
         vi.spyOn(window, 'prompt').mockReturnValue('Renamed Folder');
         vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: true,
@@ -169,6 +217,8 @@ describe('renameCategory', () => {
             method: 'PUT',
             body: JSON.stringify({ name: 'Renamed Folder' }),
         }));
+        expect(reloadMock).toHaveBeenCalled();
+        expect(showToast).not.toHaveBeenCalled();
     });
 
     it('does nothing when user cancels prompt', async () => {
@@ -188,10 +238,29 @@ describe('renameCategory', () => {
 
         expect(fetch).not.toHaveBeenCalled();
     });
+
+    it('shows toast on error', async () => {
+        vi.spyOn(window, 'prompt').mockReturnValue('New Name');
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: false,
+            text: () => Promise.resolve(JSON.stringify({ error: 'Server error' })),
+        });
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
+
+        await renameCategory(5, 'Old Name');
+
+        expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Failed to rename folder'));
+        expect(reloadMock).not.toHaveBeenCalled();
+    });
 });
 
 describe('unparentCategory', () => {
-    it('moves category to top level', async () => {
+    it('moves category to top level and reloads', async () => {
         vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: true,
             json: () => Promise.resolve({}),
@@ -209,6 +278,8 @@ describe('unparentCategory', () => {
             method: 'POST',
             body: JSON.stringify({ parent_id: null, sort_order: 999 }),
         }));
+        expect(reloadMock).toHaveBeenCalled();
+        expect(showToast).not.toHaveBeenCalled();
     });
 
     it('handles errors gracefully', async () => {
@@ -217,16 +288,23 @@ describe('unparentCategory', () => {
             text: () => Promise.resolve(JSON.stringify({ error: 'fail' })),
         });
         vi.spyOn(console, 'error').mockImplementation(() => {});
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
 
         await unparentCategory(5);
 
         expect(console.error).toHaveBeenCalledWith('Failed to unparent category:', expect.any(Error));
         expect(showToast).toHaveBeenCalledWith('Failed to move folder to top level');
+        expect(reloadMock).not.toHaveBeenCalled();
     });
 });
 
 describe('deleteCategory', () => {
-    it('deletes on confirm', async () => {
+    it('deletes on confirm and reloads', async () => {
         vi.spyOn(window, 'confirm').mockReturnValue(true);
         vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: true,
@@ -243,6 +321,8 @@ describe('deleteCategory', () => {
 
         expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('Tech'));
         expect(fetch).toHaveBeenCalledWith('/api/categories/5', expect.objectContaining({ method: 'DELETE' }));
+        expect(reloadMock).toHaveBeenCalled();
+        expect(showToast).not.toHaveBeenCalled();
     });
 
     it('does nothing when user cancels', async () => {
@@ -252,6 +332,25 @@ describe('deleteCategory', () => {
         await deleteCategory(5, 'Tech');
 
         expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('shows toast on error', async () => {
+        vi.spyOn(window, 'confirm').mockReturnValue(true);
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: false,
+            text: () => Promise.resolve(JSON.stringify({ error: 'in use' })),
+        });
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
+
+        await deleteCategory(5, 'Tech');
+
+        expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Failed to delete folder'));
+        expect(reloadMock).not.toHaveBeenCalled();
     });
 });
 
@@ -344,5 +443,230 @@ describe('initFoldersPageListeners', () => {
         document.querySelector('[data-action="rename-category"]').click();
 
         expect(window.prompt).not.toHaveBeenCalled();
+    });
+
+    it('ignores delete-category without id', () => {
+        document.body.innerHTML = `
+            <button data-action="delete-category" data-category-name="Tech">Delete</button>
+        `;
+        vi.spyOn(window, 'confirm');
+
+        document.querySelector('[data-action="delete-category"]').click();
+
+        expect(window.confirm).not.toHaveBeenCalled();
+    });
+
+    it('delegates unparent-category click', async () => {
+        document.body.innerHTML = `
+            <button data-action="unparent-category" data-category-id="7">Move to top</button>
+        `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({}),
+        });
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
+
+        document.querySelector('[data-action="unparent-category"]').click();
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+
+        expect(fetch).toHaveBeenCalledWith('/api/categories/7/parent', expect.objectContaining({
+            method: 'POST',
+            body: JSON.stringify({ parent_id: null, sort_order: 999 }),
+        }));
+    });
+
+    it('ignores unparent-category without id', () => {
+        document.body.innerHTML = `
+            <button data-action="unparent-category">Move to top</button>
+        `;
+        vi.spyOn(globalThis, 'fetch');
+
+        document.querySelector('[data-action="unparent-category"]').click();
+
+        expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('delegates delete-exclusion click with confirm', async () => {
+        document.body.innerHTML = `
+            <button data-action="delete-exclusion" data-exclusion-id="3">Delete</button>
+        `;
+        vi.spyOn(window, 'confirm').mockReturnValue(true);
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({}),
+        });
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
+
+        document.querySelector('[data-action="delete-exclusion"]').click();
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+
+        expect(window.confirm).toHaveBeenCalledWith('Delete this exclusion rule?');
+        expect(fetch).toHaveBeenCalledWith('/api/exclusions/3', expect.objectContaining({
+            method: 'DELETE',
+        }));
+    });
+
+    it('does not delete exclusion when user cancels', () => {
+        document.body.innerHTML = `
+            <button data-action="delete-exclusion" data-exclusion-id="3">Delete</button>
+        `;
+        vi.spyOn(window, 'confirm').mockReturnValue(false);
+        vi.spyOn(globalThis, 'fetch');
+
+        document.querySelector('[data-action="delete-exclusion"]').click();
+
+        expect(window.confirm).toHaveBeenCalled();
+        expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('ignores delete-exclusion without id', () => {
+        document.body.innerHTML = `
+            <button data-action="delete-exclusion">Delete</button>
+        `;
+        vi.spyOn(window, 'confirm');
+
+        document.querySelector('[data-action="delete-exclusion"]').click();
+
+        expect(window.confirm).not.toHaveBeenCalled();
+    });
+
+    it('shows toast on delete-exclusion error', async () => {
+        document.body.innerHTML = `
+            <button data-action="delete-exclusion" data-exclusion-id="3">Delete</button>
+        `;
+        vi.spyOn(window, 'confirm').mockReturnValue(true);
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: false,
+            text: () => Promise.resolve(JSON.stringify({ error: 'not found' })),
+        });
+
+        document.querySelector('[data-action="delete-exclusion"]').click();
+        await vi.waitFor(() => expect(showToast).toHaveBeenCalled());
+
+        expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Failed to delete rule'));
+    });
+});
+
+describe('initCategorySettingsPage', () => {
+    it('is a no-op when settings view is not present', () => {
+        document.body.innerHTML = '<div>Not the settings page</div>';
+        initCategorySettingsPage(); // should not throw
+    });
+
+    it('is a no-op when form is not present', () => {
+        document.body.innerHTML = `
+            <div class="settings-view" data-category-id="5"></div>
+        `;
+        initCategorySettingsPage(); // should not throw
+    });
+
+    it('submits exclusion form and reloads on success', async () => {
+        document.body.innerHTML = `
+            <div class="settings-view" data-category-id="5">
+                <form id="add-exclusion-form">
+                    <select id="exclusion-type"><option value="keyword">Keyword</option></select>
+                    <input id="exclusion-pattern" value="spam">
+                    <input id="exclusion-regex" type="checkbox">
+                    <button type="submit">Add</button>
+                </form>
+            </div>
+        `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({}),
+        });
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
+
+        initCategorySettingsPage();
+
+        const form = document.getElementById('add-exclusion-form');
+        form.dispatchEvent(new Event('submit', { cancelable: true }));
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+
+        expect(fetch).toHaveBeenCalledWith('/api/categories/5/exclusions', expect.objectContaining({
+            method: 'POST',
+            body: JSON.stringify({ type: 'keyword', pattern: 'spam', isRegex: false }),
+        }));
+        await vi.waitFor(() => expect(reloadMock).toHaveBeenCalled());
+    });
+
+    it('submits exclusion form with regex checked', async () => {
+        document.body.innerHTML = `
+            <div class="settings-view" data-category-id="5">
+                <form id="add-exclusion-form">
+                    <select id="exclusion-type"><option value="author">Author</option></select>
+                    <input id="exclusion-pattern" value="bot.*">
+                    <input id="exclusion-regex" type="checkbox" checked>
+                    <button type="submit">Add</button>
+                </form>
+            </div>
+        `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({}),
+        });
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
+
+        initCategorySettingsPage();
+
+        const form = document.getElementById('add-exclusion-form');
+        form.dispatchEvent(new Event('submit', { cancelable: true }));
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+
+        expect(fetch).toHaveBeenCalledWith('/api/categories/5/exclusions', expect.objectContaining({
+            body: JSON.stringify({ type: 'author', pattern: 'bot.*', isRegex: true }),
+        }));
+    });
+
+    it('shows toast on exclusion form error', async () => {
+        document.body.innerHTML = `
+            <div class="settings-view" data-category-id="5">
+                <form id="add-exclusion-form">
+                    <select id="exclusion-type"><option value="keyword">Keyword</option></select>
+                    <input id="exclusion-pattern" value="test">
+                    <input id="exclusion-regex" type="checkbox">
+                    <button type="submit">Add</button>
+                </form>
+            </div>
+        `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: false,
+            text: () => Promise.resolve(JSON.stringify({ error: 'Bad request' })),
+        });
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
+
+        initCategorySettingsPage();
+
+        const form = document.getElementById('add-exclusion-form');
+        form.dispatchEvent(new Event('submit', { cancelable: true }));
+        await vi.waitFor(() => expect(showToast).toHaveBeenCalled());
+
+        expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Failed to add exclusion'));
+        expect(reloadMock).not.toHaveBeenCalled();
     });
 });
