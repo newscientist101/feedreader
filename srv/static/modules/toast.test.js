@@ -52,17 +52,24 @@ describe('showToast', () => {
         expect(toasts).toHaveLength(2);
     });
 
-    it('dismiss button removes toast', () => {
-        showToast('Dismissable', 'error', 0);
+    it('dismiss button removes toast after fallback timeout', () => {
+        vi.useFakeTimers();
 
-        const closeBtn = document.querySelector('.toast-close');
+        showToast('Dismissable', 'error', 0);
+        const toast = document.querySelector('.toast');
+        expect(toast).not.toBeNull();
+        expect(toast.classList.contains('toast-visible')).toBe(true);
+
+        const closeBtn = toast.querySelector('.toast-close');
         closeBtn.click();
 
-        // The toast gets removed after transition (or fallback timeout)
-        // Since there's no real transition in tests, the setTimeout fallback removes it
-        vi.useFakeTimers();
-        closeBtn.click(); // click again on a second toast
+        // After click, toast-visible class should be removed
+        expect(toast.classList.contains('toast-visible')).toBe(false);
+
+        // Toast is still in DOM until fallback timeout fires
         vi.advanceTimersByTime(300);
+        expect(document.querySelector('.toast')).toBeNull();
+
         vi.useRealTimers();
     });
 
@@ -84,5 +91,62 @@ describe('showToast', () => {
     it('adds toast-visible class for animation', () => {
         const toast = showToast('Animate me', 'error', 0);
         expect(toast.classList.contains('toast-visible')).toBe(true);
+    });
+
+    it('uses default type error and auto-dismiss when called with message only', () => {
+        vi.useFakeTimers();
+
+        showToast('Defaults');
+        const toast = document.querySelector('.toast');
+        expect(toast.classList.contains('toast-error')).toBe(true);
+
+        // Default duration is 4000ms
+        vi.advanceTimersByTime(4000);
+        vi.advanceTimersByTime(300); // fallback removal
+        expect(document.querySelector('.toast')).toBeNull();
+
+        vi.useRealTimers();
+    });
+
+    it('recreates container if previous one was removed from DOM', () => {
+        showToast('First', 'info', 0);
+        const firstContainer = document.querySelector('.toast-container');
+        expect(firstContainer).not.toBeNull();
+
+        // Remove the container from the DOM (simulates external DOM manipulation)
+        firstContainer.remove();
+        expect(document.querySelector('.toast-container')).toBeNull();
+
+        showToast('Second', 'info', 0);
+        const newContainer = document.querySelector('.toast-container');
+        expect(newContainer).not.toBeNull();
+        expect(newContainer.querySelector('.toast-message').textContent).toBe('Second');
+    });
+
+    it('dismiss is idempotent — double dismiss does not throw', () => {
+        vi.useFakeTimers();
+
+        const toast = showToast('Double dismiss', 'error', 0);
+        const closeBtn = toast.querySelector('.toast-close');
+
+        closeBtn.click();
+        vi.advanceTimersByTime(300);
+        expect(document.querySelector('.toast')).toBeNull();
+
+        // Clicking again after removal should not throw
+        expect(() => closeBtn.click()).not.toThrow();
+
+        vi.useRealTimers();
+    });
+
+    it('sets role=status on each toast for accessibility', () => {
+        const toast = showToast('Accessible', 'success', 0);
+        expect(toast.getAttribute('role')).toBe('status');
+    });
+
+    it('returns the toast DOM element', () => {
+        const toast = showToast('Return value', 'error', 0);
+        expect(toast).toBeInstanceOf(HTMLElement);
+        expect(toast.querySelector('.toast-message').textContent).toBe('Return value');
     });
 });

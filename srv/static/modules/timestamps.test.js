@@ -40,5 +40,15 @@ describe('timestamps', () => {
             // Should not throw
             initTimestampTooltips();
         });
+
+        it('handles invalid date strings gracefully', () => {
+            document.body.innerHTML = `
+                <span data-timestamp="not-a-date" id="ts1">Unknown</span>
+            `;
+            initTimestampTooltips();
+            const el = document.getElementById('ts1');
+            // formatLocalDate returns "Invalid Date" for unparseable strings
+            expect(el.title).toBe('Invalid Date');
+        });
     });
 });
