@@ -210,20 +210,29 @@ describe('flushMarkReadQueue', () => {
 });
 
 describe('openArticle', () => {
-    it('marks the article as read and navigates', () => {
+    it('marks the article as read, flushes queue, and navigates to /article/{id}', () => {
         vi.spyOn(console, 'debug').mockImplementation(() => {});
         Object.defineProperty(window, 'location', {
             value: { pathname: '/', hostname: 'localhost' },
             writable: true,
             configurable: true,
         });
-        markReadSilent(5);
+        document.getElementById('articles-list').innerHTML =
+            '<div class="article-card" data-id="5"></div>';
         openArticle(5);
-        // flushMarkReadQueue was called (fetch happened)
-        expect(window.fetch).toHaveBeenCalled();
-        expect(console.debug).toHaveBeenCalledWith(
-            expect.stringContaining('flushing batch'), expect.any(Array)
+        // flushMarkReadQueue was called — article 5 should be in the batch POST
+        expect(window.fetch).toHaveBeenCalledWith(
+            '/api/articles/batch-read',
+            expect.objectContaining({
+                method: 'POST',
+                body: expect.stringContaining('"ids":[5]'),
+            })
         );
+        expect(console.debug).toHaveBeenCalledWith(
+            expect.stringContaining('flushing batch of 1'), expect.arrayContaining([5])
+        );
+        // Assert navigation target
+        expect(window.location).toBe('/article/5');
     });
 });
 
@@ -535,24 +544,35 @@ describe('auto-mark-read after client-side navigation (integration)', () => {
     });
 });
 
-describe('markAsRead with category URL', () => {
-    it('posts to category URL and navigates to next unread folder', async () => {
-        const dropdown = document.createElement('div');
-        dropdown.className = 'dropdown';
-        dropdown.dataset.categoryId = '3';
-        const btn = document.createElement('button');
-        dropdown.appendChild(btn);
-        document.body.appendChild(dropdown);
+describe('markAsRead', () => {
+    let reloadFn;
 
+    beforeEach(() => {
+        reloadFn = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { href: '', reload: reloadFn },
+            writable: true,
+            configurable: true,
+        });
         window.fetch = vi.fn(async () => ({
             ok: true,
             json: async () => ({}),
             text: async () => '',
         }));
+    });
 
-        Object.defineProperty(window, 'location', {
-            value: { href: '', reload: vi.fn() }, writable: true, configurable: true,
-        });
+    function makeDropdown(attrs = {}) {
+        const dropdown = document.createElement('div');
+        dropdown.className = 'dropdown';
+        Object.entries(attrs).forEach(([k, v]) => { dropdown.dataset[k] = v; });
+        const btn = document.createElement('button');
+        dropdown.appendChild(btn);
+        document.body.appendChild(dropdown);
+        return btn;
+    }
+
+    it('posts to category URL and navigates to next unread folder', async () => {
+        const btn = makeDropdown({ categoryId: '3' });
 
         // Add folder data so findNextUnreadFolder can work
         document.body.innerHTML += `
@@ -565,6 +585,75 @@ describe('markAsRead with category URL', () => {
         await markAsRead(btn, 'week');
 
         expect(window.fetch).toHaveBeenCalledWith('/api/categories/3/read-all?age=week', expect.any(Object));
+        expect(window.location.href).toBe('/category/9');
+    });
+
+    it('posts to feed URL and reloads when dropdown has data-feed-id', async () => {
+        const btn = makeDropdown({ feedId: '7' });
+
+        await markAsRead(btn, 'day');
+
+        expect(window.fetch).toHaveBeenCalledWith('/api/feeds/7/read-all?age=day', expect.any(Object));
+        expect(reloadFn).toHaveBeenCalled();
+    });
+
+    it('posts to global URL and reloads when dropdown has neither feed nor category', async () => {
+        const btn = makeDropdown({});
+
+        await markAsRead(btn, 'all');
+
+        expect(window.fetch).toHaveBeenCalledWith('/api/articles/read-all?age=all', expect.any(Object));
+        expect(reloadFn).toHaveBeenCalled();
+    });
+
+    it('reloads when category path but findNextUnreadFolder returns null', async () => {
+        const btn = makeDropdown({ categoryId: '1' });
+
+        // Only one folder, no unread others
+        document.body.innerHTML += `
+            <div class="folder-item" data-category-id="1"></div>
+            <span data-count="category-1">0</span>
+        `;
+
+        await markAsRead(btn, 'all');
+
+        expect(window.fetch).toHaveBeenCalledWith('/api/categories/1/read-all?age=all', expect.any(Object));
+        // Should fall through to reload since no next unread folder
+        expect(reloadFn).toHaveBeenCalled();
+    });
+
+    it('handles API failure with console.error and showToast', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        window.fetch = vi.fn(async () => ({
+            ok: false,
+            status: 500,
+            text: async () => 'Internal Server Error',
+        }));
+        const btn = makeDropdown({ feedId: '2' });
+
+        await markAsRead(btn, 'all');
+
+        expect(console.error).toHaveBeenCalledWith('Failed to mark as read:', expect.any(Error));
+        expect(showToast).toHaveBeenCalledWith('Failed to mark as read');
+        // Should NOT reload on error
+        expect(reloadFn).not.toHaveBeenCalled();
+    });
+
+    it('removes .open class from open dropdowns after success', async () => {
+        const btn = makeDropdown({ feedId: '5' });
+
+        // Create some open dropdowns
+        const openDd1 = document.createElement('div');
+        openDd1.className = 'dropdown open';
+        const openDd2 = document.createElement('div');
+        openDd2.className = 'dropdown open';
+        document.body.appendChild(openDd1);
+        document.body.appendChild(openDd2);
+
+        await markAsRead(btn, 'all');
+
+        expect(openDd1.classList.contains('open')).toBe(false);
+        expect(openDd2.classList.contains('open')).toBe(false);
     });
 });
 
