@@ -9,6 +9,13 @@ import {
     _getAutoMarkReadObserver, _getMarkReadQueue,
 } from './article-actions.js';
 import { renderArticles, _resetArticlesState } from './articles.js';
+import { updateCounts } from './counts.js';
+import { updateQueueCacheIfStandalone } from './offline.js';
+import { updateReadButton } from './read-button.js';
+import { showToast } from './toast.js';
+import {
+    SVG_STAR_FILLED, SVG_STAR_EMPTY, SVG_QUEUE_ADD, SVG_QUEUE_REMOVE
+} from './icons.js';
 
 // Mock pagination (articles.js directly imports from pagination.js)
 vi.mock('./pagination.js', () => ({
@@ -28,6 +35,10 @@ vi.mock('./offline.js', () => ({
 
 vi.mock('./read-button.js', () => ({
     updateReadButton: vi.fn(),
+}));
+
+vi.mock('./toast.js', () => ({
+    showToast: vi.fn(),
 }));
 
 // Minimal IntersectionObserver mock
@@ -230,17 +241,37 @@ describe('openArticleExternal', () => {
 describe('markRead', () => {
     it('calls API and updates DOM', async () => {
         document.getElementById('articles-list').innerHTML =
-            '<div class="article-card" data-id="10"></div>';
+            '<div class="article-card" data-id="10"><button class="btn-read-toggle"></button></div>';
         await markRead(null, 10);
         expect(window.fetch).toHaveBeenCalledWith(
             '/api/articles/10/read',
             expect.objectContaining({ method: 'POST' })
         );
+        // Verify DOM mutation: card gets .read class
+        const card = document.querySelector('.article-card[data-id="10"]');
+        expect(card.classList.contains('read')).toBe(true);
+        // Verify updateReadButton called with (card, true)
+        expect(updateReadButton).toHaveBeenCalledWith(card, true);
+        // Verify updateCounts called
+        expect(updateCounts).toHaveBeenCalled();
+    });
+
+    it('handles API failure with console.error and showToast', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        window.fetch = vi.fn(() => Promise.resolve({
+            ok: false, status: 500,
+            text: () => Promise.resolve('Internal Server Error'),
+        }));
+        document.getElementById('articles-list').innerHTML =
+            '<div class="article-card" data-id="10"></div>';
+        await markRead(null, 10);
+        expect(console.error).toHaveBeenCalledWith('Failed to mark read:', expect.any(Error));
+        expect(showToast).toHaveBeenCalledWith('Failed to mark as read');
     });
 });
 
 describe('markUnread', () => {
-    it('calls API and removes read class', async () => {
+    it('calls API, removes read class, and calls updateReadButton', async () => {
         document.getElementById('articles-list').innerHTML =
             '<div class="article-card read" data-id="10"><button class="btn-read-toggle"></button></div>';
         await markUnread(null, 10);
@@ -248,31 +279,146 @@ describe('markUnread', () => {
             '/api/articles/10/unread',
             expect.objectContaining({ method: 'POST' })
         );
-        expect(document.querySelector('.article-card').classList.contains('read')).toBe(false);
+        const card = document.querySelector('.article-card');
+        expect(card.classList.contains('read')).toBe(false);
+        expect(updateReadButton).toHaveBeenCalledWith(card, false);
+        expect(updateCounts).toHaveBeenCalled();
+    });
+
+    it('handles API failure: card retains .read class, shows error', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        window.fetch = vi.fn(() => Promise.resolve({
+            ok: false, status: 500,
+            text: () => Promise.resolve('Internal Server Error'),
+        }));
+        document.getElementById('articles-list').innerHTML =
+            '<div class="article-card read" data-id="10"><button class="btn-read-toggle"></button></div>';
+        await markUnread(null, 10);
+        // Card should still have .read class (API failed, catch block ran)
+        expect(document.querySelector('.article-card').classList.contains('read')).toBe(true);
+        expect(console.error).toHaveBeenCalledWith('Failed to mark unread:', expect.any(Error));
+        expect(showToast).toHaveBeenCalledWith('Failed to mark as unread');
     });
 });
 
 describe('toggleStar', () => {
-    it('calls API for star toggle', async () => {
+    it('calls API and toggles star button to starred state', async () => {
+        // Set up an unstarred button
+        document.body.innerHTML = `
+            <div id="articles-list">
+                <button data-action="toggle-star" data-article-id="10"
+                    title="Star" aria-label="Star">${SVG_STAR_EMPTY}</button>
+            </div>
+        `;
         await toggleStar(null, 10);
         expect(window.fetch).toHaveBeenCalledWith(
             '/api/articles/10/star',
             expect.objectContaining({ method: 'POST' })
         );
+        const btn = document.querySelector('[data-action="toggle-star"]');
+        expect(btn.classList.contains('starred')).toBe(true);
+        expect(btn.title).toBe('Unstar');
+        expect(btn.getAttribute('aria-label')).toBe('Unstar');
+        // innerHTML may normalize self-closing tags; check key path data
+        expect(btn.innerHTML).toContain('M12 17.27L18.18 21l-1.64-7.03');
+        expect(btn.innerHTML).not.toContain('M22 9.24l-7.19-.62L12 2');
+        expect(updateCounts).toHaveBeenCalled();
+    });
+
+    it('toggles star button back to unstarred state', async () => {
+        // Set up an already-starred button
+        document.body.innerHTML = `
+            <div id="articles-list">
+                <button data-action="toggle-star" data-article-id="10"
+                    class="starred" title="Unstar" aria-label="Unstar">${SVG_STAR_FILLED}</button>
+            </div>
+        `;
+        await toggleStar(null, 10);
+        const btn = document.querySelector('[data-action="toggle-star"]');
+        expect(btn.classList.contains('starred')).toBe(false);
+        expect(btn.title).toBe('Star');
+        expect(btn.getAttribute('aria-label')).toBe('Star');
+        // SVG_STAR_EMPTY has the outline path with zM subpath
+        expect(btn.innerHTML).toContain('M22 9.24l-7.19-.62L12 2');
+    });
+
+    it('handles API failure with console.error and showToast', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        window.fetch = vi.fn(() => Promise.resolve({
+            ok: false, status: 500,
+            text: () => Promise.resolve('Internal Server Error'),
+        }));
+        await toggleStar(null, 10);
+        expect(console.error).toHaveBeenCalledWith('Failed to toggle star:', expect.any(Error));
+        expect(showToast).toHaveBeenCalledWith('Failed to toggle star');
     });
 });
 
 describe('toggleQueue', () => {
-    it('calls API for queue toggle', async () => {
+    it('calls API and toggles queue button to queued state', async () => {
         window.fetch = vi.fn(() => Promise.resolve({
             ok: true,
             json: () => Promise.resolve({ queued: true }),
         }));
+        document.body.innerHTML = `
+            <div id="articles-list">
+                <button data-action="toggle-queue" data-article-id="10"
+                    title="Add to queue" aria-label="Add to queue">${SVG_QUEUE_ADD}</button>
+            </div>
+        `;
         await toggleQueue(null, 10);
         expect(window.fetch).toHaveBeenCalledWith(
             '/api/articles/10/queue',
             expect.objectContaining({ method: 'POST' })
         );
+        const btn = document.querySelector('[data-action="toggle-queue"]');
+        expect(btn.classList.contains('queued')).toBe(true);
+        expect(btn.title).toBe('Remove from queue');
+        expect(btn.getAttribute('aria-label')).toBe('Remove from queue');
+        // SVG_QUEUE_REMOVE has the minus-sign path (H10V9h8v2z)
+        expect(btn.innerHTML).toContain('zm-2-5H10V9h8v2z');
+        // queuedArticleIds should contain the id
+        expect(queuedArticleIds.has(10)).toBe(true);
+        expect(updateCounts).toHaveBeenCalled();
+        expect(updateQueueCacheIfStandalone).toHaveBeenCalled();
+    });
+
+    it('toggles queue button to unqueued state and removes from queuedArticleIds', async () => {
+        // Pre-populate queuedArticleIds
+        queuedArticleIds.add(10);
+        window.fetch = vi.fn(() => Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ queued: false }),
+        }));
+        document.body.innerHTML = `
+            <div id="articles-list">
+                <button data-action="toggle-queue" data-article-id="10"
+                    class="queued" title="Remove from queue" aria-label="Remove from queue">${SVG_QUEUE_REMOVE}</button>
+            </div>
+        `;
+        await toggleQueue(null, 10);
+        const btn = document.querySelector('[data-action="toggle-queue"]');
+        expect(btn.classList.contains('queued')).toBe(false);
+        expect(btn.title).toBe('Add to queue');
+        expect(btn.getAttribute('aria-label')).toBe('Add to queue');
+        // SVG_QUEUE_ADD has the plus-sign path (h2v-3h3V9h-3V6)
+        expect(btn.innerHTML).toContain('zm-7-2h2v-3h3V9h-3V6');
+        expect(queuedArticleIds.has(10)).toBe(false);
+    });
+
+    it('handles API failure: queuedArticleIds unchanged, shows error', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        window.fetch = vi.fn(() => Promise.resolve({
+            ok: false, status: 500,
+            text: () => Promise.resolve('Internal Server Error'),
+        }));
+        // Pre-populate to verify it stays unchanged
+        queuedArticleIds.add(5);
+        await toggleQueue(null, 10);
+        expect(queuedArticleIds.has(10)).toBe(false);
+        expect(queuedArticleIds.has(5)).toBe(true);
+        expect(console.error).toHaveBeenCalledWith('Failed to toggle queue:', expect.any(Error));
+        expect(showToast).toHaveBeenCalledWith('Failed to update queue');
     });
 });
 
