@@ -4,7 +4,7 @@ import {
     filterFeeds, closeEditModal, saveFeed,
     deleteFeed, setFeedCategory, initFeedActionListeners,
     initAddFeedForm, initFeedItemClickListeners,
-    refreshFeed, editFeed,
+    refreshFeed, editFeed, createEditFeedModal,
 } from './feeds.js';
 import { _resetArticlesState } from './articles.js';
 import { _resetArticleActionsState, setQueuedArticleIds } from './article-actions.js';
@@ -394,6 +394,138 @@ describe('setFeedCategory', () => {
     });
 });
 
+describe('createEditFeedModal', () => {
+    it('creates modal DOM with expected structure', () => {
+        const modal = createEditFeedModal();
+
+        expect(modal.id).toBe('edit-feed-modal');
+        expect(modal.className).toBe('modal');
+        expect(modal.style.display).toBe('none');
+        expect(document.getElementById('edit-feed-id')).not.toBeNull();
+        expect(document.getElementById('edit-feed-name')).not.toBeNull();
+        expect(document.getElementById('edit-feed-url')).not.toBeNull();
+        expect(document.getElementById('edit-feed-interval')).not.toBeNull();
+        expect(document.getElementById('edit-feed-filters')).not.toBeNull();
+        expect(modal.querySelector('[data-action="close-edit-modal"]')).not.toBeNull();
+        expect(modal.querySelector('form#edit-feed-form')).not.toBeNull();
+    });
+
+    it('is idempotent — returns same element on second call', () => {
+        const first = createEditFeedModal();
+        const second = createEditFeedModal();
+
+        expect(first).toBe(second);
+        expect(document.querySelectorAll('#edit-feed-modal').length).toBe(1);
+    });
+});
+
+describe('editFeed', () => {
+    it('populates all form fields from API response', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                id: 42,
+                name: 'Test Feed',
+                url: 'https://example.com/rss',
+                fetch_interval_minutes: 120,
+                content_filters: null,
+            }),
+        });
+
+        await editFeed(42);
+
+        expect(document.getElementById('edit-feed-id').value).toBe('42');
+        expect(document.getElementById('edit-feed-name').value).toBe('Test Feed');
+        expect(document.getElementById('edit-feed-url').value).toBe('https://example.com/rss');
+        expect(document.getElementById('edit-feed-interval').value).toBe('120');
+        expect(document.getElementById('edit-feed-filters').value).toBe('');
+        // Modal should be visible
+        expect(document.getElementById('edit-feed-modal').style.display).toBe('flex');
+    });
+
+    it('parses content_filters JSON into newline-separated textarea', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                id: 5,
+                name: 'Feed',
+                url: 'https://example.com',
+                fetch_interval_minutes: 60,
+                content_filters: JSON.stringify([{ selector: '.ad' }, { selector: '#sidebar' }]),
+            }),
+        });
+
+        await editFeed(5);
+
+        expect(document.getElementById('edit-feed-filters').value).toBe('.ad\n#sidebar');
+    });
+
+    it('handles empty content_filters', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                id: 5,
+                name: 'Feed',
+                url: 'https://example.com',
+                fetch_interval_minutes: 60,
+                content_filters: '',
+            }),
+        });
+
+        await editFeed(5);
+
+        expect(document.getElementById('edit-feed-filters').value).toBe('');
+    });
+
+    it('handles invalid JSON in content_filters gracefully', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                id: 5,
+                name: 'Feed',
+                url: 'https://example.com',
+                fetch_interval_minutes: 60,
+                content_filters: 'not-valid-json',
+            }),
+        });
+
+        await editFeed(5);
+
+        // Should fall back to empty string on parse error
+        expect(document.getElementById('edit-feed-filters').value).toBe('');
+    });
+
+    it('uses default interval of 60 when fetch_interval_minutes is null', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                id: 5,
+                name: 'Feed',
+                url: 'https://example.com',
+                fetch_interval_minutes: null,
+                content_filters: null,
+            }),
+        });
+
+        await editFeed(5);
+
+        expect(document.getElementById('edit-feed-interval').value).toBe('60');
+    });
+
+    it('shows toast on API failure', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: false,
+            text: () => Promise.resolve(JSON.stringify({ error: 'Not found' })),
+        });
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        await editFeed(99);
+
+        expect(console.error).toHaveBeenCalledWith('Failed to load feed:', expect.any(Error));
+        expect(showToast).toHaveBeenCalledWith('Failed to load feed details');
+    });
+});
+
 describe('refreshFeed', () => {
     it('polls until fetch completes and updates the status cell', async () => {
         vi.useFakeTimers();
@@ -452,6 +584,127 @@ describe('refreshFeed', () => {
         await vi.advanceTimersByTimeAsync(2000);
 
         expect(document.querySelector('button[data-feed-id="9"]').disabled).toBe(false);
+
+        vi.useRealTimers();
+    });
+
+    it('shows checkmark on success (no error) and restores button after 2s', async () => {
+        vi.useFakeTimers();
+
+        let statusCall = 0;
+        vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+            if (url === '/api/feeds/3/status') {
+                statusCall += 1;
+                return {
+                    ok: true,
+                    json: async () => ({
+                        lastFetched: statusCall === 1 ? 't1' : 't2',
+                        lastError: null,
+                    }),
+                    text: async () => '',
+                };
+            }
+            if (url === '/api/feeds/3/refresh') {
+                return { ok: true, json: async () => ({}), text: async () => '' };
+            }
+            if (url === '/api/counts') {
+                return {
+                    ok: true,
+                    json: async () => ({ unread: 0, starred: 0, queue: 0, categories: {}, feeds: {}, feedErrors: {} }),
+                    text: async () => '',
+                };
+            }
+            return { ok: true, json: async () => ({}), text: async () => '' };
+        });
+
+        document.body.innerHTML = `<button data-feed-id="3">Refresh</button>`;
+
+        const promise = refreshFeed(3);
+        await Promise.resolve();
+        // Advance past the initial 1s polling delay
+        await vi.advanceTimersByTimeAsync(1000);
+        await Promise.resolve();
+        await promise;
+
+        const btn = document.querySelector('button[data-feed-id="3"]');
+        // Button should show success icon
+        expect(btn.innerHTML).toContain('✓');
+        expect(btn.innerHTML).toContain('Done');
+        expect(btn.disabled).toBe(false);
+
+        // After 2s, button should restore original content
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(btn.innerHTML).toBe('Refresh');
+
+        vi.useRealTimers();
+    });
+
+    it('restores buttons after timeout (30 attempts exhausted)', async () => {
+        vi.useFakeTimers();
+
+        vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+            if (url === '/api/feeds/4/status') {
+                return {
+                    ok: true,
+                    json: async () => ({ lastFetched: 'same-time', lastError: null }),
+                    text: async () => '',
+                };
+            }
+            if (url === '/api/feeds/4/refresh') {
+                return { ok: true, json: async () => ({}), text: async () => '' };
+            }
+            if (url === '/api/counts') {
+                return {
+                    ok: true,
+                    json: async () => ({ unread: 0, starred: 0, queue: 0, categories: {}, feeds: {}, feedErrors: {} }),
+                    text: async () => '',
+                };
+            }
+            return { ok: true, json: async () => ({}), text: async () => '' };
+        });
+
+        document.body.innerHTML = `<button data-feed-id="4">Refresh</button>`;
+
+        const promise = refreshFeed(4);
+        await Promise.resolve();
+
+        // Advance through all 30 polling attempts (1s initial + 30 x 1s)
+        for (let i = 0; i < 31; i++) {
+            await vi.advanceTimersByTimeAsync(1000);
+            await Promise.resolve();
+        }
+
+        await promise;
+
+        const btn = document.querySelector('button[data-feed-id="4"]');
+        // Button should be restored to original content
+        expect(btn.disabled).toBe(false);
+        expect(btn.innerHTML).toBe('Refresh');
+
+        vi.useRealTimers();
+    });
+
+    it('shows error on catch and restores button after 2s', async () => {
+        vi.useFakeTimers();
+
+        vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Network down'));
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        document.body.innerHTML = `<button data-feed-id="5">Refresh</button>`;
+
+        await refreshFeed(5);
+
+        const btn = document.querySelector('button[data-feed-id="5"]');
+        // Button should show error
+        expect(btn.innerHTML).toContain('✗');
+        expect(btn.innerHTML).toContain('Failed');
+        expect(btn.disabled).toBe(false);
+        expect(console.error).toHaveBeenCalledWith('Failed to refresh feed:', expect.any(Error));
+        expect(showToast).toHaveBeenCalledWith('Failed to refresh feed');
+
+        // After 2s, button should restore
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(btn.innerHTML).toBe('Refresh');
 
         vi.useRealTimers();
     });
