@@ -1,9 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { getSetting, saveSetting, applyHideReadArticles, applyHideEmptyFeeds } from './settings.js';
 
+vi.mock('./toast.js', () => ({
+    showToast: vi.fn(),
+}));
+
+import { showToast } from './toast.js';
+
 describe('settings', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
+        vi.clearAllMocks();
         // Stub fetch globally so saveSetting doesn't produce noisy errors
         vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true });
         window.__settings = {};
@@ -27,6 +34,17 @@ describe('settings', () => {
         it('returns the value even if falsy (e.g. 0)', () => {
             window.__settings = { count: 0 };
             expect(getSetting('count', 5)).toBe(0);
+        });
+
+        it('returns empty string value rather than default', () => {
+            window.__settings = { name: '' };
+            // empty string is not undefined, so it should be returned
+            expect(getSetting('name', 'fallback')).toBe('');
+        });
+
+        it('uses default when value is explicitly undefined', () => {
+            window.__settings = { key: undefined };
+            expect(getSetting('key', 'default')).toBe('default');
         });
 
         it('handles missing __settings gracefully', () => {
@@ -57,13 +75,14 @@ describe('settings', () => {
             });
         });
 
-        it('logs error on fetch failure without throwing', async () => {
+        it('logs error and shows toast on fetch failure', async () => {
             const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
             vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network'));
             saveSetting('key', 'val');
             // Wait for the promise rejection to be caught
             await new Promise(r => setTimeout(r, 10));
-            expect(consoleSpy).toHaveBeenCalled();
+            expect(consoleSpy).toHaveBeenCalledWith('Failed to save setting:', expect.any(Error));
+            expect(showToast).toHaveBeenCalledWith('Failed to save setting');
         });
     });
 
@@ -90,6 +109,17 @@ describe('settings', () => {
             applyHideReadArticles('show');
             expect(document.getElementById('read1').style.display).toBe('');
             expect(document.getElementById('read2').style.display).toBe('');
+        });
+
+        it('does nothing when no read articles exist', () => {
+            document.body.innerHTML = '<div class="article-card" id="unread">Unread</div>';
+            applyHideReadArticles('hide');
+            expect(document.getElementById('unread').style.display).toBe('');
+        });
+
+        it('does not affect unread articles', () => {
+            applyHideReadArticles('hide');
+            expect(document.getElementById('unread1').style.display).toBe('');
         });
     });
 
@@ -130,6 +160,24 @@ describe('settings', () => {
             applyHideEmptyFeeds('show');
             expect(document.getElementById('feed-empty').style.display).toBe('');
             expect(document.getElementById('feed-no-badge').style.display).toBe('');
+        });
+
+        it('hides feed with empty badge text', () => {
+            document.body.innerHTML = '<div class="feed-item" id="empty-badge"><span class="badge"></span></div>';
+            applyHideEmptyFeeds('hide');
+            expect(document.getElementById('empty-badge').style.display).toBe('none');
+        });
+
+        it('hides feed with non-numeric badge text (NaN parses to 0)', () => {
+            document.body.innerHTML = '<div class="feed-item" id="nan-badge"><span class="badge">abc</span></div>';
+            applyHideEmptyFeeds('hide');
+            // parseInt('abc', 10) is NaN, which is falsy, so count=0
+            expect(document.getElementById('nan-badge').style.display).toBe('none');
+        });
+
+        it('always shows feeds with positive count regardless of value', () => {
+            applyHideEmptyFeeds('show');
+            expect(document.getElementById('feed-with-count').style.display).toBe('');
         });
     });
 });

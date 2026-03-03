@@ -111,6 +111,92 @@ describe('initSettingsPage', () => {
         expect(document.querySelector('input[name="folder-view"][value="list"]').checked).toBe(true);
         expect(document.querySelector('input[name="feed-view"][value="list"]').checked).toBe(true);
     });
+
+    it('uses defaults when getSetting returns falsy values', () => {
+        document.body.innerHTML = `
+            <input type="checkbox" id="auto-mark-read">
+            <input type="radio" name="hide-read" value="show">
+            <input type="radio" name="hide-read" value="hide">
+            <input type="radio" name="hide-empty" value="show">
+            <input type="radio" name="hide-empty" value="hide">
+            <input type="radio" name="folder-view" value="card">
+            <input type="radio" name="folder-view" value="list">
+            <input type="radio" name="feed-view" value="card">
+            <input type="radio" name="feed-view" value="list">
+        `;
+        // All settings return undefined — defaults should be applied
+        getSetting.mockReturnValue(undefined);
+
+        initSettingsPage();
+
+        // autoMarkRead undefined !== 'true', so unchecked
+        expect(document.getElementById('auto-mark-read').checked).toBe(false);
+        // hideReadArticles defaults to 'show'
+        expect(document.querySelector('input[name="hide-read"][value="show"]').checked).toBe(true);
+        // hideEmptyFeeds defaults to 'show'
+        expect(document.querySelector('input[name="hide-empty"][value="show"]').checked).toBe(true);
+        // defaultFolderView defaults to 'card'
+        expect(document.querySelector('input[name="folder-view"][value="card"]').checked).toBe(true);
+        // defaultFeedView defaults to 'card'
+        expect(document.querySelector('input[name="feed-view"][value="card"]').checked).toBe(true);
+    });
+
+    it('checks the correct hide-empty radio', () => {
+        document.body.innerHTML = `
+            <input type="checkbox" id="auto-mark-read">
+            <input type="radio" name="hide-read" value="show">
+            <input type="radio" name="hide-empty" value="show">
+            <input type="radio" name="hide-empty" value="hide">
+            <input type="radio" name="folder-view" value="card">
+            <input type="radio" name="feed-view" value="card">
+        `;
+        getSetting.mockImplementation((key) => {
+            if (key === 'hideEmptyFeeds') return 'hide';
+            return undefined;
+        });
+
+        initSettingsPage();
+
+        const hideRadio = document.querySelector('input[name="hide-empty"][value="hide"]');
+        expect(hideRadio.checked).toBe(true);
+    });
+
+    it('handles missing radio for stored value gracefully', () => {
+        document.body.innerHTML = `
+            <input type="checkbox" id="auto-mark-read">
+            <input type="radio" name="hide-read" value="show">
+            <input type="radio" name="hide-empty" value="show">
+            <input type="radio" name="folder-view" value="card">
+            <input type="radio" name="feed-view" value="card">
+        `;
+        // Return a value that has no matching radio
+        getSetting.mockImplementation((key) => {
+            if (key === 'hideReadArticles') return 'nonexistent';
+            return undefined;
+        });
+
+        // Should not throw when querySelector returns null
+        expect(() => initSettingsPage()).not.toThrow();
+    });
+
+    it('calls loadNewsletterAddress on init', async () => {
+        document.body.innerHTML = `
+            <input type="checkbox" id="auto-mark-read">
+            <input type="radio" name="hide-read" value="show">
+            <input type="radio" name="hide-empty" value="show">
+            <input type="radio" name="folder-view" value="card">
+            <input type="radio" name="feed-view" value="card">
+            <div id="newsletter-container"></div>
+        `;
+        getSetting.mockReturnValue(undefined);
+        api.mockResolvedValue({});
+
+        initSettingsPage();
+        // loadNewsletterAddress should have been called (it calls api)
+        await vi.waitFor(() => {
+            expect(api).toHaveBeenCalledWith('GET', '/api/newsletter/address');
+        });
+    });
 });
 
 describe('runCleanup', () => {
@@ -140,6 +226,28 @@ describe('runCleanup', () => {
 
         expect(document.getElementById('cleanup-status').textContent).toBe('Cleanup failed: Server error');
         expect(document.getElementById('cleanup-status').className).toBe('cleanup-status error');
+        // articles-to-delete should NOT be reset on error
+        expect(document.getElementById('articles-to-delete').textContent).toBe('10');
+    });
+
+    it('shows intermediate loading state before API resolves', async () => {
+        document.body.innerHTML = `
+            <span id="cleanup-status"></span>
+            <span id="articles-to-delete">5</span>
+        `;
+        let resolve;
+        api.mockReturnValue(new Promise(r => { resolve = r; }));
+
+        const promise = runCleanup();
+
+        // Check intermediate state before resolution
+        expect(document.getElementById('cleanup-status').textContent).toBe('Cleaning up...');
+        expect(document.getElementById('cleanup-status').className).toBe('cleanup-status');
+
+        resolve({ deleted: 5 });
+        await promise;
+
+        expect(document.getElementById('cleanup-status').textContent).toBe('Deleted 5 articles');
     });
 });
 
@@ -192,12 +300,36 @@ describe('loadNewsletterAddress', () => {
     });
 
     it('does not throw when API returns no address', async () => {
-        document.body.innerHTML = '<div id="newsletter-container"></div>';
+        document.body.innerHTML = `
+            <div id="newsletter-container">
+                <div id="newsletter-no-address" style="display: block">Generate</div>
+                <div id="newsletter-has-address" style="display: none"></div>
+            </div>
+        `;
         api.mockResolvedValue({});
 
         await loadNewsletterAddress();
 
         expect(api).toHaveBeenCalled();
+        // should NOT show the address section
+        expect(document.getElementById('newsletter-has-address').style.display).toBe('none');
+    });
+
+    it('does not show address when API returns empty string', async () => {
+        document.body.innerHTML = `
+            <div id="newsletter-container">
+                <div id="newsletter-no-address" style="display: block">Generate</div>
+                <div id="newsletter-has-address" style="display: none">
+                    <span id="newsletter-address"></span>
+                </div>
+            </div>
+        `;
+        api.mockResolvedValue({ address: '' });
+
+        await loadNewsletterAddress();
+
+        // Empty string is falsy, so address section should stay hidden
+        expect(document.getElementById('newsletter-has-address').style.display).toBe('none');
     });
 
     it('handles API errors gracefully', async () => {
@@ -231,6 +363,21 @@ describe('generateNewsletterAddress', () => {
 
         expect(showToast).toHaveBeenCalledWith('Failed to generate address: rate limit');
     });
+
+    it('does not show address when API returns no address field', async () => {
+        document.body.innerHTML = `
+            <div id="newsletter-no-address" style="display: block">Generate</div>
+            <div id="newsletter-has-address" style="display: none">
+                <span id="newsletter-address"></span>
+            </div>
+        `;
+        api.mockResolvedValue({});
+
+        await generateNewsletterAddress();
+
+        // The address section should remain hidden
+        expect(document.getElementById('newsletter-has-address').style.display).toBe('none');
+    });
 });
 
 describe('copyNewsletterAddress', () => {
@@ -253,6 +400,49 @@ describe('copyNewsletterAddress', () => {
             configurable: true,
         });
 
+        await copyNewsletterAddress();
+
+        expect(writeText).toHaveBeenCalledWith('copy@example.com');
+    });
+
+    it('shows checkmark icon temporarily after successful copy', async () => {
+        vi.useFakeTimers();
+        document.body.innerHTML = `
+            <span id="newsletter-address">copy@example.com</span>
+            <button id="copy-btn">Original</button>
+        `;
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'clipboard', {
+            value: { writeText },
+            writable: true,
+            configurable: true,
+        });
+
+        await copyNewsletterAddress();
+
+        const btn = document.getElementById('copy-btn');
+        // Button should show checkmark SVG
+        expect(btn.innerHTML).toContain('polyline');
+
+        // After 1500ms, button should revert to original
+        vi.advanceTimersByTime(1500);
+        expect(btn.innerHTML).toBe('Original');
+
+        vi.useRealTimers();
+    });
+
+    it('handles missing sibling button gracefully', async () => {
+        document.body.innerHTML = `
+            <span id="newsletter-address">copy@example.com</span>
+        `;
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'clipboard', {
+            value: { writeText },
+            writable: true,
+            configurable: true,
+        });
+
+        // nextElementSibling is null — should not throw
         await copyNewsletterAddress();
 
         expect(writeText).toHaveBeenCalledWith('copy@example.com');
@@ -385,5 +575,28 @@ describe('initSettingsPageListeners', () => {
         document.getElementById('other-input').dispatchEvent(new Event('change', { bubbles: true }));
 
         expect(saveSetting).not.toHaveBeenCalled();
+    });
+
+    it('delegates click from nested child of data-action button', async () => {
+        document.body.innerHTML = `
+            <button data-action="run-cleanup"><span id="inner">Cleanup</span></button>
+            <span id="cleanup-status"></span>
+            <span id="articles-to-delete">3</span>
+        `;
+        api.mockResolvedValue({ deleted: 3 });
+
+        // Click the inner span — .closest() should find the button
+        document.getElementById('inner').click();
+        await vi.waitFor(() => {
+            expect(api).toHaveBeenCalledWith('POST', '/api/retention/cleanup');
+        });
+    });
+
+    it('ignores clicks that do not match any data-action', () => {
+        document.body.innerHTML = '<button id="random">Random</button>';
+
+        document.getElementById('random').click();
+
+        expect(api).not.toHaveBeenCalled();
     });
 });
