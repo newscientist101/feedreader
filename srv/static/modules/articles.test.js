@@ -316,6 +316,7 @@ describe('getIncludeReadUrl', () => {
 
 describe('renderArticles', () => {
     beforeEach(() => {
+        vi.spyOn(console, 'debug').mockImplementation(() => {});
         window.__settings = { autoMarkRead: 'true' };
         window.fetch = vi.fn(() => Promise.resolve({
             ok: true, json: () => Promise.resolve({}),
@@ -339,6 +340,7 @@ describe('renderArticles', () => {
         expect(cards.length).toBe(2);
         expect(cards[0].dataset.id).toBe('1');
         expect(cards[1].dataset.id).toBe('2');
+        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 2 initial articles');
     });
 
     it('re-initializes the auto-mark-read observer', async () => {
@@ -351,6 +353,7 @@ describe('renderArticles', () => {
 
         expect(_getAutoMarkReadObserver()).not.toBeNull();
         expect(_getAutoMarkReadObserver()).not.toBe(firstObserver);
+        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 1 initial articles');
     });
 
     it('handles empty article list', async () => {
@@ -358,16 +361,19 @@ describe('renderArticles', () => {
         const cards = document.querySelectorAll('#articles-list .article-card');
         expect(cards.length).toBe(0);
         expect(document.querySelector('#articles-list .empty-state')).not.toBeNull();
+        expect(console.debug).not.toHaveBeenCalled();
     });
 
     it('handles null articles', async () => {
         await renderArticles(null);
         expect(document.querySelector('#articles-list .empty-state')).not.toBeNull();
+        expect(console.debug).not.toHaveBeenCalled();
     });
 });
 
 describe('showHiddenArticles', () => {
     it('sets showingHiddenArticles and re-fetches articles', async () => {
+        vi.spyOn(console, 'debug').mockImplementation(() => {});
         Object.defineProperty(window, 'location', {
             value: { pathname: '/', hostname: 'localhost' },
             writable: true,
@@ -392,6 +398,7 @@ describe('showHiddenArticles', () => {
         expect(fetchUrl).toContain('include_read=1');
         const cards = document.querySelectorAll('.article-card');
         expect(cards.length).toBe(1);
+        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] disabled by setting');
 
         delete window.scrollTo;
     });

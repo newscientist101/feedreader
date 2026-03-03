@@ -58,10 +58,15 @@ afterEach(() => {
 });
 
 describe('initAutoMarkRead', () => {
+    beforeEach(() => {
+        vi.spyOn(console, 'debug').mockImplementation(() => {});
+    });
+
     it('does nothing when autoMarkRead setting is not true', () => {
         window.__settings = { autoMarkRead: 'false' };
         initAutoMarkRead();
         expect(_getAutoMarkReadObserver()).toBeNull();
+        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] disabled by setting');
     });
 
     it('creates an IntersectionObserver when autoMarkRead is true', () => {
@@ -70,6 +75,7 @@ describe('initAutoMarkRead', () => {
             '<div class="article-card" data-id="1"></div>';
         initAutoMarkRead();
         expect(_getAutoMarkReadObserver()).not.toBeNull();
+        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 1 initial articles');
     });
 
     it('disconnects previous observer on re-init', () => {
@@ -78,6 +84,7 @@ describe('initAutoMarkRead', () => {
         const first = _getAutoMarkReadObserver();
         initAutoMarkRead();
         expect(_getAutoMarkReadObserver()).not.toBe(first);
+        expect(console.debug).toHaveBeenCalledTimes(2);
     });
 });
 
@@ -90,6 +97,7 @@ describe('observeNewArticles', () => {
     });
 
     it('observes new cards in the container', () => {
+        vi.spyOn(console, 'debug').mockImplementation(() => {});
         window.__settings = { autoMarkRead: 'true' };
         initAutoMarkRead();
         const obs = _getAutoMarkReadObserver();
@@ -98,6 +106,7 @@ describe('observeNewArticles', () => {
         container.innerHTML = '<div class="article-card"></div><div class="article-card"></div>';
         observeNewArticles(container);
         expect(spy).toHaveBeenCalledTimes(2);
+        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 2 new articles');
     });
 });
 
@@ -124,6 +133,7 @@ describe('markReadSilent', () => {
     });
 
     it('flushes the queue after a timeout', () => {
+        vi.spyOn(console, 'debug').mockImplementation(() => {});
         window.fetch = vi.fn(() => Promise.resolve({
             ok: true, json: () => Promise.resolve({ status: 'ok' }),
         }));
@@ -138,9 +148,13 @@ describe('markReadSilent', () => {
         expect(url).toBe('/api/articles/batch-read');
         const body = JSON.parse(opts.body);
         expect(body.ids).toEqual([1, 2]);
+        expect(console.debug).toHaveBeenCalledWith(
+            expect.stringContaining('flushing batch of 2'), expect.arrayContaining([1, 2])
+        );
     });
 
     it('resets the timer when called rapidly', () => {
+        vi.spyOn(console, 'debug').mockImplementation(() => {});
         window.fetch = vi.fn(() => Promise.resolve({
             ok: true, json: () => Promise.resolve({ status: 'ok' }),
         }));
@@ -154,11 +168,15 @@ describe('markReadSilent', () => {
         expect(window.fetch).toHaveBeenCalledTimes(1);
         const body = JSON.parse(window.fetch.mock.calls[0][1].body);
         expect(body.ids).toEqual([1, 2]);
+        expect(console.debug).toHaveBeenCalledWith(
+            expect.stringContaining('flushing batch of 2'), expect.arrayContaining([1, 2])
+        );
     });
 });
 
 describe('flushMarkReadQueue', () => {
     it('posts queued ids as a batch', () => {
+        vi.spyOn(console, 'debug').mockImplementation(() => {});
         markReadSilent(1);
         markReadSilent(2);
         flushMarkReadQueue();
@@ -168,6 +186,9 @@ describe('flushMarkReadQueue', () => {
                 method: 'POST',
                 body: expect.stringContaining('"ids"'),
             })
+        );
+        expect(console.debug).toHaveBeenCalledWith(
+            expect.stringContaining('flushing batch of 2'), expect.arrayContaining([1, 2])
         );
     });
 
@@ -179,7 +200,7 @@ describe('flushMarkReadQueue', () => {
 
 describe('openArticle', () => {
     it('marks the article as read and navigates', () => {
-        const assignSpy = vi.fn();
+        vi.spyOn(console, 'debug').mockImplementation(() => {});
         Object.defineProperty(window, 'location', {
             value: { pathname: '/', hostname: 'localhost' },
             writable: true,
@@ -189,6 +210,9 @@ describe('openArticle', () => {
         openArticle(5);
         // flushMarkReadQueue was called (fetch happened)
         expect(window.fetch).toHaveBeenCalled();
+        expect(console.debug).toHaveBeenCalledWith(
+            expect.stringContaining('flushing batch'), expect.any(Array)
+        );
     });
 });
 
@@ -286,6 +310,7 @@ describe('findNextUnreadFolder', () => {
 
 describe('auto-mark-read after client-side navigation (integration)', () => {
     beforeEach(() => {
+        vi.spyOn(console, 'debug').mockImplementation(() => {});
         window.__settings = { autoMarkRead: 'true' };
         window.fetch = vi.fn(() => Promise.resolve({
             ok: true, json: () => Promise.resolve({ status: 'ok' }),
@@ -307,6 +332,7 @@ describe('auto-mark-read after client-side navigation (integration)', () => {
         initAutoMarkRead();
         expect(_getAutoMarkReadObserver()).not.toBeNull();
         expect(observeSpy).toHaveBeenCalledTimes(2);
+        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 2 initial articles');
         observeSpy.mockRestore();
     });
 
@@ -327,6 +353,7 @@ describe('auto-mark-read after client-side navigation (integration)', () => {
         const cards = document.querySelectorAll('#articles-list .article-card');
         expect(cards.length).toBe(2);
         expect(cards[0].dataset.id).toBe('100');
+        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 2 initial articles');
     });
 
     it('new paginated articles are observed', () => {
@@ -342,6 +369,7 @@ describe('auto-mark-read after client-side navigation (integration)', () => {
         observeNewArticles(temp);
 
         expect(spy).toHaveBeenCalledTimes(3);
+        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 3 new articles');
     });
 
     it('multiple navigations each get a fresh observer', async () => {
@@ -357,6 +385,7 @@ describe('auto-mark-read after client-side navigation (integration)', () => {
         expect(observers[0]).not.toBe(observers[1]);
         expect(observers[1]).not.toBe(observers[2]);
         observers.forEach(obs => expect(obs).not.toBeNull());
+        expect(console.debug).toHaveBeenCalledTimes(3);
     });
 });
 
@@ -422,6 +451,7 @@ describe('initArticleActionListeners', () => {
     });
 
     it('opens article on article-body click', () => {
+        vi.spyOn(console, 'debug').mockImplementation(() => {});
         document.body.innerHTML = `
             <article class="article-card" data-id="42">
                 <div class="article-body clickable">
@@ -439,6 +469,9 @@ describe('initArticleActionListeners', () => {
 
         document.querySelector('.article-body.clickable p').click();
         expect(window.location).toBe('/article/42');
+        expect(console.debug).toHaveBeenCalledWith(
+            expect.stringContaining('flushing batch'), expect.any(Array)
+        );
 
         window.location = origLocation;
         vi.unstubAllGlobals();
