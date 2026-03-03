@@ -481,8 +481,8 @@ export function initAddFeedForm() {
         }
 
         try {
-            // For HuggingFace/Reddit feeds, let the server auto-generate the name
-            const feedName = ((feedType === 'huggingface' || feedType === 'reddit') && !name) ? '' : (name || url);
+            // Let the server auto-generate the name when none is provided
+            const feedName = name || '';
             const feed = await api('POST', '/api/feeds', {
                 url,
                 name: feedName,
