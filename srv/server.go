@@ -646,6 +646,13 @@ func (s *Server) getCommonData(ctx context.Context) map[string]any {
 		feedCategories[m.FeedID] = m.CategoryID
 	}
 
+	// Build feeds-by-category lookup for O(1) template access
+	feedsByCategory := make(map[int64][]dbgen.Feed)
+	for i := range feedList {
+		catID := feedCategories[feedList[i].ID]
+		feedsByCategory[catID] = append(feedsByCategory[catID], feedList[i])
+	}
+
 	// Build category tree for hierarchical display
 	categoryTree := BuildCategoryTree(categories)
 	flatCategories := FlattenCategoryTree(categoryTree)
@@ -658,19 +665,20 @@ func (s *Server) getCommonData(ctx context.Context) map[string]any {
 	}
 
 	return map[string]any{
-		"Feeds":          feedList,
-		"FeedCounts":     counts.FeedCounts,
-		"Categories":     categories,
-		"CategoryTree":   categoryTree,
-		"FlatCategories": flatCategories,
-		"CategoryCounts": counts.CatCounts,
-		"FeedCategories": feedCategories,
-		"UnreadCount":    counts.Unread,
-		"StarredCount":   counts.Starred,
-		"QueueCount":     counts.Queue,
-		"AlertsCount":    counts.Alerts,
-		"User":           user,
-		"Settings":       settings,
+		"Feeds":           feedList,
+		"FeedCounts":      counts.FeedCounts,
+		"Categories":      categories,
+		"CategoryTree":    categoryTree,
+		"FlatCategories":  flatCategories,
+		"CategoryCounts":  counts.CatCounts,
+		"FeedCategories":  feedCategories,
+		"FeedsByCategory": feedsByCategory,
+		"UnreadCount":     counts.Unread,
+		"StarredCount":    counts.Starred,
+		"QueueCount":      counts.Queue,
+		"AlertsCount":     counts.Alerts,
+		"User":            user,
+		"Settings":        settings,
 	}
 }
 

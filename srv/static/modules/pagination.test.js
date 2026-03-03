@@ -9,7 +9,6 @@ import { _resetArticleActionsState, setQueuedArticleIds, setQueuedIdsReady } fro
 
 beforeEach(() => {
     vi.useFakeTimers();
-    vi.spyOn(console, 'debug').mockImplementation(() => {});
     _resetPaginationState();
     _resetArticleActionsState();
     setQueuedArticleIds(new Set());
