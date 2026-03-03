@@ -332,6 +332,75 @@ describe('saveFeed', () => {
         expect(filters).toEqual([{ selector: '.ad' }, { selector: '.sidebar' }]);
     });
 
+    it('updates sidebar feed name when matching element exists', async () => {
+        // Add a sidebar item matching feed id 5
+        const sidebar = document.createElement('div');
+        sidebar.innerHTML = '<a class="feed-item" href="/feed/5"><span class="feed-name">Old Name</span></a>';
+        document.body.appendChild(sidebar);
+
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({}),
+        });
+        const event = { preventDefault: vi.fn() };
+
+        await saveFeed(event);
+
+        expect(document.querySelector('.feed-item[href="/feed/5"] .feed-name').textContent).toBe('Updated Feed');
+    });
+
+    it('updates header and document.title when on matching feed page', async () => {
+        // Add view header
+        const header = document.createElement('div');
+        header.className = 'view-header';
+        header.innerHTML = '<h1>Old Name</h1>';
+        document.body.appendChild(header);
+
+        // Set location to /feed/5
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, pathname: '/feed/5' },
+            writable: true,
+            configurable: true,
+        });
+
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({}),
+        });
+        const event = { preventDefault: vi.fn() };
+
+        await saveFeed(event);
+
+        expect(document.querySelector('.view-header h1').textContent).toBe('Updated Feed');
+        expect(document.title).toBe('Updated Feed - FeedReader');
+    });
+
+    it('does not update header when on a different page', async () => {
+        // Add view header
+        const header = document.createElement('div');
+        header.className = 'view-header';
+        header.innerHTML = '<h1>Other Page</h1>';
+        document.body.appendChild(header);
+
+        // Set location to a different feed page
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, pathname: '/feed/99' },
+            writable: true,
+            configurable: true,
+        });
+
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({}),
+        });
+        const event = { preventDefault: vi.fn() };
+
+        await saveFeed(event);
+
+        // Header should NOT be updated since we're on /feed/99, not /feed/5
+        expect(document.querySelector('.view-header h1').textContent).toBe('Other Page');
+    });
+
     it('handles save errors', async () => {
         vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: false,
@@ -824,6 +893,42 @@ describe('initFeedActionListeners', () => {
         const rows = document.querySelectorAll('.feeds-table tbody tr');
         expect(rows[0].style.display).toBe('');
         expect(rows[1].style.display).toBe('none');
+    });
+
+    it('delegates close-edit-modal click to hide the modal', () => {
+        document.body.innerHTML = `
+            <div id="edit-feed-modal" class="modal" style="display: flex">
+                <button data-action="close-edit-modal">Close</button>
+            </div>
+        `;
+        initFeedActionListeners();
+
+        document.querySelector('[data-action="close-edit-modal"]').click();
+
+        expect(document.getElementById('edit-feed-modal').style.display).toBe('none');
+    });
+
+    it('delegates edit-feed-form submit to saveFeed', async () => {
+        document.body.innerHTML = `
+            <div id="edit-feed-modal" class="modal" style="display: flex"></div>
+            <form id="edit-feed-form">
+                <input id="edit-feed-id" value="11">
+                <input id="edit-feed-name" value="Saved Feed">
+                <input id="edit-feed-url" value="https://saved.com/rss">
+                <input id="edit-feed-interval" value="45">
+                <textarea id="edit-feed-filters"></textarea>
+            </form>
+        `;
+        initFeedActionListeners();
+
+        document.getElementById('edit-feed-form').dispatchEvent(
+            new Event('submit', { cancelable: true, bubbles: true })
+        );
+
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/feeds/11', expect.objectContaining({
+            method: 'PUT',
+            body: expect.stringContaining('"Saved Feed"'),
+        })), { interval: 1 });
     });
 
     it('delegates set-feed-category change', async () => {
