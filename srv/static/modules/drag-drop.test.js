@@ -5,9 +5,16 @@ import {
     initDragPrevention,
 } from './drag-drop.js';
 
+vi.mock('./api.js', () => ({ api: vi.fn() }));
+vi.mock('./toast.js', () => ({ showToast: vi.fn() }));
+
+import { api } from './api.js';
+import { showToast } from './toast.js';
+
 beforeEach(() => {
     document.body.innerHTML = '';
     vi.restoreAllMocks();
+    vi.clearAllMocks();
 });
 
 afterEach(() => {
@@ -116,6 +123,46 @@ describe('reorderElements', () => {
         expect(container.children.length).toBe(0);
     });
 
+    it('ignores items with non-numeric IDs', () => {
+        document.body.innerHTML = `
+            <div id="container">
+                <div class="item" data-id="abc">X</div>
+                <div class="item" data-id="1">A</div>
+                <div class="item" data-id="2">B</div>
+            </div>
+        `;
+        const container = document.getElementById('container');
+
+        reorderElements(container, '.item', 'data-id', [2, 1]);
+
+        const items = container.querySelectorAll('.item');
+        // Non-numeric item stays, numeric items reordered
+        expect(items[0].dataset.id).toBe('abc');
+        expect(items[1].dataset.id).toBe('2');
+        expect(items[2].dataset.id).toBe('1');
+    });
+
+    it('reorders only children of specified parentId', () => {
+        document.body.innerHTML = `
+            <div id="container">
+                <div class="item" data-id="1">Top A</div>
+                <div class="item" data-id="10" data-parent-id="1">Child A</div>
+                <div class="item" data-id="11" data-parent-id="1">Child B</div>
+                <div class="item" data-id="2">Top B</div>
+            </div>
+        `;
+        const container = document.getElementById('container');
+
+        // Reorder children of parent 1
+        reorderElements(container, '.item', 'data-id', [11, 10], 1);
+
+        const items = container.querySelectorAll('.item');
+        expect(items[0].dataset.id).toBe('1');
+        expect(items[1].dataset.id).toBe('11');
+        expect(items[2].dataset.id).toBe('10');
+        expect(items[3].dataset.id).toBe('2');
+    });
+
     it('handles partial order (some IDs not in order array)', () => {
         document.body.innerHTML = `
             <div id="container">
@@ -175,6 +222,54 @@ describe('syncFolderOrder', () => {
         expect(items[0].dataset.categoryId).toBe('1'); // unchanged
         expect(items[1].dataset.categoryId).toBe('2');
     });
+
+    it('syncs categories grid when source is sidebar', () => {
+        document.body.innerHTML = `
+            <div class="folders-list">
+                <div class="folder-item" data-category-id="1">A</div>
+            </div>
+            <div class="categories-grid">
+                <div class="category-card" data-id="1">A</div>
+                <div class="category-card" data-id="2">B</div>
+                <div class="category-card" data-id="3">C</div>
+            </div>
+        `;
+        const foldersContainer = document.querySelector('.folders-list');
+
+        syncFolderOrder([3, 1, 2], foldersContainer);
+
+        const items = document.querySelectorAll('.categories-grid .category-card');
+        expect(items[0].dataset.id).toBe('3');
+        expect(items[1].dataset.id).toBe('1');
+        expect(items[2].dataset.id).toBe('2');
+    });
+
+    it('passes parentId through to reorderElements', () => {
+        document.body.innerHTML = `
+            <div class="folders-list">
+                <div class="folder-item" data-category-id="1">A</div>
+                <div class="folder-item" data-category-id="10" data-parent-id="5">B</div>
+                <div class="folder-item" data-category-id="11" data-parent-id="5">C</div>
+            </div>
+            <div class="categories-grid"></div>
+        `;
+        const categoriesGrid = document.querySelector('.categories-grid');
+
+        // Only reorder children of parent 5 in sidebar
+        syncFolderOrder([11, 10], categoriesGrid, 5);
+
+        const items = document.querySelectorAll('.folders-list .folder-item');
+        // Top-level item (id=1) untouched, children of 5 reordered
+        expect(items[0].dataset.categoryId).toBe('1');
+        expect(items[1].dataset.categoryId).toBe('11');
+        expect(items[2].dataset.categoryId).toBe('10');
+    });
+
+    it('handles missing containers gracefully', () => {
+        document.body.innerHTML = '<div>Nothing here</div>';
+        // Neither container exists — should not throw
+        expect(() => syncFolderOrder([1, 2], document.createElement('div'))).not.toThrow();
+    });
 });
 
 describe('initFolderDragDrop', () => {
@@ -191,6 +286,28 @@ describe('initFolderDragDrop', () => {
             </div>
         `;
         // Should not throw
+        expect(() => initFolderDragDrop()).not.toThrow();
+    });
+
+    it('initializes on categories grid', () => {
+        document.body.innerHTML = `
+            <div class="categories-grid">
+                <div class="category-card" data-id="1" draggable="true">Cat 1</div>
+                <div class="category-card" data-id="2" draggable="true">Cat 2</div>
+            </div>
+        `;
+        expect(() => initFolderDragDrop()).not.toThrow();
+    });
+
+    it('initializes both containers when both exist', () => {
+        document.body.innerHTML = `
+            <div class="folders-list">
+                <div class="folder-item" data-category-id="1" draggable="true">F1</div>
+            </div>
+            <div class="categories-grid">
+                <div class="category-card" data-id="1" draggable="true">C1</div>
+            </div>
+        `;
         expect(() => initFolderDragDrop()).not.toThrow();
     });
 });
@@ -259,6 +376,387 @@ describe('initDragDrop', () => {
         });
         container.dispatchEvent(event);
         expect(event.defaultPrevented).toBe(true);
+    });
+});
+
+describe('initDragDrop — dragstart edge cases', () => {
+    it('ignores dragstart when target is not a matching item', () => {
+        document.body.innerHTML = `
+            <div id="container">
+                <div class="item" data-id="1" draggable="true">A</div>
+                <span class="other">Not an item</span>
+            </div>
+        `;
+        const container = document.getElementById('container');
+        initDragDrop(container, '.item', 'data-id');
+
+        const other = container.querySelector('.other');
+        const event = new Event('dragstart', { bubbles: true });
+        Object.defineProperty(event, 'dataTransfer', {
+            value: { effectAllowed: '', setData: vi.fn() },
+        });
+        other.dispatchEvent(event);
+
+        // No item should have dragging class
+        expect(container.querySelector('.dragging')).toBeNull();
+    });
+
+    it('copies paddingLeft to placeholder for indented items', () => {
+        document.body.innerHTML = `
+            <div id="container">
+                <div class="item" data-id="1" draggable="true" style="padding-left: 20px;">A</div>
+                <div class="item" data-id="2" draggable="true">B</div>
+            </div>
+        `;
+        const container = document.getElementById('container');
+        initDragDrop(container, '.item', 'data-id');
+
+        const item = container.querySelector('.item[data-id="1"]');
+        const event = new Event('dragstart', { bubbles: true });
+        Object.defineProperty(event, 'dataTransfer', {
+            value: { effectAllowed: '', setData: vi.fn() },
+        });
+        item.dispatchEvent(event);
+
+        expect(item.classList.contains('dragging')).toBe(true);
+        expect(event.dataTransfer.setData).toHaveBeenCalledWith('text/plain', '1');
+    });
+});
+
+describe('initDragDrop — dragend cleanup', () => {
+    it('removes drag-over and nest-target classes on dragend', () => {
+        document.body.innerHTML = `
+            <div id="container">
+                <div class="item drag-over" data-id="1" draggable="true">A</div>
+                <div class="item nest-target" data-id="2" draggable="true">B</div>
+            </div>
+        `;
+        const container = document.getElementById('container');
+        initDragDrop(container, '.item', 'data-id');
+
+        container.dispatchEvent(new Event('dragend', { bubbles: true }));
+
+        expect(container.querySelector('.drag-over')).toBeNull();
+        expect(container.querySelector('.nest-target')).toBeNull();
+    });
+
+    it('handles dragend when no drag was started', () => {
+        document.body.innerHTML = `
+            <div id="container">
+                <div class="item" data-id="1" draggable="true">A</div>
+            </div>
+        `;
+        const container = document.getElementById('container');
+        initDragDrop(container, '.item', 'data-id');
+
+        // dragend without dragstart should not throw
+        expect(() => {
+            container.dispatchEvent(new Event('dragend', { bubbles: true }));
+        }).not.toThrow();
+    });
+});
+
+describe('initDragDrop — dragover shift-key nesting', () => {
+    function startDrag(container, itemSelector, dataId) {
+        const item = container.querySelector(`${itemSelector}[data-id="${dataId}"]`);
+        const event = new Event('dragstart', { bubbles: true });
+        Object.defineProperty(event, 'dataTransfer', {
+            value: { effectAllowed: '', setData: vi.fn() },
+        });
+        item.dispatchEvent(event);
+        return item;
+    }
+
+    it('adds nest-target class when shift key held over another item', () => {
+        document.body.innerHTML = `
+            <div id="container">
+                <div class="item" data-id="1" draggable="true">A</div>
+                <div class="item" data-id="2" draggable="true">B</div>
+            </div>
+        `;
+        const container = document.getElementById('container');
+        initDragDrop(container, '.item', 'data-id');
+        startDrag(container, '.item', '1');
+
+        const target = container.querySelector('.item[data-id="2"]');
+        const dragoverEvent = new Event('dragover', { bubbles: true, cancelable: true });
+        Object.defineProperty(dragoverEvent, 'dataTransfer', {
+            value: { dropEffect: '' },
+        });
+        Object.defineProperty(dragoverEvent, 'shiftKey', { value: true });
+        Object.defineProperty(dragoverEvent, 'clientY', { value: 50 });
+        target.dispatchEvent(dragoverEvent);
+
+        expect(target.classList.contains('nest-target')).toBe(true);
+    });
+
+    it('removes nest-target when shift key not held', () => {
+        document.body.innerHTML = `
+            <div id="container">
+                <div class="item" data-id="1" draggable="true">A</div>
+                <div class="item nest-target" data-id="2" draggable="true">B</div>
+            </div>
+        `;
+        const container = document.getElementById('container');
+        initDragDrop(container, '.item', 'data-id');
+        startDrag(container, '.item', '1');
+
+        const target = container.querySelector('.item[data-id="2"]');
+        const dragoverEvent = new Event('dragover', { bubbles: true, cancelable: true });
+        Object.defineProperty(dragoverEvent, 'dataTransfer', {
+            value: { dropEffect: '' },
+        });
+        Object.defineProperty(dragoverEvent, 'shiftKey', { value: false });
+        Object.defineProperty(dragoverEvent, 'clientY', { value: 50 });
+        target.dispatchEvent(dragoverEvent);
+
+        expect(target.classList.contains('nest-target')).toBe(false);
+    });
+});
+
+describe('initDragDrop — dragover placeholder positioning', () => {
+    function startDrag(container, itemSelector, dataId) {
+        const item = container.querySelector(`${itemSelector}[data-id="${dataId}"]`);
+        const event = new Event('dragstart', { bubbles: true });
+        Object.defineProperty(event, 'dataTransfer', {
+            value: { effectAllowed: '', setData: vi.fn() },
+        });
+        item.dispatchEvent(event);
+        return item;
+    }
+
+    it('inserts placeholder before add-category card when at end', () => {
+        document.body.innerHTML = `
+            <div id="container">
+                <div class="item" data-id="1" draggable="true">A</div>
+                <div class="item" data-id="2" draggable="true">B</div>
+                <div class="add-category">+ Add</div>
+            </div>
+        `;
+        const container = document.getElementById('container');
+        initDragDrop(container, '.item', 'data-id');
+
+        // Mock getBoundingClientRect for items
+        container.querySelectorAll('.item').forEach((el, i) => {
+            el.getBoundingClientRect = () => ({ top: i * 50, height: 50 });
+        });
+
+        startDrag(container, '.item', '1');
+
+        // Dragover below all items
+        const dragoverEvent = new Event('dragover', { bubbles: true, cancelable: true });
+        Object.defineProperty(dragoverEvent, 'dataTransfer', { value: { dropEffect: '' } });
+        Object.defineProperty(dragoverEvent, 'shiftKey', { value: false });
+        Object.defineProperty(dragoverEvent, 'clientY', { value: 200 });
+        container.dispatchEvent(dragoverEvent);
+
+        // Placeholder should be before add-category
+        const addCard = container.querySelector('.add-category');
+        const placeholder = container.querySelector('.drag-placeholder');
+        expect(placeholder).not.toBeNull();
+        expect(placeholder.nextElementSibling).toBe(addCard);
+    });
+});
+
+describe('initDragDrop — drop reorder', () => {
+    function startDrag(container, itemSelector, dataId) {
+        const item = container.querySelector(`${itemSelector}[data-id="${dataId}"]`);
+        const event = new Event('dragstart', { bubbles: true });
+        Object.defineProperty(event, 'dataTransfer', {
+            value: { effectAllowed: '', setData: vi.fn() },
+        });
+        item.dispatchEvent(event);
+        return item;
+    }
+
+    function createDropEvent() {
+        const event = new Event('drop', { bubbles: true, cancelable: true });
+        Object.defineProperty(event, 'dataTransfer', {
+            value: { dropEffect: '' },
+        });
+        return event;
+    }
+
+    it('calls api to save reorder and syncs folder order', async () => {
+        document.body.innerHTML = `
+            <div id="container">
+                <div class="item" data-id="1" draggable="true">A</div>
+                <div class="item" data-id="2" draggable="true">B</div>
+            </div>
+        `;
+        const container = document.getElementById('container');
+        initDragDrop(container, '.item', 'data-id');
+
+        // Mock getBoundingClientRect
+        container.querySelectorAll('.item').forEach((el, i) => {
+            el.getBoundingClientRect = () => ({ top: i * 50, height: 50 });
+        });
+
+        startDrag(container, '.item', '2');
+
+        // Dragover to create placeholder
+        const dragoverEvent = new Event('dragover', { bubbles: true, cancelable: true });
+        Object.defineProperty(dragoverEvent, 'dataTransfer', { value: { dropEffect: '' } });
+        Object.defineProperty(dragoverEvent, 'shiftKey', { value: false });
+        Object.defineProperty(dragoverEvent, 'clientY', { value: 10 });
+        container.querySelector('.item[data-id="1"]').dispatchEvent(dragoverEvent);
+
+        api.mockResolvedValueOnce({});
+
+        // Drop
+        container.dispatchEvent(createDropEvent());
+
+        await vi.waitFor(() => {
+            expect(api).toHaveBeenCalledWith('POST', '/api/categories/reorder', {
+                order: expect.any(Array),
+                parent_id: null,
+            });
+        });
+    });
+
+    it('shows toast on reorder api failure', async () => {
+        document.body.innerHTML = `
+            <div id="container">
+                <div class="item" data-id="1" draggable="true">A</div>
+                <div class="item" data-id="2" draggable="true">B</div>
+            </div>
+        `;
+        const container = document.getElementById('container');
+        initDragDrop(container, '.item', 'data-id');
+
+        container.querySelectorAll('.item').forEach((el, i) => {
+            el.getBoundingClientRect = () => ({ top: i * 50, height: 50 });
+        });
+
+        startDrag(container, '.item', '2');
+
+        // Dragover to create placeholder
+        const dragoverEvent = new Event('dragover', { bubbles: true, cancelable: true });
+        Object.defineProperty(dragoverEvent, 'dataTransfer', { value: { dropEffect: '' } });
+        Object.defineProperty(dragoverEvent, 'shiftKey', { value: false });
+        Object.defineProperty(dragoverEvent, 'clientY', { value: 10 });
+        container.querySelector('.item[data-id="1"]').dispatchEvent(dragoverEvent);
+
+        const err = new Error('Network error');
+        api.mockRejectedValueOnce(err);
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        container.dispatchEvent(createDropEvent());
+
+        await vi.waitFor(() => {
+            expect(showToast).toHaveBeenCalledWith('Failed to save folder order');
+        });
+        expect(consoleSpy).toHaveBeenCalledWith('Failed to save folder order:', err);
+    });
+
+    it('does nothing on drop when no drag started', () => {
+        document.body.innerHTML = `
+            <div id="container">
+                <div class="item" data-id="1" draggable="true">A</div>
+            </div>
+        `;
+        const container = document.getElementById('container');
+        initDragDrop(container, '.item', 'data-id');
+
+        const dropEvent = createDropEvent();
+        container.dispatchEvent(dropEvent);
+
+        expect(api).not.toHaveBeenCalled();
+    });
+});
+
+describe('initDragDrop — drop nesting (shift+drag)', () => {
+    function startDrag(container, itemSelector, dataId) {
+        const item = container.querySelector(`${itemSelector}[data-id="${dataId}"]`);
+        const event = new Event('dragstart', { bubbles: true });
+        Object.defineProperty(event, 'dataTransfer', {
+            value: { effectAllowed: '', setData: vi.fn() },
+        });
+        item.dispatchEvent(event);
+        return item;
+    }
+
+    it('calls api to nest folder and reloads on success', async () => {
+        document.body.innerHTML = `
+            <div id="container">
+                <div class="item" data-id="1" draggable="true">A</div>
+                <div class="item" data-id="2" draggable="true">B</div>
+            </div>
+        `;
+        const container = document.getElementById('container');
+        initDragDrop(container, '.item', 'data-id');
+
+        container.querySelectorAll('.item').forEach((el, i) => {
+            el.getBoundingClientRect = () => ({ top: i * 50, height: 50 });
+        });
+
+        startDrag(container, '.item', '1');
+
+        // Shift+dragover to set nest target
+        const target = container.querySelector('.item[data-id="2"]');
+        const dragoverEvent = new Event('dragover', { bubbles: true, cancelable: true });
+        Object.defineProperty(dragoverEvent, 'dataTransfer', { value: { dropEffect: '' } });
+        Object.defineProperty(dragoverEvent, 'shiftKey', { value: true });
+        Object.defineProperty(dragoverEvent, 'clientY', { value: 75 });
+        target.dispatchEvent(dragoverEvent);
+
+        api.mockResolvedValueOnce({});
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
+
+        const dropEvent = new Event('drop', { bubbles: true, cancelable: true });
+        Object.defineProperty(dropEvent, 'dataTransfer', { value: { dropEffect: '' } });
+        container.dispatchEvent(dropEvent);
+
+        await vi.waitFor(() => {
+            expect(api).toHaveBeenCalledWith('POST', '/api/categories/1/parent', {
+                parent_id: 2,
+                sort_order: 0,
+            });
+        });
+        expect(reloadMock).toHaveBeenCalled();
+    });
+
+    it('shows toast on nesting api failure', async () => {
+        document.body.innerHTML = `
+            <div id="container">
+                <div class="item" data-id="1" draggable="true">A</div>
+                <div class="item" data-id="2" draggable="true">B</div>
+            </div>
+        `;
+        const container = document.getElementById('container');
+        initDragDrop(container, '.item', 'data-id');
+
+        container.querySelectorAll('.item').forEach((el, i) => {
+            el.getBoundingClientRect = () => ({ top: i * 50, height: 50 });
+        });
+
+        startDrag(container, '.item', '1');
+
+        // Shift+dragover to set nest target
+        const target = container.querySelector('.item[data-id="2"]');
+        const dragoverEvent = new Event('dragover', { bubbles: true, cancelable: true });
+        Object.defineProperty(dragoverEvent, 'dataTransfer', { value: { dropEffect: '' } });
+        Object.defineProperty(dragoverEvent, 'shiftKey', { value: true });
+        Object.defineProperty(dragoverEvent, 'clientY', { value: 75 });
+        target.dispatchEvent(dragoverEvent);
+
+        const err = new Error('Server error');
+        api.mockRejectedValueOnce(err);
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        const dropEvent = new Event('drop', { bubbles: true, cancelable: true });
+        Object.defineProperty(dropEvent, 'dataTransfer', { value: { dropEffect: '' } });
+        container.dispatchEvent(dropEvent);
+
+        await vi.waitFor(() => {
+            expect(showToast).toHaveBeenCalledWith('Failed to move folder');
+        });
+        expect(consoleSpy).toHaveBeenCalledWith('Failed to nest folder:', err);
     });
 });
 
