@@ -12,9 +12,7 @@ logs/
 # Internal infrastructure
 .beads/
 beads-dolt.service
-task-agent.service
 es-modules-refactor.timer
-scripts/task-agent.sh
 
 # Environment
 .env

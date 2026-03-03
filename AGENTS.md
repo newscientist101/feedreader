@@ -201,7 +201,8 @@ Issue IDs use the `feedreader-` prefix (e.g., `feedreader-fc2`).
 
 The Dolt server runs as a systemd service (`beads-dolt.service`) on port 3307.
 A task agent (`task-agent.service`) runs hourly via systemd timer, picks
-ready tasks, and works them autonomously.
+ready tasks, and works them autonomously. The agent script and systemd units
+live in `/home/exedev/ops/` (a local-only git repo, no remote).
 
 ### Finding and doing work
 
