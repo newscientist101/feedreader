@@ -12,12 +12,19 @@ vi.mock('./feed-errors.js', () => ({
     removeFeedErrorBanner: vi.fn(),
 }));
 
+// Mock toast module (directly imported by counts)
+vi.mock('./toast.js', () => ({
+    showToast: vi.fn(),
+}));
+
 import { applyUserPreferences } from './articles.js';
 import { showFeedErrorBanner, removeFeedErrorBanner } from './feed-errors.js';
+import { showToast } from './toast.js';
 
 beforeEach(() => {
     document.body.innerHTML = '';
     vi.restoreAllMocks();
+    vi.clearAllMocks();
 });
 
 afterEach(() => {
@@ -25,16 +32,17 @@ afterEach(() => {
 });
 
 describe('updateCounts', () => {
-    it('updates unread, starred, and queue badges', async () => {
+    it('updates unread, starred, queue, and alerts badges', async () => {
         document.body.innerHTML = `
             <span data-count="unread">5</span>
             <span data-count="starred">2</span>
             <span data-count="queue">1</span>
+            <span data-count="alerts">0</span>
         `;
         vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: true,
             json: () => Promise.resolve({
-                unread: 10, starred: 3, queue: 2,
+                unread: 10, starred: 3, queue: 2, alerts: 4,
                 categories: {}, feeds: {}, feedErrors: {},
             }),
         });
@@ -44,6 +52,7 @@ describe('updateCounts', () => {
         expect(document.querySelector('[data-count="unread"]').textContent).toBe('10');
         expect(document.querySelector('[data-count="starred"]').textContent).toBe('3');
         expect(document.querySelector('[data-count="queue"]').textContent).toBe('2');
+        expect(document.querySelector('[data-count="alerts"]').textContent).toBe('4');
     });
 
     it('updates category counts and zeros missing ones', async () => {
@@ -125,6 +134,152 @@ describe('updateCounts', () => {
         expect(console.error).toHaveBeenCalledWith('Failed to update counts:', expect.any(Error));
     });
 
+    it('sets aria-label attributes on unread, queue, and alerts badges', async () => {
+        document.body.innerHTML = `
+            <span data-count="unread"></span>
+            <span data-count="queue"></span>
+            <span data-count="alerts"></span>
+        `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                unread: 7, starred: 0, queue: 3, alerts: 2,
+                categories: {}, feeds: {}, feedErrors: {},
+            }),
+        });
+
+        await updateCounts();
+
+        expect(document.querySelector('[data-count="unread"]').getAttribute('aria-label')).toBe('7 unread articles');
+        expect(document.querySelector('[data-count="queue"]').getAttribute('aria-label')).toBe('3 queued articles');
+        expect(document.querySelector('[data-count="alerts"]').getAttribute('aria-label')).toBe('2 alerts');
+    });
+
+    it('clears aria-label when counts are zero', async () => {
+        document.body.innerHTML = `
+            <span data-count="unread" aria-label="5 unread articles"></span>
+            <span data-count="queue" aria-label="2 queued articles"></span>
+            <span data-count="alerts" aria-label="1 alerts"></span>
+        `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                unread: 0, starred: 0, queue: 0, alerts: 0,
+                categories: {}, feeds: {}, feedErrors: {},
+            }),
+        });
+
+        await updateCounts();
+
+        expect(document.querySelector('[data-count="unread"]').getAttribute('aria-label')).toBe('');
+        expect(document.querySelector('[data-count="queue"]').getAttribute('aria-label')).toBe('');
+        expect(document.querySelector('[data-count="alerts"]').getAttribute('aria-label')).toBe('');
+    });
+
+    it('does not throw when badge elements are missing from DOM', async () => {
+        document.body.innerHTML = ''; // no badges at all
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                unread: 5, starred: 2, queue: 1, alerts: 3,
+                categories: { '1': 10 }, feeds: { '10': 5 }, feedErrors: {},
+            }),
+        });
+
+        await updateCounts(); // should not throw
+
+        expect(applyUserPreferences).toHaveBeenCalled();
+    });
+
+    it('updates pending feed badge when count is positive and removes pending class', async () => {
+        document.body.innerHTML = '<span data-count="feed-10" class="pending">...</span>';
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                unread: 0, starred: 0, queue: 0,
+                categories: {}, feeds: { '10': 8 }, feedErrors: {},
+            }),
+        });
+
+        await updateCounts();
+
+        const badge = document.querySelector('[data-count="feed-10"]');
+        expect(badge.textContent).toBe('8');
+        expect(badge.classList.contains('pending')).toBe(false);
+        expect(badge.getAttribute('aria-label')).toBe('8 unread');
+    });
+
+    it('updates multiple badges for the same feed', async () => {
+        document.body.innerHTML = `
+            <span data-count="feed-10">0</span>
+            <span data-count="feed-10">0</span>
+        `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                unread: 0, starred: 0, queue: 0,
+                categories: {}, feeds: { '10': 3 }, feedErrors: {},
+            }),
+        });
+
+        await updateCounts();
+
+        const badges = document.querySelectorAll('[data-count="feed-10"]');
+        badges.forEach(badge => {
+            expect(badge.textContent).toBe('3');
+        });
+    });
+
+    it('sets category aria-label on nonzero and clears on zero', async () => {
+        document.body.innerHTML = `
+            <span data-count="category-1">5</span>
+            <span data-count="category-2">3</span>
+        `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                unread: 0, starred: 0, queue: 0,
+                categories: { '1': 7 },
+                feeds: {}, feedErrors: {},
+            }),
+        });
+
+        await updateCounts();
+
+        expect(document.querySelector('[data-count="category-1"]').getAttribute('aria-label')).toBe('7 unread');
+        expect(document.querySelector('[data-count="category-2"]').getAttribute('aria-label')).toBe('');
+    });
+
+    it('shows toast on API error', async () => {
+        vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Network error'));
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        await updateCounts();
+
+        expect(showToast).toHaveBeenCalledWith('Failed to update counts');
+    });
+
+    it('passes feedErrors to updateFeedErrors', async () => {
+        document.body.innerHTML = `
+            <div class="feed-item" data-feed-id="5">
+                <span data-error></span>
+            </div>
+        `;
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                unread: 0, starred: 0, queue: 0,
+                categories: {}, feeds: {},
+                feedErrors: { '5': 'Timeout' },
+            }),
+        });
+
+        await updateCounts();
+
+        const item = document.querySelector('[data-feed-id="5"]');
+        expect(item.classList.contains('has-error')).toBe(true);
+    });
+
     it('clears badges when counts are zero', async () => {
         document.body.innerHTML = `
             <span data-count="unread">5</span>
@@ -191,6 +346,16 @@ describe('updateFeedStatusCell', () => {
         document.body.innerHTML = '<table><tbody></tbody></table>';
         updateFeedStatusCell(999, 'error'); // should not throw
     });
+
+    it('does nothing when row has fewer than 2 cells', () => {
+        document.body.innerHTML = `
+            <table><tbody>
+                <tr data-feed-id="5"><td>Only cell</td></tr>
+            </tbody></table>
+        `;
+        // statusCell would be cells[-1] which is undefined
+        updateFeedStatusCell(5, 'error'); // should not throw
+    });
 });
 
 describe('updateFeedErrors', () => {
@@ -244,5 +409,28 @@ describe('updateFeedErrors', () => {
         updateFeedErrors({});
 
         expect(removeFeedErrorBanner).toHaveBeenCalled();
+    });
+
+    it('handles feed items without data-error span', () => {
+        document.body.innerHTML = '<div class="feed-item" data-feed-id="1"></div>';
+
+        updateFeedErrors({ '1': 'Timeout' });
+
+        const item = document.querySelector('[data-feed-id="1"]');
+        expect(item.classList.contains('has-error')).toBe(true);
+        expect(item.title).toBe('Error: Timeout');
+    });
+
+    it('does not update banner when no button[data-feed-id] on page', () => {
+        document.body.innerHTML = `
+            <div class="feed-item" data-feed-id="1">
+                <span data-error></span>
+            </div>
+        `;
+
+        updateFeedErrors({ '1': 'Timeout' });
+
+        expect(showFeedErrorBanner).not.toHaveBeenCalled();
+        expect(removeFeedErrorBanner).not.toHaveBeenCalled();
     });
 });

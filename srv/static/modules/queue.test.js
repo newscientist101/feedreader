@@ -41,6 +41,17 @@ describe('initQueuePage', () => {
         // No button wired up — no error
     });
 
+    it('does nothing when queue-data is not an array', () => {
+        document.body.innerHTML = '<script id="queue-data" type="application/json">{"ids": [1,2]}</script>';
+        initQueuePage();
+        // Non-array JSON should be treated as invalid
+    });
+
+    it('does not crash when IDs are present but .queue-next-btn is missing', () => {
+        document.body.innerHTML = '<script id="queue-data" type="application/json">[10,20]</script>';
+        initQueuePage(); // should not throw
+    });
+
     it('wires click on .queue-next-btn when IDs present', async () => {
         api.mockResolvedValue({});
         document.body.innerHTML =
@@ -105,5 +116,16 @@ describe('queueNext', () => {
         expect(updateQueueCacheIfStandalone).toHaveBeenCalled();
 
         window.location = origLocation;
+    });
+
+    it('propagates API errors', async () => {
+        api.mockRejectedValue(new Error('Server error'));
+
+        await expect(queueNext([42])).rejects.toThrow('Server error');
+    });
+
+    it('does nothing with undefined', async () => {
+        await queueNext(undefined);
+        expect(api).not.toHaveBeenCalled();
     });
 });
