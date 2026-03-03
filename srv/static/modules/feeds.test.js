@@ -69,6 +69,7 @@ describe('loadCategoryArticles', () => {
             ok: true,
             json: () => Promise.resolve({ articles: [{ id: 1, title: 'Test', feed_name: 'F' }] }),
         });
+        const dbg = vi.spyOn(console, 'debug').mockImplementation(() => {});
 
         await loadCategoryArticles(3, 'Tech');
 
@@ -80,6 +81,7 @@ describe('loadCategoryArticles', () => {
         expect(dropdown.dataset.categoryId).toBe('3');
         expect(removeFeedErrorBanner).toHaveBeenCalled();
         expect(applyDefaultViewForScope).toHaveBeenCalledWith('folder');
+        expect(dbg).toHaveBeenCalledWith('[auto-mark-read] observing 1 initial articles');
     });
 
     it('hides feed action buttons', async () => {
@@ -128,6 +130,7 @@ describe('loadFeedArticles', () => {
                 feed: { id: 7, name: 'Feed', last_error: null },
             }),
         });
+        const dbg = vi.spyOn(console, 'debug').mockImplementation(() => {});
 
         await loadFeedArticles(7, 'Feed');
 
@@ -139,6 +142,7 @@ describe('loadFeedArticles', () => {
         expect(dropdown.dataset.categoryId).toBe('');
         expect(removeFeedErrorBanner).toHaveBeenCalled();
         expect(applyDefaultViewForScope).toHaveBeenCalledWith('feed');
+        expect(dbg).toHaveBeenCalledWith('[auto-mark-read] observing 1 initial articles');
     });
 
     it('sets active state on matching feed items', async () => {

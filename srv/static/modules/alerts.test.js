@@ -71,6 +71,63 @@ describe('initAlertsPage', () => {
             expect(api).toHaveBeenCalledWith('POST', '/api/article-alerts/42/dismiss');
         });
     });
+
+    it('ignores dismiss-all click with no alertId', () => {
+        document.body.innerHTML = `
+            <div class="alerts-view">
+                <button data-action="dismiss-all-alert">Dismiss All</button>
+            </div>`;
+        initAlertsPage();
+        document.querySelector('[data-action="dismiss-all-alert"]').click();
+        expect(api).not.toHaveBeenCalled();
+    });
+
+    it('ignores dismiss-article click with no articleAlertId', () => {
+        document.body.innerHTML = `
+            <div class="alerts-view">
+                <button data-action="dismiss-article-alert">X</button>
+            </div>`;
+        initAlertsPage();
+        document.querySelector('[data-action="dismiss-article-alert"]').click();
+        expect(api).not.toHaveBeenCalled();
+    });
+
+    it('wires close-create-alert-modal delegated click', () => {
+        document.body.innerHTML = `
+            <div class="alerts-view">
+                <div id="create-alert-modal" class="modal" style="display: flex">
+                    <button data-action="close-create-alert-modal">X</button>
+                </div>
+            </div>`;
+        initAlertsPage();
+        document.querySelector('[data-action="close-create-alert-modal"]').click();
+        expect(document.getElementById('create-alert-modal').style.display).toBe('none');
+    });
+
+    it('wires create-alert-form submit', async () => {
+        api.mockResolvedValue({});
+        const origLocation = window.location;
+        delete window.location;
+        window.location = { reload: vi.fn(), href: '' };
+
+        document.body.innerHTML = `
+            <div class="alerts-view">
+                <form id="create-alert-form">
+                    <input id="alert-name" value="Test">
+                    <input id="alert-pattern" value="keyword">
+                    <input id="alert-is-regex" type="checkbox">
+                    <select id="alert-match-field"><option value="title" selected>Title</option></select>
+                    <button type="submit">Create</button>
+                </form>
+            </div>`;
+        initAlertsPage();
+        document.getElementById('create-alert-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+        await vi.waitFor(() => {
+            expect(api).toHaveBeenCalledWith('POST', '/api/alerts', expect.objectContaining({ name: 'Test' }));
+        });
+
+        window.location = origLocation;
+    });
 });
 
 describe('dismissAllMatches', () => {
@@ -120,6 +177,14 @@ describe('dismissArticleAlert', () => {
             <span data-count="alerts">1</span>`;
         await dismissArticleAlert('99');
         expect(document.querySelector('.alert-group')).toBeNull();
+    });
+
+    it('shows toast on error', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        api.mockRejectedValue(new Error('fail'));
+        await dismissArticleAlert('99');
+        expect(console.error).toHaveBeenCalledWith('Failed to dismiss article alert:', expect.any(Error));
+        expect(showToast).toHaveBeenCalledWith('Failed to dismiss alert');
     });
 });
 
@@ -186,6 +251,62 @@ describe('submitCreateAlert', () => {
         expect(api).not.toHaveBeenCalled();
         expect(showToast).toHaveBeenCalledWith('Invalid regular expression');
     });
+
+    it('does nothing with empty pattern', async () => {
+        document.body.innerHTML = `
+            <input id="alert-name" value="My Alert">
+            <input id="alert-pattern" value="">
+            <input id="alert-is-regex" type="checkbox">
+            <select id="alert-match-field"><option value="title" selected>Title</option></select>`;
+        await submitCreateAlert();
+        expect(api).not.toHaveBeenCalled();
+    });
+
+    it('shows toast on API failure', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        api.mockRejectedValue(new Error('server error'));
+        const origLocation = window.location;
+        delete window.location;
+        window.location = { reload: vi.fn(), href: '' };
+
+        document.body.innerHTML = `
+            <div class="alerts-view">
+                <input id="alert-name" value="My Alert">
+                <input id="alert-pattern" value="keyword">
+                <input id="alert-is-regex" type="checkbox">
+                <select id="alert-match-field"><option value="title" selected>Title</option></select>
+            </div>`;
+        await submitCreateAlert();
+        expect(console.error).toHaveBeenCalledWith('Failed to create alert:', expect.any(Error));
+        expect(showToast).toHaveBeenCalledWith('Failed to create alert');
+        expect(window.location.reload).not.toHaveBeenCalled();
+
+        window.location = origLocation;
+    });
+
+    it('sends is_regex true when checkbox is checked', async () => {
+        api.mockResolvedValue({});
+        const origLocation = window.location;
+        delete window.location;
+        window.location = { reload: vi.fn(), href: '' };
+
+        document.body.innerHTML = `
+            <div class="alerts-view">
+                <input id="alert-name" value="Regex Alert">
+                <input id="alert-pattern" value="test.*pattern">
+                <input id="alert-is-regex" type="checkbox" checked>
+                <select id="alert-match-field"><option value="content" selected>Content</option></select>
+            </div>`;
+        await submitCreateAlert();
+        expect(api).toHaveBeenCalledWith('POST', '/api/alerts', {
+            name: 'Regex Alert',
+            pattern: 'test.*pattern',
+            is_regex: true,
+            match_field: 'content',
+        });
+
+        window.location = origLocation;
+    });
 });
 
 describe('initAlertDetailPage', () => {
@@ -244,6 +365,36 @@ describe('initAlertDetailPage', () => {
 
         window.location = origLocation;
     });
+
+    it('wires dismiss-article-alert delegated click', async () => {
+        api.mockResolvedValue({});
+        document.body.innerHTML = `
+            <div class="alert-detail-view" data-alert-id="3">
+                <div class="article-alert-item" data-article-alert-id="50">
+                    <button data-action="dismiss-article-alert" data-article-alert-id="50">Dismiss</button>
+                </div>
+            </div>`;
+        initAlertDetailPage();
+        document.querySelector('[data-action="dismiss-article-alert"]').click();
+        await vi.waitFor(() => {
+            expect(api).toHaveBeenCalledWith('POST', '/api/article-alerts/50/dismiss');
+        });
+    });
+
+    it('wires undismiss-article-alert delegated click', async () => {
+        api.mockResolvedValue({});
+        document.body.innerHTML = `
+            <div class="alert-detail-view" data-alert-id="3">
+                <div class="article-alert-item dismissed" data-article-alert-id="50">
+                    <button data-action="undismiss-article-alert" data-article-alert-id="50">Undismiss</button>
+                </div>
+            </div>`;
+        initAlertDetailPage();
+        document.querySelector('[data-action="undismiss-article-alert"]').click();
+        await vi.waitFor(() => {
+            expect(api).toHaveBeenCalledWith('POST', '/api/article-alerts/50/undismiss');
+        });
+    });
 });
 
 describe('saveAlert', () => {
@@ -287,6 +438,26 @@ describe('saveAlert', () => {
         expect(api).not.toHaveBeenCalled();
         expect(showToast).toHaveBeenCalledWith('Invalid regular expression');
     });
+
+    it('does nothing with empty name', async () => {
+        document.body.innerHTML = `
+            <input id="edit-alert-name" value="">
+            <input id="edit-alert-pattern" value="pat">
+            <input id="edit-alert-is-regex" type="checkbox">
+            <select id="edit-alert-match-field"><option value="title" selected>Title</option></select>`;
+        await saveAlert('5');
+        expect(api).not.toHaveBeenCalled();
+    });
+
+    it('does nothing with empty pattern', async () => {
+        document.body.innerHTML = `
+            <input id="edit-alert-name" value="Test">
+            <input id="edit-alert-pattern" value="">
+            <input id="edit-alert-is-regex" type="checkbox">
+            <select id="edit-alert-match-field"><option value="title" selected>Title</option></select>`;
+        await saveAlert('5');
+        expect(api).not.toHaveBeenCalled();
+    });
 });
 
 describe('deleteAlert', () => {
@@ -308,6 +479,15 @@ describe('deleteAlert', () => {
         expect(window.location.href).toBe('/alerts');
 
         window.location = origLocation;
+    });
+
+    it('shows toast on error', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        api.mockRejectedValue(new Error('fail'));
+        vi.stubGlobal('confirm', vi.fn(() => true));
+        await deleteAlert('5');
+        expect(console.error).toHaveBeenCalledWith('Failed to delete alert:', expect.any(Error));
+        expect(showToast).toHaveBeenCalledWith('Failed to delete alert');
     });
 });
 
@@ -355,6 +535,14 @@ describe('dismissArticleAlertDetail', () => {
         expect(api).toHaveBeenCalledWith('POST', '/api/article-alerts/20/dismiss');
         expect(document.querySelector('[data-article-alert-id="20"]').classList.contains('dismissed')).toBe(true);
     });
+
+    it('shows toast on error', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        api.mockRejectedValue(new Error('fail'));
+        await dismissArticleAlertDetail('20');
+        expect(console.error).toHaveBeenCalledWith('Failed to dismiss article alert:', expect.any(Error));
+        expect(showToast).toHaveBeenCalledWith('Failed to dismiss alert');
+    });
 });
 
 describe('undismissArticleAlertDetail', () => {
@@ -367,6 +555,14 @@ describe('undismissArticleAlertDetail', () => {
         await undismissArticleAlertDetail('20');
         expect(api).toHaveBeenCalledWith('POST', '/api/article-alerts/20/undismiss');
         expect(document.querySelector('[data-article-alert-id="20"]').classList.contains('dismissed')).toBe(false);
+    });
+
+    it('shows toast on error', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        api.mockRejectedValue(new Error('fail'));
+        await undismissArticleAlertDetail('20');
+        expect(console.error).toHaveBeenCalledWith('Failed to undismiss article alert:', expect.any(Error));
+        expect(showToast).toHaveBeenCalledWith('Failed to undismiss alert');
     });
 });
 
