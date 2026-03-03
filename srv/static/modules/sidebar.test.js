@@ -95,6 +95,32 @@ describe('sidebar', () => {
             const result = navigateFolder(event, 999);
             expect(result).toBe(false);
         });
+
+        it('does not call loadCategoryArticles when it is null', () => {
+            // _loadCategoryArticles is null (set in beforeEach)
+            document.body.innerHTML = `
+                <div class="articles-view"><div id="articles-list"></div></div>
+                <div class="folder-item" data-category-id="42">
+                    <span class="folder-name">Tech</span>
+                </div>
+            `;
+            const event = { preventDefault: vi.fn() };
+            // Should not throw even though _loadCategoryArticles is null
+            navigateFolder(event, 42);
+            expect(event.preventDefault).toHaveBeenCalled();
+        });
+
+        it('falls back to "Category" when folder-name span is absent', () => {
+            const loadFn = vi.fn();
+            setSidebarLoadCategory(loadFn);
+            document.body.innerHTML = `
+                <div class="articles-view"><div id="articles-list"></div></div>
+                <div class="folder-item" data-category-id="42"></div>
+            `;
+            const event = { preventDefault: vi.fn() };
+            navigateFolder(event, 42);
+            expect(loadFn).toHaveBeenCalledWith(42, 'Category');
+        });
     });
 
     describe('toggleFolderCollapse', () => {
@@ -219,13 +245,52 @@ describe('sidebar', () => {
                     </a>
                 </div>
             `;
-            // No #articles-list present — navigateFolder returns true,
-            // so the handler doesn't call preventDefault
             const link = document.querySelector('[data-action="navigate-folder"]');
             const event = new MouseEvent('click', { bubbles: true, cancelable: true });
             link.dispatchEvent(event);
-            // In jsdom, default isn't actually navigating, but the event should not be prevented
-            // navigateFolder returns true, so our handler doesn't call preventDefault
+            // navigateFolder returns true (no articles-view), so preventDefault is NOT called
+            expect(event.defaultPrevented).toBe(false);
+        });
+
+        it('toggle-folder: ignores button with zero/invalid categoryId', () => {
+            document.body.innerHTML = `
+                <div class="folder-item" data-category-id="0">
+                    <button data-action="toggle-folder" data-category-id="0">▶</button>
+                </div>
+            `;
+            // catId 0 is falsy, so toggleFolderCollapse should not be called
+            document.querySelector('[data-action="toggle-folder"]').click();
+            // Folder should remain collapsed (not expanded)
+            expect(document.querySelector('.folder-item').classList.contains('expanded')).toBe(false);
+        });
+
+        it('toggle-folder: ignores click with missing data-category-id', () => {
+            document.body.innerHTML = `
+                <div class="folder-item" data-category-id="5">
+                    <button data-action="toggle-folder">▶</button>
+                </div>
+            `;
+            // No data-category-id on the button, Number(undefined) = NaN which is falsy
+            document.querySelector('[data-action="toggle-folder"]').click();
+            expect(document.querySelector('.folder-item').classList.contains('expanded')).toBe(false);
+        });
+
+        it('navigate-folder: preventDefault called on articles page SPA navigation', () => {
+            const loadFn = vi.fn();
+            setSidebarLoadCategory(loadFn);
+            document.body.innerHTML = `
+                <div class="articles-view"><div id="articles-list"></div></div>
+                <div class="folder-item" data-category-id="3">
+                    <a href="/category/3" data-action="navigate-folder" data-category-id="3">
+                        <span class="folder-name">Science</span>
+                    </a>
+                </div>
+            `;
+            const link = document.querySelector('[data-action="navigate-folder"]');
+            const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+            link.dispatchEvent(event);
+            expect(event.defaultPrevented).toBe(true);
+            expect(loadFn).toHaveBeenCalledWith(3, 'Science');
         });
     });
 

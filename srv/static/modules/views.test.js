@@ -176,6 +176,72 @@ describe('views', () => {
             const calls = saveSetting.mock.calls.filter(c => c[0] === 'defaultView');
             expect(calls).toHaveLength(0);
         });
+
+        it('migrates direct keys from localStorage (e.g. autoMarkRead)', () => {
+            localStorage.setItem('autoMarkRead', 'true');
+            localStorage.setItem('hideReadArticles', '1');
+            migrateLegacyViewDefaults();
+            expect(saveSetting).toHaveBeenCalledWith('autoMarkRead', 'true');
+            expect(saveSetting).toHaveBeenCalledWith('hideReadArticles', '1');
+            expect(localStorage.getItem('autoMarkRead')).toBeNull();
+            expect(localStorage.getItem('hideReadArticles')).toBeNull();
+        });
+
+        it('does not overwrite existing settings for direct keys', () => {
+            store.autoMarkRead = 'false';
+            localStorage.setItem('autoMarkRead', 'true');
+            migrateLegacyViewDefaults();
+            const calls = saveSetting.mock.calls.filter(c => c[0] === 'autoMarkRead');
+            expect(calls).toHaveLength(0);
+        });
+
+        it('migrates feedreader-view-feed-default key', () => {
+            localStorage.setItem('feedreader-view-feed-default', 'expanded');
+            migrateLegacyViewDefaults();
+            expect(saveSetting).toHaveBeenCalledWith('defaultFeedView', 'expanded');
+            expect(localStorage.getItem('feedreader-view-feed-default')).toBeNull();
+        });
+
+        it('skips migration when both getSetting and localStorage are empty', () => {
+            migrateLegacyViewDefaults();
+            expect(saveSetting).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('initView', () => {
+        it('calls migrateLegacyViewDefaults and applies default view', () => {
+            document.body.innerHTML = `
+                <div class="articles-view" data-view-scope="all">
+                    <div class="view-toggle">
+                        <button data-view="card">Card</button>
+                        <button data-view="list">List</button>
+                    </div>
+                    <div id="articles-list" class="view-card"></div>
+                </div>
+            `;
+            store.defaultView = 'list';
+            initView();
+            const list = document.getElementById('articles-list');
+            expect(list.classList.contains('view-list')).toBe(true);
+            // Should not save when applying default (save: false)
+            expect(saveSetting).not.toHaveBeenCalled();
+        });
+
+        it('applies folder scope view when on folder page', () => {
+            document.body.innerHTML = `
+                <div class="articles-view" data-view-scope="folder">
+                    <div class="view-toggle">
+                        <button data-view="card">Card</button>
+                        <button data-view="magazine">Magazine</button>
+                    </div>
+                    <div id="articles-list" class="view-card"></div>
+                </div>
+            `;
+            store.defaultFolderView = 'magazine';
+            initView();
+            const list = document.getElementById('articles-list');
+            expect(list.classList.contains('view-magazine')).toBe(true);
+        });
     });
 
     describe('initViewListeners', () => {
@@ -207,6 +273,21 @@ describe('views', () => {
             const list = document.getElementById('articles-list');
             // Should remain unchanged
             expect(list.classList.contains('view-card')).toBe(true);
+        });
+
+        it('handles click on child element inside view-toggle button', () => {
+            document.body.innerHTML = `
+                <div class="articles-view" data-view-scope="all">
+                    <div class="view-toggle">
+                        <button data-view="magazine"><span class="icon">M</span></button>
+                    </div>
+                    <div id="articles-list" class="view-card"></div>
+                </div>
+            `;
+            initViewListeners();
+            document.querySelector('.icon').click();
+            const list = document.getElementById('articles-list');
+            expect(list.classList.contains('view-magazine')).toBe(true);
         });
     });
 });
