@@ -5,12 +5,14 @@ import { api } from './api.js';
 import { updateCounts } from './counts.js';
 
 // Detect PWA standalone mode
-export const _isStandalone = (typeof window.matchMedia === 'function' &&
-    window.matchMedia('(display-mode: standalone)').matches) ||
-    window.navigator.standalone === true;
+export function isStandalone() {
+    return (typeof window.matchMedia === 'function' &&
+        window.matchMedia('(display-mode: standalone)').matches) ||
+        window.navigator.standalone === true;
+}
 
 export function initOfflineSupport() {
-    if (!_isStandalone) return;
+    if (!isStandalone()) return;
     if (!('serviceWorker' in navigator)) return;
 
     // Wait for SW to be ready
@@ -60,7 +62,7 @@ export function cacheQueueForOffline(sw) {
 }
 
 export function handleOnlineStateChange() {
-    if (!_isStandalone) return;
+    if (!isStandalone()) return;
 
     const isOffline = !navigator.onLine;
     document.body.classList.toggle('pwa-offline', isOffline);
@@ -179,7 +181,7 @@ export function replayPendingActions(callback) {
 
 // Update queue cache when articles change
 export function updateQueueCacheIfStandalone() {
-    if (!_isStandalone) return;
+    if (!isStandalone()) return;
     if (!('serviceWorker' in navigator)) return;
     navigator.serviceWorker.ready.then((reg) => {
         if (reg.active) cacheQueueForOffline(reg.active);

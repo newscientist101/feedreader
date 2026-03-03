@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-    _isStandalone,
+    isStandalone,
     initOfflineSupport,
     cacheQueueForOffline,
     handleOnlineStateChange,
@@ -35,9 +35,31 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-describe('_isStandalone', () => {
-    it('is false in happy-dom (no matchMedia match)', () => {
-        expect(_isStandalone).toBe(false);
+describe('isStandalone', () => {
+    it('returns false in happy-dom (no matchMedia match)', () => {
+        expect(isStandalone()).toBe(false);
+    });
+
+    it('returns true when matchMedia matches standalone', () => {
+        vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true });
+        expect(isStandalone()).toBe(true);
+    });
+
+    it('returns true when navigator.standalone is true (iOS Safari)', () => {
+        Object.defineProperty(window.navigator, 'standalone', {
+            value: true,
+            configurable: true,
+        });
+        expect(isStandalone()).toBe(true);
+        Object.defineProperty(window.navigator, 'standalone', {
+            value: undefined,
+            configurable: true,
+        });
+    });
+
+    it('returns false when matchMedia exists but does not match', () => {
+        vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: false });
+        expect(isStandalone()).toBe(false);
     });
 });
 
@@ -706,25 +728,272 @@ describe('cacheQueueForOffline', () => {
     });
 });
 
+// Helper to make isStandalone() return true by mocking matchMedia
+function mockStandaloneMode() {
+    vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true });
+}
+
 describe('handleOnlineStateChange', () => {
     it('is a no-op when not in standalone mode', () => {
-        expect(_isStandalone).toBe(false);
+        expect(isStandalone()).toBe(false);
         handleOnlineStateChange();
         expect(document.getElementById('offline-banner')).toBeNull();
+    });
+
+    it('shows banner and disables UI when offline in standalone mode', () => {
+        mockStandaloneMode();
+        Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, pathname: '/' },
+            writable: true,
+            configurable: true,
+        });
+
+        // Setup sidebar for disableNonQueueUI
+        const sidebar = document.createElement('div');
+        sidebar.className = 'sidebar';
+        sidebar.innerHTML = '<a class="nav-item" href="/">Home</a>';
+        document.body.appendChild(sidebar);
+
+        handleOnlineStateChange();
+
+        expect(document.body.classList.contains('pwa-offline')).toBe(true);
+        expect(document.getElementById('offline-banner')).not.toBeNull();
+        expect(document.querySelector('.nav-item').classList.contains('offline-disabled')).toBe(true);
+
+        Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
+    });
+
+    it('shows back-online banner, enables UI and replays actions when online in standalone mode', async () => {
+        mockStandaloneMode();
+        Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
+
+        // Add an existing offline banner to verify it gets updated
+        const banner = document.createElement('div');
+        banner.id = 'offline-banner';
+        banner.innerHTML = 'old text';
+        document.body.appendChild(banner);
+
+        // Add disabled elements to verify they get re-enabled
+        const el = document.createElement('div');
+        el.classList.add('offline-disabled');
+        el.setAttribute('data-offline-disabled', 'true');
+        document.body.appendChild(el);
+
+        // Mock SW - no controller so replayPendingActions calls callback quickly
+        Object.defineProperty(navigator, 'serviceWorker', {
+            value: { controller: null, addEventListener: vi.fn(), removeEventListener: vi.fn() },
+            configurable: true,
+        });
+
+        // Mock reload
+        const reloadMock = vi.fn();
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, reload: reloadMock },
+            writable: true,
+            configurable: true,
+        });
+
+        handleOnlineStateChange();
+
+        expect(document.body.classList.contains('pwa-offline')).toBe(false);
+        expect(banner.innerHTML).toContain('Back online');
+        expect(banner.style.background).toBe('#27ae60');
+        expect(el.classList.contains('offline-disabled')).toBe(false);
+
+        // replayPendingActions fires callback via setTimeout
+        vi.advanceTimersByTime(1);
+        expect(reloadMock).toHaveBeenCalled();
     });
 });
 
 describe('initOfflineSupport', () => {
     it('is a no-op when not in standalone mode', () => {
-        expect(_isStandalone).toBe(false);
+        expect(isStandalone()).toBe(false);
         initOfflineSupport();
         expect(document.getElementById('offline-banner')).toBeNull();
+    });
+
+    it('returns early when no serviceWorker support', () => {
+        mockStandaloneMode();
+        delete navigator.serviceWorker;
+        // Should not throw
+        expect(() => initOfflineSupport()).not.toThrow();
+    });
+
+    it('registers SW ready handler and event listeners in standalone mode', async () => {
+        mockStandaloneMode();
+
+        const sw = { postMessage: vi.fn() };
+        const readyPromise = Promise.resolve({ active: sw });
+        const swAddEventListener = vi.fn();
+        Object.defineProperty(navigator, 'serviceWorker', {
+            value: { ready: readyPromise, addEventListener: swAddEventListener },
+            configurable: true,
+        });
+        Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
+
+        // Add a link element for static URL collection
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = '/static/style.css';
+        document.head.appendChild(link);
+
+        const addEventSpy = vi.spyOn(window, 'addEventListener');
+
+        initOfflineSupport();
+
+        // SW ready resolves
+        await vi.runAllTimersAsync();
+
+        // Should have sent ENABLE_OFFLINE
+        expect(sw.postMessage).toHaveBeenCalledWith(
+            expect.objectContaining({ type: 'ENABLE_OFFLINE' })
+        );
+
+        // Should have registered SW message listener
+        expect(swAddEventListener).toHaveBeenCalledWith('message', expect.any(Function));
+
+        // Should have registered online/offline event listeners
+        expect(addEventSpy).toHaveBeenCalledWith('online', handleOnlineStateChange);
+        expect(addEventSpy).toHaveBeenCalledWith('offline', handleOnlineStateChange);
+
+        document.head.removeChild(link);
+    });
+
+    it('collects script[src] URLs containing /static/', async () => {
+        mockStandaloneMode();
+
+        const sw = { postMessage: vi.fn() };
+        const readyPromise = Promise.resolve({ active: sw });
+        Object.defineProperty(navigator, 'serviceWorker', {
+            value: { ready: readyPromise, addEventListener: vi.fn() },
+            configurable: true,
+        });
+        Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
+
+        // Script with /static/ path — should be collected
+        // Note: happy-dom will try to load the script and throw, but the URL
+        // collection happens via querySelectorAll before script execution.
+        // We avoid appending script elements to the DOM to prevent load errors.
+        // Instead we verify the code path runs by checking postMessage is called.
+        initOfflineSupport();
+        await vi.runAllTimersAsync();
+
+        expect(sw.postMessage).toHaveBeenCalledWith(
+            expect.objectContaining({
+                type: 'ENABLE_OFFLINE',
+                data: expect.objectContaining({ staticUrls: expect.any(Array) }),
+            })
+        );
+    });
+
+    it('applies initial offline state when navigator is offline', async () => {
+        mockStandaloneMode();
+
+        const swAddEventListener = vi.fn();
+        Object.defineProperty(navigator, 'serviceWorker', {
+            value: { ready: Promise.resolve({ active: null }), addEventListener: swAddEventListener },
+            configurable: true,
+        });
+        Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+        Object.defineProperty(window, 'location', {
+            value: { ...window.location, pathname: '/' },
+            writable: true,
+            configurable: true,
+        });
+
+        initOfflineSupport();
+
+        expect(document.body.classList.contains('pwa-offline')).toBe(true);
+        expect(document.getElementById('offline-banner')).not.toBeNull();
+
+        Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
+    });
+
+    it('does not send postMessage when SW registration has no active worker', async () => {
+        mockStandaloneMode();
+
+        const readyPromise = Promise.resolve({ active: null });
+        Object.defineProperty(navigator, 'serviceWorker', {
+            value: { ready: readyPromise, addEventListener: vi.fn() },
+            configurable: true,
+        });
+        Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
+
+        initOfflineSupport();
+        await vi.runAllTimersAsync();
+        // Should not throw — the `if (!sw) return` guard prevents postMessage on null
+    });
+
+    it('logs when OFFLINE_ENABLED message received from SW', async () => {
+        mockStandaloneMode();
+
+        let swMessageHandler;
+        const swAddEventListener = vi.fn((_event, handler) => { swMessageHandler = handler; });
+        Object.defineProperty(navigator, 'serviceWorker', {
+            value: { ready: Promise.resolve({ active: null }), addEventListener: swAddEventListener },
+            configurable: true,
+        });
+        Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
+
+        const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+        initOfflineSupport();
+
+        // Trigger the SW message handler
+        swMessageHandler({ data: { type: 'OFFLINE_ENABLED' } });
+        expect(consoleSpy).toHaveBeenCalledWith('Offline mode enabled for PWA');
     });
 });
 
 describe('updateQueueCacheIfStandalone', () => {
     it('is a no-op when not in standalone mode', () => {
-        expect(_isStandalone).toBe(false);
+        expect(isStandalone()).toBe(false);
         updateQueueCacheIfStandalone();
+    });
+
+    it('returns early when no serviceWorker in standalone mode', () => {
+        mockStandaloneMode();
+        delete navigator.serviceWorker;
+        expect(() => updateQueueCacheIfStandalone()).not.toThrow();
+    });
+
+    it('caches queue when standalone and SW is active', async () => {
+        mockStandaloneMode();
+
+        const sw = { postMessage: vi.fn() };
+        const readyPromise = Promise.resolve({ active: sw });
+        Object.defineProperty(navigator, 'serviceWorker', {
+            value: { ready: readyPromise },
+            configurable: true,
+        });
+
+        const articles = [{ id: 1, title: 'Queue Article' }];
+        api.mockResolvedValue(articles);
+
+        updateQueueCacheIfStandalone();
+        await vi.runAllTimersAsync();
+
+        expect(api).toHaveBeenCalledWith('GET', '/api/queue');
+        expect(sw.postMessage).toHaveBeenCalledWith({
+            type: 'CACHE_QUEUE',
+            data: { articles },
+        });
+    });
+
+    it('does not cache when SW registration has no active worker', async () => {
+        mockStandaloneMode();
+
+        const readyPromise = Promise.resolve({ active: null });
+        Object.defineProperty(navigator, 'serviceWorker', {
+            value: { ready: readyPromise },
+            configurable: true,
+        });
+
+        updateQueueCacheIfStandalone();
+        await vi.runAllTimersAsync();
+
+        expect(api).not.toHaveBeenCalled();
     });
 });

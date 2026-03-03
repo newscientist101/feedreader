@@ -3,7 +3,7 @@ import {
     renderArticleActions, buildArticleCardHtml, updateReadButton,
     showArticlesLoading, updateAllReadMessage, showReadArticles,
     processEmbeds, extractYouTubeId, applyUserPreferences,
-    getIncludeReadUrl, setShowingHiddenArticles,
+    getIncludeReadUrl, setShowingHiddenArticles, getShowingHiddenArticles,
     initArticleListListeners, showHiddenArticles, renderArticles,
     _resetArticlesState,
 } from './articles.js';
@@ -18,6 +18,13 @@ vi.mock('./pagination.js', () => ({
     updateEndOfArticlesIndicator: vi.fn(),
     setPaginationState: vi.fn(),
 }));
+
+vi.mock('./toast.js', () => ({
+    showToast: vi.fn(),
+}));
+
+import { showToast } from './toast.js';
+import { setPaginationState, updateEndOfArticlesIndicator } from './pagination.js';
 
 class MockIntersectionObserver {
     constructor(callback) {
@@ -69,6 +76,17 @@ describe('renderArticleActions', () => {
         const html = renderArticleActions({ id: 1, is_read: false, is_starred: true });
         expect(html).toContain('starred');
     });
+
+    it('shows queued state when is_queued is true', () => {
+        const html = renderArticleActions({ id: 1, is_read: false, is_starred: false, is_queued: true });
+        expect(html).toContain('queued');
+        expect(html).toContain('Remove from queue');
+    });
+
+    it('shows add-to-queue state when is_queued is false', () => {
+        const html = renderArticleActions({ id: 1, is_read: false, is_starred: false, is_queued: false });
+        expect(html).toContain('Add to queue');
+    });
 });
 
 describe('updateReadButton', () => {
@@ -98,7 +116,20 @@ describe('updateReadButton', () => {
 describe('showArticlesLoading', () => {
     it('sets loading HTML in articles list', () => {
         showArticlesLoading();
-        expect(document.getElementById('articles-list').innerHTML).toContain('Loading articles');
+        const list = document.getElementById('articles-list');
+        expect(list.innerHTML).toContain('Loading articles');
+        expect(list.getAttribute('aria-busy')).toBe('true');
+    });
+
+    it('resets showingHiddenArticles flag', () => {
+        setShowingHiddenArticles(true);
+        showArticlesLoading();
+        expect(getShowingHiddenArticles()).toBe(false);
+    });
+
+    it('does nothing when articles-list is absent', () => {
+        document.body.innerHTML = '';
+        expect(() => showArticlesLoading()).not.toThrow();
     });
 });
 
@@ -122,6 +153,58 @@ describe('updateAllReadMessage', () => {
         window.__settings = { hideReadArticles: 'hide' };
         const list = document.getElementById('articles-list');
         list.innerHTML = '<div class="article-card"></div>';
+        updateAllReadMessage();
+        expect(document.getElementById('all-read-message')).toBeNull();
+    });
+
+    it('returns early when articles-list is absent', () => {
+        document.body.innerHTML = '';
+        expect(() => updateAllReadMessage()).not.toThrow();
+        expect(document.getElementById('all-read-message')).toBeNull();
+    });
+
+    it('removes existing message before re-evaluating', () => {
+        window.__settings = { hideReadArticles: 'hide' };
+        const list = document.getElementById('articles-list');
+        list.innerHTML = '<div class="article-card" style="display: none"></div>';
+        updateAllReadMessage();
+        expect(document.getElementById('all-read-message')).not.toBeNull();
+        // Call again — should remove old and add new, not duplicate
+        updateAllReadMessage();
+        expect(document.querySelectorAll('#all-read-message').length).toBe(1);
+    });
+
+    it('does not show message when showingHiddenArticles is true', () => {
+        window.__settings = { hideReadArticles: 'hide' };
+        setShowingHiddenArticles(true);
+        const list = document.getElementById('articles-list');
+        list.innerHTML = '<div class="article-card" style="display: none"></div>';
+        updateAllReadMessage();
+        expect(document.getElementById('all-read-message')).toBeNull();
+    });
+
+    it('shows singular article count', () => {
+        window.__settings = { hideReadArticles: 'hide' };
+        const list = document.getElementById('articles-list');
+        list.innerHTML = '<div class="article-card" style="display: none"></div>';
+        updateAllReadMessage();
+        const msg = document.getElementById('all-read-message');
+        expect(msg.textContent).toContain('1 article');
+        expect(msg.textContent).not.toContain('1 articles');
+    });
+
+    it('shows plural article count for multiple articles', () => {
+        window.__settings = { hideReadArticles: 'hide' };
+        const list = document.getElementById('articles-list');
+        list.innerHTML = '<div class="article-card" style="display: none"></div>' +
+            '<div class="article-card" style="display: none"></div>';
+        updateAllReadMessage();
+        const msg = document.getElementById('all-read-message');
+        expect(msg.textContent).toContain('2 articles');
+    });
+
+    it('does not show message when no articles exist', () => {
+        window.__settings = { hideReadArticles: 'hide' };
         updateAllReadMessage();
         expect(document.getElementById('all-read-message')).toBeNull();
     });
@@ -196,6 +279,114 @@ describe('buildArticleCardHtml', () => {
         // URL ampersand should be escaped in attribute
         expect(html).toContain('https://example.com/a?b=1&amp;c=2');
     });
+
+    it('renders mark-read-silent link when article has no url', () => {
+        const html = buildArticleCardHtml({
+            id: 42, title: 'No URL', feed_id: 1, is_read: false, is_starred: false,
+            published_at: '2025-01-01T00:00:00Z',
+        });
+        expect(html).toContain('href="/article/42"');
+        expect(html).toContain('data-action="mark-read-silent"');
+        expect(html).not.toContain('target="_blank"');
+    });
+
+    it('renders external link when article has url', () => {
+        const html = buildArticleCardHtml({
+            id: 42, title: 'Has URL', feed_id: 1, is_read: false, is_starred: false,
+            url: 'https://example.com/article',
+            published_at: '2025-01-01T00:00:00Z',
+        });
+        expect(html).toContain('target="_blank"');
+        expect(html).toContain('data-action="open-external"');
+    });
+
+    it('renders author when present', () => {
+        const html = buildArticleCardHtml({
+            id: 1, title: 'T', feed_id: 1, is_read: false, is_starred: false,
+            author: 'John Doe',
+            published_at: '2025-01-01T00:00:00Z',
+        });
+        expect(html).toContain('article-author');
+        expect(html).toContain('John Doe');
+    });
+
+    it('omits author when not present', () => {
+        const html = buildArticleCardHtml({
+            id: 1, title: 'T', feed_id: 1, is_read: false, is_starred: false,
+            author: '',
+            published_at: '2025-01-01T00:00:00Z',
+        });
+        expect(html).not.toContain('article-author');
+    });
+
+    it('shows summary as preview when summary exists', () => {
+        const html = buildArticleCardHtml({
+            id: 1, title: 'T', feed_id: 1, is_read: false, is_starred: false,
+            summary: 'This is the summary text',
+            published_at: '2025-01-01T00:00:00Z',
+        });
+        expect(html).toContain('article-summary');
+        expect(html).toContain('This is the summary text');
+    });
+
+    it('falls back to content for preview when no summary', () => {
+        const html = buildArticleCardHtml({
+            id: 1, title: 'T', feed_id: 1, is_read: false, is_starred: false,
+            summary: '',
+            content: 'This is the content text',
+            published_at: '2025-01-01T00:00:00Z',
+        });
+        expect(html).toContain('article-summary');
+        expect(html).toContain('This is the content text');
+    });
+
+    it('renders expanded content preview from content', () => {
+        const html = buildArticleCardHtml({
+            id: 1, title: 'T', feed_id: 1, is_read: false, is_starred: false,
+            summary: 'Summary',
+            content: 'Content preview',
+            published_at: '2025-01-01T00:00:00Z',
+        });
+        expect(html).toContain('article-content-preview expanded-only');
+        expect(html).toContain('Content preview');
+    });
+
+    it('falls back to summary for expanded preview when no content', () => {
+        const html = buildArticleCardHtml({
+            id: 1, title: 'T', feed_id: 1, is_read: false, is_starred: false,
+            summary: 'Summary for expanded',
+            content: '',
+            published_at: '2025-01-01T00:00:00Z',
+        });
+        expect(html).toContain('article-content-preview expanded-only');
+        expect(html).toContain('Summary for expanded');
+    });
+
+    it('omits preview sections when neither summary nor content exist', () => {
+        const html = buildArticleCardHtml({
+            id: 1, title: 'T', feed_id: 1, is_read: false, is_starred: false,
+            published_at: '2025-01-01T00:00:00Z',
+        });
+        expect(html).not.toContain('article-summary');
+        expect(html).not.toContain('article-content-preview');
+    });
+
+    it('shows placeholder image when no image_url', () => {
+        const html = buildArticleCardHtml({
+            id: 1, title: 'T', feed_id: 1, is_read: false, is_starred: false,
+            published_at: '2025-01-01T00:00:00Z',
+        });
+        expect(html).toContain('article-image-placeholder');
+        expect(html).not.toContain('has-image');
+    });
+
+    it('uses fetched_at for sort-time when published_at is missing', () => {
+        const html = buildArticleCardHtml({
+            id: 1, title: 'T', feed_id: 1, is_read: false, is_starred: false,
+            fetched_at: '2025-06-15T12:00:00Z',
+        });
+        expect(html).toContain('data-sort-time="2025-06-15T12:00:00Z"');
+    });
 });
 
 describe('extractYouTubeId', () => {
@@ -222,6 +413,14 @@ describe('extractYouTubeId', () => {
     it('returns null for null/undefined', () => {
         expect(extractYouTubeId(null)).toBeNull();
         expect(extractYouTubeId(undefined)).toBeNull();
+    });
+
+    it('returns null for empty string', () => {
+        expect(extractYouTubeId('')).toBeNull();
+    });
+
+    it('extracts ID from URL with extra query parameters', () => {
+        expect(extractYouTubeId('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=120')).toBe('dQw4w9WgXcQ');
     });
 });
 
@@ -271,6 +470,55 @@ describe('processEmbeds', () => {
         expect(capturedScript.src).toContain('platform.twitter.com/widgets.js');
         document.body.appendChild.mockRestore();
     });
+
+    it('does not replace video element without valid YouTube ID', () => {
+        const container = document.createElement('div');
+        container.innerHTML = '<video data-embed-type="video" data-src="https://example.com/video.mp4"></video>';
+        processEmbeds(container);
+        expect(container.querySelector('video')).not.toBeNull();
+        expect(container.querySelector('iframe')).toBeNull();
+    });
+
+    it('leaves tweet element unchanged when no blockquote child', () => {
+        const container = document.createElement('div');
+        container.innerHTML = '<div data-embed-type="tweet"><p>Not a blockquote</p></div>';
+
+        // Intercept script load
+        const origAppendChild = document.body.appendChild.bind(document.body);
+        vi.spyOn(document.body, 'appendChild').mockImplementation((node) => {
+            if (node.tagName === 'SCRIPT') return node;
+            return origAppendChild(node);
+        });
+
+        processEmbeds(container);
+        expect(container.querySelector('[data-embed-type="tweet"]')).not.toBeNull();
+        document.body.appendChild.mockRestore();
+    });
+
+    it('does not double-wrap iframe already in embed-video', () => {
+        const container = document.createElement('div');
+        container.innerHTML = '<div class="embed-video"><iframe src="https://youtube.com/embed/abc"></iframe></div>';
+        processEmbeds(container);
+        // Should still be exactly one .embed-video wrapper
+        expect(container.querySelectorAll('.embed-video').length).toBe(1);
+    });
+
+    it('calls twttr.widgets.load when Twitter script already exists', () => {
+        // Add a fake twitter script element
+        const script = document.createElement('script');
+        script.src = 'https://platform.twitter.com/widgets.js';
+        document.body.appendChild(script);
+
+        const loadFn = vi.fn();
+        window.twttr = { widgets: { load: loadFn } };
+
+        const container = document.createElement('div');
+        container.innerHTML = '<div data-embed-type="tweet"><blockquote class="twitter-tweet"></blockquote></div>';
+        processEmbeds(container);
+
+        expect(loadFn).toHaveBeenCalledWith(container);
+        delete window.twttr;
+    });
 });
 
 describe('applyUserPreferences', () => {
@@ -281,6 +529,16 @@ describe('applyUserPreferences', () => {
         applyUserPreferences();
         // Read article should be hidden
         expect(document.querySelector('.article-card').style.display).toBe('none');
+    });
+
+    it('skips hiding read articles when showingHiddenArticles is true', () => {
+        window.__settings = { hideReadArticles: 'hide' };
+        setShowingHiddenArticles(true);
+        const list = document.getElementById('articles-list');
+        list.innerHTML = '<div class="article-card read"></div>';
+        applyUserPreferences();
+        // Read article should NOT be hidden
+        expect(document.querySelector('.article-card').style.display).not.toBe('none');
     });
 });
 
@@ -369,6 +627,63 @@ describe('renderArticles', () => {
         expect(document.querySelector('#articles-list .empty-state')).not.toBeNull();
         expect(console.debug).not.toHaveBeenCalled();
     });
+
+    it('sets aria-busy to false after rendering articles', async () => {
+        await renderArticles([{ id: 1, title: 'T', is_read: 0, is_starred: 0 }]);
+        expect(document.getElementById('articles-list').getAttribute('aria-busy')).toBe('false');
+    });
+
+    it('sets aria-busy to false after rendering empty list', async () => {
+        await renderArticles([]);
+        expect(document.getElementById('articles-list').getAttribute('aria-busy')).toBe('false');
+    });
+
+    it('sets pagination done when articles < PAGE_SIZE', async () => {
+        const articles = Array.from({ length: 10 }, (_, i) => ({
+            id: i + 1, title: `Art ${i}`, is_read: 0, is_starred: 0,
+        }));
+        await renderArticles(articles);
+        // setPaginationState should be called with done: true (less than 50)
+        expect(setPaginationState).toHaveBeenCalledWith(expect.objectContaining({ done: true }));
+    });
+
+    it('does not set pagination done for articles at PAGE_SIZE boundary', async () => {
+        const articles = Array.from({ length: 50 }, (_, i) => ({
+            id: i + 1, title: `Art ${i}`, is_read: 0, is_starred: 0,
+        }));
+        setPaginationState.mockClear();
+        await renderArticles(articles);
+        // The first call resets pagination state (cursorTime, cursorId, done: false, loading: false)
+        // With exactly 50 articles, the `if (articles.length < PAGE_SIZE)` branch
+        // should NOT execute, so the only `done` value set should be false (from reset)
+        const calls = setPaginationState.mock.calls;
+        // First call is the full reset with done: false
+        expect(calls[0][0]).toEqual({ cursorTime: null, cursorId: null, done: false, loading: false });
+        // No subsequent call should set done: true as a standalone call
+        // (the standalone {done: true} only fires for articles.length < PAGE_SIZE)
+        const standalonedoneCalls = calls.slice(1).filter(
+            call => Object.keys(call[0]).length === 1 && call[0].done === true
+        );
+        expect(standalonedoneCalls.length).toBe(0);
+    });
+
+    it('shows "Show hidden articles" button only when not showing hidden', async () => {
+        setShowingHiddenArticles(false);
+        await renderArticles([]);
+        expect(document.querySelector('[data-action="show-hidden-articles"]')).not.toBeNull();
+    });
+
+    it('hides "Show hidden articles" button when showing hidden', async () => {
+        setShowingHiddenArticles(true);
+        await renderArticles([]);
+        expect(document.querySelector('[data-action="show-hidden-articles"]')).toBeNull();
+    });
+
+    it('returns early when articles-list is absent', async () => {
+        document.body.innerHTML = '';
+        await renderArticles([{ id: 1, title: 'T', is_read: 0, is_starred: 0 }]);
+        // Should not throw
+    });
 });
 
 describe('showHiddenArticles', () => {
@@ -401,6 +716,35 @@ describe('showHiddenArticles', () => {
         expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] disabled by setting');
 
         delete window.scrollTo;
+    });
+
+    it('returns early when getIncludeReadUrl returns null', async () => {
+        Object.defineProperty(window, 'location', {
+            value: { pathname: '/settings' },
+            writable: true,
+            configurable: true,
+        });
+
+        window.fetch = vi.fn();
+        await showHiddenArticles();
+
+        expect(window.fetch).not.toHaveBeenCalled();
+        expect(getShowingHiddenArticles()).toBe(true);
+    });
+
+    it('shows toast on fetch error', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        Object.defineProperty(window, 'location', {
+            value: { pathname: '/' },
+            writable: true,
+            configurable: true,
+        });
+
+        window.fetch = vi.fn().mockRejectedValue(new Error('network error'));
+        await showHiddenArticles();
+
+        expect(console.error).toHaveBeenCalled();
+        expect(showToast).toHaveBeenCalledWith('Failed to load hidden articles');
     });
 });
 
