@@ -2,9 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { initQueuePage, queueNext } from './queue.js';
 
 // Mock the api and offline modules
-vi.mock('./api.js', () => ({
-    api: vi.fn(),
-}));
+vi.mock('./api.js');
 
 vi.mock('./offline.js', () => ({
     updateQueueCacheIfStandalone: vi.fn(),

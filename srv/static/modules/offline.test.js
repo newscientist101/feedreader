@@ -12,13 +12,9 @@ import {
 } from './offline.js';
 
 // Mock the api and counts modules
-vi.mock('./api.js', () => ({
-    api: vi.fn(),
-}));
+vi.mock('./api.js');
 
-vi.mock('./counts.js', () => ({
-    updateCounts: vi.fn(),
-}));
+vi.mock('./counts.js');
 
 import { api } from './api.js';
 import { updateCounts } from './counts.js';

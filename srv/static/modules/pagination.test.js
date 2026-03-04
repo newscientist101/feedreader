@@ -9,9 +9,7 @@ import { _resetArticleActionsState, setQueuedArticleIds, setQueuedIdsReady } fro
 import { setShowingHiddenArticles } from './articles.js';
 import { showToast } from './toast.js';
 
-vi.mock('./toast.js', () => ({
-    showToast: vi.fn(),
-}));
+vi.mock('./toast.js');
 
 beforeEach(() => {
     vi.useFakeTimers();

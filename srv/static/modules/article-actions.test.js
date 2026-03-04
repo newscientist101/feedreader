@@ -18,16 +18,10 @@ import {
 } from './icons.js';
 
 // Mock pagination (articles.js directly imports from pagination.js)
-vi.mock('./pagination.js', () => ({
-    updatePaginationCursor: vi.fn(),
-    updateEndOfArticlesIndicator: vi.fn(),
-    setPaginationState: vi.fn(),
-}));
+vi.mock('./pagination.js');
 
 // Mock counts and offline modules (now directly imported by article-actions)
-vi.mock('./counts.js', () => ({
-    updateCounts: vi.fn(),
-}));
+vi.mock('./counts.js');
 
 vi.mock('./offline.js', () => ({
     updateQueueCacheIfStandalone: vi.fn(),
@@ -37,9 +31,7 @@ vi.mock('./read-button.js', () => ({
     updateReadButton: vi.fn(),
 }));
 
-vi.mock('./toast.js', () => ({
-    showToast: vi.fn(),
-}));
+vi.mock('./toast.js');
 
 // Minimal IntersectionObserver mock
 class MockIntersectionObserver {

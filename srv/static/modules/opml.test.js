@@ -2,9 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { exportOPML, importOPML, initOpmlListeners } from './opml.js';
 import { showToast } from './toast.js';
 
-vi.mock('./toast.js', () => ({
-    showToast: vi.fn(),
-}));
+vi.mock('./toast.js');
 
 beforeEach(() => {
     document.body.innerHTML = '';

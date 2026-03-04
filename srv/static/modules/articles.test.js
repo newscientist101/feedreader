@@ -13,15 +13,9 @@ import {
 } from './article-actions.js';
 
 // Mock pagination module (now directly imported by articles via circular import)
-vi.mock('./pagination.js', () => ({
-    updatePaginationCursor: vi.fn(),
-    updateEndOfArticlesIndicator: vi.fn(),
-    setPaginationState: vi.fn(),
-}));
+vi.mock('./pagination.js');
 
-vi.mock('./toast.js', () => ({
-    showToast: vi.fn(),
-}));
+vi.mock('./toast.js');
 
 import { showToast } from './toast.js';
 import { setPaginationState, updateEndOfArticlesIndicator } from './pagination.js';

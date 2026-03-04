@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { getSetting, saveSetting, applyHideReadArticles, applyHideEmptyFeeds } from './settings.js';
 
-vi.mock('./toast.js', () => ({
-    showToast: vi.fn(),
-}));
+vi.mock('./toast.js');
 
 import { showToast } from './toast.js';
 

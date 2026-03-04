@@ -7,15 +7,10 @@ vi.mock('./articles.js', () => ({
 }));
 
 // Mock feed-errors module (directly imported by counts)
-vi.mock('./feed-errors.js', () => ({
-    showFeedErrorBanner: vi.fn(),
-    removeFeedErrorBanner: vi.fn(),
-}));
+vi.mock('./feed-errors.js');
 
 // Mock toast module (directly imported by counts)
-vi.mock('./toast.js', () => ({
-    showToast: vi.fn(),
-}));
+vi.mock('./toast.js');
 
 import { applyUserPreferences } from './articles.js';
 import { showFeedErrorBanner, removeFeedErrorBanner } from './feed-errors.js';

@@ -8,9 +8,7 @@ vi.mock('./articles.js', () => ({
     setShowingHiddenArticles: vi.fn(),
 }));
 
-vi.mock('./toast.js', () => ({
-    showToast: vi.fn(),
-}));
+vi.mock('./toast.js');
 
 import { renderArticles, applyUserPreferences, setShowingHiddenArticles } from './articles.js';
 import { showToast } from './toast.js';

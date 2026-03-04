@@ -5,8 +5,8 @@ import {
     initDragPrevention,
 } from './drag-drop.js';
 
-vi.mock('./api.js', () => ({ api: vi.fn() }));
-vi.mock('./toast.js', () => ({ showToast: vi.fn() }));
+vi.mock('./api.js');
+vi.mock('./toast.js');
 
 import { api } from './api.js';
 import { showToast } from './toast.js';

@@ -18,14 +18,9 @@ vi.mock('./views.js', () => ({
     applyDefaultViewForScope: vi.fn(),
 }));
 
-vi.mock('./feed-errors.js', () => ({
-    removeFeedErrorBanner: vi.fn(),
-    showFeedErrorBanner: vi.fn(),
-}));
+vi.mock('./feed-errors.js');
 
-vi.mock('./counts.js', () => ({
-    updateCounts: vi.fn(),
-}));
+vi.mock('./counts.js');
 
 describe('spa-nav', () => {
     beforeEach(() => {

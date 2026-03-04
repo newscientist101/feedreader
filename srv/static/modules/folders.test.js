@@ -7,14 +7,9 @@ import {
 import { showToast } from './toast.js';
 import { openModal, closeModal } from './modal.js';
 
-vi.mock('./toast.js', () => ({
-    showToast: vi.fn(),
-}));
+vi.mock('./toast.js');
 
-vi.mock('./modal.js', () => ({
-    openModal: vi.fn(),
-    closeModal: vi.fn(),
-}));
+vi.mock('./modal.js');
 
 beforeEach(() => {
     document.body.innerHTML = '';

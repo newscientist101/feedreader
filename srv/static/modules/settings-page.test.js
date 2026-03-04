@@ -6,33 +6,29 @@ import {
     initSettingsPageListeners,
 } from './settings-page.js';
 
-// Mock the settings module
-vi.mock('./settings.js', () => {
-    const store = {};
+// Use the real getSetting (reads from window.__settings), mock side-effecting functions
+vi.mock('./settings.js', async (importOriginal) => {
+    const real = await importOriginal();
     return {
-        getSetting: vi.fn((key) => store[key]),
-        saveSetting: vi.fn((key, val) => { store[key] = val; }),
+        getSetting: real.getSetting,
+        saveSetting: vi.fn(),
         applyHideReadArticles: vi.fn(),
         applyHideEmptyFeeds: vi.fn(),
-        _store: store,
     };
 });
 
 // Mock the api module
-vi.mock('./api.js', () => ({
-    api: vi.fn(),
-}));
+vi.mock('./api.js');
 
-vi.mock('./toast.js', () => ({
-    showToast: vi.fn(),
-}));
+vi.mock('./toast.js');
 
-import { getSetting, saveSetting, applyHideReadArticles, applyHideEmptyFeeds } from './settings.js';
+import { saveSetting, applyHideReadArticles, applyHideEmptyFeeds } from './settings.js';
 import { api } from './api.js';
 import { showToast } from './toast.js';
 
 beforeEach(() => {
     document.body.innerHTML = '';
+    window.__settings = {};
     vi.restoreAllMocks();
     vi.clearAllMocks();
 });
@@ -60,10 +56,7 @@ describe('initSettingsPage', () => {
             <input type="radio" name="feed-view" value="card">
             <input type="radio" name="feed-view" value="list">
         `;
-        getSetting.mockImplementation((key) => {
-            if (key === 'autoMarkRead') return 'true';
-            return undefined;
-        });
+        window.__settings = { autoMarkRead: 'true' };
 
         initSettingsPage();
 
@@ -79,10 +72,7 @@ describe('initSettingsPage', () => {
             <input type="radio" name="folder-view" value="card">
             <input type="radio" name="feed-view" value="card">
         `;
-        getSetting.mockImplementation((key) => {
-            if (key === 'hideReadArticles') return 'hide';
-            return undefined;
-        });
+        window.__settings = { hideReadArticles: 'hide' };
 
         initSettingsPage();
 
@@ -100,11 +90,7 @@ describe('initSettingsPage', () => {
             <input type="radio" name="feed-view" value="card">
             <input type="radio" name="feed-view" value="list">
         `;
-        getSetting.mockImplementation((key) => {
-            if (key === 'defaultFolderView') return 'list';
-            if (key === 'defaultFeedView') return 'list';
-            return undefined;
-        });
+        window.__settings = { defaultFolderView: 'list', defaultFeedView: 'list' };
 
         initSettingsPage();
 
@@ -124,12 +110,11 @@ describe('initSettingsPage', () => {
             <input type="radio" name="feed-view" value="card">
             <input type="radio" name="feed-view" value="list">
         `;
-        // All settings return undefined — defaults should be applied
-        getSetting.mockReturnValue(undefined);
+        // window.__settings is empty — all settings return '' (default)
 
         initSettingsPage();
 
-        // autoMarkRead undefined !== 'true', so unchecked
+        // autoMarkRead is '' (not set) !== 'true', so unchecked
         expect(document.getElementById('auto-mark-read').checked).toBe(false);
         // hideReadArticles defaults to 'show'
         expect(document.querySelector('input[name="hide-read"][value="show"]').checked).toBe(true);
@@ -150,10 +135,7 @@ describe('initSettingsPage', () => {
             <input type="radio" name="folder-view" value="card">
             <input type="radio" name="feed-view" value="card">
         `;
-        getSetting.mockImplementation((key) => {
-            if (key === 'hideEmptyFeeds') return 'hide';
-            return undefined;
-        });
+        window.__settings = { hideEmptyFeeds: 'hide' };
 
         initSettingsPage();
 
@@ -169,11 +151,8 @@ describe('initSettingsPage', () => {
             <input type="radio" name="folder-view" value="card">
             <input type="radio" name="feed-view" value="card">
         `;
-        // Return a value that has no matching radio
-        getSetting.mockImplementation((key) => {
-            if (key === 'hideReadArticles') return 'nonexistent';
-            return undefined;
-        });
+        // Set a value that has no matching radio
+        window.__settings = { hideReadArticles: 'nonexistent' };
 
         // Should not throw when querySelector returns null
         expect(() => initSettingsPage()).not.toThrow();
@@ -188,7 +167,6 @@ describe('initSettingsPage', () => {
             <input type="radio" name="feed-view" value="card">
             <div id="newsletter-container"></div>
         `;
-        getSetting.mockReturnValue(undefined);
         api.mockResolvedValue({});
 
         initSettingsPage();

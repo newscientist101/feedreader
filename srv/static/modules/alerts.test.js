@@ -7,9 +7,9 @@ import {
     dismissArticleAlertDetail, undismissArticleAlertDetail, toggleDismissState,
 } from './alerts.js';
 
-vi.mock('./api.js', () => ({ api: vi.fn() }));
-vi.mock('./toast.js', () => ({ showToast: vi.fn() }));
-vi.mock('./modal.js', () => ({ openModal: vi.fn(), closeModal: vi.fn() }));
+vi.mock('./api.js');
+vi.mock('./toast.js');
+vi.mock('./modal.js');
 
 import { api } from './api.js';
 import { showToast } from './toast.js';

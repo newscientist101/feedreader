@@ -12,25 +12,16 @@ import { showToast } from './toast.js';
 import { applyDefaultViewForScope } from './views.js';
 import { showFeedErrorBanner, removeFeedErrorBanner } from './feed-errors.js';
 
-vi.mock('./toast.js', () => ({
-    showToast: vi.fn(),
-}));
+vi.mock('./toast.js');
 
 // Mock pagination (articles.js directly imports from pagination.js)
-vi.mock('./pagination.js', () => ({
-    updatePaginationCursor: vi.fn(),
-    updateEndOfArticlesIndicator: vi.fn(),
-    setPaginationState: vi.fn(),
-}));
+vi.mock('./pagination.js');
 
 vi.mock('./views.js', () => ({
     applyDefaultViewForScope: vi.fn(),
 }));
 
-vi.mock('./feed-errors.js', () => ({
-    showFeedErrorBanner: vi.fn(),
-    removeFeedErrorBanner: vi.fn(),
-}));
+vi.mock('./feed-errors.js');
 
 beforeEach(() => {
     document.body.innerHTML = '';
