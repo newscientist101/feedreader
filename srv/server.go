@@ -354,23 +354,18 @@ func (s *Server) templateFuncMap() template.FuncMap {
 // initTemplates pre-parses all page templates with base.html.
 // Call after StaticHashes is set.
 func (s *Server) initTemplates() error {
-	pages := []string{
-		"index.html",
-		"article.html",
-		"feeds.html",
-		"scrapers.html",
-		"settings.html",
-		"queue.html",
-		"history.html",
-		"category_settings.html",
-		"alerts.html",
-		"alert_detail.html",
-	}
 	funcMap := s.templateFuncMap()
 	basePath := filepath.Join(s.TemplatesDir, "base.html")
-	s.templateCache = make(map[string]*template.Template, len(pages))
-	for _, name := range pages {
-		path := filepath.Join(s.TemplatesDir, name)
+	files, err := filepath.Glob(filepath.Join(s.TemplatesDir, "*.html"))
+	if err != nil {
+		return fmt.Errorf("glob templates: %w", err)
+	}
+	s.templateCache = make(map[string]*template.Template, len(files))
+	for _, path := range files {
+		name := filepath.Base(path)
+		if name == "base.html" {
+			continue
+		}
 		tmpl, err := template.New("base.html").Funcs(funcMap).ParseFiles(basePath, path)
 		if err != nil {
 			return fmt.Errorf("parse template %q: %w", name, err)
