@@ -6,10 +6,11 @@ import {
     _resetPaginationState,
 } from './pagination.js';
 import { _resetArticleActionsState, setQueuedArticleIds, setQueuedIdsReady } from './article-actions.js';
-import { setShowingHiddenArticles } from './articles.js';
+import { getShowingHiddenArticles, buildArticleCardHtml } from './articles.js';
 import { showToast } from './toast.js';
 
 vi.mock('./toast.js');
+vi.mock('./articles.js');
 
 beforeEach(() => {
     vi.useFakeTimers();
@@ -17,7 +18,10 @@ beforeEach(() => {
     _resetArticleActionsState();
     setQueuedArticleIds(new Set());
     setQueuedIdsReady(Promise.resolve());
-    setShowingHiddenArticles(false);
+    getShowingHiddenArticles.mockReturnValue(false);
+    buildArticleCardHtml.mockImplementation(
+        (a) => `<div class="article-card" data-id="${a.id}" data-sort-time="${a.published_at || a.fetched_at || ''}"><div class="article-content-preview"></div></div>`,
+    );
     window.__settings = {};
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
         ok: true,
@@ -267,15 +271,23 @@ describe('loadMoreArticles', () => {
             cursorId: '999',
         });
         setQueuedIdsReady(Promise.resolve());
+        // Prevent checkScrollForMore in finally block from cascading
+        Object.defineProperty(document.body, 'offsetHeight', { value: 100000, configurable: true });
 
         const articles = Array.from({ length: PAGE_SIZE }, (_, i) => ({
             id: i + 1,
             title: `Article ${i}`,
             is_read: 0,
             is_starred: 0,
-            published_at: new Date().toISOString(),
-            content: '<p>content</p>',
+            published_at: '2025-01-01T00:00:00Z',
+            content: '',
         }));
+
+        // Use minimal HTML to avoid heavy DOM rendering — test only checks
+        // done state and card count, not rendering fidelity.
+        buildArticleCardHtml.mockImplementation(
+            (a) => `<div class="article-card" data-id="${a.id}"></div>`,
+        );
 
         vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ({
             ok: true,
@@ -299,7 +311,7 @@ describe('loadMoreArticles', () => {
             cursorTime: '2025-01-01T00:00:00Z',
             cursorId: '999',
         });
-        setShowingHiddenArticles(true);
+        getShowingHiddenArticles.mockReturnValue(true);
 
         vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ({
             ok: true,
@@ -457,7 +469,6 @@ describe('checkScrollForMore', () => {
     });
 
     it('calls loadMoreArticles when near the bottom of the page', async () => {
-        vi.useRealTimers();  // loadMoreArticles uses await, real timers work better
         Object.defineProperty(window, 'location', {
             value: { pathname: '/feed/8' }, writable: true, configurable: true,
         });
@@ -482,8 +493,8 @@ describe('checkScrollForMore', () => {
         }));
 
         checkScrollForMore();
-        // loadMoreArticles is async — give it time to resolve
-        await new Promise(r => setTimeout(r, 50));
+        // loadMoreArticles is async — flush microtasks via fake timers
+        await vi.advanceTimersByTimeAsync(0);
 
         expect(globalThis.fetch).toHaveBeenCalled();
     });

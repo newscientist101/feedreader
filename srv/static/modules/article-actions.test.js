@@ -16,34 +16,13 @@ import { showToast } from './toast.js';
 import {
     SVG_STAR_FILLED, SVG_STAR_EMPTY, SVG_QUEUE_ADD, SVG_QUEUE_REMOVE
 } from './icons.js';
+import { MockIntersectionObserver } from './test-helpers.js';
 
-// Mock pagination (articles.js directly imports from pagination.js)
 vi.mock('./pagination.js');
-
-// Mock counts and offline modules (now directly imported by article-actions)
 vi.mock('./counts.js');
-
-vi.mock('./offline.js', () => ({
-    updateQueueCacheIfStandalone: vi.fn(),
-}));
-
-vi.mock('./read-button.js', () => ({
-    updateReadButton: vi.fn(),
-}));
-
+vi.mock('./offline.js');
+vi.mock('./read-button.js');
 vi.mock('./toast.js');
-
-// Minimal IntersectionObserver mock
-class MockIntersectionObserver {
-    constructor(callback) {
-        this._callback = callback;
-        this._entries = [];
-    }
-    observe(el) { this._entries.push(el); }
-    unobserve() {}
-    disconnect() { this._entries = []; }
-    _fire(entries) { this._callback(entries, this); }
-}
 
 beforeEach(() => {
     vi.useFakeTimers();

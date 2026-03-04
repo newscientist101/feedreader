@@ -4,9 +4,7 @@ import { initQueuePage, queueNext } from './queue.js';
 // Mock the api and offline modules
 vi.mock('./api.js');
 
-vi.mock('./offline.js', () => ({
-    updateQueueCacheIfStandalone: vi.fn(),
-}));
+vi.mock('./offline.js');
 
 import { api } from './api.js';
 import { updateQueueCacheIfStandalone } from './offline.js';

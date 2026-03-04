@@ -1,12 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { initSearch, _resetSearchState } from './search.js';
 
-// Mock articles.js
-vi.mock('./articles.js', () => ({
-    renderArticles: vi.fn(),
-    applyUserPreferences: vi.fn(),
-    setShowingHiddenArticles: vi.fn(),
-}));
+vi.mock('./articles.js');
 
 vi.mock('./toast.js');
 

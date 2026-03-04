@@ -1,0 +1,10 @@
+import { vi } from 'vitest';
+export const isStandalone = vi.fn(() => false);
+export const initOfflineSupport = vi.fn();
+export const cacheQueueForOffline = vi.fn();
+export const handleOnlineStateChange = vi.fn();
+export const showOfflineBanner = vi.fn();
+export const disableNonQueueUI = vi.fn();
+export const enableAllUI = vi.fn();
+export const replayPendingActions = vi.fn();
+export const updateQueueCacheIfStandalone = vi.fn();

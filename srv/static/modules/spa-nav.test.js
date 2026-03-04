@@ -1,31 +1,21 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { initSpaNav } from './spa-nav.js';
 
-vi.mock('./api.js', () => ({
-    api: vi.fn(() => Promise.resolve({ articles: [] })),
-}));
-
-vi.mock('./articles.js', () => ({
-    showArticlesLoading: vi.fn(),
-    renderArticles: vi.fn(),
-}));
-
-vi.mock('./sidebar.js', () => ({
-    setSidebarActive: vi.fn(),
-}));
-
-vi.mock('./views.js', () => ({
-    applyDefaultViewForScope: vi.fn(),
-}));
-
+vi.mock('./api.js');
+vi.mock('./articles.js');
+vi.mock('./sidebar.js');
+vi.mock('./views.js');
 vi.mock('./feed-errors.js');
-
 vi.mock('./counts.js');
+
+import { api } from './api.js';
+import { renderArticles } from './articles.js';
 
 describe('spa-nav', () => {
     beforeEach(() => {
         document.body.innerHTML = '';
         vi.clearAllMocks();
+        api.mockResolvedValue({ articles: [] });
     });
 
     describe('initSpaNav', () => {
@@ -49,8 +39,6 @@ describe('spa-nav', () => {
         });
 
         it('intercepts nav-item clicks on article-list pages', async () => {
-            const { api } = await import('./api.js');
-            const { renderArticles } = await import('./articles.js');
 
             document.body.innerHTML = `
                 <div class="articles-view" data-view-scope="all">
@@ -80,7 +68,6 @@ describe('spa-nav', () => {
         });
 
         it('does not intercept nav-item clicks on non-article pages', async () => {
-            const { api } = await import('./api.js');
 
             document.body.innerHTML = `
                 <div class="settings-page"></div>

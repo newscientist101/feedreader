@@ -1,0 +1,17 @@
+import { vi } from 'vitest';
+export const getShowingHiddenArticles = vi.fn(() => false);
+export const setShowingHiddenArticles = vi.fn();
+export const _resetArticlesState = vi.fn();
+export const renderArticleActions = vi.fn(() => '');
+export const applyUserPreferences = vi.fn();
+export const updateAllReadMessage = vi.fn();
+export const showReadArticles = vi.fn();
+export const showHiddenArticles = vi.fn();
+export const getIncludeReadUrl = vi.fn(() => '');
+export const showArticlesLoading = vi.fn();
+export const buildArticleCardHtml = vi.fn(() => '<div class="article-card"></div>');
+export const renderArticles = vi.fn();
+export const processEmbeds = vi.fn();
+export const extractYouTubeId = vi.fn();
+export const initArticleListListeners = vi.fn();
+export const updateReadButton = vi.fn();

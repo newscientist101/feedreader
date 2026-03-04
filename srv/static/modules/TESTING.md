@@ -37,3 +37,39 @@ vi.stubGlobal('fetch', vi.fn().mockResolvedValue(...));
 Tests run in **happy-dom** (not jsdom). happy-dom normalizes self-closing
 HTML/SVG tags, so use `toContain` with distinctive substrings rather than
 exact innerHTML matching.
+
+## Auto-Mocks (`__mocks__/`)
+
+Common modules have auto-mock files in `__mocks__/`. To use them, call
+`vi.mock('./module.js')` without a factory — Vitest picks up the
+corresponding `__mocks__/module.js` file automatically.
+
+Available auto-mocks:
+- `api.js` — `api()` as `vi.fn()`
+- `articles.js` — all exports as `vi.fn()` with sensible defaults
+- `counts.js` — `updateCounts()` as `vi.fn()`
+- `feed-errors.js` — `showFeedErrorBanner()`, `removeFeedErrorBanner()`
+- `modal.js` — `openModal()`, `closeModal()`
+- `offline.js` — all exports as `vi.fn()`
+- `pagination.js` — `updatePaginationCursor()`, etc.
+- `read-button.js` — `updateReadButton()`
+- `settings.js` — `getSetting(key, def)` returns `def`, `saveSetting()` no-op
+- `sidebar.js` — all exports as `vi.fn()`
+- `toast.js` — `showToast()`
+- `views.js` — all exports as `vi.fn()`
+
+If your test needs a real implementation alongside stubs (e.g. real
+`getSetting` with mocked `saveSetting`), use `importOriginal`:
+
+```js
+vi.mock('./settings.js', async (importOriginal) => {
+    const real = await importOriginal();
+    return { ...real, saveSetting: vi.fn() };
+});
+```
+
+## Shared Test Helpers (`test-helpers.js`)
+
+- `MockIntersectionObserver` — Drop-in IntersectionObserver for happy-dom.
+  Supports `observe()`, `disconnect()`, and `_fire(entries)` for manual
+  trigger.

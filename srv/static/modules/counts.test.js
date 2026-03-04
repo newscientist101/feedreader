@@ -1,15 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { updateCounts, updateFeedStatusCell, updateFeedErrors } from './counts.js';
 
-// Mock articles module (applyUserPreferences is directly imported by counts)
-vi.mock('./articles.js', () => ({
-    applyUserPreferences: vi.fn(),
-}));
-
-// Mock feed-errors module (directly imported by counts)
+vi.mock('./articles.js');
 vi.mock('./feed-errors.js');
-
-// Mock toast module (directly imported by counts)
 vi.mock('./toast.js');
 
 import { applyUserPreferences } from './articles.js';

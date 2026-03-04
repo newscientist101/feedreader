@@ -19,17 +19,7 @@ vi.mock('./toast.js');
 
 import { showToast } from './toast.js';
 import { setPaginationState, updateEndOfArticlesIndicator } from './pagination.js';
-
-class MockIntersectionObserver {
-    constructor(callback) {
-        this._callback = callback;
-        this._entries = [];
-    }
-    observe(el) { this._entries.push(el); }
-    unobserve() {}
-    disconnect() { this._entries = []; }
-    _fire(entries) { this._callback(entries, this); }
-}
+import { MockIntersectionObserver } from './test-helpers.js';
 
 beforeEach(() => {
     _resetArticlesState();

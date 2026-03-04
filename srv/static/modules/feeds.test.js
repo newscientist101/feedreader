@@ -17,9 +17,7 @@ vi.mock('./toast.js');
 // Mock pagination (articles.js directly imports from pagination.js)
 vi.mock('./pagination.js');
 
-vi.mock('./views.js', () => ({
-    applyDefaultViewForScope: vi.fn(),
-}));
+vi.mock('./views.js');
 
 vi.mock('./feed-errors.js');
 
