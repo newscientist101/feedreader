@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+function flushPromises() {
+    return new Promise((resolve) => { setTimeout(resolve, 0); });
+}
+
 // Mock the api module
 vi.mock('./api.js');
 
@@ -387,9 +391,8 @@ describe('initScraperPage', () => {
         `;
         api.mockResolvedValue({ available: true });
         initScraperPage();
-        await vi.waitFor(() => {
-            expect(document.getElementById('ai-status').className).toBe('ai-status available');
-        });
+        await flushPromises();
+        expect(document.getElementById('ai-status').className).toBe('ai-status available');
     });
 
     it('checks AI status — unavailable path', async () => {
@@ -405,9 +408,8 @@ describe('initScraperPage', () => {
         `;
         api.mockResolvedValue({ available: false });
         initScraperPage();
-        await vi.waitFor(() => {
-            expect(document.getElementById('ai-status').className).toBe('ai-status unavailable');
-        });
+        await flushPromises();
+        expect(document.getElementById('ai-status').className).toBe('ai-status unavailable');
         expect(document.querySelector('#ai-status .status-text').textContent).toBe('Shelley is not running');
         expect(document.getElementById('ai-generate-form').classList.contains('disabled')).toBe(true);
         expect(document.getElementById('ai-generate-btn').disabled).toBe(true);
@@ -423,9 +425,8 @@ describe('initScraperPage', () => {
         `;
         api.mockRejectedValue(new Error('network'));
         initScraperPage();
-        await vi.waitFor(() => {
-            expect(document.getElementById('ai-status').className).toBe('ai-status error');
-        });
+        await flushPromises();
+        expect(document.getElementById('ai-status').className).toBe('ai-status error');
         expect(document.querySelector('#ai-status .status-text').textContent).toBe('Could not check AI status');
     });
 });
@@ -459,24 +460,18 @@ describe('initAiForm', () => {
         api.mockResolvedValueOnce({ name: 'Generated Scraper', config: '{"type":"html"}' });
 
         initScraperPage();
-        // Wait for checkAiStatus to resolve
-        await vi.waitFor(() => {
-            expect(document.getElementById('ai-status').className).toBe('ai-status available');
-        });
+        await flushPromises();
+        expect(document.getElementById('ai-status').className).toBe('ai-status available');
 
         const form = document.getElementById('ai-generate-form');
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        await flushPromises();
 
-        await vi.waitFor(() => {
-            expect(api).toHaveBeenCalledWith('POST', '/api/ai/generate-scraper', {
-                url: 'https://example.com',
-                description: 'Get articles',
-            });
+        expect(api).toHaveBeenCalledWith('POST', '/api/ai/generate-scraper', {
+            url: 'https://example.com',
+            description: 'Get articles',
         });
-
-        await vi.waitFor(() => {
-            expect(document.getElementById('scraper-name').value).toBe('Generated Scraper');
-        });
+        expect(document.getElementById('scraper-name').value).toBe('Generated Scraper');
         expect(document.getElementById('scraper-script').value).toBe('{"type":"html"}');
         expect(document.querySelector('[data-tab="manual"]').classList.contains('active')).toBe(true);
         // Button should be restored
@@ -490,17 +485,14 @@ describe('initAiForm', () => {
         api.mockRejectedValueOnce(new Error('AI failed'));
 
         initScraperPage();
-        await vi.waitFor(() => {
-            expect(document.getElementById('ai-status').className).toBe('ai-status available');
-        });
+        await flushPromises();
+        expect(document.getElementById('ai-status').className).toBe('ai-status available');
 
         const form = document.getElementById('ai-generate-form');
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        await flushPromises();
 
-        await vi.waitFor(() => {
-            expect(showToast).toHaveBeenCalledWith('Failed to generate: AI failed');
-        });
-
+        expect(showToast).toHaveBeenCalledWith('Failed to generate: AI failed');
         const btn = document.getElementById('ai-generate-btn');
         expect(btn.disabled).toBe(false);
     });
@@ -511,16 +503,14 @@ describe('initAiForm', () => {
         api.mockResolvedValueOnce({ config: '{"type":"json"}' }); // no name
 
         initScraperPage();
-        await vi.waitFor(() => {
-            expect(document.getElementById('ai-status').className).toBe('ai-status available');
-        });
+        await flushPromises();
+        expect(document.getElementById('ai-status').className).toBe('ai-status available');
 
         const form = document.getElementById('ai-generate-form');
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        await flushPromises();
 
-        await vi.waitFor(() => {
-            expect(document.getElementById('scraper-name').value).toBe('Custom Scraper');
-        });
+        expect(document.getElementById('scraper-name').value).toBe('Custom Scraper');
     });
 });
 
@@ -551,25 +541,20 @@ describe('initManualForm', () => {
         window.location = { href: '' };
 
         initScraperPage();
-        await vi.waitFor(() => {
-            expect(document.getElementById('ai-status').className).toBe('ai-status available');
-        });
+        await flushPromises();
+        expect(document.getElementById('ai-status').className).toBe('ai-status available');
 
         const form = document.getElementById('add-scraper-form');
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        await flushPromises();
 
-        await vi.waitFor(() => {
-            expect(api).toHaveBeenCalledWith('POST', '/api/scrapers', {
-                name: 'My Scraper',
-                description: 'A description',
-                script: '{"type": "html"}',
-                script_type: 'json-config',
-            });
+        expect(api).toHaveBeenCalledWith('POST', '/api/scrapers', {
+            name: 'My Scraper',
+            description: 'A description',
+            script: '{"type": "html"}',
+            script_type: 'json-config',
         });
-
-        await vi.waitFor(() => {
-            expect(window.location.href).toBe('/scrapers');
-        });
+        expect(window.location.href).toBe('/scrapers');
     });
 
     it('invalid JSON: re-enables button and resets submitting flag', async () => {
@@ -578,17 +563,14 @@ describe('initManualForm', () => {
         api.mockResolvedValueOnce({ available: true }); // checkAiStatus
 
         initScraperPage();
-        await vi.waitFor(() => {
-            expect(document.getElementById('ai-status').className).toBe('ai-status available');
-        });
+        await flushPromises();
+        expect(document.getElementById('ai-status').className).toBe('ai-status available');
 
         const form = document.getElementById('add-scraper-form');
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        await flushPromises();
 
-        await vi.waitFor(() => {
-            expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Invalid JSON'));
-        });
-
+        expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Invalid JSON'));
         const btn = form.querySelector('button[type="submit"]');
         expect(btn.disabled).toBe(false);
         // Should not have called the POST api
@@ -601,17 +583,14 @@ describe('initManualForm', () => {
         api.mockRejectedValueOnce(new Error('create failed')); // POST
 
         initScraperPage();
-        await vi.waitFor(() => {
-            expect(document.getElementById('ai-status').className).toBe('ai-status available');
-        });
+        await flushPromises();
+        expect(document.getElementById('ai-status').className).toBe('ai-status available');
 
         const form = document.getElementById('add-scraper-form');
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        await flushPromises();
 
-        await vi.waitFor(() => {
-            expect(showToast).toHaveBeenCalledWith('Failed to create: create failed');
-        });
-
+        expect(showToast).toHaveBeenCalledWith('Failed to create: create failed');
         const btn = form.querySelector('button[type="submit"]');
         expect(btn.disabled).toBe(false);
     });
@@ -628,18 +607,15 @@ describe('initManualForm', () => {
         window.location = { href: '' };
 
         initScraperPage();
-        await vi.waitFor(() => {
-            expect(document.getElementById('ai-status').className).toBe('ai-status available');
-        });
+        await flushPromises();
+        expect(document.getElementById('ai-status').className).toBe('ai-status available');
 
         const form = document.getElementById('add-scraper-form');
         // First submit
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        await flushPromises();
 
-        // Wait for first submit to be in-flight
-        await vi.waitFor(() => {
-            expect(api).toHaveBeenCalledWith('POST', '/api/scrapers', expect.anything());
-        });
+        expect(api).toHaveBeenCalledWith('POST', '/api/scrapers', expect.anything());
 
         // Second submit should be ignored
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
@@ -734,12 +710,9 @@ describe('initScraperPageListeners', () => {
             script: '{"type":"html"}',
         });
         document.querySelector('[data-action="edit-scraper"]').click();
-        await vi.waitFor(() => {
-            expect(api).toHaveBeenCalledWith('GET', '/api/scrapers/42');
-        });
-        await vi.waitFor(() => {
-            expect(document.getElementById('modal-scraper-name').value).toBe('Clicked Scraper');
-        });
+        await flushPromises();
+        expect(api).toHaveBeenCalledWith('GET', '/api/scrapers/42');
+        expect(document.getElementById('modal-scraper-name').value).toBe('Clicked Scraper');
     });
 
     it('delegates delete-scraper clicks', async () => {
@@ -753,12 +726,9 @@ describe('initScraperPageListeners', () => {
             <button data-action="delete-scraper" data-scraper-id="7">Delete</button>
         `;
         document.querySelector('[data-action="delete-scraper"]').click();
-        await vi.waitFor(() => {
-            expect(api).toHaveBeenCalledWith('DELETE', '/api/scrapers/7');
-        });
-        await vi.waitFor(() => {
-            expect(reloadSpy).toHaveBeenCalled();
-        });
+        await flushPromises();
+        expect(api).toHaveBeenCalledWith('DELETE', '/api/scrapers/7');
+        expect(reloadSpy).toHaveBeenCalled();
     });
 
     it('delegates close-config-modal clicks', () => {

@@ -19,7 +19,7 @@ beforeEach(() => {
     setQueuedIdsReady(Promise.resolve());
     setShowingHiddenArticles(false);
     window.__settings = {};
-    window.fetch = vi.fn(() => Promise.resolve({
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ articles: [] }),
     }));
@@ -165,13 +165,13 @@ describe('loadMoreArticles', () => {
     it('does nothing when pagination is done', async () => {
         setPaginationState({ done: true });
         await loadMoreArticles();
-        expect(window.fetch).not.toHaveBeenCalled();
+        expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 
     it('does nothing when loading', async () => {
         setPaginationState({ loading: true });
         await loadMoreArticles();
-        expect(window.fetch).not.toHaveBeenCalled();
+        expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 
     it('does nothing without cursor', async () => {
@@ -179,7 +179,7 @@ describe('loadMoreArticles', () => {
             value: { pathname: '/' }, writable: true, configurable: true,
         });
         await loadMoreArticles();
-        expect(window.fetch).not.toHaveBeenCalled();
+        expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 
     it('does nothing when URL is null (unknown path)', async () => {
@@ -191,7 +191,7 @@ describe('loadMoreArticles', () => {
             cursorId: '999',
         });
         await loadMoreArticles();
-        expect(window.fetch).not.toHaveBeenCalled();
+        expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 
     it('appends new articles and observes them', async () => {
@@ -207,7 +207,7 @@ describe('loadMoreArticles', () => {
         });
         setQueuedIdsReady(Promise.resolve());
 
-        window.fetch = vi.fn(async () => ({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ({
             ok: true,
             json: async () => ({
                 articles: [{
@@ -244,7 +244,7 @@ describe('loadMoreArticles', () => {
             cursorId: '999',
         });
 
-        window.fetch = vi.fn(async () => ({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ({
             ok: true,
             json: async () => ({ articles: [] }),
             text: async () => '',
@@ -277,7 +277,7 @@ describe('loadMoreArticles', () => {
             content: '<p>content</p>',
         }));
 
-        window.fetch = vi.fn(async () => ({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ({
             ok: true,
             json: async () => ({ articles }),
             text: async () => '',
@@ -301,7 +301,7 @@ describe('loadMoreArticles', () => {
         });
         setShowingHiddenArticles(true);
 
-        window.fetch = vi.fn(async () => ({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ({
             ok: true,
             json: async () => ({ articles: [] }),
             text: async () => '',
@@ -309,7 +309,7 @@ describe('loadMoreArticles', () => {
 
         await loadMoreArticles();
 
-        const url = window.fetch.mock.calls[0][0];
+        const url = globalThis.fetch.mock.calls[0][0];
         expect(url).toContain('include_read=1');
     });
 
@@ -324,7 +324,7 @@ describe('loadMoreArticles', () => {
             cursorId: '999',
         });
 
-        window.fetch = vi.fn(async () => ({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ({
             ok: true,
             json: async () => ({ articles: [] }),
             text: async () => '',
@@ -332,7 +332,7 @@ describe('loadMoreArticles', () => {
 
         await loadMoreArticles();
 
-        const url = window.fetch.mock.calls[0][0];
+        const url = globalThis.fetch.mock.calls[0][0];
         expect(url).not.toContain('include_read');
     });
 
@@ -350,7 +350,7 @@ describe('loadMoreArticles', () => {
         // Ensure checkScrollForMore in finally block doesn't re-trigger load
         Object.defineProperty(document.body, 'offsetHeight', { value: 100000, configurable: true });
 
-        window.fetch = vi.fn(async () => ({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ({
             ok: false,
             text: async () => JSON.stringify({ error: 'Server error' }),
         }));
@@ -376,7 +376,7 @@ describe('loadMoreArticles', () => {
         });
         setQueuedIdsReady(Promise.resolve());
 
-        window.fetch = vi.fn(async () => ({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ({
             ok: true,
             json: async () => ({
                 articles: [{
@@ -405,7 +405,7 @@ describe('loadMoreArticles', () => {
         });
         setQueuedIdsReady(Promise.resolve());
 
-        window.fetch = vi.fn(async () => ({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ({
             ok: true,
             json: async () => ({
                 articles: [{
@@ -427,13 +427,13 @@ describe('checkScrollForMore', () => {
     it('does nothing when pagination is done', () => {
         setPaginationState({ done: true });
         checkScrollForMore();
-        expect(window.fetch).not.toHaveBeenCalled();
+        expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 
     it('does nothing when loading', () => {
         setPaginationState({ loading: true });
         checkScrollForMore();
-        expect(window.fetch).not.toHaveBeenCalled();
+        expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 
     it('does nothing when far from bottom', () => {
@@ -453,7 +453,7 @@ describe('checkScrollForMore', () => {
 
         checkScrollForMore();
 
-        expect(window.fetch).not.toHaveBeenCalled();
+        expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 
     it('calls loadMoreArticles when near the bottom of the page', async () => {
@@ -475,7 +475,7 @@ describe('checkScrollForMore', () => {
         Object.defineProperty(window, 'scrollY', { value: 600, configurable: true, writable: true });
         Object.defineProperty(document.body, 'offsetHeight', { value: 1000, configurable: true });
 
-        window.fetch = vi.fn(async () => ({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ({
             ok: true,
             json: async () => ({ articles: [] }),
             text: async () => '',
@@ -485,7 +485,7 @@ describe('checkScrollForMore', () => {
         // loadMoreArticles is async — give it time to resolve
         await new Promise(r => setTimeout(r, 50));
 
-        expect(window.fetch).toHaveBeenCalled();
+        expect(globalThis.fetch).toHaveBeenCalled();
     });
 });
 

@@ -37,7 +37,7 @@ beforeEach(() => {
     setQueuedArticleIds(new Set());
     window.IntersectionObserver = MockIntersectionObserver;
     window.__settings = {};
-    window.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }));
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }));
     document.body.innerHTML = '<div id="articles-list" class="articles-list"></div>';
 });
 
@@ -576,7 +576,7 @@ describe('renderArticles', () => {
     beforeEach(() => {
         vi.spyOn(console, 'debug').mockImplementation(() => {});
         window.__settings = { autoMarkRead: 'true' };
-        window.fetch = vi.fn(() => Promise.resolve({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
             ok: true, json: () => Promise.resolve({}),
         }));
         window.scrollTo = vi.fn();
@@ -697,7 +697,7 @@ describe('showHiddenArticles', () => {
         setShowingHiddenArticles(false);
         window.scrollTo = vi.fn();
 
-        window.fetch = vi.fn().mockResolvedValue({
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: true,
             json: () => Promise.resolve({
                 articles: [{
@@ -709,7 +709,7 @@ describe('showHiddenArticles', () => {
 
         await showHiddenArticles();
 
-        const fetchUrl = window.fetch.mock.calls[0][0];
+        const fetchUrl = globalThis.fetch.mock.calls[0][0];
         expect(fetchUrl).toContain('include_read=1');
         const cards = document.querySelectorAll('.article-card');
         expect(cards.length).toBe(1);
@@ -725,10 +725,10 @@ describe('showHiddenArticles', () => {
             configurable: true,
         });
 
-        window.fetch = vi.fn();
+        vi.spyOn(globalThis, 'fetch');
         await showHiddenArticles();
 
-        expect(window.fetch).not.toHaveBeenCalled();
+        expect(globalThis.fetch).not.toHaveBeenCalled();
         expect(getShowingHiddenArticles()).toBe(true);
     });
 
@@ -740,7 +740,7 @@ describe('showHiddenArticles', () => {
             configurable: true,
         });
 
-        window.fetch = vi.fn().mockRejectedValue(new Error('network error'));
+        vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network error'));
         await showHiddenArticles();
 
         expect(console.error).toHaveBeenCalled();
@@ -751,14 +751,14 @@ describe('showHiddenArticles', () => {
 describe('initArticleListListeners', () => {
     beforeEach(() => {
         _resetArticlesState();
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: true,
             json: () => Promise.resolve({ articles: [] }),
-        }));
+        });
     });
 
     afterEach(() => {
-        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
     });
 
     it('delegates show-hidden-articles clicks', async () => {

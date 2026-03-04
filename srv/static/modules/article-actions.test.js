@@ -51,7 +51,7 @@ beforeEach(() => {
     _resetArticlesState();
     window.IntersectionObserver = MockIntersectionObserver;
     window.__settings = {};
-    window.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }));
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }));
     document.body.innerHTML = '<div id="articles-list"></div>';
 });
 
@@ -137,17 +137,17 @@ describe('markReadSilent', () => {
 
     it('flushes the queue after a timeout', () => {
         vi.spyOn(console, 'debug').mockImplementation(() => {});
-        window.fetch = vi.fn(() => Promise.resolve({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
             ok: true, json: () => Promise.resolve({ status: 'ok' }),
         }));
         markReadSilent(1);
         markReadSilent(2);
-        expect(window.fetch).not.toHaveBeenCalled();
+        expect(globalThis.fetch).not.toHaveBeenCalled();
 
         vi.advanceTimersByTime(500);
-        expect(window.fetch).toHaveBeenCalledTimes(1);
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
 
-        const [url, opts] = window.fetch.mock.calls[0];
+        const [url, opts] = globalThis.fetch.mock.calls[0];
         expect(url).toBe('/api/articles/batch-read');
         const body = JSON.parse(opts.body);
         expect(body.ids).toEqual([1, 2]);
@@ -158,7 +158,7 @@ describe('markReadSilent', () => {
 
     it('resets the timer when called rapidly', () => {
         vi.spyOn(console, 'debug').mockImplementation(() => {});
-        window.fetch = vi.fn(() => Promise.resolve({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
             ok: true, json: () => Promise.resolve({ status: 'ok' }),
         }));
         markReadSilent(1);
@@ -166,10 +166,10 @@ describe('markReadSilent', () => {
         markReadSilent(2);
         vi.advanceTimersByTime(150);
         // Only 300ms total, but timer was reset at 150ms so another 100ms to go
-        expect(window.fetch).not.toHaveBeenCalled();
+        expect(globalThis.fetch).not.toHaveBeenCalled();
         vi.advanceTimersByTime(100);
-        expect(window.fetch).toHaveBeenCalledTimes(1);
-        const body = JSON.parse(window.fetch.mock.calls[0][1].body);
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+        const body = JSON.parse(globalThis.fetch.mock.calls[0][1].body);
         expect(body.ids).toEqual([1, 2]);
         expect(console.debug).toHaveBeenCalledWith(
             expect.stringContaining('flushing batch of 2'), expect.arrayContaining([1, 2])
@@ -183,7 +183,7 @@ describe('flushMarkReadQueue', () => {
         markReadSilent(1);
         markReadSilent(2);
         flushMarkReadQueue();
-        expect(window.fetch).toHaveBeenCalledWith(
+        expect(globalThis.fetch).toHaveBeenCalledWith(
             '/api/articles/batch-read',
             expect.objectContaining({
                 method: 'POST',
@@ -197,7 +197,7 @@ describe('flushMarkReadQueue', () => {
 
     it('does nothing when queue is empty', () => {
         flushMarkReadQueue();
-        expect(window.fetch).not.toHaveBeenCalled();
+        expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 });
 
@@ -213,7 +213,7 @@ describe('openArticle', () => {
             '<div class="article-card" data-id="5"></div>';
         openArticle(5);
         // flushMarkReadQueue was called — article 5 should be in the batch POST
-        expect(window.fetch).toHaveBeenCalledWith(
+        expect(globalThis.fetch).toHaveBeenCalledWith(
             '/api/articles/batch-read',
             expect.objectContaining({
                 method: 'POST',
@@ -244,7 +244,7 @@ describe('markRead', () => {
         document.getElementById('articles-list').innerHTML =
             '<div class="article-card" data-id="10"><button class="btn-read-toggle"></button></div>';
         await markRead(null, 10);
-        expect(window.fetch).toHaveBeenCalledWith(
+        expect(globalThis.fetch).toHaveBeenCalledWith(
             '/api/articles/10/read',
             expect.objectContaining({ method: 'POST' })
         );
@@ -259,7 +259,7 @@ describe('markRead', () => {
 
     it('handles API failure with console.error and showToast', async () => {
         vi.spyOn(console, 'error').mockImplementation(() => {});
-        window.fetch = vi.fn(() => Promise.resolve({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
             ok: false, status: 500,
             text: () => Promise.resolve('Internal Server Error'),
         }));
@@ -276,7 +276,7 @@ describe('markUnread', () => {
         document.getElementById('articles-list').innerHTML =
             '<div class="article-card read" data-id="10"><button class="btn-read-toggle"></button></div>';
         await markUnread(null, 10);
-        expect(window.fetch).toHaveBeenCalledWith(
+        expect(globalThis.fetch).toHaveBeenCalledWith(
             '/api/articles/10/unread',
             expect.objectContaining({ method: 'POST' })
         );
@@ -288,7 +288,7 @@ describe('markUnread', () => {
 
     it('handles API failure: card retains .read class, shows error', async () => {
         vi.spyOn(console, 'error').mockImplementation(() => {});
-        window.fetch = vi.fn(() => Promise.resolve({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
             ok: false, status: 500,
             text: () => Promise.resolve('Internal Server Error'),
         }));
@@ -312,7 +312,7 @@ describe('toggleStar', () => {
             </div>
         `;
         await toggleStar(null, 10);
-        expect(window.fetch).toHaveBeenCalledWith(
+        expect(globalThis.fetch).toHaveBeenCalledWith(
             '/api/articles/10/star',
             expect.objectContaining({ method: 'POST' })
         );
@@ -345,7 +345,7 @@ describe('toggleStar', () => {
 
     it('handles API failure with console.error and showToast', async () => {
         vi.spyOn(console, 'error').mockImplementation(() => {});
-        window.fetch = vi.fn(() => Promise.resolve({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
             ok: false, status: 500,
             text: () => Promise.resolve('Internal Server Error'),
         }));
@@ -357,7 +357,7 @@ describe('toggleStar', () => {
 
 describe('toggleQueue', () => {
     it('calls API and toggles queue button to queued state', async () => {
-        window.fetch = vi.fn(() => Promise.resolve({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
             ok: true,
             json: () => Promise.resolve({ queued: true }),
         }));
@@ -368,7 +368,7 @@ describe('toggleQueue', () => {
             </div>
         `;
         await toggleQueue(null, 10);
-        expect(window.fetch).toHaveBeenCalledWith(
+        expect(globalThis.fetch).toHaveBeenCalledWith(
             '/api/articles/10/queue',
             expect.objectContaining({ method: 'POST' })
         );
@@ -387,7 +387,7 @@ describe('toggleQueue', () => {
     it('toggles queue button to unqueued state and removes from queuedArticleIds', async () => {
         // Pre-populate queuedArticleIds
         queuedArticleIds.add(10);
-        window.fetch = vi.fn(() => Promise.resolve({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
             ok: true,
             json: () => Promise.resolve({ queued: false }),
         }));
@@ -409,7 +409,7 @@ describe('toggleQueue', () => {
 
     it('handles API failure: queuedArticleIds unchanged, shows error', async () => {
         vi.spyOn(console, 'error').mockImplementation(() => {});
-        window.fetch = vi.fn(() => Promise.resolve({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
             ok: false, status: 500,
             text: () => Promise.resolve('Internal Server Error'),
         }));
@@ -459,7 +459,7 @@ describe('auto-mark-read after client-side navigation (integration)', () => {
     beforeEach(() => {
         vi.spyOn(console, 'debug').mockImplementation(() => {});
         window.__settings = { autoMarkRead: 'true' };
-        window.fetch = vi.fn(() => Promise.resolve({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
             ok: true, json: () => Promise.resolve({ status: 'ok' }),
         }));
         window.scrollTo = vi.fn();
@@ -546,7 +546,7 @@ describe('markAsRead', () => {
             writable: true,
             configurable: true,
         });
-        window.fetch = vi.fn(async () => ({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ({
             ok: true,
             json: async () => ({}),
             text: async () => '',
@@ -576,7 +576,7 @@ describe('markAsRead', () => {
 
         await markAsRead(btn, 'week');
 
-        expect(window.fetch).toHaveBeenCalledWith('/api/categories/3/read-all?age=week', expect.any(Object));
+        expect(globalThis.fetch).toHaveBeenCalledWith('/api/categories/3/read-all?age=week', expect.any(Object));
         expect(window.location.href).toBe('/category/9');
     });
 
@@ -585,7 +585,7 @@ describe('markAsRead', () => {
 
         await markAsRead(btn, 'day');
 
-        expect(window.fetch).toHaveBeenCalledWith('/api/feeds/7/read-all?age=day', expect.any(Object));
+        expect(globalThis.fetch).toHaveBeenCalledWith('/api/feeds/7/read-all?age=day', expect.any(Object));
         expect(reloadFn).toHaveBeenCalled();
     });
 
@@ -594,7 +594,7 @@ describe('markAsRead', () => {
 
         await markAsRead(btn, 'all');
 
-        expect(window.fetch).toHaveBeenCalledWith('/api/articles/read-all?age=all', expect.any(Object));
+        expect(globalThis.fetch).toHaveBeenCalledWith('/api/articles/read-all?age=all', expect.any(Object));
         expect(reloadFn).toHaveBeenCalled();
     });
 
@@ -609,14 +609,14 @@ describe('markAsRead', () => {
 
         await markAsRead(btn, 'all');
 
-        expect(window.fetch).toHaveBeenCalledWith('/api/categories/1/read-all?age=all', expect.any(Object));
+        expect(globalThis.fetch).toHaveBeenCalledWith('/api/categories/1/read-all?age=all', expect.any(Object));
         // Should fall through to reload since no next unread folder
         expect(reloadFn).toHaveBeenCalled();
     });
 
     it('handles API failure with console.error and showToast', async () => {
         vi.spyOn(console, 'error').mockImplementation(() => {});
-        window.fetch = vi.fn(async () => ({
+        vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ({
             ok: false,
             status: 500,
             text: async () => 'Internal Server Error',
@@ -662,8 +662,7 @@ describe('initArticleActionListeners', () => {
         `;
         initArticleActionListeners();
         // Mock fetch — markAsRead calls api() then location.reload()
-        const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
-        vi.stubGlobal('fetch', fetchMock);
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
         // Stub location to prevent jsdom navigation issues
         delete window.location;
         window.location = { reload: vi.fn(), href: '/' };
@@ -673,8 +672,6 @@ describe('initArticleActionListeners', () => {
         await vi.waitFor(() => {
             expect(fetchMock).toHaveBeenCalledWith('/api/feeds/5/read-all?age=day', expect.any(Object));
         });
-
-        vi.unstubAllGlobals();
     });
 
     it('opens article on article-body click', () => {
@@ -688,7 +685,7 @@ describe('initArticleActionListeners', () => {
         `;
         initArticleActionListeners();
         // markReadSilent (called by openArticle) needs the fetch mock
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }));
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
         // openArticle sets window.location, mock it
         const origLocation = window.location;
         delete window.location;
@@ -701,7 +698,6 @@ describe('initArticleActionListeners', () => {
         );
 
         window.location = origLocation;
-        vi.unstubAllGlobals();
     });
 
     it('does not open article when clicking a link inside article-body', () => {
@@ -734,7 +730,7 @@ describe('initArticleActionListeners', () => {
             </article>
         `;
         initArticleActionListeners();
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }));
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
         const openSpy = vi.fn();
         vi.stubGlobal('open', openSpy);
 
@@ -793,7 +789,7 @@ describe('initArticleActionListeners', () => {
         document.querySelector('[data-action="toggle-read"]').click();
         await vi.advanceTimersByTimeAsync(0);
 
-        expect(window.fetch).toHaveBeenCalledWith('/api/articles/20/read', expect.objectContaining({ method: 'POST' }));
+        expect(globalThis.fetch).toHaveBeenCalledWith('/api/articles/20/read', expect.objectContaining({ method: 'POST' }));
         const card = document.querySelector('.article-card[data-id="20"]');
         expect(card.classList.contains('read')).toBe(true);
         expect(updateReadButton).toHaveBeenCalledWith(card, true);
@@ -813,7 +809,7 @@ describe('initArticleActionListeners', () => {
         document.querySelector('[data-action="toggle-read"]').click();
         await vi.advanceTimersByTimeAsync(0);
 
-        expect(window.fetch).toHaveBeenCalledWith('/api/articles/21/unread', expect.objectContaining({ method: 'POST' }));
+        expect(globalThis.fetch).toHaveBeenCalledWith('/api/articles/21/unread', expect.objectContaining({ method: 'POST' }));
         const card = document.querySelector('.article-card[data-id="21"]');
         expect(card.classList.contains('read')).toBe(false);
         expect(updateReadButton).toHaveBeenCalledWith(card, false);
@@ -832,7 +828,7 @@ describe('initArticleActionListeners', () => {
         document.querySelector('[data-action="toggle-star"]').click();
         await vi.advanceTimersByTimeAsync(0);
 
-        expect(window.fetch).toHaveBeenCalledWith('/api/articles/22/star', expect.objectContaining({ method: 'POST' }));
+        expect(globalThis.fetch).toHaveBeenCalledWith('/api/articles/22/star', expect.objectContaining({ method: 'POST' }));
         const btn = document.querySelector('[data-action="toggle-star"]');
         expect(btn.classList.contains('starred')).toBe(true);
         expect(btn.getAttribute('aria-label')).toBe('Unstar');
@@ -840,7 +836,7 @@ describe('initArticleActionListeners', () => {
     });
 
     it('toggle-queue dispatches toggleQueue via delegation', async () => {
-        window.fetch = vi.fn().mockResolvedValue({
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: true,
             json: () => Promise.resolve({ queued: true }),
         });
@@ -855,7 +851,7 @@ describe('initArticleActionListeners', () => {
         document.querySelector('[data-action="toggle-queue"]').click();
         await vi.advanceTimersByTimeAsync(0);
 
-        expect(window.fetch).toHaveBeenCalledWith('/api/articles/23/queue', expect.objectContaining({ method: 'POST' }));
+        expect(globalThis.fetch).toHaveBeenCalledWith('/api/articles/23/queue', expect.objectContaining({ method: 'POST' }));
         const btn = document.querySelector('[data-action="toggle-queue"]');
         expect(btn.classList.contains('queued')).toBe(true);
         expect(btn.getAttribute('aria-label')).toBe('Remove from queue');
@@ -875,13 +871,13 @@ describe('initArticleActionListeners', () => {
         document.querySelector('[data-action="toggle-read"]').click();
         await vi.advanceTimersByTimeAsync(0);
 
-        expect(window.fetch).not.toHaveBeenCalled();
+        expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 });
 
 describe('initQueueState', () => {
     it('fetches queue and populates queuedArticleIds', async () => {
-        window.fetch = vi.fn().mockResolvedValue({
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: true,
             json: () => Promise.resolve([{ id: 10 }, { id: 20 }, { id: 30 }]),
         });
@@ -897,7 +893,7 @@ describe('initQueueState', () => {
     });
 
     it('hydrates action-button placeholders after queue loads', async () => {
-        window.fetch = vi.fn().mockResolvedValue({
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: true,
             json: () => Promise.resolve([{ id: 5 }]),
         });
@@ -925,7 +921,7 @@ describe('initQueueState', () => {
     });
 
     it('handles API failure gracefully', async () => {
-        window.fetch = vi.fn().mockResolvedValue({
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: false,
             status: 500,
             text: () => Promise.resolve('Internal Server Error'),

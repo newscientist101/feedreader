@@ -790,14 +790,14 @@ describe('refreshFeed', () => {
 describe('initFeedActionListeners', () => {
     beforeEach(() => {
         document.body.innerHTML = '';
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: true,
             json: () => Promise.resolve({}),
-        }));
+        });
     });
 
     afterEach(() => {
-        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
     });
 
     it('delegates refresh-feed clicks', async () => {
