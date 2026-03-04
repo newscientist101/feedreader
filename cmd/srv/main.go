@@ -10,6 +10,7 @@ import (
 )
 
 var flagListenAddr = flag.String("listen", ":8000", "address to listen on")
+var flagDBPath = flag.String("db", "db.sqlite3", "path to SQLite database file")
 
 func main() {
 	if err := run(); err != nil {
@@ -19,7 +20,7 @@ func main() {
 
 func run() error {
 	flag.Parse()
-	server, err := initServer("db.sqlite3")
+	server, err := initServer(*flagDBPath)
 	if err != nil {
 		return err
 	}

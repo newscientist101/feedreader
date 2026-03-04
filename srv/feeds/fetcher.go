@@ -21,6 +21,10 @@ import (
 	"github.com/newscientist101/feedreader/srv/scrapers"
 )
 
+// BrowserUserAgent is a Chrome-like User-Agent string used for feed fetching
+// and scraping to avoid bot detection on sites behind Cloudflare etc.
+const BrowserUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
 // Fetcher handles fetching and updating feeds
 type Fetcher struct {
 	DB            *sql.DB
@@ -210,7 +214,7 @@ func (f *Fetcher) fetchRSSFeed(ctx context.Context, url string) ([]FeedItem, str
 		return nil, "", err
 	}
 	// Use browser-like headers to avoid bot detection (e.g., Cloudflare)
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("User-Agent", BrowserUserAgent)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.5")
 	req.Header.Set("Accept-Encoding", "gzip")
@@ -266,7 +270,7 @@ func (f *Fetcher) fetchWithScraper(ctx context.Context, feed *dbgen.Feed) ([]Fee
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+	req.Header.Set("User-Agent", BrowserUserAgent)
 
 	resp, err := f.Client.Do(req)
 	if err != nil {
