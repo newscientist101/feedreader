@@ -211,13 +211,8 @@ investigate and create bd tasks. It does not fix issues — only investigates
 and files bugs.
 
 **Known-issues file** (`/home/exedev/ops/troubleshooter-known-issues.txt`):
-Patterns listed here are excluded from all log scans. Use this to suppress
-fixed issues that are still in the 24hr log window. One fixed-string pattern
-per line; lines starting with `#` are comments. Each entry filters for
-exactly **one run**, then is automatically removed. If the error recurs,
-the troubleshooter will catch it on the following run. Do not prefix
-entries with `!` — that marker is added automatically by the script to
-track which entries have been used.
+One fixed-string pattern per line; lines starting with `#` are comments.
+Entries are automatically removed after one run.
 
 ### Finding and doing work
 
