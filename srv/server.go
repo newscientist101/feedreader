@@ -480,6 +480,10 @@ func toTimePtr(v any) *time.Time {
 // articlePageSize is the number of articles returned per page.
 const articlePageSize = 50
 
+// queueMaxArticles is the maximum number of queue articles loaded at once.
+// Queue UI shows one article at a time and needs all IDs for the "N of M" counter.
+const queueMaxArticles = 500
+
 // previewTextLimit caps how much text goes into article preview DOM elements.
 // Keep in sync with PREVIEW_TEXT_LIMIT in static/app.js.
 const previewTextLimit = 500
@@ -513,6 +517,25 @@ func parseCursor(r *http.Request) (*time.Time, int64, bool) {
 		return nil, 0, false
 	}
 	id, err := strconv.ParseInt(bi, 10, 64)
+	if err != nil {
+		return nil, 0, false
+	}
+	return &t, id, true
+}
+
+// parseAfterCursor extracts forward cursor-based pagination params from query string.
+// Returns (afterTime, afterID, hasCursor). Used for ASC-ordered views like queue.
+func parseAfterCursor(r *http.Request) (*time.Time, int64, bool) {
+	at := r.URL.Query().Get("after_time")
+	ai := r.URL.Query().Get("after_id")
+	if at == "" || ai == "" {
+		return nil, 0, false
+	}
+	t, err := time.Parse(time.RFC3339Nano, at)
+	if err != nil {
+		return nil, 0, false
+	}
+	id, err := strconv.ParseInt(ai, 10, 64)
 	if err != nil {
 		return nil, 0, false
 	}
@@ -730,7 +753,7 @@ func (s *Server) handleStarred(w http.ResponseWriter, r *http.Request) {
 	q := dbgen.New(s.DB)
 	user := GetUser(ctx)
 
-	articles, _ := q.ListStarredArticles(ctx, dbgen.ListStarredArticlesParams{UserID: &user.ID, Limit: 50, Offset: 0})
+	articles, _ := q.ListStarredArticles(ctx, dbgen.ListStarredArticlesParams{UserID: &user.ID, Limit: articlePageSize, Offset: 0})
 
 	data := s.getCommonData(ctx)
 	data["Title"] = "Starred"
@@ -751,7 +774,7 @@ func (s *Server) handleQueue(w http.ResponseWriter, r *http.Request) {
 
 	articles, _ := q.ListQueueArticles(ctx, dbgen.ListQueueArticlesParams{
 		UserID: user.ID,
-		Limit:  200,
+		Limit:  queueMaxArticles,
 		Offset: 0,
 	})
 
@@ -1568,11 +1591,26 @@ func (s *Server) apiListQueue(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
-	articles, err := q.ListQueueArticles(ctx, dbgen.ListQueueArticlesParams{
-		UserID: user.ID,
-		Limit:  200,
-		Offset: 0,
-	})
+	afterTime, afterID, hasCursor := parseAfterCursor(r)
+
+	var articles []dbgen.ListQueueArticlesRow
+	var err error
+
+	if hasCursor {
+		cursorRows, cursorErr := q.ListQueueArticlesCursor(ctx, dbgen.ListQueueArticlesCursorParams{
+			UserID: user.ID, AfterTime: afterTime, AfterTimeEq: afterTime, AfterID: afterID, Limit: articlePageSize,
+		})
+		err = cursorErr
+		for i := range cursorRows {
+			articles = append(articles, dbgen.ListQueueArticlesRow(cursorRows[i]))
+		}
+	} else {
+		articles, err = q.ListQueueArticles(ctx, dbgen.ListQueueArticlesParams{
+			UserID: user.ID,
+			Limit:  queueMaxArticles,
+			Offset: 0,
+		})
+	}
 	if err != nil {
 		jsonError(w, "Failed to list queue", 500)
 		return

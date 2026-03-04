@@ -124,6 +124,89 @@ func (q *Queries) ListQueueArticles(ctx context.Context, arg ListQueueArticlesPa
 	return items, nil
 }
 
+const listQueueArticlesCursor = `-- name: ListQueueArticlesCursor :many
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary,
+       a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred,
+       f.name as feed_name
+FROM queue_articles qa
+JOIN articles a ON qa.article_id = a.id
+JOIN feeds f ON a.feed_id = f.id
+WHERE qa.user_id = ?
+  AND (COALESCE(a.published_at, a.fetched_at) > ?
+       OR (COALESCE(a.published_at, a.fetched_at) = ? AND a.id > ?))
+ORDER BY COALESCE(a.published_at, a.fetched_at) ASC, a.id ASC
+LIMIT ?
+`
+
+type ListQueueArticlesCursorParams struct {
+	UserID      int64      `json:"user_id"`
+	AfterTime   *time.Time `json:"after_time"`
+	AfterTimeEq *time.Time `json:"after_time_eq"`
+	AfterID     int64      `json:"after_id"`
+	Limit       int64      `json:"limit"`
+}
+
+type ListQueueArticlesCursorRow struct {
+	ID          int64      `json:"id"`
+	FeedID      int64      `json:"feed_id"`
+	Guid        string     `json:"guid"`
+	Title       string     `json:"title"`
+	Url         *string    `json:"url"`
+	Author      *string    `json:"author"`
+	Content     *string    `json:"content"`
+	Summary     *string    `json:"summary"`
+	ImageUrl    *string    `json:"image_url"`
+	PublishedAt *time.Time `json:"published_at"`
+	FetchedAt   time.Time  `json:"fetched_at"`
+	IsRead      *int64     `json:"is_read"`
+	IsStarred   *int64     `json:"is_starred"`
+	FeedName    string     `json:"feed_name"`
+}
+
+func (q *Queries) ListQueueArticlesCursor(ctx context.Context, arg ListQueueArticlesCursorParams) ([]ListQueueArticlesCursorRow, error) {
+	rows, err := q.db.QueryContext(ctx, listQueueArticlesCursor,
+		arg.UserID,
+		arg.AfterTime,
+		arg.AfterTimeEq,
+		arg.AfterID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListQueueArticlesCursorRow{}
+	for rows.Next() {
+		var i ListQueueArticlesCursorRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FeedID,
+			&i.Guid,
+			&i.Title,
+			&i.Url,
+			&i.Author,
+			&i.Content,
+			&i.Summary,
+			&i.ImageUrl,
+			&i.PublishedAt,
+			&i.FetchedAt,
+			&i.IsRead,
+			&i.IsStarred,
+			&i.FeedName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const removeFromQueue = `-- name: RemoveFromQueue :exec
 DELETE FROM queue_articles WHERE user_id = ? AND article_id = ?
 `
