@@ -11,6 +11,7 @@ import { _resetArticleActionsState, setQueuedArticleIds } from './article-action
 import { showToast } from './toast.js';
 import { applyDefaultViewForScope } from './views.js';
 import { showFeedErrorBanner, removeFeedErrorBanner } from './feed-errors.js';
+import { makeFetchResponse, makeCountsResponse } from './test-helpers.js';
 
 vi.mock('./toast.js');
 
@@ -619,16 +620,16 @@ describe('refreshFeed', () => {
                 };
             }
             if (url === '/api/feeds/9/refresh') {
-                return { ok: true, json: async () => ({}), text: async () => '' };
+                return makeFetchResponse();
             }
             if (url === '/api/counts') {
                 return {
                     ok: true,
-                    json: async () => ({ unread: 0, starred: 0, queue: 0, categories: {}, feeds: {}, feedErrors: {} }),
+                    json: async () => makeCountsResponse(),
                     text: async () => '',
                 };
             }
-            return { ok: true, json: async () => ({}), text: async () => '' };
+            return makeFetchResponse();
         });
 
         document.body.innerHTML = `
@@ -680,16 +681,16 @@ describe('refreshFeed', () => {
                 };
             }
             if (url === '/api/feeds/3/refresh') {
-                return { ok: true, json: async () => ({}), text: async () => '' };
+                return makeFetchResponse();
             }
             if (url === '/api/counts') {
                 return {
                     ok: true,
-                    json: async () => ({ unread: 0, starred: 0, queue: 0, categories: {}, feeds: {}, feedErrors: {} }),
+                    json: async () => makeCountsResponse(),
                     text: async () => '',
                 };
             }
-            return { ok: true, json: async () => ({}), text: async () => '' };
+            return makeFetchResponse();
         });
 
         document.body.innerHTML = `<button data-feed-id="3">Refresh</button>`;
@@ -726,16 +727,16 @@ describe('refreshFeed', () => {
                 };
             }
             if (url === '/api/feeds/4/refresh') {
-                return { ok: true, json: async () => ({}), text: async () => '' };
+                return makeFetchResponse();
             }
             if (url === '/api/counts') {
                 return {
                     ok: true,
-                    json: async () => ({ unread: 0, starred: 0, queue: 0, categories: {}, feeds: {}, feedErrors: {} }),
+                    json: async () => makeCountsResponse(),
                     text: async () => '',
                 };
             }
-            return { ok: true, json: async () => ({}), text: async () => '' };
+            return makeFetchResponse();
         });
 
         document.body.innerHTML = `<button data-feed-id="4">Refresh</button>`;
@@ -1095,8 +1096,8 @@ describe('initAddFeedForm', () => {
             </form>
         `;
         vi.spyOn(globalThis, 'fetch')
-            .mockResolvedValueOnce({ ok: true, json: async () => ({ id: 10 }) })
-            .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+            .mockResolvedValueOnce(makeFetchResponse({ id: 10 }))
+            .mockResolvedValueOnce(makeFetchResponse());
         const reloadMock = vi.fn();
         Object.defineProperty(window, 'location', {
             value: { ...window.location, reload: reloadMock },

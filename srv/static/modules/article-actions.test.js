@@ -16,7 +16,7 @@ import { showToast } from './toast.js';
 import {
     SVG_STAR_FILLED, SVG_STAR_EMPTY, SVG_QUEUE_ADD, SVG_QUEUE_REMOVE
 } from './icons.js';
-import { MockIntersectionObserver } from './test-helpers.js';
+import { MockIntersectionObserver, makeFetchResponse } from './test-helpers.js';
 
 vi.mock('./pagination.js');
 vi.mock('./counts.js');
@@ -30,7 +30,7 @@ beforeEach(() => {
     _resetArticlesState();
     window.IntersectionObserver = MockIntersectionObserver;
     window.__settings = {};
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }));
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse());
     document.body.innerHTML = '<div id="articles-list"></div>';
 });
 
@@ -116,9 +116,7 @@ describe('markReadSilent', () => {
 
     it('flushes the queue after a timeout', () => {
         vi.spyOn(console, 'debug').mockImplementation(() => {});
-        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
-            ok: true, json: () => Promise.resolve({ status: 'ok' }),
-        }));
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse({ status: 'ok' }));
         markReadSilent(1);
         markReadSilent(2);
         expect(globalThis.fetch).not.toHaveBeenCalled();
@@ -137,9 +135,7 @@ describe('markReadSilent', () => {
 
     it('resets the timer when called rapidly', () => {
         vi.spyOn(console, 'debug').mockImplementation(() => {});
-        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
-            ok: true, json: () => Promise.resolve({ status: 'ok' }),
-        }));
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse({ status: 'ok' }));
         markReadSilent(1);
         vi.advanceTimersByTime(150);
         markReadSilent(2);
@@ -238,10 +234,9 @@ describe('markRead', () => {
 
     it('handles API failure with console.error and showToast', async () => {
         vi.spyOn(console, 'error').mockImplementation(() => {});
-        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
-            ok: false, status: 500,
-            text: () => Promise.resolve('Internal Server Error'),
-        }));
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            makeFetchResponse('Internal Server Error', { ok: false, status: 500 }),
+        );
         document.getElementById('articles-list').innerHTML =
             '<div class="article-card" data-id="10"></div>';
         await markRead(null, 10);
@@ -267,10 +262,9 @@ describe('markUnread', () => {
 
     it('handles API failure: card retains .read class, shows error', async () => {
         vi.spyOn(console, 'error').mockImplementation(() => {});
-        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
-            ok: false, status: 500,
-            text: () => Promise.resolve('Internal Server Error'),
-        }));
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            makeFetchResponse('Internal Server Error', { ok: false, status: 500 }),
+        );
         document.getElementById('articles-list').innerHTML =
             '<div class="article-card read" data-id="10"><button class="btn-read-toggle"></button></div>';
         await markUnread(null, 10);
@@ -324,10 +318,9 @@ describe('toggleStar', () => {
 
     it('handles API failure with console.error and showToast', async () => {
         vi.spyOn(console, 'error').mockImplementation(() => {});
-        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
-            ok: false, status: 500,
-            text: () => Promise.resolve('Internal Server Error'),
-        }));
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            makeFetchResponse('Internal Server Error', { ok: false, status: 500 }),
+        );
         await toggleStar(null, 10);
         expect(console.error).toHaveBeenCalledWith('Failed to toggle star:', expect.any(Error));
         expect(showToast).toHaveBeenCalledWith('Failed to toggle star');
@@ -336,10 +329,7 @@ describe('toggleStar', () => {
 
 describe('toggleQueue', () => {
     it('calls API and toggles queue button to queued state', async () => {
-        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ queued: true }),
-        }));
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse({ queued: true }));
         document.body.innerHTML = `
             <div id="articles-list">
                 <button data-action="toggle-queue" data-article-id="10"
@@ -366,10 +356,7 @@ describe('toggleQueue', () => {
     it('toggles queue button to unqueued state and removes from queuedArticleIds', async () => {
         // Pre-populate queuedArticleIds
         queuedArticleIds.add(10);
-        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve({ queued: false }),
-        }));
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse({ queued: false }));
         document.body.innerHTML = `
             <div id="articles-list">
                 <button data-action="toggle-queue" data-article-id="10"
@@ -388,10 +375,9 @@ describe('toggleQueue', () => {
 
     it('handles API failure: queuedArticleIds unchanged, shows error', async () => {
         vi.spyOn(console, 'error').mockImplementation(() => {});
-        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
-            ok: false, status: 500,
-            text: () => Promise.resolve('Internal Server Error'),
-        }));
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            makeFetchResponse('Internal Server Error', { ok: false, status: 500 }),
+        );
         // Pre-populate to verify it stays unchanged
         queuedArticleIds.add(5);
         await toggleQueue(null, 10);
@@ -438,9 +424,7 @@ describe('auto-mark-read after client-side navigation (integration)', () => {
     beforeEach(() => {
         vi.spyOn(console, 'debug').mockImplementation(() => {});
         window.__settings = { autoMarkRead: 'true' };
-        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
-            ok: true, json: () => Promise.resolve({ status: 'ok' }),
-        }));
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse({ status: 'ok' }));
         window.scrollTo = vi.fn();
     });
 
@@ -525,11 +509,7 @@ describe('markAsRead', () => {
             writable: true,
             configurable: true,
         });
-        vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ({
-            ok: true,
-            json: async () => ({}),
-            text: async () => '',
-        }));
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse());
     });
 
     function makeDropdown(attrs = {}) {
@@ -641,7 +621,7 @@ describe('initArticleActionListeners', () => {
         `;
         initArticleActionListeners();
         // Mock fetch — markAsRead calls api() then location.reload()
-        const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse());
         // Stub location to prevent jsdom navigation issues
         delete window.location;
         window.location = { reload: vi.fn(), href: '/' };
@@ -664,7 +644,7 @@ describe('initArticleActionListeners', () => {
         `;
         initArticleActionListeners();
         // markReadSilent (called by openArticle) needs the fetch mock
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse());
         // openArticle sets window.location, mock it
         const origLocation = window.location;
         delete window.location;
@@ -815,10 +795,7 @@ describe('initArticleActionListeners', () => {
     });
 
     it('toggle-queue dispatches toggleQueue via delegation', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({ queued: true }),
-        });
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse({ queued: true }));
         document.body.innerHTML = `
             <div id="articles-list">
                 <button data-action="toggle-queue" data-article-id="23"
@@ -856,10 +833,7 @@ describe('initArticleActionListeners', () => {
 
 describe('initQueueState', () => {
     it('fetches queue and populates queuedArticleIds', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve([{ id: 10 }, { id: 20 }, { id: 30 }]),
-        });
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse([{ id: 10 }, { id: 20 }, { id: 30 }]));
         const renderFn = vi.fn().mockReturnValue('<span>actions</span>');
 
         initQueueState(renderFn);
@@ -872,10 +846,7 @@ describe('initQueueState', () => {
     });
 
     it('hydrates action-button placeholders after queue loads', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve([{ id: 5 }]),
-        });
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse([{ id: 5 }]));
         document.body.innerHTML = `
             <div class="article-actions-placeholder"
                  data-article-id="5"
@@ -900,11 +871,9 @@ describe('initQueueState', () => {
     });
 
     it('handles API failure gracefully', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: false,
-            status: 500,
-            text: () => Promise.resolve('Internal Server Error'),
-        });
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            makeFetchResponse('Internal Server Error', { ok: false, status: 500 }),
+        );
         const renderFn = vi.fn();
 
         initQueueState(renderFn);

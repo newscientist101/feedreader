@@ -73,3 +73,33 @@ vi.mock('./settings.js', async (importOriginal) => {
 - `MockIntersectionObserver` — Drop-in IntersectionObserver for happy-dom.
   Supports `observe()`, `disconnect()`, and `_fire(entries)` for manual
   trigger.
+
+### Fixture Factories
+
+- **`makeFetchResponse(data, opts)`** — Build a fake Response-like object
+  with `ok`, `status`, `json()`, and `text()` methods. Eliminates
+  `{ ok: true, json: () => Promise.resolve(...) }` boilerplate.
+
+  ```js
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse({ articles: [] }));
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse('err', { ok: false, status: 500 }));
+  ```
+
+- **`makeCountsResponse(overrides)`** — Build a counts API response with
+  all required fields defaulting to zero/empty. Compose with
+  `makeFetchResponse()` for a full mock:
+
+  ```js
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      makeFetchResponse(makeCountsResponse({ unread: 5, feeds: { '10': 3 } })),
+  );
+  ```
+
+- **`makeArticle(overrides)`** — Build an article object with sensible
+  defaults (`id: 1`, `title: 'Test Article'`, `is_read: false`, etc.).
+  Use for `buildArticleCardHtml()`, `renderArticles()`, and anywhere
+  article shapes are needed:
+
+  ```js
+  buildArticleCardHtml(makeArticle({ title: 'Custom', is_read: true }));
+  ```

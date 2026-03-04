@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { updateCounts, updateFeedStatusCell, updateFeedErrors } from './counts.js';
+import { makeFetchResponse, makeCountsResponse } from './test-helpers.js';
 
 vi.mock('./articles.js');
 vi.mock('./feed-errors.js');
@@ -8,6 +9,13 @@ vi.mock('./toast.js');
 import { applyUserPreferences } from './articles.js';
 import { showFeedErrorBanner, removeFeedErrorBanner } from './feed-errors.js';
 import { showToast } from './toast.js';
+
+/** Mock fetch to return a counts API response. */
+function mockCountsFetch(overrides = {}) {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        makeFetchResponse(makeCountsResponse(overrides)),
+    );
+}
 
 beforeEach(() => {
     document.body.innerHTML = '';
@@ -27,13 +35,7 @@ describe('updateCounts', () => {
             <span data-count="queue">1</span>
             <span data-count="alerts">0</span>
         `;
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                unread: 10, starred: 3, queue: 2, alerts: 4,
-                categories: {}, feeds: {}, feedErrors: {},
-            }),
-        });
+        mockCountsFetch({ unread: 10, starred: 3, queue: 2, alerts: 4 });
 
         await updateCounts();
 
@@ -48,14 +50,7 @@ describe('updateCounts', () => {
             <span data-count="category-1">5</span>
             <span data-count="category-2">3</span>
         `;
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                unread: 0, starred: 0, queue: 0,
-                categories: { '1': 7 },
-                feeds: {}, feedErrors: {},
-            }),
-        });
+        mockCountsFetch({ categories: { '1': 7 } });
 
         await updateCounts();
 
@@ -68,15 +63,7 @@ describe('updateCounts', () => {
             <span data-count="feed-10">2</span>
             <span data-count="feed-20">4</span>
         `;
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                unread: 0, starred: 0, queue: 0,
-                categories: {},
-                feeds: { '10': 5 },
-                feedErrors: {},
-            }),
-        });
+        mockCountsFetch({ feeds: { '10': 5 } });
 
         await updateCounts();
 
@@ -86,13 +73,7 @@ describe('updateCounts', () => {
 
     it('does not zero feed badges with pending class', async () => {
         document.body.innerHTML = '<span data-count="feed-10" class="pending">...</span>';
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                unread: 0, starred: 0, queue: 0,
-                categories: {}, feeds: {}, feedErrors: {},
-            }),
-        });
+        mockCountsFetch();
 
         await updateCounts();
 
@@ -100,13 +81,7 @@ describe('updateCounts', () => {
     });
 
     it('calls applyUserPreferences after updating counts', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                unread: 0, starred: 0, queue: 0,
-                categories: {}, feeds: {}, feedErrors: {},
-            }),
-        });
+        mockCountsFetch();
 
         await updateCounts();
 
@@ -128,13 +103,7 @@ describe('updateCounts', () => {
             <span data-count="queue"></span>
             <span data-count="alerts"></span>
         `;
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                unread: 7, starred: 0, queue: 3, alerts: 2,
-                categories: {}, feeds: {}, feedErrors: {},
-            }),
-        });
+        mockCountsFetch({ unread: 7, queue: 3, alerts: 2 });
 
         await updateCounts();
 
@@ -149,13 +118,7 @@ describe('updateCounts', () => {
             <span data-count="queue" aria-label="2 queued articles"></span>
             <span data-count="alerts" aria-label="1 alerts"></span>
         `;
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                unread: 0, starred: 0, queue: 0, alerts: 0,
-                categories: {}, feeds: {}, feedErrors: {},
-            }),
-        });
+        mockCountsFetch();
 
         await updateCounts();
 
@@ -166,13 +129,7 @@ describe('updateCounts', () => {
 
     it('does not throw when badge elements are missing from DOM', async () => {
         document.body.innerHTML = ''; // no badges at all
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                unread: 5, starred: 2, queue: 1, alerts: 3,
-                categories: { '1': 10 }, feeds: { '10': 5 }, feedErrors: {},
-            }),
-        });
+        mockCountsFetch({ unread: 5, starred: 2, queue: 1, alerts: 3, categories: { '1': 10 }, feeds: { '10': 5 } });
 
         await updateCounts(); // should not throw
 
@@ -181,13 +138,7 @@ describe('updateCounts', () => {
 
     it('updates pending feed badge when count is positive and removes pending class', async () => {
         document.body.innerHTML = '<span data-count="feed-10" class="pending">...</span>';
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                unread: 0, starred: 0, queue: 0,
-                categories: {}, feeds: { '10': 8 }, feedErrors: {},
-            }),
-        });
+        mockCountsFetch({ feeds: { '10': 8 } });
 
         await updateCounts();
 
@@ -202,13 +153,7 @@ describe('updateCounts', () => {
             <span data-count="feed-10">0</span>
             <span data-count="feed-10">0</span>
         `;
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                unread: 0, starred: 0, queue: 0,
-                categories: {}, feeds: { '10': 3 }, feedErrors: {},
-            }),
-        });
+        mockCountsFetch({ feeds: { '10': 3 } });
 
         await updateCounts();
 
@@ -223,14 +168,7 @@ describe('updateCounts', () => {
             <span data-count="category-1">5</span>
             <span data-count="category-2">3</span>
         `;
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                unread: 0, starred: 0, queue: 0,
-                categories: { '1': 7 },
-                feeds: {}, feedErrors: {},
-            }),
-        });
+        mockCountsFetch({ categories: { '1': 7 } });
 
         await updateCounts();
 
@@ -253,14 +191,7 @@ describe('updateCounts', () => {
                 <span data-error></span>
             </div>
         `;
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                unread: 0, starred: 0, queue: 0,
-                categories: {}, feeds: {},
-                feedErrors: { '5': 'Timeout' },
-            }),
-        });
+        mockCountsFetch({ feedErrors: { '5': 'Timeout' } });
 
         await updateCounts();
 
@@ -274,13 +205,7 @@ describe('updateCounts', () => {
             <span data-count="starred">2</span>
             <span data-count="queue">1</span>
         `;
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                unread: 0, starred: 0, queue: 0,
-                categories: {}, feeds: {}, feedErrors: {},
-            }),
-        });
+        mockCountsFetch();
 
         await updateCounts();
 

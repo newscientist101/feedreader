@@ -7,6 +7,7 @@ vi.mock('./toast.js');
 
 import { renderArticles, applyUserPreferences, setShowingHiddenArticles } from './articles.js';
 import { showToast } from './toast.js';
+import { makeFetchResponse } from './test-helpers.js';
 
 beforeEach(() => {
     document.body.innerHTML = '';
@@ -15,10 +16,7 @@ beforeEach(() => {
     vi.clearAllMocks();
     _resetSearchState();
     // Stub global fetch
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-        ok: true,
-        json: async () => [],
-    });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse([]));
     // Ensure location is restorable
     Object.defineProperty(window, 'location', {
         value: { ...window.location, pathname: '/' },
@@ -103,7 +101,7 @@ describe('initSearch', () => {
     it('searches with debounce on valid query', async () => {
         document.body.innerHTML = '<input id="search"><div id="articles-list"></div>';
         const articles = [{ id: 1, title: 'Found' }];
-        fetch.mockResolvedValue({ ok: true, json: async () => articles });
+        fetch.mockResolvedValue(makeFetchResponse(articles));
 
         initSearch();
         const input = document.getElementById('search');
@@ -125,7 +123,7 @@ describe('initSearch', () => {
 
     it('calls setShowingHiddenArticles(true) on successful search', async () => {
         document.body.innerHTML = '<input id="search"><div id="articles-list"></div>';
-        fetch.mockResolvedValue({ ok: true, json: async () => [{ id: 1 }] });
+        fetch.mockResolvedValue(makeFetchResponse([{ id: 1 }]));
 
         initSearch();
         const input = document.getElementById('search');
@@ -239,10 +237,7 @@ describe('initSearch', () => {
 
     it('handles non-ok response with error field', async () => {
         document.body.innerHTML = '<input id="search"><div id="articles-list"></div>';
-        fetch.mockResolvedValue({
-            ok: false,
-            json: async () => ({ error: 'Server error' }),
-        });
+        fetch.mockResolvedValue(makeFetchResponse({ error: 'Server error' }, { ok: false, status: 500 }));
         const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
         initSearch();
@@ -259,10 +254,7 @@ describe('initSearch', () => {
 
     it('handles non-ok response without error field (fallback message)', async () => {
         document.body.innerHTML = '<input id="search"><div id="articles-list"></div>';
-        fetch.mockResolvedValue({
-            ok: false,
-            json: async () => ({}),
-        });
+        fetch.mockResolvedValue(makeFetchResponse({}, { ok: false, status: 500 }));
         const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
         initSearch();
@@ -346,7 +338,7 @@ describe('initSearch', () => {
 
     it('debounces rapid input events', async () => {
         document.body.innerHTML = '<input id="search"><div id="articles-list"></div>';
-        fetch.mockResolvedValue({ ok: true, json: async () => [] });
+        fetch.mockResolvedValue(makeFetchResponse([]));
 
         initSearch();
         const input = document.getElementById('search');

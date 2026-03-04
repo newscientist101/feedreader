@@ -19,7 +19,7 @@ vi.mock('./toast.js');
 
 import { showToast } from './toast.js';
 import { setPaginationState, updateEndOfArticlesIndicator } from './pagination.js';
-import { MockIntersectionObserver } from './test-helpers.js';
+import { MockIntersectionObserver, makeFetchResponse, makeArticle } from './test-helpers.js';
 
 beforeEach(() => {
     _resetArticlesState();
@@ -27,7 +27,7 @@ beforeEach(() => {
     setQueuedArticleIds(new Set());
     window.IntersectionObserver = MockIntersectionObserver;
     window.__settings = {};
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }));
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse());
     document.body.innerHTML = '<div id="articles-list" class="articles-list"></div>';
 });
 
@@ -208,50 +208,34 @@ describe('showReadArticles', () => {
 
 describe('buildArticleCardHtml', () => {
     it('renders an article card with title and date', () => {
-        const html = buildArticleCardHtml({
-            id: 1,
-            title: 'Test Article',
-            feed_id: 10,
-            feed_name: 'Test Feed',
-            published_at: '2025-01-01T00:00:00Z',
-            is_read: false,
-            is_starred: false,
-        });
+        const html = buildArticleCardHtml(makeArticle({
+            title: 'Test Article', feed_id: 10, feed_name: 'Test Feed',
+        }));
         expect(html).toContain('Test Article');
         expect(html).toContain('Test Feed');
         expect(html).toContain('data-id="1"');
     });
 
     it('adds read class for read articles', () => {
-        const html = buildArticleCardHtml({
-            id: 1, title: 'T', feed_id: 1, is_read: true, is_starred: false,
-            published_at: '2025-01-01T00:00:00Z',
-        });
+        const html = buildArticleCardHtml(makeArticle({ title: 'T', is_read: true }));
         expect(html).toContain('article-card read');
     });
 
     it('includes image when image_url is provided', () => {
-        const html = buildArticleCardHtml({
-            id: 1, title: 'T', feed_id: 1, is_read: false, is_starred: false,
-            image_url: 'https://example.com/img.jpg',
-            published_at: '2025-01-01T00:00:00Z',
-        });
+        const html = buildArticleCardHtml(makeArticle({
+            title: 'T', image_url: 'https://example.com/img.jpg',
+        }));
         expect(html).toContain('img.jpg');
         expect(html).toContain('has-image');
     });
 
     it('escapes HTML in user-controlled fields to prevent XSS', () => {
-        const html = buildArticleCardHtml({
-            id: 1,
+        const html = buildArticleCardHtml(makeArticle({
             title: '<img onerror="alert(1)">',
-            feed_id: 1,
             feed_name: '<script>alert(2)</script>',
             author: '" onclick="alert(3)',
             url: 'https://example.com/a?b=1&c=2',
-            published_at: '2025-01-01T00:00:00Z',
-            is_read: false,
-            is_starred: false,
-        });
+        }));
         // Title should be escaped
         expect(html).toContain('&lt;img onerror=&quot;alert(1)&quot;&gt;');
         expect(html).not.toContain('<img onerror=');
@@ -265,110 +249,79 @@ describe('buildArticleCardHtml', () => {
     });
 
     it('renders mark-read-silent link when article has no url', () => {
-        const html = buildArticleCardHtml({
-            id: 42, title: 'No URL', feed_id: 1, is_read: false, is_starred: false,
-            published_at: '2025-01-01T00:00:00Z',
-        });
+        const html = buildArticleCardHtml(makeArticle({
+            id: 42, title: 'No URL', url: undefined,
+        }));
         expect(html).toContain('href="/article/42"');
         expect(html).toContain('data-action="mark-read-silent"');
         expect(html).not.toContain('target="_blank"');
     });
 
     it('renders external link when article has url', () => {
-        const html = buildArticleCardHtml({
-            id: 42, title: 'Has URL', feed_id: 1, is_read: false, is_starred: false,
-            url: 'https://example.com/article',
-            published_at: '2025-01-01T00:00:00Z',
-        });
+        const html = buildArticleCardHtml(makeArticle({ id: 42, title: 'Has URL' }));
         expect(html).toContain('target="_blank"');
         expect(html).toContain('data-action="open-external"');
     });
 
     it('renders author when present', () => {
-        const html = buildArticleCardHtml({
-            id: 1, title: 'T', feed_id: 1, is_read: false, is_starred: false,
-            author: 'John Doe',
-            published_at: '2025-01-01T00:00:00Z',
-        });
+        const html = buildArticleCardHtml(makeArticle({ title: 'T', author: 'John Doe' }));
         expect(html).toContain('article-author');
         expect(html).toContain('John Doe');
     });
 
     it('omits author when not present', () => {
-        const html = buildArticleCardHtml({
-            id: 1, title: 'T', feed_id: 1, is_read: false, is_starred: false,
-            author: '',
-            published_at: '2025-01-01T00:00:00Z',
-        });
+        const html = buildArticleCardHtml(makeArticle({ title: 'T', author: '' }));
         expect(html).not.toContain('article-author');
     });
 
     it('shows summary as preview when summary exists', () => {
-        const html = buildArticleCardHtml({
-            id: 1, title: 'T', feed_id: 1, is_read: false, is_starred: false,
-            summary: 'This is the summary text',
-            published_at: '2025-01-01T00:00:00Z',
-        });
+        const html = buildArticleCardHtml(makeArticle({
+            title: 'T', summary: 'This is the summary text',
+        }));
         expect(html).toContain('article-summary');
         expect(html).toContain('This is the summary text');
     });
 
     it('falls back to content for preview when no summary', () => {
-        const html = buildArticleCardHtml({
-            id: 1, title: 'T', feed_id: 1, is_read: false, is_starred: false,
-            summary: '',
-            content: 'This is the content text',
-            published_at: '2025-01-01T00:00:00Z',
-        });
+        const html = buildArticleCardHtml(makeArticle({
+            title: 'T', summary: '', content: 'This is the content text',
+        }));
         expect(html).toContain('article-summary');
         expect(html).toContain('This is the content text');
     });
 
     it('renders expanded content preview from content', () => {
-        const html = buildArticleCardHtml({
-            id: 1, title: 'T', feed_id: 1, is_read: false, is_starred: false,
-            summary: 'Summary',
-            content: 'Content preview',
-            published_at: '2025-01-01T00:00:00Z',
-        });
+        const html = buildArticleCardHtml(makeArticle({
+            title: 'T', summary: 'Summary', content: 'Content preview',
+        }));
         expect(html).toContain('article-content-preview expanded-only');
         expect(html).toContain('Content preview');
     });
 
     it('falls back to summary for expanded preview when no content', () => {
-        const html = buildArticleCardHtml({
-            id: 1, title: 'T', feed_id: 1, is_read: false, is_starred: false,
-            summary: 'Summary for expanded',
-            content: '',
-            published_at: '2025-01-01T00:00:00Z',
-        });
+        const html = buildArticleCardHtml(makeArticle({
+            title: 'T', summary: 'Summary for expanded', content: '',
+        }));
         expect(html).toContain('article-content-preview expanded-only');
         expect(html).toContain('Summary for expanded');
     });
 
     it('omits preview sections when neither summary nor content exist', () => {
-        const html = buildArticleCardHtml({
-            id: 1, title: 'T', feed_id: 1, is_read: false, is_starred: false,
-            published_at: '2025-01-01T00:00:00Z',
-        });
+        const html = buildArticleCardHtml(makeArticle({ title: 'T' }));
         expect(html).not.toContain('article-summary');
         expect(html).not.toContain('article-content-preview');
     });
 
     it('shows placeholder image when no image_url', () => {
-        const html = buildArticleCardHtml({
-            id: 1, title: 'T', feed_id: 1, is_read: false, is_starred: false,
-            published_at: '2025-01-01T00:00:00Z',
-        });
+        const html = buildArticleCardHtml(makeArticle({ title: 'T' }));
         expect(html).toContain('article-image-placeholder');
         expect(html).not.toContain('has-image');
     });
 
     it('uses fetched_at for sort-time when published_at is missing', () => {
-        const html = buildArticleCardHtml({
-            id: 1, title: 'T', feed_id: 1, is_read: false, is_starred: false,
-            fetched_at: '2025-06-15T12:00:00Z',
-        });
+        const html = buildArticleCardHtml(makeArticle({
+            title: 'T', published_at: undefined, fetched_at: '2025-06-15T12:00:00Z',
+        }));
         expect(html).toContain('data-sort-time="2025-06-15T12:00:00Z"');
     });
 });
@@ -566,9 +519,7 @@ describe('renderArticles', () => {
     beforeEach(() => {
         vi.spyOn(console, 'debug').mockImplementation(() => {});
         window.__settings = { autoMarkRead: 'true' };
-        vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
-            ok: true, json: () => Promise.resolve({}),
-        }));
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse());
         window.scrollTo = vi.fn();
     });
 

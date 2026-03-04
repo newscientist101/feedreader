@@ -8,6 +8,7 @@ import {
 import { _resetArticleActionsState, setQueuedArticleIds, setQueuedIdsReady } from './article-actions.js';
 import { getShowingHiddenArticles, buildArticleCardHtml } from './articles.js';
 import { showToast } from './toast.js';
+import { makeFetchResponse } from './test-helpers.js';
 
 vi.mock('./toast.js');
 vi.mock('./articles.js');
@@ -23,10 +24,7 @@ beforeEach(() => {
         (a) => `<div class="article-card" data-id="${a.id}" data-sort-time="${a.published_at || a.fetched_at || ''}"><div class="article-content-preview"></div></div>`,
     );
     window.__settings = {};
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({ articles: [] }),
-    }));
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse({ articles: [] }));
     document.body.innerHTML = `
         <div class="articles-view">
             <div id="articles-list" class="articles-list"></div>
