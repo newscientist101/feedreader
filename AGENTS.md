@@ -204,6 +204,18 @@ A task agent (`task-agent.service`) runs hourly via systemd timer, picks
 ready tasks, and works them autonomously. The agent script and systemd units
 live in `/home/exedev/ops/` (a local-only git repo, no remote).
 
+A **troubleshooter agent** (`troubleshooter.service`) runs daily at 06:00 UTC.
+It scans the feedreader service logs for ERROR-level entries and crashes. If
+any are found (after filtering), it launches a Shelley conversation to
+investigate and create bd tasks. It does not fix issues — only investigates
+and files bugs.
+
+**Known-issues file** (`/home/exedev/ops/troubleshooter-known-issues.txt`):
+Patterns listed here are excluded from all log scans. Use this to suppress
+fixed issues that are still in the 24hr log window. One fixed-string pattern
+per line; lines starting with `#` are comments. Stale entries (patterns that
+no longer match any log lines) are pruned automatically on each run.
+
 ### Finding and doing work
 
 ```bash
