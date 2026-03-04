@@ -212,7 +212,9 @@ and files bugs.
 
 **Known-issues file** (`/home/exedev/ops/troubleshooter-known-issues.txt`):
 One fixed-string pattern per line; lines starting with `#` are comments.
-Entries are automatically removed after one run.
+Entries are automatically removed after one run. When fixing a bug that
+produces log errors, add a matching pattern here so the troubleshooter
+skips stale log lines from before the fix.
 
 ### Finding and doing work
 
