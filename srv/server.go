@@ -2873,7 +2873,7 @@ func (s *Server) apiGenerateScraper(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), aiScraperTimeout)
 	defer cancel()
 
 	resp, err := s.ShelleyGenerator.Generate(ctx, req)

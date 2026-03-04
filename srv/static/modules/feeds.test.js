@@ -5,6 +5,7 @@ import {
     deleteFeed, setFeedCategory, initFeedActionListeners,
     initAddFeedForm, initFeedItemClickListeners,
     refreshFeed, editFeed, createEditFeedModal,
+    _resetFeedsState,
 } from './feeds.js';
 import { _resetArticlesState } from './articles.js';
 import { _resetArticleActionsState, setQueuedArticleIds } from './article-actions.js';
@@ -27,6 +28,7 @@ beforeEach(() => {
     vi.restoreAllMocks();
     _resetArticlesState();
     _resetArticleActionsState();
+    _resetFeedsState();
     setQueuedArticleIds(new Set());
     window.__settings = { autoMarkRead: 'true' };
     // Ensure dialog functions exist for happy-dom compatibility

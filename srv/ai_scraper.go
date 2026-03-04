@@ -15,6 +15,10 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// aiScraperTimeout is the timeout for AI scraper generation requests.
+// Used for the HTTP client, the poll loop, and the request context.
+const aiScraperTimeout = 120 * time.Second
+
 // ShelleyScraperGenerator generates scraper configs using the local Shelley API
 type ShelleyScraperGenerator struct {
 	shelleyURL string
@@ -36,7 +40,7 @@ func NewShelleyScraperGenerator() *ShelleyScraperGenerator {
 	return &ShelleyScraperGenerator{
 		shelleyURL: url,
 		httpClient: &http.Client{
-			Timeout: 120 * time.Second,
+			Timeout: aiScraperTimeout,
 		},
 		dbPath: dbPath,
 	}
@@ -155,7 +159,7 @@ func (g *ShelleyScraperGenerator) waitForResponse(ctx context.Context, conversat
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
-	timeout := time.After(120 * time.Second)
+	timeout := time.After(aiScraperTimeout)
 
 	for {
 		select {

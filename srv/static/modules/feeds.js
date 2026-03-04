@@ -7,7 +7,11 @@ import { openModal, closeModal } from './modal.js';
 import { updateCounts, updateFeedStatusCell } from './counts.js';
 import { showFeedErrorBanner, removeFeedErrorBanner } from './feed-errors.js';
 
+// Generation counter to prevent stale async responses from overwriting newer loads.
+let _loadGeneration = 0;
+
 export async function loadCategoryArticles(categoryId, categoryName, { pushState = true } = {}) {
+    const thisGeneration = ++_loadGeneration;
     showArticlesLoading();
 
     // Update page title immediately for responsiveness
@@ -23,40 +27,38 @@ export async function loadCategoryArticles(categoryId, categoryName, { pushState
     const folderItem = document.querySelector(`.folder-item[data-category-id="${categoryId}"]`);
     setSidebarActive(folderItem);
 
+    // Eagerly update the Mark as Read dropdown and hide feed-specific buttons
+    const dropdown = document.querySelector('.dropdown');
+    if (dropdown) {
+        dropdown.dataset.feedId = '';
+        dropdown.dataset.categoryId = categoryId;
+    }
+    document.querySelectorAll('[data-feed-action]').forEach(btn => {
+        btn.style.display = 'none';
+    });
+    removeFeedErrorBanner();
+
     try {
         const data = await api('GET', `/api/categories/${categoryId}/articles`);
 
-        // Update URL without reload
+        // A newer load was started — discard this stale response
+        if (thisGeneration !== _loadGeneration) return;
+
         if (pushState) {
             history.pushState({ spaNav: true, categoryId }, categoryName, `/category/${categoryId}`);
         }
 
-        // Render articles
         renderArticles(data.articles);
-
-        // Update the Mark as Read dropdown
-        const dropdown = document.querySelector('.dropdown');
-        if (dropdown) {
-            dropdown.dataset.feedId = '';
-            dropdown.dataset.categoryId = categoryId;
-        }
-
-        // Hide the Refresh/Edit buttons (they're only for feeds)
-        document.querySelectorAll('[data-feed-action]').forEach(btn => {
-            btn.style.display = 'none';
-        });
-
-        // Remove any feed error banner
-        removeFeedErrorBanner();
-
         applyDefaultViewForScope('folder');
     } catch (e) {
+        if (thisGeneration !== _loadGeneration) return;
         console.error('Failed to load category articles:', e);
         showToast('Failed to load articles');
     }
 }
 
 export async function loadFeedArticles(feedId, feedName, { pushState = true } = {}) {
+    const thisGeneration = ++_loadGeneration;
     showArticlesLoading();
 
     document.querySelector('.view-header h1').textContent = feedName;
@@ -71,8 +73,47 @@ export async function loadFeedArticles(feedId, feedName, { pushState = true } = 
     setSidebarActive(null);
     document.querySelectorAll(`.feed-item[data-feed-id="${feedId}"]`).forEach(item => item.classList.add('active'));
 
+    // Eagerly update button feedIds before the async fetch so the Edit/Refresh
+    // buttons always reflect the most recently clicked feed.
+    const dropdown = document.querySelector('.dropdown');
+    if (dropdown) {
+        dropdown.dataset.feedId = feedId;
+        dropdown.dataset.categoryId = '';
+    }
+
+    const headerActions = document.querySelector('.header-actions');
+    if (headerActions) {
+        let editBtn = headerActions.querySelector('[data-feed-action="edit"]');
+        if (!editBtn) {
+            editBtn = document.createElement('button');
+            editBtn.className = 'btn btn-secondary';
+            editBtn.dataset.feedAction = 'edit';
+            editBtn.textContent = 'Edit';
+            headerActions.appendChild(editBtn);
+        }
+        editBtn.style.display = '';
+        editBtn.dataset.action = 'edit-feed';
+        editBtn.dataset.feedId = feedId;
+
+        let refreshBtn = headerActions.querySelector('[data-feed-action="refresh"]');
+        if (!refreshBtn) {
+            refreshBtn = document.createElement('button');
+            refreshBtn.className = 'btn btn-warning';
+            refreshBtn.dataset.feedAction = 'refresh';
+            headerActions.appendChild(refreshBtn);
+        }
+        refreshBtn.style.display = '';
+        refreshBtn.dataset.action = 'refresh-feed';
+        refreshBtn.dataset.feedId = feedId;
+        refreshBtn.textContent = 'Refresh';
+    }
+
     try {
         const data = await api('GET', `/api/feeds/${feedId}/articles`);
+
+        // A newer load was started — discard this stale response
+        if (thisGeneration !== _loadGeneration) return;
+
         const feed = data.feed;
 
         if (pushState) {
@@ -80,39 +121,6 @@ export async function loadFeedArticles(feedId, feedName, { pushState = true } = 
         }
 
         renderArticles(data.articles);
-
-        const dropdown = document.querySelector('.dropdown');
-        if (dropdown) {
-            dropdown.dataset.feedId = feedId;
-            dropdown.dataset.categoryId = '';
-        }
-
-        const headerActions = document.querySelector('.header-actions');
-        if (headerActions) {
-            let editBtn = headerActions.querySelector('[data-feed-action="edit"]');
-            if (!editBtn) {
-                editBtn = document.createElement('button');
-                editBtn.className = 'btn btn-secondary';
-                editBtn.dataset.feedAction = 'edit';
-                editBtn.textContent = 'Edit';
-                headerActions.appendChild(editBtn);
-            }
-            editBtn.style.display = '';
-            editBtn.dataset.action = 'edit-feed';
-            editBtn.dataset.feedId = feedId;
-
-            let refreshBtn = headerActions.querySelector('[data-feed-action="refresh"]');
-            if (!refreshBtn) {
-                refreshBtn = document.createElement('button');
-                refreshBtn.className = 'btn btn-warning';
-                refreshBtn.dataset.feedAction = 'refresh';
-                headerActions.appendChild(refreshBtn);
-            }
-            refreshBtn.style.display = '';
-            refreshBtn.dataset.action = 'refresh-feed';
-            refreshBtn.dataset.feedId = feedId;
-            refreshBtn.textContent = 'Refresh';
-        }
 
         if (feed && feed.last_error) {
             showFeedErrorBanner(feedId, feed.last_error);
@@ -122,6 +130,7 @@ export async function loadFeedArticles(feedId, feedName, { pushState = true } = 
 
         applyDefaultViewForScope('feed');
     } catch (e) {
+        if (thisGeneration !== _loadGeneration) return;
         console.error('Failed to load feed articles:', e);
         showToast('Failed to load articles');
     }
@@ -583,4 +592,9 @@ export function initFeedActionListeners() {
             saveFeed(e);
         }
     }, { signal });
+}
+
+// Test helper: reset module state between tests
+export function _resetFeedsState() {
+    _loadGeneration = 0;
 }
