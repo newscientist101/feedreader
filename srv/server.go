@@ -363,6 +363,8 @@ func (s *Server) initTemplates() error {
 		"queue.html",
 		"history.html",
 		"category_settings.html",
+		"alerts.html",
+		"alert_detail.html",
 	}
 	funcMap := s.templateFuncMap()
 	basePath := filepath.Join(s.TemplatesDir, "base.html")
