@@ -40,17 +40,23 @@ export async function importOPML(input) {
     input.value = '';
 }
 
+let _opmlListenerAC = null;
+
 /**
  * Initialize delegated listeners for OPML actions on the feeds page.
  */
 export function initOpmlListeners() {
+    if (_opmlListenerAC) _opmlListenerAC.abort();
+    _opmlListenerAC = new AbortController();
+    const signal = _opmlListenerAC.signal;
+
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-action="export-opml"]');
         if (btn) exportOPML();
-    });
+    }, { signal });
 
     document.addEventListener('change', (e) => {
         const input = e.target.closest('[data-action="import-opml"]');
         if (input) importOPML(input);
-    });
+    }, { signal });
 }

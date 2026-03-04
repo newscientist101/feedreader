@@ -30,6 +30,7 @@ export function setShowingHiddenArticles(val) {
 
 export function _resetArticlesState() {
     showingHiddenArticles = false;
+    if (_articleListListenerAC) { _articleListListenerAC.abort(); _articleListListenerAC = null; }
 }
 
 // Render the standard set of action buttons for an article.
@@ -291,18 +292,24 @@ export function extractYouTubeId(url) {
 
 // Delegated listeners for article list buttons (replaces inline onclick
 // in index.html and JS-built empty-state HTML).
+let _articleListListenerAC = null;
+
 export function initArticleListListeners() {
+    if (_articleListListenerAC) _articleListListenerAC.abort();
+    _articleListListenerAC = new AbortController();
+    const signal = _articleListListenerAC.signal;
+
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-action="show-hidden-articles"]');
         if (btn) {
             showHiddenArticles();
         }
-    });
+    }, { signal });
 
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-action="show-read-articles"]');
         if (btn) {
             showReadArticles();
         }
-    });
+    }, { signal });
 }

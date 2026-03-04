@@ -11,9 +11,14 @@ export function isStandalone() {
         window.navigator.standalone === true;
 }
 
+let _offlineAC = null;
+
 export function initOfflineSupport() {
     if (!isStandalone()) return;
     if (!('serviceWorker' in navigator)) return;
+    if (_offlineAC) _offlineAC.abort();
+    _offlineAC = new AbortController();
+    const signal = _offlineAC.signal;
 
     // Wait for SW to be ready
     navigator.serviceWorker.ready.then((reg) => {
@@ -39,11 +44,11 @@ export function initOfflineSupport() {
         if (event.data?.type === 'OFFLINE_ENABLED') {
             console.log('Offline mode enabled for PWA');
         }
-    });
+    }, { signal });
 
     // Monitor online/offline state
-    window.addEventListener('online', handleOnlineStateChange);
-    window.addEventListener('offline', handleOnlineStateChange);
+    window.addEventListener('online', handleOnlineStateChange, { signal });
+    window.addEventListener('offline', handleOnlineStateChange, { signal });
     // Apply initial offline state if needed (without triggering reload)
     if (!navigator.onLine) {
         document.body.classList.add('pwa-offline');

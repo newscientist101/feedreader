@@ -31,6 +31,7 @@ export function _getPaginationCursorId() { return paginationCursorId; }
 export function _getPaginationDone() { return paginationDone; }
 export function _getPaginationLoading() { return paginationLoading; }
 export function _resetPaginationState() {
+    if (_paginationAC) _paginationAC.abort();
     paginationCursorTime = null;
     paginationCursorId = null;
     paginationLoading = false;
@@ -128,7 +129,11 @@ export function checkScrollForMore() {
 
 // Bootstrap pagination state from server-rendered articles and register
 // the scroll listener for infinite scrolling.
+let _paginationAC = null;
 export function initPagination() {
+    if (_paginationAC) _paginationAC.abort();
+    _paginationAC = new AbortController();
+    const signal = _paginationAC.signal;
     const initialArticles = document.querySelectorAll('#articles-list .article-card');
     if (initialArticles.length > 0) {
         const lastCard = initialArticles[initialArticles.length - 1];
@@ -141,5 +146,5 @@ export function initPagination() {
         setPaginationState({ done: true });
     }
     updateEndOfArticlesIndicator();
-    window.addEventListener('scroll', checkScrollForMore);
+    window.addEventListener('scroll', checkScrollForMore, { signal });
 }

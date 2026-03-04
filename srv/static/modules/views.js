@@ -81,12 +81,18 @@ export function initView() {
     applyDefaultViewForScope(getViewScope());
 }
 
+let _viewListenerAC = null;
+
 // Delegated listener for view toggle buttons (replaces inline onclick in index.html).
 export function initViewListeners() {
+    if (_viewListenerAC) _viewListenerAC.abort();
+    _viewListenerAC = new AbortController();
+    const signal = _viewListenerAC.signal;
+
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('.view-toggle [data-view]');
         if (btn) {
             setView(btn.dataset.view);
         }
-    });
+    }, { signal });
 }

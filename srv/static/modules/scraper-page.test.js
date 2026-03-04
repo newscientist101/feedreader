@@ -630,8 +630,10 @@ describe('initManualForm', () => {
 });
 
 describe('initScraperPageListeners', () => {
-    // Only call once since listeners accumulate on document
-    initScraperPageListeners();
+    // Re-init before each test since _resetScraperPageState aborts the AbortController
+    beforeEach(() => {
+        initScraperPageListeners();
+    });
 
     it('delegates switch-scraper-tab clicks', () => {
         document.body.innerHTML = `

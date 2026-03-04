@@ -79,7 +79,12 @@ export async function deleteCategory(id, name) {
  * Initialize delegated listeners for folder actions on the feeds page.
  * Handles: rename-category, delete-category, open/close/submit create-folder.
  */
+let _foldersPageListenerAC = null;
 export function initFoldersPageListeners() {
+    if (_foldersPageListenerAC) _foldersPageListenerAC.abort();
+    _foldersPageListenerAC = new AbortController();
+    const signal = _foldersPageListenerAC.signal;
+
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-action="rename-category"]');
         if (btn) {
@@ -87,7 +92,7 @@ export function initFoldersPageListeners() {
             const name = btn.dataset.categoryName || '';
             if (id) renameCategory(id, name);
         }
-    });
+    }, { signal });
 
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-action="delete-category"]');
@@ -96,23 +101,23 @@ export function initFoldersPageListeners() {
             const name = btn.dataset.categoryName || '';
             if (id) deleteCategory(id, name);
         }
-    });
+    }, { signal });
 
     document.addEventListener('click', (e) => {
         const el = e.target.closest('[data-action="open-create-folder"]');
         if (el) openCreateFolderModal();
-    });
+    }, { signal });
 
     document.addEventListener('click', (e) => {
         const el = e.target.closest('[data-action="close-create-folder"]');
         if (el) closeCreateFolderModal();
-    });
+    }, { signal });
 
     // Handle create folder form submission
     document.addEventListener('submit', (e) => {
         const form = e.target.closest('#create-folder-form');
         if (form) submitCreateFolder(e);
-    });
+    }, { signal });
 
     // Unparent category button (category_settings.html)
     document.addEventListener('click', (e) => {
@@ -121,7 +126,7 @@ export function initFoldersPageListeners() {
             const id = Number(btn.dataset.categoryId);
             if (id) unparentCategory(id);
         }
-    });
+    }, { signal });
 
     // Delete exclusion rule button (category_settings.html)
     document.addEventListener('click', (e) => {
@@ -134,14 +139,19 @@ export function initFoldersPageListeners() {
                 .then(() => location.reload())
                 .catch(err => showToast('Failed to delete rule: ' + err.message));
         }
-    });
+    }, { signal });
 }
 
 /**
  * Initialize category settings page — wires up the exclusion form.
  * No-op if not on the category settings page.
  */
+let _categorySettingsAC = null;
 export function initCategorySettingsPage() {
+    if (_categorySettingsAC) _categorySettingsAC.abort();
+    _categorySettingsAC = new AbortController();
+    const signal = _categorySettingsAC.signal;
+
     const view = document.querySelector('.settings-view[data-category-id]');
     if (!view) return;
     const categoryId = Number(view.dataset.categoryId);
@@ -159,6 +169,6 @@ export function initCategorySettingsPage() {
             } catch (err) {
                 showToast('Failed to add exclusion: ' + err.message);
             }
-        });
+        }, { signal });
     }
 }

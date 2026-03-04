@@ -123,7 +123,13 @@ export async function copyNewsletterAddress() {
  * Handles: data-setting radios/checkboxes, run-cleanup, generate-newsletter,
  * copy-newsletter.
  */
+let _settingsPageListenerAC = null;
+
 export function initSettingsPageListeners() {
+    if (_settingsPageListenerAC) _settingsPageListenerAC.abort();
+    _settingsPageListenerAC = new AbortController();
+    const signal = _settingsPageListenerAC.signal;
+
     // Settings inputs: radios and checkboxes with data-setting attribute
     document.addEventListener('change', (e) => {
         const input = e.target.closest('[data-setting]');
@@ -135,17 +141,17 @@ export function initSettingsPageListeners() {
         const applyKey = input.dataset.apply;
         if (applyKey === 'hideReadArticles') applyHideReadArticles(value);
         if (applyKey === 'hideEmptyFeeds') applyHideEmptyFeeds(value);
-    });
+    }, { signal });
 
     document.addEventListener('click', (e) => {
         if (e.target.closest('[data-action="run-cleanup"]')) runCleanup();
-    });
+    }, { signal });
 
     document.addEventListener('click', (e) => {
         if (e.target.closest('[data-action="generate-newsletter"]')) generateNewsletterAddress();
-    });
+    }, { signal });
 
     document.addEventListener('click', (e) => {
         if (e.target.closest('[data-action="copy-newsletter"]')) copyNewsletterAddress();
-    });
+    }, { signal });
 }

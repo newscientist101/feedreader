@@ -156,7 +156,11 @@ async function restoreFromState(state, path) {
 }
 
 // Initialize SPA navigation listeners.
+let _spaNavAC = null;
 export function initSpaNav() {
+    if (_spaNavAC) _spaNavAC.abort();
+    _spaNavAC = new AbortController();
+    const signal = _spaNavAC.signal;
     // Intercept clicks on sidebar nav-items that point to article-list pages.
     document.addEventListener('click', (e) => {
         const link = e.target.closest('.nav-item[href]');
@@ -174,13 +178,13 @@ export function initSpaNav() {
 
         e.preventDefault();
         navigateToNavRoute(route);
-    });
+    }, { signal });
 
     // Handle browser back/forward.
     window.addEventListener('popstate', (e) => {
         const path = window.location.pathname;
         restoreFromState(e.state, path);
-    });
+    }, { signal });
 
     // Replace the current history entry with SPA state so popstate works
     // when navigating back to the initial page.

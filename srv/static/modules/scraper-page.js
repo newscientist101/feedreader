@@ -16,10 +16,16 @@ export function initScraperPage() {
     initManualForm();
 }
 
+let _scraperPageListenerAC = null;
+
 /**
  * Set up delegated click/change listeners for the scrapers page.
  */
 export function initScraperPageListeners() {
+    if (_scraperPageListenerAC) _scraperPageListenerAC.abort();
+    _scraperPageListenerAC = new AbortController();
+    const signal = _scraperPageListenerAC.signal;
+
     document.addEventListener('click', (e) => {
         const action = e.target.closest('[data-action]');
         if (!action) return;
@@ -53,19 +59,19 @@ export function initScraperPageListeners() {
                 closeConfigModal();
                 break;
         }
-    });
+    }, { signal });
 
     document.addEventListener('change', (e) => {
         const el = e.target.closest('#script-type');
         if (el) updateConfigTemplate();
-    });
+    }, { signal });
 
     // Close modal on backdrop click
     const modal = document.getElementById('config-modal');
     if (modal) {
         modal.addEventListener('click', (e) => {
             if (e.target.id === 'config-modal') closeConfigModal();
-        });
+        }, { signal });
     }
 }
 
@@ -286,4 +292,5 @@ export function updateConfigTemplate() {
 /** Reset module state for testing. */
 export function _resetScraperPageState() {
     _scraperSubmitting = false;
+    if (_scraperPageListenerAC) { _scraperPageListenerAC.abort(); _scraperPageListenerAC = null; }
 }

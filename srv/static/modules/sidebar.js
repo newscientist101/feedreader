@@ -65,7 +65,12 @@ export function collapseFolder(folderItem) {
 }
 
 // Close sidebar when a link is clicked on mobile (≤768px).
+let _sidebarMobileCloseAC = null;
 export function initSidebarMobileClose() {
+    if (_sidebarMobileCloseAC) _sidebarMobileCloseAC.abort();
+    _sidebarMobileCloseAC = new AbortController();
+    const signal = _sidebarMobileCloseAC.signal;
+
     const sidebar = document.querySelector('.sidebar');
     if (!sidebar) return;
     sidebar.querySelectorAll('a').forEach(link => {
@@ -73,18 +78,23 @@ export function initSidebarMobileClose() {
             if (window.innerWidth <= 768) {
                 toggleSidebar();
             }
-        });
+        }, { signal });
     });
 }
 
 // Attach delegated event listeners for sidebar actions (replaces inline onclick handlers).
+let _sidebarListenerAC = null;
 export function initSidebarListeners() {
+    if (_sidebarListenerAC) _sidebarListenerAC.abort();
+    _sidebarListenerAC = new AbortController();
+    const signal = _sidebarListenerAC.signal;
+
     // data-action="toggle-sidebar" — menu toggle button and overlay
     document.addEventListener('click', (e) => {
         if (e.target.closest('[data-action="toggle-sidebar"]')) {
             toggleSidebar();
         }
-    });
+    }, { signal });
 
     // data-action="toggle-folder" — folder chevron expand/collapse
     // Uses capture phase so stopPropagation prevents the click from reaching
@@ -96,7 +106,7 @@ export function initSidebarListeners() {
             const catId = Number(btn.dataset.categoryId);
             if (catId) toggleFolderCollapse(catId);
         }
-    }, true);
+    }, { capture: true, signal });
 
     // data-action="navigate-folder" — folder link SPA navigation
     document.addEventListener('click', (e) => {
@@ -109,5 +119,5 @@ export function initSidebarListeners() {
                 e.preventDefault();
             }
         }
-    });
+    }, { signal });
 }

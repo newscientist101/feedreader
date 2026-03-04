@@ -854,11 +854,11 @@ describe('initOfflineSupport', () => {
         );
 
         // Should have registered SW message listener
-        expect(swAddEventListener).toHaveBeenCalledWith('message', expect.any(Function));
+        expect(swAddEventListener).toHaveBeenCalledWith('message', expect.any(Function), expect.objectContaining({ signal: expect.any(AbortSignal) }));
 
         // Should have registered online/offline event listeners
-        expect(addEventSpy).toHaveBeenCalledWith('online', handleOnlineStateChange);
-        expect(addEventSpy).toHaveBeenCalledWith('offline', handleOnlineStateChange);
+        expect(addEventSpy).toHaveBeenCalledWith('online', handleOnlineStateChange, expect.objectContaining({ signal: expect.any(AbortSignal) }));
+        expect(addEventSpy).toHaveBeenCalledWith('offline', handleOnlineStateChange, expect.objectContaining({ signal: expect.any(AbortSignal) }));
 
         document.querySelectorAll.mockRestore();
     });

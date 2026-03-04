@@ -28,26 +28,41 @@ export function toggleDropdown(btn) {
 }
 
 // Register the click-outside listener to close open dropdowns.
+let _closeListenerAC = null;
 export function initDropdownCloseListener() {
+    if (_closeListenerAC) _closeListenerAC.abort();
+    _closeListenerAC = new AbortController();
+    const signal = _closeListenerAC.signal;
+
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.dropdown')) {
             closeAllDropdowns();
         }
-    });
+    }, { signal });
 }
 
 // Delegated listener for dropdown toggle buttons (replaces inline onclick).
+let _dropdownListenerAC = null;
 export function initDropdownListeners() {
+    if (_dropdownListenerAC) _dropdownListenerAC.abort();
+    _dropdownListenerAC = new AbortController();
+    const signal = _dropdownListenerAC.signal;
+
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('.dropdown-toggle');
         if (btn) {
             toggleDropdown(btn);
         }
-    });
+    }, { signal });
 }
 
 // Keyboard navigation for dropdowns.
+let _keyboardNavAC = null;
 export function initDropdownKeyboardNav() {
+    if (_keyboardNavAC) _keyboardNavAC.abort();
+    _keyboardNavAC = new AbortController();
+    const signal = _keyboardNavAC.signal;
+
     document.addEventListener('keydown', (e) => {
         // Escape closes any open dropdown and returns focus to the toggle
         if (e.key === 'Escape') {
@@ -92,5 +107,5 @@ export function initDropdownKeyboardNav() {
                 closeAllDropdowns();
             }
         }
-    });
+    }, { signal });
 }

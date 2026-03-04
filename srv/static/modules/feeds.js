@@ -523,14 +523,19 @@ export function initFeedItemClickListeners() {
 
 // Delegated listeners for feed action buttons (replaces inline onclick in
 // index.html and feeds.html: edit, refresh, retry, delete, filter, category).
+let _feedActionListenerAC = null;
 export function initFeedActionListeners() {
+    if (_feedActionListenerAC) _feedActionListenerAC.abort();
+    _feedActionListenerAC = new AbortController();
+    const signal = _feedActionListenerAC.signal;
+
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-action="edit-feed"]');
         if (btn) {
             const feedId = Number(btn.dataset.feedId);
             if (feedId) editFeed(feedId);
         }
-    });
+    }, { signal });
 
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-action="refresh-feed"]');
@@ -538,7 +543,7 @@ export function initFeedActionListeners() {
             const feedId = Number(btn.dataset.feedId);
             if (feedId) refreshFeed(feedId);
         }
-    });
+    }, { signal });
 
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-action="delete-feed"]');
@@ -547,15 +552,15 @@ export function initFeedActionListeners() {
             const feedName = btn.dataset.feedName || '';
             if (feedId) deleteFeed(feedId, feedName);
         }
-    });
+    }, { signal });
 
     // Filter feeds: checkbox change and search input
     document.addEventListener('change', (e) => {
         if (e.target.closest('[data-action="filter-feeds"]')) filterFeeds();
-    });
+    }, { signal });
     document.addEventListener('input', (e) => {
         if (e.target.closest('[data-action="filter-feeds"]')) filterFeeds();
-    });
+    }, { signal });
 
     // Set feed category from dropdown
     document.addEventListener('change', (e) => {
@@ -564,18 +569,18 @@ export function initFeedActionListeners() {
             const feedId = Number(select.dataset.feedId);
             if (feedId) setFeedCategory(feedId, select.value);
         }
-    });
+    }, { signal });
 
     // Close edit modal (backdrop, close button, cancel button)
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-action="close-edit-modal"]');
         if (btn) closeEditModal();
-    });
+    }, { signal });
 
     // Edit feed form submit
     document.addEventListener('submit', (e) => {
         if (e.target.id === 'edit-feed-form') {
             saveFeed(e);
         }
-    });
+    }, { signal });
 }
