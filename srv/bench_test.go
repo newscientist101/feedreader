@@ -37,7 +37,7 @@ func benchServer(b *testing.B) *Server {
 		bgCtx:            ctx,
 		bgCancel:         cancel,
 	}
-	s.RetentionManager = &RetentionManager{server: s, retentionDays: 30}
+	s.RetentionManager = &RetentionManager{server: s}
 	return s
 }
 

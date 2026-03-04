@@ -26,3 +26,6 @@ SELECT value FROM user_settings WHERE user_id = ? AND key = 'newsletter_token';
 -- name: SetNewsletterToken :exec
 INSERT INTO user_settings (user_id, key, value) VALUES (?, 'newsletter_token', ?)
 ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value;
+
+-- name: ListAllUserIDs :many
+SELECT id FROM users;

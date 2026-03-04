@@ -105,7 +105,7 @@ func TestHandlerRetentionCleanup_DBError(t *testing.T) {
 		DB:       sqlDB,
 		Hostname: "test",
 	}
-	s.RetentionManager = &RetentionManager{server: s, retentionDays: 30}
+	s.RetentionManager = &RetentionManager{server: s}
 
 	// Create user before closing DB
 	ctx, _ := testUser(t, s)

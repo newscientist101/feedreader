@@ -92,7 +92,18 @@
         <div class="retention-info">
             <div class="retention-stat">
                 <span class="stat-label">Retention Period</span>
-                <span class="stat-value">{{.RetentionStats.RetentionDays}} days</span>
+                <span class="stat-value">
+                    <select id="retention-days" data-action="change-retention">
+                        {{$current := .RetentionStats.RetentionDays}}
+                        <option value="7"{{if eq $current 7}} selected{{end}}>7 days</option>
+                        <option value="14"{{if eq $current 14}} selected{{end}}>14 days</option>
+                        <option value="30"{{if eq $current 30}} selected{{end}}>30 days</option>
+                        <option value="60"{{if eq $current 60}} selected{{end}}>60 days</option>
+                        <option value="90"{{if eq $current 90}} selected{{end}}>90 days</option>
+                        <option value="180"{{if eq $current 180}} selected{{end}}>180 days</option>
+                        <option value="365"{{if eq $current 365}} selected{{end}}>365 days</option>
+                    </select>
+                </span>
             </div>
             <div class="retention-stat">
                 <span class="stat-label">Articles to Clean Up</span>

@@ -35,6 +35,22 @@ export function initSettingsPage() {
 }
 
 /**
+ * Update retention period from the settings page dropdown.
+ */
+export async function changeRetention(value) {
+    try {
+        await api('PUT', '/api/settings', { retentionDays: value });
+        // Refresh the stats display
+        const data = await api('GET', '/api/retention/stats');
+        const countEl = document.getElementById('articles-to-delete');
+        if (countEl) countEl.textContent = data.articles_to_delete;
+        showToast('Retention period updated to ' + value + ' days');
+    } catch (err) {
+        showToast('Failed to update retention: ' + err.message);
+    }
+}
+
+/**
  * Run retention cleanup from the settings page.
  */
 export async function runCleanup() {
@@ -141,6 +157,11 @@ export function initSettingsPageListeners() {
         const applyKey = input.dataset.apply;
         if (applyKey === 'hideReadArticles') applyHideReadArticles(value);
         if (applyKey === 'hideEmptyFeeds') applyHideEmptyFeeds(value);
+    }, { signal });
+
+    document.addEventListener('change', (e) => {
+        const select = e.target.closest('[data-action="change-retention"]');
+        if (select) changeRetention(select.value);
     }, { signal });
 
     document.addEventListener('click', (e) => {

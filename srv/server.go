@@ -151,8 +151,8 @@ func (s *Server) Serve(addr string) error {
 	s.Fetcher.Start(5 * time.Minute)
 	defer s.Fetcher.Stop()
 
-	// Start retention manager (30 day retention)
-	s.RetentionManager = NewRetentionManager(s, 30)
+	// Start retention manager (per-user configurable retention)
+	s.RetentionManager = NewRetentionManager(s)
 	s.RetentionManager.Start()
 	defer s.RetentionManager.Stop()
 
@@ -2698,9 +2698,9 @@ func (s *Server) handleCategorySettings(w http.ResponseWriter, r *http.Request) 
 
 // Retention API handlers
 func (s *Server) apiRetentionStats(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	user := GetUser(r.Context())
 
-	stats, err := s.RetentionManager.GetStats(ctx)
+	stats, err := s.RetentionManager.GetStats(r.Context(), user.ID)
 	if err != nil {
 		jsonError(w, err.Error(), 500)
 		return
@@ -2710,7 +2710,8 @@ func (s *Server) apiRetentionStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) apiRetentionCleanup(w http.ResponseWriter, r *http.Request) {
-	deleted, err := s.RetentionManager.RunCleanupNow()
+	user := GetUser(r.Context())
+	deleted, err := s.RetentionManager.RunCleanupNow(user.ID)
 	if err != nil {
 		jsonError(w, err.Error(), 500)
 		return
@@ -2730,6 +2731,7 @@ var validSettings = map[string][]string{
 	"defaultFolderView": {"card", "list", "magazine", "expanded"},
 	"defaultFeedView":   {"card", "list", "magazine", "expanded"},
 	"defaultView":       {"card", "list", "magazine", "expanded"},
+	"retentionDays":     {"7", "14", "30", "60", "90", "180", "365"},
 }
 
 func (s *Server) apiGetSettings(w http.ResponseWriter, r *http.Request) {
@@ -2782,8 +2784,9 @@ func (s *Server) apiUpdateSettings(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	user := GetUser(ctx)
 
-	stats, _ := s.RetentionManager.GetStats(ctx)
+	stats, _ := s.RetentionManager.GetStats(ctx, user.ID)
 
 	data := s.getCommonData(ctx)
 	data["Title"] = "Settings"
