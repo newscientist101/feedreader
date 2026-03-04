@@ -37,6 +37,7 @@ export function _resetArticleActionsState() {
     if (_markReadTimer) { clearTimeout(_markReadTimer); _markReadTimer = null; }
     queuedArticleIds = new Set();
     queuedIdsReady = Promise.resolve();
+    if (_actionListenerAC) { _actionListenerAC.abort(); _actionListenerAC = null; }
 }
 
 // Load queued article IDs from the API, then hydrate action-button placeholders
@@ -280,16 +281,22 @@ export function findNextUnreadFolder(currentCategoryId) {
     return null;
 }
 
+let _actionListenerAC = null;
+
 // Delegated listeners for article actions (replaces inline onclick handlers in
 // index.html and dynamically-built article HTML).
 export function initArticleActionListeners() {
+    // Abort previous listeners to prevent duplicates across re-inits
+    if (_actionListenerAC) _actionListenerAC.abort();
+    _actionListenerAC = new AbortController();
+    const signal = _actionListenerAC.signal;
     // data-action="mark-as-read" with data-scope on dropdown menu buttons
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-action="mark-as-read"]');
         if (btn) {
             markAsRead(btn, btn.dataset.scope || 'all');
         }
-    });
+    }, { signal });
 
     // Article action buttons: toggle-read, toggle-star, toggle-queue
     document.addEventListener('click', (e) => {
@@ -312,7 +319,7 @@ export function initArticleActionListeners() {
                 toggleQueue(e, articleId);
                 break;
         }
-    });
+    }, { signal });
 
     // Article body click — open article (delegated on .article-body.clickable)
     document.addEventListener('click', (e) => {
@@ -324,7 +331,7 @@ export function initArticleActionListeners() {
         if (card) {
             openArticle(Number(card.dataset.id));
         }
-    });
+    }, { signal });
 
     // Article title link with external URL — open externally
     document.addEventListener('click', (e) => {
@@ -335,7 +342,7 @@ export function initArticleActionListeners() {
                 openArticleExternal(e, Number(card.dataset.id), link.href);
             }
         }
-    });
+    }, { signal });
 
     // Article title link without URL — mark read silently
     document.addEventListener('click', (e) => {
@@ -346,7 +353,7 @@ export function initArticleActionListeners() {
                 markReadSilent(Number(card.dataset.id));
             }
         }
-    });
+    }, { signal });
 
     // Feed name links inside article cards — just stop propagation
     // so the article-body click handler doesn't fire
@@ -355,18 +362,21 @@ export function initArticleActionListeners() {
         if (feedLink) {
             e.stopPropagation();
         }
-    }, true);
+    }, { capture: true, signal });
 
-    // Expanded content preview — mark read silently on click, stop
-    // propagation so it doesn't trigger the article-body openArticle handler.
+    // Expanded content preview — open the article page (which also marks
+    // read silently). Stop propagation so we don't double-fire from the
+    // article-body click handler.
     document.addEventListener('click', (e) => {
         const preview = e.target.closest('.article-content-preview');
         if (preview) {
+            // Don't navigate if the user clicked a link inside the preview
+            if (e.target.closest('a, button')) return;
             e.stopPropagation();
             const card = preview.closest('.article-card');
             if (card) {
-                markReadSilent(Number(card.dataset.id));
+                openArticle(Number(card.dataset.id));
             }
         }
-    }, true);
+    }, { capture: true, signal });
 }

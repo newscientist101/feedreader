@@ -718,7 +718,7 @@ describe('initArticleActionListeners', () => {
         expect(_getMarkReadQueue()).toContain(9);
     });
 
-    it('stops propagation and marks read on content-preview click', () => {
+    it('opens article and marks read on content-preview click', async () => {
         document.body.innerHTML = `
             <article class="article-card" data-id="15">
                 <div class="article-body clickable">
@@ -727,12 +727,37 @@ describe('initArticleActionListeners', () => {
             </article>
         `;
         initArticleActionListeners();
+        const origLocation = window.location;
+        delete window.location;
+        window.location = '';
 
         document.querySelector('.article-content-preview').click();
-        // markReadSilent queues the id and marks card as read
+        // openArticle calls markReadSilent (queues id, marks card read) then navigates
         const card = document.querySelector('.article-card[data-id="15"]');
         expect(card.classList.contains('read')).toBe(true);
-        expect(_getMarkReadQueue()).toContain(15);
+        expect(window.location).toBe('/article/15');
+
+        window.location = origLocation;
+    });
+
+    it('does not navigate when clicking a link inside content-preview', () => {
+        document.body.innerHTML = `
+            <article class="article-card" data-id="16">
+                <div class="article-body clickable">
+                    <div class="article-content-preview expanded-only"><a href="https://example.com">link</a></div>
+                </div>
+            </article>
+        `;
+        initArticleActionListeners();
+        const origLocation = window.location;
+        delete window.location;
+        window.location = '';
+
+        document.querySelector('.article-content-preview a').click();
+        // Should not have navigated via openArticle
+        expect(window.location).toBe('');
+
+        window.location = origLocation;
     });
 
     it('toggle-read with data-is-read="0" dispatches markRead', async () => {
