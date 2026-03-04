@@ -3,7 +3,6 @@ package srv
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,8 +10,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	_ "modernc.org/sqlite"
 )
 
 // aiScraperTimeout is the timeout for AI scraper generation requests.
@@ -23,26 +20,20 @@ const aiScraperTimeout = 120 * time.Second
 type ShelleyScraperGenerator struct {
 	shelleyURL string
 	httpClient *http.Client
-	dbPath     string
 }
 
-// NewShelleyScraperGenerator creates a Shelley API client. The URL and DB path
-// can be overridden with the SHELLEY_URL and SHELLEY_DB environment variables.
+// NewShelleyScraperGenerator creates a Shelley API client. The URL can be
+// overridden with the SHELLEY_URL environment variable.
 func NewShelleyScraperGenerator() *ShelleyScraperGenerator {
 	url := os.Getenv("SHELLEY_URL")
 	if url == "" {
 		url = "http://localhost:9999"
-	}
-	dbPath := os.Getenv("SHELLEY_DB")
-	if dbPath == "" {
-		dbPath = os.ExpandEnv("$HOME/.config/shelley/shelley.db")
 	}
 	return &ShelleyScraperGenerator{
 		shelleyURL: url,
 		httpClient: &http.Client{
 			Timeout: aiScraperTimeout,
 		},
-		dbPath: dbPath,
 	}
 }
 
@@ -195,50 +186,58 @@ func (g *ShelleyScraperGenerator) waitForResponse(ctx context.Context, conversat
 			}
 
 			if !working {
-				// Get the response from the database
-				return g.getResponseFromDB(ctx, conversationID)
+				// Get the response via the API
+				return g.getResponseFromAPI(ctx, conversationID)
 			}
 		}
 	}
 }
 
-func (g *ShelleyScraperGenerator) getResponseFromDB(ctx context.Context, conversationID string) (string, error) {
-	db, err := sql.Open("sqlite", g.dbPath+"?mode=ro")
+func (g *ShelleyScraperGenerator) getResponseFromAPI(ctx context.Context, conversationID string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", g.shelleyURL+"/api/conversation/"+conversationID, http.NoBody)
 	if err != nil {
-		return "", fmt.Errorf("failed to open Shelley DB: %w", err)
+		return "", fmt.Errorf("failed to create request: %w", err)
 	}
-	defer func() { _ = db.Close() }()
+	req.Header.Set("X-Exedev-Userid", "local")
 
-	// Get all agent messages and concatenate text
-	rows, err := db.QueryContext(ctx,
-		`SELECT llm_data FROM messages 
-		 WHERE conversation_id = ? AND type = 'agent' 
-		 ORDER BY sequence_id`,
-		conversationID)
+	resp, err := g.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to get response: %w", err)
+		return "", fmt.Errorf("failed to fetch conversation: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("shelley API returned status %d", resp.StatusCode)
+	}
+
+	var convData struct {
+		Messages []struct {
+			Type    string `json:"type"`
+			LLMData string `json:"llm_data"`
+		} `json:"messages"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&convData); err != nil {
+		return "", fmt.Errorf("failed to decode conversation: %w", err)
+	}
 
 	var allText strings.Builder
-	for rows.Next() {
-		var llmData string
-		if err := rows.Scan(&llmData); err != nil {
+	for _, msg := range convData.Messages {
+		if msg.Type != "agent" || msg.LLMData == "" {
 			continue
 		}
 
 		// Parse the LLM data to extract text
-		var msg struct {
+		var llm struct {
 			Content []struct {
 				Type int    `json:"Type"`
 				Text string `json:"Text"`
 			} `json:"Content"`
 		}
-		if err := json.Unmarshal([]byte(llmData), &msg); err != nil {
+		if err := json.Unmarshal([]byte(msg.LLMData), &llm); err != nil {
 			continue
 		}
 
-		for _, content := range msg.Content {
+		for _, content := range llm.Content {
 			// Type 2 is text content
 			if content.Type == 2 && content.Text != "" {
 				allText.WriteString(content.Text)
