@@ -319,7 +319,7 @@ func (s *Server) templateFuncMap() template.FuncMap {
 		"moduleImportMap": func() template.HTML {
 			imports := make(map[string]string)
 			for name, hash := range s.StaticHashes {
-				if strings.HasPrefix(name, "modules/") && strings.HasSuffix(name, ".js") && !strings.HasSuffix(name, ".test.js") {
+				if strings.HasPrefix(name, "modules/") && strings.HasSuffix(name, ".js") && !strings.HasSuffix(name, ".test.js") && !strings.Contains(name, "__mocks__") {
 					imports["/static/"+name] = "/static/" + name + "?v=" + hash
 				}
 			}
@@ -330,7 +330,7 @@ func (s *Server) templateFuncMap() template.FuncMap {
 		"modulePreloadTags": func() template.HTML {
 			var tags []string
 			for name, hash := range s.StaticHashes {
-				if strings.HasPrefix(name, "modules/") && strings.HasSuffix(name, ".js") && !strings.HasSuffix(name, ".test.js") {
+				if strings.HasPrefix(name, "modules/") && strings.HasSuffix(name, ".js") && !strings.HasSuffix(name, ".test.js") && !strings.Contains(name, "__mocks__") {
 					tags = append(tags, fmt.Sprintf(`<link rel="modulepreload" href="/static/%s?v=%s">`, name, hash))
 				}
 			}
