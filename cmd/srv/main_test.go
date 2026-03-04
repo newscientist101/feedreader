@@ -25,7 +25,7 @@ func TestFlagDefault(t *testing.T) {
 
 func TestInitServer_InvalidDBPath(t *testing.T) {
 	badPath := filepath.Join(t.TempDir(), "no", "such", "dir", "db.sqlite3")
-	_, err := initServer(badPath)
+	_, err := initServer(badPath, "")
 	if err == nil {
 		t.Fatal("expected error for invalid DB path, got nil")
 	}
@@ -33,7 +33,7 @@ func TestInitServer_InvalidDBPath(t *testing.T) {
 
 func TestInitServer_ValidDBPath(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "test.sqlite3")
-	server, err := initServer(dbPath)
+	server, err := initServer(dbPath, "")
 	if err != nil {
 		t.Fatalf("initServer: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestInitServer_ValidDBPath(t *testing.T) {
 
 func TestInitServer_SetsFields(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "test.sqlite3")
-	server, err := initServer(dbPath)
+	server, err := initServer(dbPath, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,5 +67,18 @@ func TestInitServer_SetsFields(t *testing.T) {
 	}
 	if server.Fetcher == nil {
 		t.Error("Fetcher is nil")
+	}
+}
+
+func TestInitServer_ExplicitEmailDomain(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test.sqlite3")
+	server, err := initServer(dbPath, "custom.example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { server.DB.Close() })
+
+	if server.Hostname != "custom.example.com" {
+		t.Errorf("Hostname = %q, want %q", server.Hostname, "custom.example.com")
 	}
 }

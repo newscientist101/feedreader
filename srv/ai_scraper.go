@@ -22,13 +22,23 @@ type ShelleyScraperGenerator struct {
 	dbPath     string
 }
 
+// NewShelleyScraperGenerator creates a Shelley API client. The URL and DB path
+// can be overridden with the SHELLEY_URL and SHELLEY_DB environment variables.
 func NewShelleyScraperGenerator() *ShelleyScraperGenerator {
+	url := os.Getenv("SHELLEY_URL")
+	if url == "" {
+		url = "http://localhost:9999"
+	}
+	dbPath := os.Getenv("SHELLEY_DB")
+	if dbPath == "" {
+		dbPath = os.ExpandEnv("$HOME/.config/shelley/shelley.db")
+	}
 	return &ShelleyScraperGenerator{
-		shelleyURL: "http://localhost:9999",
+		shelleyURL: url,
 		httpClient: &http.Client{
 			Timeout: 120 * time.Second,
 		},
-		dbPath: os.ExpandEnv("$HOME/.config/shelley/shelley.db"),
+		dbPath: dbPath,
 	}
 }
 
