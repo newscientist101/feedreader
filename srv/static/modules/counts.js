@@ -77,7 +77,7 @@ export async function updateCounts() {
         // Re-apply hide empty preference if enabled
         applyUserPreferences();
     } catch (e) {
-        console.error('Failed to update counts:', e);
+        console.error('Failed to update counts:', e.message);
         showToast('Failed to update counts');
     }
 }

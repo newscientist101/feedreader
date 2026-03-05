@@ -94,7 +94,7 @@ describe('updateCounts', () => {
 
         await updateCounts(); // should not throw
 
-        expect(console.error).toHaveBeenCalledWith('Failed to update counts:', expect.any(Error));
+        expect(console.error).toHaveBeenCalledWith('Failed to update counts:', 'Network error');
     });
 
     it('sets aria-label attributes on unread, queue, and alerts badges', async () => {
