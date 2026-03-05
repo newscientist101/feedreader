@@ -68,3 +68,8 @@ export function makeArticle(overrides = {}) {
         ...overrides,
     };
 }
+
+/** Flush the microtask queue by scheduling a macrotask. */
+export function flushPromises() {
+    return new Promise((resolve) => { setTimeout(resolve, 0); });
+}

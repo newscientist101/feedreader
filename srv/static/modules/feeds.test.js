@@ -7,12 +7,17 @@ import {
     refreshFeed, editFeed, createEditFeedModal,
     _resetFeedsState,
 } from './feeds.js';
-import { _resetArticlesState } from './articles.js';
+vi.mock('./articles.js');
+vi.mock('./api.js');
+vi.mock('./modal.js');
+
+import { api } from './api.js';
+import { _resetArticlesState, renderArticles } from './articles.js';
 import { _resetArticleActionsState, setQueuedArticleIds } from './article-actions.js';
 import { showToast } from './toast.js';
 import { applyDefaultViewForScope } from './views.js';
 import { showFeedErrorBanner, removeFeedErrorBanner } from './feed-errors.js';
-import { makeFetchResponse, makeCountsResponse } from './test-helpers.js';
+import { makeCountsResponse, flushPromises } from './test-helpers.js';
 
 vi.mock('./toast.js');
 
@@ -23,9 +28,11 @@ vi.mock('./views.js');
 
 vi.mock('./feed-errors.js');
 
+
 beforeEach(() => {
     document.body.innerHTML = '';
     vi.restoreAllMocks();
+    vi.clearAllMocks();
     _resetArticlesState();
     _resetArticleActionsState();
     _resetFeedsState();
@@ -57,11 +64,7 @@ describe('loadCategoryArticles', () => {
     });
 
     it('loads and renders category articles', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({ articles: [{ id: 1, title: 'Test', feed_name: 'F' }] }),
-        });
-        const dbg = vi.spyOn(console, 'debug').mockImplementation(() => {});
+        api.mockResolvedValue({ articles: [{ id: 1, title: 'Test', feed_name: 'F' }] });
 
         await loadCategoryArticles(3, 'Tech');
 
@@ -73,14 +76,11 @@ describe('loadCategoryArticles', () => {
         expect(dropdown.dataset.categoryId).toBe('3');
         expect(removeFeedErrorBanner).toHaveBeenCalled();
         expect(applyDefaultViewForScope).toHaveBeenCalledWith('folder');
-        expect(dbg).toHaveBeenCalledWith('[auto-mark-read] observing 1 initial articles');
+        expect(renderArticles).toHaveBeenCalledWith([{ id: 1, title: 'Test', feed_name: 'F' }]);
     });
 
     it('hides feed action buttons', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({ articles: [] }),
-        });
+        api.mockResolvedValue({ articles: [] });
 
         await loadCategoryArticles(3, 'Tech');
 
@@ -89,7 +89,7 @@ describe('loadCategoryArticles', () => {
     });
 
     it('handles API errors gracefully', async () => {
-        vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Network error'));
+        api.mockRejectedValue(new Error('Network error'));
         vi.spyOn(console, 'error').mockImplementation(() => {});
 
         await loadCategoryArticles(3, 'Tech');
@@ -115,15 +115,10 @@ describe('loadFeedArticles', () => {
     });
 
     it('loads and renders feed articles', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                articles: [{ id: 1, title: 'Test', feed_name: 'F' }],
-                feed: { id: 7, name: 'Feed', last_error: null },
-            }),
-        });
-        const dbg = vi.spyOn(console, 'debug').mockImplementation(() => {});
-
+        api.mockResolvedValue({
+            articles: [{ id: 1, title: 'Test', feed_name: 'F' }],
+            feed: { id: 7, name: 'Feed', last_error: null },
+            });
         await loadFeedArticles(7, 'Feed');
 
         expect(document.querySelector('.view-header h1').textContent).toBe('Feed');
@@ -134,17 +129,14 @@ describe('loadFeedArticles', () => {
         expect(dropdown.dataset.categoryId).toBe('');
         expect(removeFeedErrorBanner).toHaveBeenCalled();
         expect(applyDefaultViewForScope).toHaveBeenCalledWith('feed');
-        expect(dbg).toHaveBeenCalledWith('[auto-mark-read] observing 1 initial articles');
+        expect(renderArticles).toHaveBeenCalledWith([{ id: 1, title: 'Test', feed_name: 'F' }]);
     });
 
     it('sets active state on matching feed items', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                articles: [],
-                feed: { id: 7, name: 'Feed', last_error: null },
-            }),
-        });
+        api.mockResolvedValue({
+            articles: [],
+            feed: { id: 7, name: 'Feed', last_error: null },
+            });
 
         await loadFeedArticles(7, 'Feed');
 
@@ -152,13 +144,10 @@ describe('loadFeedArticles', () => {
     });
 
     it('shows error banner when feed has last_error', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                articles: [],
-                feed: { id: 7, name: 'Feed', last_error: 'Timeout' },
-            }),
-        });
+        api.mockResolvedValue({
+            articles: [],
+            feed: { id: 7, name: 'Feed', last_error: 'Timeout' },
+            });
 
         await loadFeedArticles(7, 'Feed');
 
@@ -166,13 +155,10 @@ describe('loadFeedArticles', () => {
     });
 
     it('creates edit and refresh buttons in header-actions', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                articles: [],
-                feed: { id: 7, name: 'Feed', last_error: null },
-            }),
-        });
+        api.mockResolvedValue({
+            articles: [],
+            feed: { id: 7, name: 'Feed', last_error: null },
+            });
 
         await loadFeedArticles(7, 'Feed');
 
@@ -184,7 +170,7 @@ describe('loadFeedArticles', () => {
     });
 
     it('handles API errors gracefully', async () => {
-        vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Network error'));
+        api.mockRejectedValue(new Error('Network error'));
         vi.spyOn(console, 'error').mockImplementation(() => {});
 
         await loadFeedArticles(7, 'Feed');
@@ -294,18 +280,14 @@ describe('saveFeed', () => {
     });
 
     it('saves feed and updates row in place', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({}),
-        });
+        api.mockResolvedValue({});
         const event = { preventDefault: vi.fn() };
 
         await saveFeed(event);
 
         expect(event.preventDefault).toHaveBeenCalled();
-        expect(fetch).toHaveBeenCalledWith('/api/feeds/5', expect.objectContaining({
-            method: 'PUT',
-            body: expect.stringContaining('"Updated Feed"'),
+        expect(api).toHaveBeenCalledWith('PUT', '/api/feeds/5', expect.objectContaining({
+            name: 'Updated Feed',
         }));
         // Modal should be hidden
         expect(document.getElementById('edit-feed-modal').style.display).toBe('none');
@@ -316,15 +298,12 @@ describe('saveFeed', () => {
 
     it('sends content filters as JSON', async () => {
         document.getElementById('edit-feed-filters').value = '.ad\n.sidebar';
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({}),
-        });
+        api.mockResolvedValue({});
         const event = { preventDefault: vi.fn() };
 
         await saveFeed(event);
 
-        const body = JSON.parse(fetch.mock.calls[0][1].body);
+        const body = api.mock.calls[0][2];
         const filters = JSON.parse(body.content_filters);
         expect(filters).toEqual([{ selector: '.ad' }, { selector: '.sidebar' }]);
     });
@@ -335,10 +314,7 @@ describe('saveFeed', () => {
         sidebar.innerHTML = '<a class="feed-item" href="/feed/5"><span class="feed-name">Old Name</span></a>';
         document.body.appendChild(sidebar);
 
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({}),
-        });
+        api.mockResolvedValue({});
         const event = { preventDefault: vi.fn() };
 
         await saveFeed(event);
@@ -360,10 +336,7 @@ describe('saveFeed', () => {
             configurable: true,
         });
 
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({}),
-        });
+        api.mockResolvedValue({});
         const event = { preventDefault: vi.fn() };
 
         await saveFeed(event);
@@ -386,10 +359,7 @@ describe('saveFeed', () => {
             configurable: true,
         });
 
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({}),
-        });
+        api.mockResolvedValue({});
         const event = { preventDefault: vi.fn() };
 
         await saveFeed(event);
@@ -399,10 +369,7 @@ describe('saveFeed', () => {
     });
 
     it('handles save errors', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: false,
-            text: () => Promise.resolve(JSON.stringify({ error: 'Not found' })),
-        });
+        api.mockRejectedValue(new Error('Not found'));
         vi.spyOn(console, 'error').mockImplementation(() => {});
         const event = { preventDefault: vi.fn() };
 
@@ -416,10 +383,7 @@ describe('saveFeed', () => {
 describe('deleteFeed', () => {
     it('calls API and reloads on confirm', async () => {
         vi.spyOn(window, 'confirm').mockReturnValue(true);
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({}),
-        });
+        api.mockResolvedValue({});
         // Mock location.reload
         const reloadMock = vi.fn();
         Object.defineProperty(window, 'location', {
@@ -431,39 +395,29 @@ describe('deleteFeed', () => {
         await deleteFeed(5, 'Test Feed');
 
         expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('Test Feed'));
-        expect(fetch).toHaveBeenCalledWith('/api/feeds/5', expect.objectContaining({ method: 'DELETE' }));
+        expect(api).toHaveBeenCalledWith('DELETE', '/api/feeds/5');
     });
 
     it('does nothing when user cancels', async () => {
         vi.spyOn(window, 'confirm').mockReturnValue(false);
-        vi.spyOn(globalThis, 'fetch');
 
         await deleteFeed(5, 'Test Feed');
 
-        expect(fetch).not.toHaveBeenCalled();
+        expect(api).not.toHaveBeenCalled();
     });
 });
 
 describe('setFeedCategory', () => {
     it('calls the category API', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({}),
-        });
+        api.mockResolvedValue({});
 
         await setFeedCategory(5, 3);
 
-        expect(fetch).toHaveBeenCalledWith('/api/feeds/5/category', expect.objectContaining({
-            method: 'POST',
-            body: JSON.stringify({ categoryId: 3 }),
-        }));
+        expect(api).toHaveBeenCalledWith('POST', '/api/feeds/5/category', { categoryId: 3 });
     });
 
     it('handles errors gracefully', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: false,
-            text: () => Promise.resolve(JSON.stringify({ error: 'fail' })),
-        });
+        api.mockRejectedValue(new Error('fail'));
         vi.spyOn(console, 'error').mockImplementation(() => {});
 
         await setFeedCategory(5, 3);
@@ -501,16 +455,13 @@ describe('createEditFeedModal', () => {
 
 describe('editFeed', () => {
     it('populates all form fields from API response', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                id: 42,
-                name: 'Test Feed',
-                url: 'https://example.com/rss',
-                fetch_interval_minutes: 120,
-                content_filters: null,
-                skip_retention: 0,
-            }),
+        api.mockResolvedValue({
+            id: 42,
+            name: 'Test Feed',
+            url: 'https://example.com/rss',
+            fetch_interval_minutes: 120,
+            content_filters: null,
+            skip_retention: 0,
         });
 
         await editFeed(42);
@@ -526,15 +477,12 @@ describe('editFeed', () => {
     });
 
     it('parses content_filters JSON into newline-separated textarea', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                id: 5,
-                name: 'Feed',
-                url: 'https://example.com',
-                fetch_interval_minutes: 60,
-                content_filters: JSON.stringify([{ selector: '.ad' }, { selector: '#sidebar' }]),
-            }),
+        api.mockResolvedValue({
+            id: 5,
+            name: 'Feed',
+            url: 'https://example.com',
+            fetch_interval_minutes: 60,
+            content_filters: JSON.stringify([{ selector: '.ad' }, { selector: '#sidebar' }]),
         });
 
         await editFeed(5);
@@ -543,15 +491,12 @@ describe('editFeed', () => {
     });
 
     it('handles empty content_filters', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                id: 5,
-                name: 'Feed',
-                url: 'https://example.com',
-                fetch_interval_minutes: 60,
-                content_filters: '',
-            }),
+        api.mockResolvedValue({
+            id: 5,
+            name: 'Feed',
+            url: 'https://example.com',
+            fetch_interval_minutes: 60,
+            content_filters: '',
         });
 
         await editFeed(5);
@@ -560,15 +505,12 @@ describe('editFeed', () => {
     });
 
     it('handles invalid JSON in content_filters gracefully', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                id: 5,
-                name: 'Feed',
-                url: 'https://example.com',
-                fetch_interval_minutes: 60,
-                content_filters: 'not-valid-json',
-            }),
+        api.mockResolvedValue({
+            id: 5,
+            name: 'Feed',
+            url: 'https://example.com',
+            fetch_interval_minutes: 60,
+            content_filters: 'not-valid-json',
         });
 
         await editFeed(5);
@@ -578,15 +520,12 @@ describe('editFeed', () => {
     });
 
     it('uses default interval of 60 when fetch_interval_minutes is null', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({
-                id: 5,
-                name: 'Feed',
-                url: 'https://example.com',
-                fetch_interval_minutes: null,
-                content_filters: null,
-            }),
+        api.mockResolvedValue({
+            id: 5,
+            name: 'Feed',
+            url: 'https://example.com',
+            fetch_interval_minutes: null,
+            content_filters: null,
         });
 
         await editFeed(5);
@@ -595,10 +534,7 @@ describe('editFeed', () => {
     });
 
     it('shows toast on API failure', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: false,
-            text: () => Promise.resolve(JSON.stringify({ error: 'Not found' })),
-        });
+        api.mockRejectedValue(new Error('Not found'));
         vi.spyOn(console, 'error').mockImplementation(() => {});
 
         await editFeed(99);
@@ -613,29 +549,21 @@ describe('refreshFeed', () => {
         vi.useFakeTimers();
 
         let statusCall = 0;
-        vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+        api.mockImplementation(async (method, url) => {
             if (url === '/api/feeds/9/status') {
                 statusCall += 1;
                 return {
-                    ok: true,
-                    json: async () => ({
-                        lastFetched: statusCall === 1 ? 't1' : 't2',
-                        lastError: statusCall === 1 ? null : 'boom',
-                    }),
-                    text: async () => '',
+                    lastFetched: statusCall === 1 ? 't1' : 't2',
+                    lastError: statusCall === 1 ? null : 'boom',
                 };
             }
             if (url === '/api/feeds/9/refresh') {
-                return makeFetchResponse();
+                return {};
             }
             if (url === '/api/counts') {
-                return {
-                    ok: true,
-                    json: async () => makeCountsResponse(),
-                    text: async () => '',
-                };
+                return makeCountsResponse();
             }
-            return makeFetchResponse();
+            return {};
         });
 
         document.body.innerHTML = `
@@ -674,29 +602,21 @@ describe('refreshFeed', () => {
         vi.useFakeTimers();
 
         let statusCall = 0;
-        vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+        api.mockImplementation(async (method, url) => {
             if (url === '/api/feeds/3/status') {
                 statusCall += 1;
                 return {
-                    ok: true,
-                    json: async () => ({
-                        lastFetched: statusCall === 1 ? 't1' : 't2',
-                        lastError: null,
-                    }),
-                    text: async () => '',
+                    lastFetched: statusCall === 1 ? 't1' : 't2',
+                    lastError: null,
                 };
             }
             if (url === '/api/feeds/3/refresh') {
-                return makeFetchResponse();
+                return {};
             }
             if (url === '/api/counts') {
-                return {
-                    ok: true,
-                    json: async () => makeCountsResponse(),
-                    text: async () => '',
-                };
+                return makeCountsResponse();
             }
-            return makeFetchResponse();
+            return {};
         });
 
         document.body.innerHTML = `<button data-feed-id="3">Refresh</button>`;
@@ -724,25 +644,17 @@ describe('refreshFeed', () => {
     it('restores buttons after timeout (30 attempts exhausted)', async () => {
         vi.useFakeTimers();
 
-        vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+        api.mockImplementation(async (method, url) => {
             if (url === '/api/feeds/4/status') {
-                return {
-                    ok: true,
-                    json: async () => ({ lastFetched: 'same-time', lastError: null }),
-                    text: async () => '',
-                };
+                return { lastFetched: 'same-time', lastError: null };
             }
             if (url === '/api/feeds/4/refresh') {
-                return makeFetchResponse();
+                return {};
             }
             if (url === '/api/counts') {
-                return {
-                    ok: true,
-                    json: async () => makeCountsResponse(),
-                    text: async () => '',
-                };
+                return makeCountsResponse();
             }
-            return makeFetchResponse();
+            return {};
         });
 
         document.body.innerHTML = `<button data-feed-id="4">Refresh</button>`;
@@ -769,7 +681,7 @@ describe('refreshFeed', () => {
     it('shows error on catch and restores button after 2s', async () => {
         vi.useFakeTimers();
 
-        vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Network down'));
+        api.mockRejectedValue(new Error('Network down'));
         vi.spyOn(console, 'error').mockImplementation(() => {});
 
         document.body.innerHTML = `<button data-feed-id="5">Refresh</button>`;
@@ -795,10 +707,7 @@ describe('refreshFeed', () => {
 describe('initFeedActionListeners', () => {
     beforeEach(() => {
         document.body.innerHTML = '';
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({}),
-        });
+        api.mockResolvedValue({});
     });
 
     afterEach(() => {
@@ -814,7 +723,8 @@ describe('initFeedActionListeners', () => {
 
         document.querySelector('[data-action="refresh-feed"]').click();
 
-        await vi.waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/feeds/42/refresh', expect.any(Object)), { interval: 1 });
+        await flushPromises();
+        expect(api).toHaveBeenCalledWith('POST', '/api/feeds/42/refresh');
     });
 
     it('delegates edit-feed clicks', async () => {
@@ -824,14 +734,12 @@ describe('initFeedActionListeners', () => {
         initFeedActionListeners();
 
         // editFeed calls api('GET', '/api/feeds/7') then creates a modal
-        fetch.mockResolvedValueOnce({
-            ok: true,
-            json: () => Promise.resolve({ id: 7, name: 'Test', url: 'http://example.com', interval: 60, content_filters: '' }),
-        });
+        api.mockResolvedValueOnce({ id: 7, name: 'Test', url: 'http://example.com', interval: 60, content_filters: '' });
 
         document.querySelector('[data-action="edit-feed"]').click();
 
-        await vi.waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/feeds/7', expect.any(Object)), { interval: 1 });
+        await flushPromises();
+        expect(api).toHaveBeenCalledWith('GET', '/api/feeds/7');
     });
 
     it('ignores clicks without feed id', () => {
@@ -841,7 +749,7 @@ describe('initFeedActionListeners', () => {
         initFeedActionListeners();
 
         document.querySelector('[data-action="refresh-feed"]').click();
-        expect(fetch).not.toHaveBeenCalled();
+        expect(api).not.toHaveBeenCalled();
     });
 
     it('delegates delete-feed click', () => {
@@ -926,10 +834,10 @@ describe('initFeedActionListeners', () => {
             new Event('submit', { cancelable: true, bubbles: true })
         );
 
-        await vi.waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/feeds/11', expect.objectContaining({
-            method: 'PUT',
-            body: expect.stringContaining('"Saved Feed"'),
-        })), { interval: 1 });
+        await flushPromises();
+        expect(api).toHaveBeenCalledWith('PUT', '/api/feeds/11', expect.objectContaining({
+            name: 'Saved Feed',
+        }));
     });
 
     it('delegates set-feed-category change', async () => {
@@ -945,10 +853,8 @@ describe('initFeedActionListeners', () => {
         select.value = '3';
         select.dispatchEvent(new Event('change', { bubbles: true }));
 
-        await vi.waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/feeds/5/category', expect.objectContaining({
-            method: 'POST',
-            body: JSON.stringify({ categoryId: 3 }),
-        })), { interval: 1 });
+        await flushPromises();
+        expect(api).toHaveBeenCalledWith('POST', '/api/feeds/5/category', { categoryId: 3 });
     });
 });
 
@@ -967,10 +873,7 @@ describe('initAddFeedForm', () => {
                 <input id="feed-interval" value="60">
             </form>
         `;
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: async () => ({ id: 1 }),
-        });
+        api.mockResolvedValue({ id: 1 });
         const reloadMock = vi.fn();
         Object.defineProperty(window, 'location', {
             value: { ...window.location, reload: reloadMock },
@@ -983,19 +886,17 @@ describe('initAddFeedForm', () => {
             new Event('submit', { cancelable: true })
         );
 
-        await vi.waitFor(() => expect(reloadMock).toHaveBeenCalled(), { interval: 1 });
+        await flushPromises();
+        expect(reloadMock).toHaveBeenCalled();
 
-        expect(fetch).toHaveBeenCalledWith('/api/feeds', expect.objectContaining({
-            method: 'POST',
-            body: JSON.stringify({
-                url: 'https://example.com/feed.xml',
-                name: 'My Feed',
-                feedType: 'rss',
-                scraperModule: '',
-                scraperConfig: '',
-                interval: 60,
-            }),
-        }));
+        expect(api).toHaveBeenCalledWith('POST', '/api/feeds', {
+            url: 'https://example.com/feed.xml',
+            name: 'My Feed',
+            feedType: 'rss',
+            scraperModule: '',
+            scraperConfig: '',
+            interval: 60,
+        });
     });
 
     it('builds Reddit RSS URL from subreddit', async () => {
@@ -1010,10 +911,7 @@ describe('initAddFeedForm', () => {
                 <input id="feed-interval" value="60">
             </form>
         `;
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: async () => ({ id: 2 }),
-        });
+        api.mockResolvedValue({ id: 2 });
         const reloadMock = vi.fn();
         Object.defineProperty(window, 'location', {
             value: { ...window.location, reload: reloadMock },
@@ -1026,11 +924,11 @@ describe('initAddFeedForm', () => {
             new Event('submit', { cancelable: true })
         );
 
-        await vi.waitFor(() => expect(reloadMock).toHaveBeenCalled(), { interval: 1 });
+        await flushPromises();
+        expect(reloadMock).toHaveBeenCalled();
 
-        expect(fetch).toHaveBeenCalledWith('/api/feeds', expect.objectContaining({
-            method: 'POST',
-            body: expect.stringContaining('"url":"https://www.reddit.com/r/javascript/hot/.rss"'),
+        expect(api).toHaveBeenCalledWith('POST', '/api/feeds', expect.objectContaining({
+            url: 'https://www.reddit.com/r/javascript/hot/.rss',
         }));
     });
 
@@ -1046,15 +944,15 @@ describe('initAddFeedForm', () => {
                 <input id="feed-interval" value="60">
             </form>
         `;
-        const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
         initAddFeedForm();
         document.getElementById('add-feed-form').dispatchEvent(
             new Event('submit', { cancelable: true })
         );
 
-        await vi.waitFor(() => expect(showToast).toHaveBeenCalledWith('Please enter a subreddit name', 'info'), { interval: 1 });
-        expect(fetchSpy).not.toHaveBeenCalled();
+        await flushPromises();
+        expect(showToast).toHaveBeenCalledWith('Please enter a subreddit name', 'info');
+        expect(api).not.toHaveBeenCalled();
     });
 
     it('builds HuggingFace config with daily_papers', async () => {
@@ -1068,10 +966,7 @@ describe('initAddFeedForm', () => {
                 <input id="feed-interval" value="60">
             </form>
         `;
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: async () => ({ id: 3 }),
-        });
+        api.mockResolvedValue({ id: 3 });
         const reloadMock = vi.fn();
         Object.defineProperty(window, 'location', {
             value: { ...window.location, reload: reloadMock },
@@ -1084,11 +979,11 @@ describe('initAddFeedForm', () => {
             new Event('submit', { cancelable: true })
         );
 
-        await vi.waitFor(() => expect(reloadMock).toHaveBeenCalled(), { interval: 1 });
+        await flushPromises();
+        expect(reloadMock).toHaveBeenCalled();
 
-        expect(fetch).toHaveBeenCalledWith('/api/feeds', expect.objectContaining({
-            method: 'POST',
-            body: expect.stringContaining('"url":"https://huggingface.co/papers"'),
+        expect(api).toHaveBeenCalledWith('POST', '/api/feeds', expect.objectContaining({
+            url: 'https://huggingface.co/papers',
         }));
     });
 
@@ -1102,9 +997,9 @@ describe('initAddFeedForm', () => {
                 <input id="feed-interval" value="60">
             </form>
         `;
-        vi.spyOn(globalThis, 'fetch')
-            .mockResolvedValueOnce(makeFetchResponse({ id: 10 }))
-            .mockResolvedValueOnce(makeFetchResponse());
+        api
+            .mockResolvedValueOnce({ id: 10 })
+            .mockResolvedValueOnce({});
         const reloadMock = vi.fn();
         Object.defineProperty(window, 'location', {
             value: { ...window.location, reload: reloadMock },
@@ -1117,14 +1012,12 @@ describe('initAddFeedForm', () => {
             new Event('submit', { cancelable: true })
         );
 
-        await vi.waitFor(() => expect(reloadMock).toHaveBeenCalled(), { interval: 1 });
+        await flushPromises();
+        expect(reloadMock).toHaveBeenCalled();
 
         // First call: create feed, second call: set category
-        expect(fetch).toHaveBeenCalledTimes(2);
-        expect(fetch).toHaveBeenCalledWith('/api/feeds/10/category', expect.objectContaining({
-            method: 'POST',
-            body: JSON.stringify({ categoryId: 5 }),
-        }));
+        expect(api).toHaveBeenCalledTimes(2);
+        expect(api).toHaveBeenCalledWith('POST', '/api/feeds/10/category', { categoryId: 5 });
     });
 
     it('shows toast on API failure', async () => {
@@ -1136,17 +1029,15 @@ describe('initAddFeedForm', () => {
                 <input id="feed-interval" value="60">
             </form>
         `;
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: false,
-            json: async () => ({ error: 'Bad URL' }),
-        });
+        api.mockRejectedValue(new Error('Bad URL'));
 
         initAddFeedForm();
         document.getElementById('add-feed-form').dispatchEvent(
             new Event('submit', { cancelable: true })
         );
 
-        await vi.waitFor(() => expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Failed to add feed')), { interval: 1 });
+        await flushPromises();
+        expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Failed to add feed'));
     });
 
     it('sends empty name for RSS feed when no name provided', async () => {
@@ -1158,10 +1049,7 @@ describe('initAddFeedForm', () => {
                 <input id="feed-interval" value="60">
             </form>
         `;
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: async () => ({ id: 1 }),
-        });
+        api.mockResolvedValue({ id: 1 });
         const reloadMock = vi.fn();
         Object.defineProperty(window, 'location', {
             value: { ...window.location, reload: reloadMock },
@@ -1174,19 +1062,17 @@ describe('initAddFeedForm', () => {
             new Event('submit', { cancelable: true })
         );
 
-        await vi.waitFor(() => expect(reloadMock).toHaveBeenCalled(), { interval: 1 });
+        await flushPromises();
+        expect(reloadMock).toHaveBeenCalled();
 
-        expect(fetch).toHaveBeenCalledWith('/api/feeds', expect.objectContaining({
-            method: 'POST',
-            body: JSON.stringify({
-                url: 'https://store.steampowered.com/news/app/123',
-                name: '',
-                feedType: 'rss',
-                scraperModule: '',
-                scraperConfig: '',
-                interval: 60,
-            }),
-        }));
+        expect(api).toHaveBeenCalledWith('POST', '/api/feeds', {
+            url: 'https://store.steampowered.com/news/app/123',
+            name: '',
+            feedType: 'rss',
+            scraperModule: '',
+            scraperConfig: '',
+            interval: 60,
+        });
     });
 
     it('sends empty name for Reddit feed when no name provided', async () => {
@@ -1201,10 +1087,7 @@ describe('initAddFeedForm', () => {
                 <input id="feed-interval" value="60">
             </form>
         `;
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: async () => ({ id: 2 }),
-        });
+        api.mockResolvedValue({ id: 2 });
         const reloadMock = vi.fn();
         Object.defineProperty(window, 'location', {
             value: { ...window.location, reload: reloadMock },
@@ -1217,19 +1100,17 @@ describe('initAddFeedForm', () => {
             new Event('submit', { cancelable: true })
         );
 
-        await vi.waitFor(() => expect(reloadMock).toHaveBeenCalled(), { interval: 1 });
+        await flushPromises();
+        expect(reloadMock).toHaveBeenCalled();
 
-        expect(fetch).toHaveBeenCalledWith('/api/feeds', expect.objectContaining({
-            method: 'POST',
-            body: JSON.stringify({
-                url: 'https://www.reddit.com/r/gaming/hot/.rss',
-                name: '',
-                feedType: 'rss',
-                scraperModule: '',
-                scraperConfig: '',
-                interval: 60,
-            }),
-        }));
+        expect(api).toHaveBeenCalledWith('POST', '/api/feeds', {
+            url: 'https://www.reddit.com/r/gaming/hot/.rss',
+            name: '',
+            feedType: 'rss',
+            scraperModule: '',
+            scraperConfig: '',
+            interval: 60,
+        });
     });
 
     it('sends empty name for HuggingFace feed when no name provided', async () => {
@@ -1243,10 +1124,7 @@ describe('initAddFeedForm', () => {
                 <input id="feed-interval" value="60">
             </form>
         `;
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: async () => ({ id: 3 }),
-        });
+        api.mockResolvedValue({ id: 3 });
         const reloadMock = vi.fn();
         Object.defineProperty(window, 'location', {
             value: { ...window.location, reload: reloadMock },
@@ -1259,11 +1137,11 @@ describe('initAddFeedForm', () => {
             new Event('submit', { cancelable: true })
         );
 
-        await vi.waitFor(() => expect(reloadMock).toHaveBeenCalled(), { interval: 1 });
+        await flushPromises();
+        expect(reloadMock).toHaveBeenCalled();
 
-        expect(fetch).toHaveBeenCalledWith('/api/feeds', expect.objectContaining({
-            method: 'POST',
-            body: expect.stringContaining('"name":""'),
+        expect(api).toHaveBeenCalledWith('POST', '/api/feeds', expect.objectContaining({
+            name: '',
         }));
     });
 
@@ -1280,10 +1158,7 @@ describe('initAddFeedForm', () => {
                 <input id="feed-interval" value="30">
             </form>
         `;
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: async () => ({ id: 7 }),
-        });
+        api.mockResolvedValue({ id: 7 });
         const reloadMock = vi.fn();
         Object.defineProperty(window, 'location', {
             value: { ...window.location, reload: reloadMock },
@@ -1296,19 +1171,17 @@ describe('initAddFeedForm', () => {
             new Event('submit', { cancelable: true })
         );
 
-        await vi.waitFor(() => expect(reloadMock).toHaveBeenCalled(), { interval: 1 });
+        await flushPromises();
+        expect(reloadMock).toHaveBeenCalled();
 
-        expect(fetch).toHaveBeenCalledWith('/api/feeds', expect.objectContaining({
-            method: 'POST',
-            body: JSON.stringify({
-                url: 'https://example.com/news',
-                name: 'News Scraper',
-                feedType: 'rss',
-                scraperModule: 'my-scraper',
-                scraperConfig: '',
-                interval: 30,
-            }),
-        }));
+        expect(api).toHaveBeenCalledWith('POST', '/api/feeds', {
+            url: 'https://example.com/news',
+            name: 'News Scraper',
+            feedType: 'rss',
+            scraperModule: 'my-scraper',
+            scraperConfig: '',
+            interval: 30,
+        });
     });
 });
 
@@ -1323,10 +1196,7 @@ describe('initFeedItemClickListeners', () => {
                 <span class="feed-name">Test Feed</span>
             </a>
         `;
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: async () => ({ feed: { id: 42 }, articles: [] }),
-        });
+        api.mockResolvedValue({ feed: { id: 42 }, articles: [] });
         vi.spyOn(window.history, 'pushState').mockImplementation(() => {});
         initFeedItemClickListeners();
 
@@ -1362,10 +1232,7 @@ describe('initFeedItemClickListeners', () => {
             <div id="articles-list"></div>
             <a class="feed-item" data-feed-id="7" data-feed-name="Custom Name" href="/feed/7"></a>
         `;
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-            ok: true,
-            json: async () => ({ feed: { id: 7 }, articles: [] }),
-        });
+        api.mockResolvedValue({ feed: { id: 7 }, articles: [] });
         vi.spyOn(window.history, 'pushState').mockImplementation(() => {});
         initFeedItemClickListeners();
 
@@ -1374,6 +1241,6 @@ describe('initFeedItemClickListeners', () => {
 
         // loadFeedArticles is called with feedId="7" and feedName="Custom Name"
         // Verified indirectly: the fetch call targets the correct feed
-        expect(fetch).toHaveBeenCalledWith('/api/feeds/7/articles', expect.any(Object));
+        expect(api).toHaveBeenCalledWith('GET', '/api/feeds/7/articles');
     });
 });

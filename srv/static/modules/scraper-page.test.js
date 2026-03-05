@@ -1,8 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-
-function flushPromises() {
-    return new Promise((resolve) => { setTimeout(resolve, 0); });
-}
+import { flushPromises } from './test-helpers.js';
 
 // Mock the api module
 vi.mock('./api.js');
