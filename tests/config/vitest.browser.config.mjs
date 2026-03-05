@@ -1,8 +1,13 @@
 import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 export default defineConfig({
   test: {
+    root,
     include: ['tests/layout/**/*.test.js'],
     browser: {
       enabled: true,

@@ -9,7 +9,7 @@ clean:
 test:
 	go test ./...
 	@go test -v -run TestPerformance ./srv/ 2>&1 | grep -E '(median=|FAIL|PASS)'
-	NO_COLOR=1 npx vitest run
+	NO_COLOR=1 npx vitest run --config tests/config/vitest.config.mjs
 
 lint: lint-go lint-js lint-css lint-templates lint-html
 
@@ -41,9 +41,9 @@ vulncheck:
 	govulncheck ./...
 
 layout-test:
-	NO_COLOR=1 npx vitest run --config vitest.browser.config.mjs
+	NO_COLOR=1 npx vitest run --config tests/config/vitest.browser.config.mjs
 
 browser-unit-test:
-	NO_COLOR=1 npx vitest run --config vitest.browser-unit.config.mjs
+	NO_COLOR=1 npx vitest run --config tests/config/vitest.browser-unit.config.mjs
 
 check: fmt-check fix-check lint test vulncheck

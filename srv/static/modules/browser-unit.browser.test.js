@@ -10,7 +10,7 @@
  * Note: vi.mock() causes process hangs in Vitest browser mode (v4.0.18).
  * We use vi.spyOn(globalThis, 'fetch') instead.
  *
- * Run with: npx vitest run --config vitest.browser-unit.config.mjs
+ * Run with: npx vitest run --config tests/config/vitest.browser-unit.config.mjs
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {

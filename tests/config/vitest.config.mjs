@@ -1,9 +1,14 @@
 import { defineConfig } from 'vitest/config';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 export default defineConfig({
   test: {
+    root,
     environment: 'happy-dom',
-    setupFiles: ['./vitest.setup.mjs'],
+    setupFiles: ['./tests/config/vitest.setup.mjs'],
     include: ['srv/static/**/*.test.js'],
     exclude: ['srv/static/**/*.browser.test.js'],
     reporters: ['default'],

@@ -48,7 +48,7 @@ make layout-test
 
 Or directly:
 ```bash
-npx vitest run --config vitest.browser.config.mjs
+npx vitest run --config tests/config/vitest.browser.config.mjs
 ```
 
 > **Note**: Layout tests are _not_ part of `make check` since they require a
@@ -99,7 +99,7 @@ describe('header at 860px', () => {
 ## Adding Tests
 
 Create new `*.test.js` files in this directory. They'll be picked up
-automatically by the `vitest.browser.config.mjs` include pattern.
+automatically by the `tests/config/vitest.browser.config.mjs` include pattern.
 
 ### Custom Commands
 
