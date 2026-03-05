@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { initSpaNav } from './spa-nav.js';
-import { makeFetchResponse } from './test-helpers.js';
 
 vi.mock('./api.js');
 vi.mock('./articles.js');

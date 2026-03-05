@@ -16,7 +16,7 @@ vi.mock('./settings.js', () => ({
     saveSetting: vi.fn((key, val) => { store[key] = val; }),
 }));
 
-import { getSetting, saveSetting } from './settings.js';
+import { saveSetting } from './settings.js';
 
 function clearStore() {
     for (const key of Object.keys(store)) delete store[key];

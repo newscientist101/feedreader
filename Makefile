@@ -17,7 +17,7 @@ lint-go:
 	golangci-lint run ./...
 
 lint-js:
-	npx eslint --config tests/config/eslint.config.mjs srv/static/
+	npx eslint --config tests/config/eslint.config.mjs srv/static/ tests/layout/
 
 lint-css:
 	npx stylelint srv/static/**/*.css

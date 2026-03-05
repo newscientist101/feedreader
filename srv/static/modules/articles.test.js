@@ -17,7 +17,7 @@ vi.mock('./pagination.js');
 vi.mock('./toast.js');
 
 import { showToast } from './toast.js';
-import { setPaginationState, updateEndOfArticlesIndicator } from './pagination.js';
+import { setPaginationState } from './pagination.js';
 import { MockIntersectionObserver, makeFetchResponse, makeArticle } from './test-helpers.js';
 
 beforeEach(() => {

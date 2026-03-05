@@ -4,7 +4,7 @@ import {
     markCardAsRead, markReadSilent, openArticle, openArticleExternal,
     markRead, markUnread, toggleStar, toggleQueue, markAsRead,
     findNextUnreadFolder, initArticleActionListeners, initQueueState,
-    setQueuedArticleIds, setQueuedIdsReady, queuedArticleIds,
+    queuedArticleIds,
     _resetArticleActionsState,
     _getMarkReadQueue,
 } from './article-actions.js';
@@ -542,7 +542,6 @@ describe('initArticleActionListeners', () => {
             </article>
         `;
         initArticleActionListeners();
-        const origLocation = window.location.href;
 
         // Click the link — should NOT trigger openArticle
         const link = document.querySelector('.feed-name');
