@@ -14,5 +14,5 @@ export const renderArticles = vi.fn();
 export const processEmbeds = vi.fn();
 export const extractYouTubeId = vi.fn();
 export const initArticleListListeners = vi.fn();
-// updateReadButton is re-exported from read-button.js in the real module.
-// Tests that need it should mock read-button.js directly (auto-mocked).
+// Re-exported from read-button.js in the real module; mocked here to match structure.
+export const updateReadButton = vi.fn();
