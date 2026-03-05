@@ -564,11 +564,35 @@ describe('renderArticles', () => {
     });
 
     it('does not set pagination done for articles at PAGE_SIZE boundary', async () => {
+        const list = document.getElementById('articles-list');
+        // Intercept innerHTML to avoid expensive DOM parsing of 50 cards in happy-dom.
+        // The test only checks setPaginationState calls, not rendered DOM.
+        // Walk up the prototype chain to find the innerHTML descriptor (HTMLElement or Element)
+        let proto = Object.getPrototypeOf(list);
+        let origDescriptor;
+        while (proto && !origDescriptor) {
+            origDescriptor = Object.getOwnPropertyDescriptor(proto, 'innerHTML');
+            proto = Object.getPrototypeOf(proto);
+        }
+        let capturedHtml = '';
+        Object.defineProperty(list, 'innerHTML', {
+            set(html) {
+                capturedHtml = html;
+                origDescriptor.set.call(this, '');
+            },
+            get() { return origDescriptor.get.call(this); },
+            configurable: true,
+        });
+
         const articles = Array.from({ length: 50 }, (_, i) => ({
             id: i + 1, title: `Art ${i}`, is_read: 0, is_starred: 0,
         }));
         setPaginationState.mockClear();
         await renderArticles(articles);
+
+        // Verify articles were rendered (HTML was built)
+        expect(capturedHtml).toContain('article-card');
+
         // The first call resets pagination state (cursorTime, cursorId, done: false, loading: false)
         // With exactly 50 articles, the `if (articles.length < PAGE_SIZE)` branch
         // should NOT execute, so the only `done` value set should be false (from reset)
@@ -691,7 +715,7 @@ describe('initArticleListListeners', () => {
         initArticleListListeners();
 
         document.querySelector('[data-action="show-hidden-articles"]').click();
-        await new Promise(r => setTimeout(r, 10));
+        await new Promise(r => setTimeout(r, 0));
 
         expect(fetch).toHaveBeenCalledWith('/api/articles/unread?include_read=1', expect.any(Object));
     });

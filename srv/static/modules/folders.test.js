@@ -422,7 +422,7 @@ describe('initFoldersPageListeners', () => {
 
         const form = document.getElementById('create-folder-form');
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-        await new Promise(r => setTimeout(r, 10));
+        await new Promise(r => setTimeout(r, 0));
 
         expect(fetch).toHaveBeenCalledWith('/api/categories', expect.objectContaining({
             method: 'POST',

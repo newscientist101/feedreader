@@ -78,7 +78,7 @@ describe('settings', () => {
             vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network'));
             saveSetting('key', 'val');
             // Wait for the promise rejection to be caught
-            await new Promise(r => setTimeout(r, 10));
+            await new Promise(r => setTimeout(r, 0));
             expect(consoleSpy).toHaveBeenCalledWith('Failed to save setting:', expect.any(Error));
             expect(showToast).toHaveBeenCalledWith('Failed to save setting');
         });

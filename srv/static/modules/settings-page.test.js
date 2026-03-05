@@ -508,7 +508,7 @@ describe('initSettingsPageListeners', () => {
         api.mockResolvedValue({ deleted: 5 });
 
         document.querySelector('[data-action="run-cleanup"]').click();
-        await new Promise(r => setTimeout(r, 10));
+        await new Promise(r => setTimeout(r, 0));
 
         expect(api).toHaveBeenCalledWith('POST', '/api/retention/cleanup');
     });
@@ -524,7 +524,7 @@ describe('initSettingsPageListeners', () => {
         api.mockResolvedValue({ address: 'test@example.com' });
 
         document.querySelector('[data-action="generate-newsletter"]').click();
-        await new Promise(r => setTimeout(r, 10));
+        await new Promise(r => setTimeout(r, 0));
 
         expect(api).toHaveBeenCalledWith('POST', '/api/newsletter/generate-address');
     });
@@ -542,7 +542,7 @@ describe('initSettingsPageListeners', () => {
         });
 
         document.querySelector('[data-action="copy-newsletter"]').click();
-        await new Promise(r => setTimeout(r, 10));
+        await new Promise(r => setTimeout(r, 0));
 
         expect(writeText).toHaveBeenCalledWith('test@example.com');
     });

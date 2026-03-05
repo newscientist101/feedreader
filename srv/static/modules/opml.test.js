@@ -198,7 +198,7 @@ describe('initOpmlListeners', () => {
         vi.spyOn(globalThis, 'fetch');
 
         input.dispatchEvent(new Event('change', { bubbles: true }));
-        await new Promise(r => setTimeout(r, 10));
+        await new Promise(r => setTimeout(r, 0));
 
         // importOPML was called, but with no files, so no fetch
         expect(fetch).not.toHaveBeenCalled();
@@ -211,7 +211,7 @@ describe('initOpmlListeners', () => {
         document.querySelector('.other-input').dispatchEvent(
             new Event('change', { bubbles: true })
         );
-        await new Promise(r => setTimeout(r, 10));
+        await new Promise(r => setTimeout(r, 0));
 
         expect(fetch).not.toHaveBeenCalled();
     });
