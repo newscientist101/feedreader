@@ -4,6 +4,8 @@
  * Modules tested:
  *   - drag-drop.js: real getBoundingClientRect for drag positioning
  *   - pagination.js: real scroll measurements for infinite scroll detection
+ *   - article-actions.js: real IntersectionObserver for auto-mark-read
+ *   - articles.js: real scrollTo and IntersectionObserver in renderArticles
  *
  * Note: vi.mock() causes process hangs in Vitest browser mode (v4.0.18).
  * We use vi.spyOn(globalThis, 'fetch') instead.
@@ -18,6 +20,12 @@ import {
     checkScrollForMore, setPaginationState, getPaginationState,
     _resetPaginationState,
 } from './pagination.js';
+import {
+    initAutoMarkRead, observeNewArticles,
+    _resetArticleActionsState,
+    _getAutoMarkReadObserver,
+} from './article-actions.js';
+import { renderArticles, _resetArticlesState } from './articles.js';
 
 
 let fetchSpy;
@@ -26,6 +34,9 @@ const pendingTimers = [];
 beforeEach(() => {
     document.body.innerHTML = '';
     _resetPaginationState();
+    _resetArticleActionsState();
+    _resetArticlesState();
+    window.__settings = {};
     vi.restoreAllMocks();
     vi.clearAllMocks();
     fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
@@ -356,5 +367,243 @@ describe('checkScrollForMore (real scroll measurements)', () => {
 
         expect(fetchSpy).toHaveBeenCalled();
         expect(getPaginationState().done).toBe(true);
+    });
+});
+
+// --- Article-actions: initAutoMarkRead (real IntersectionObserver) ---
+
+describe('initAutoMarkRead (real IntersectionObserver)', () => {
+    beforeEach(() => {
+        vi.spyOn(console, 'debug').mockImplementation(() => {});
+    });
+
+    it('does nothing when autoMarkRead setting is not true', () => {
+        window.__settings = { autoMarkRead: 'false' };
+        initAutoMarkRead();
+        expect(_getAutoMarkReadObserver()).toBeNull();
+        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] disabled by setting');
+    });
+
+    it('creates a real IntersectionObserver when autoMarkRead is true', () => {
+        window.__settings = { autoMarkRead: 'true' };
+        const list = document.createElement('div');
+        list.id = 'articles-list';
+        list.innerHTML = '<div class="article-card" data-id="1"></div>';
+        document.body.appendChild(list);
+
+        initAutoMarkRead();
+        const obs = _getAutoMarkReadObserver();
+        expect(obs).not.toBeNull();
+        expect(obs).toBeInstanceOf(IntersectionObserver);
+        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 1 initial articles');
+    });
+
+    it('disconnects previous observer on re-init', () => {
+        window.__settings = { autoMarkRead: 'true' };
+        const list = document.createElement('div');
+        list.id = 'articles-list';
+        document.body.appendChild(list);
+
+        initAutoMarkRead();
+        const first = _getAutoMarkReadObserver();
+        initAutoMarkRead();
+        expect(_getAutoMarkReadObserver()).not.toBe(first);
+    });
+});
+
+// --- Article-actions: observeNewArticles (real IntersectionObserver) ---
+
+describe('observeNewArticles (real IntersectionObserver)', () => {
+    beforeEach(() => {
+        vi.spyOn(console, 'debug').mockImplementation(() => {});
+    });
+
+    it('is a no-op when observer is null', () => {
+        const container = document.createElement('div');
+        container.innerHTML = '<div class="article-card"></div>';
+        observeNewArticles(container);
+        // Should not throw
+    });
+
+    it('observes new cards via real IntersectionObserver', () => {
+        window.__settings = { autoMarkRead: 'true' };
+        const list = document.createElement('div');
+        list.id = 'articles-list';
+        document.body.appendChild(list);
+
+        initAutoMarkRead();
+        const obs = _getAutoMarkReadObserver();
+        const spy = vi.spyOn(obs, 'observe');
+        const container = document.createElement('div');
+        container.innerHTML = '<div class="article-card"></div><div class="article-card"></div>';
+        observeNewArticles(container);
+        expect(spy).toHaveBeenCalledTimes(2);
+        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 2 new articles');
+    });
+});
+
+// --- Article-actions: auto-mark-read integration (real IntersectionObserver) ---
+
+describe('auto-mark-read integration (real IntersectionObserver)', () => {
+    beforeEach(() => {
+        vi.spyOn(console, 'debug').mockImplementation(() => {});
+        window.__settings = { autoMarkRead: 'true' };
+    });
+
+    it('observer works on initial page load articles', () => {
+        const list = document.createElement('div');
+        list.id = 'articles-list';
+        list.innerHTML = `
+            <article class="article-card" data-id="1"></article>
+            <article class="article-card" data-id="2"></article>
+        `;
+        document.body.appendChild(list);
+
+        const observeSpy = vi.spyOn(IntersectionObserver.prototype, 'observe');
+        initAutoMarkRead();
+        expect(_getAutoMarkReadObserver()).not.toBeNull();
+        expect(_getAutoMarkReadObserver()).toBeInstanceOf(IntersectionObserver);
+        expect(observeSpy).toHaveBeenCalledTimes(2);
+        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 2 initial articles');
+        observeSpy.mockRestore();
+    });
+
+    it('observer is re-created after renderArticles (client-side nav)', async () => {
+        const list = document.createElement('div');
+        list.id = 'articles-list';
+        list.innerHTML = '<article class="article-card" data-id="1"></article>';
+        document.body.appendChild(list);
+
+        initAutoMarkRead();
+        const initialObserver = _getAutoMarkReadObserver();
+
+        // renderArticles calls scrollTo(0,0) — real browser supports it
+        await renderArticles([
+            { id: 100, title: 'VR Article', is_read: 0, is_starred: 0, feed_name: 'VR Feed' },
+            { id: 101, title: 'VR News', is_read: 0, is_starred: 0, feed_name: 'VR Feed' },
+        ]);
+
+        expect(_getAutoMarkReadObserver()).not.toBe(initialObserver);
+        expect(_getAutoMarkReadObserver()).not.toBeNull();
+        expect(_getAutoMarkReadObserver()).toBeInstanceOf(IntersectionObserver);
+
+        const cards = document.querySelectorAll('#articles-list .article-card');
+        expect(cards.length).toBe(2);
+        expect(cards[0].dataset.id).toBe('100');
+        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 2 initial articles');
+    });
+
+    it('new paginated articles are observed', () => {
+        const list = document.createElement('div');
+        list.id = 'articles-list';
+        document.body.appendChild(list);
+
+        initAutoMarkRead();
+        const spy = vi.spyOn(_getAutoMarkReadObserver(), 'observe');
+
+        const temp = document.createElement('div');
+        temp.innerHTML = `
+            <article class="article-card" data-id="50"></article>
+            <article class="article-card" data-id="51"></article>
+            <article class="article-card" data-id="52"></article>
+        `;
+        observeNewArticles(temp);
+
+        expect(spy).toHaveBeenCalledTimes(3);
+        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 3 new articles');
+    });
+
+    it('multiple navigations each get a fresh observer', async () => {
+        const list = document.createElement('div');
+        list.id = 'articles-list';
+        document.body.appendChild(list);
+
+        const observers = [];
+
+        for (let i = 0; i < 3; i++) {
+            await renderArticles([
+                { id: i * 10 + 1, title: `Article ${i}`, is_read: 0, is_starred: 0 },
+            ]);
+            observers.push(_getAutoMarkReadObserver());
+        }
+
+        expect(observers[0]).not.toBe(observers[1]);
+        expect(observers[1]).not.toBe(observers[2]);
+        observers.forEach(obs => {
+            expect(obs).not.toBeNull();
+            expect(obs).toBeInstanceOf(IntersectionObserver);
+        });
+    });
+});
+
+// --- Articles: renderArticles (real scrollTo + IntersectionObserver) ---
+
+describe('renderArticles (real browser)', () => {
+    beforeEach(() => {
+        vi.spyOn(console, 'debug').mockImplementation(() => {});
+        window.__settings = { autoMarkRead: 'true' };
+    });
+
+    it('renders articles and calls real scrollTo', async () => {
+        const list = document.createElement('div');
+        list.id = 'articles-list';
+        list.className = 'articles-list';
+        document.body.appendChild(list);
+
+        const scrollSpy = vi.spyOn(window, 'scrollTo');
+
+        const articles = [
+            { id: 1, title: 'Article 1', is_read: 0, is_starred: 0 },
+            { id: 2, title: 'Article 2', is_read: 0, is_starred: 0 },
+        ];
+        await renderArticles(articles);
+
+        expect(scrollSpy).toHaveBeenCalledWith(0, 0);
+        const cards = document.querySelectorAll('#articles-list .article-card');
+        expect(cards.length).toBe(2);
+        expect(cards[0].dataset.id).toBe('1');
+        expect(cards[1].dataset.id).toBe('2');
+        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 2 initial articles');
+    });
+
+    it('re-initializes real IntersectionObserver after render', async () => {
+        const list = document.createElement('div');
+        list.id = 'articles-list';
+        list.className = 'articles-list';
+        document.body.appendChild(list);
+
+        initAutoMarkRead();
+        const firstObserver = _getAutoMarkReadObserver();
+
+        await renderArticles([
+            { id: 10, title: 'New', is_read: 0, is_starred: 0 },
+        ]);
+
+        expect(_getAutoMarkReadObserver()).not.toBeNull();
+        expect(_getAutoMarkReadObserver()).not.toBe(firstObserver);
+        expect(_getAutoMarkReadObserver()).toBeInstanceOf(IntersectionObserver);
+        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 1 initial articles');
+    });
+
+    it('handles empty article list with real browser', async () => {
+        const list = document.createElement('div');
+        list.id = 'articles-list';
+        list.className = 'articles-list';
+        document.body.appendChild(list);
+
+        await renderArticles([]);
+        const cards = document.querySelectorAll('#articles-list .article-card');
+        expect(cards.length).toBe(0);
+        expect(document.querySelector('#articles-list .empty-state')).not.toBeNull();
+    });
+
+    it('sets aria-busy to false after rendering', async () => {
+        const list = document.createElement('div');
+        list.id = 'articles-list';
+        list.className = 'articles-list';
+        document.body.appendChild(list);
+
+        await renderArticles([{ id: 1, title: 'T', is_read: 0, is_starred: 0 }]);
+        expect(document.getElementById('articles-list').getAttribute('aria-busy')).toBe('false');
     });
 });

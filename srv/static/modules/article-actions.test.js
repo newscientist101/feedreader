@@ -1,14 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-    initAutoMarkRead, observeNewArticles, flushMarkReadQueue,
+    flushMarkReadQueue,
     markCardAsRead, markReadSilent, openArticle, openArticleExternal,
     markRead, markUnread, toggleStar, toggleQueue, markAsRead,
     findNextUnreadFolder, initArticleActionListeners, initQueueState,
     setQueuedArticleIds, setQueuedIdsReady, queuedArticleIds,
     _resetArticleActionsState,
-    _getAutoMarkReadObserver, _getMarkReadQueue,
+    _getMarkReadQueue,
 } from './article-actions.js';
-import { renderArticles, _resetArticlesState } from './articles.js';
 import { updateCounts } from './counts.js';
 import { updateQueueCacheIfStandalone } from './offline.js';
 import { updateReadButton } from './read-button.js';
@@ -16,7 +15,7 @@ import { showToast } from './toast.js';
 import {
     SVG_STAR_FILLED, SVG_STAR_EMPTY, SVG_QUEUE_ADD, SVG_QUEUE_REMOVE
 } from './icons.js';
-import { MockIntersectionObserver, makeFetchResponse } from './test-helpers.js';
+import { makeFetchResponse } from './test-helpers.js';
 
 vi.mock('./pagination.js');
 vi.mock('./counts.js');
@@ -27,8 +26,6 @@ vi.mock('./toast.js');
 beforeEach(() => {
     vi.useFakeTimers();
     _resetArticleActionsState();
-    _resetArticlesState();
-    window.IntersectionObserver = MockIntersectionObserver;
     window.__settings = {};
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse());
     document.body.innerHTML = '<div id="articles-list"></div>';
@@ -39,58 +36,11 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-describe('initAutoMarkRead', () => {
-    beforeEach(() => {
-        vi.spyOn(console, 'debug').mockImplementation(() => {});
-    });
+// initAutoMarkRead tests migrated to browser-unit.browser.test.js
+// (uses real IntersectionObserver instead of MockIntersectionObserver)
 
-    it('does nothing when autoMarkRead setting is not true', () => {
-        window.__settings = { autoMarkRead: 'false' };
-        initAutoMarkRead();
-        expect(_getAutoMarkReadObserver()).toBeNull();
-        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] disabled by setting');
-    });
-
-    it('creates an IntersectionObserver when autoMarkRead is true', () => {
-        window.__settings = { autoMarkRead: 'true' };
-        document.getElementById('articles-list').innerHTML =
-            '<div class="article-card" data-id="1"></div>';
-        initAutoMarkRead();
-        expect(_getAutoMarkReadObserver()).not.toBeNull();
-        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 1 initial articles');
-    });
-
-    it('disconnects previous observer on re-init', () => {
-        window.__settings = { autoMarkRead: 'true' };
-        initAutoMarkRead();
-        const first = _getAutoMarkReadObserver();
-        initAutoMarkRead();
-        expect(_getAutoMarkReadObserver()).not.toBe(first);
-        expect(console.debug).toHaveBeenCalledTimes(2);
-    });
-});
-
-describe('observeNewArticles', () => {
-    it('is a no-op when observer is null', () => {
-        const container = document.createElement('div');
-        container.innerHTML = '<div class="article-card"></div>';
-        observeNewArticles(container);
-        // Should not throw
-    });
-
-    it('observes new cards in the container', () => {
-        vi.spyOn(console, 'debug').mockImplementation(() => {});
-        window.__settings = { autoMarkRead: 'true' };
-        initAutoMarkRead();
-        const obs = _getAutoMarkReadObserver();
-        const spy = vi.spyOn(obs, 'observe');
-        const container = document.createElement('div');
-        container.innerHTML = '<div class="article-card"></div><div class="article-card"></div>';
-        observeNewArticles(container);
-        expect(spy).toHaveBeenCalledTimes(2);
-        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 2 new articles');
-    });
-});
+// observeNewArticles tests migrated to browser-unit.browser.test.js
+// (uses real IntersectionObserver instead of MockIntersectionObserver)
 
 describe('markCardAsRead', () => {
     it('adds read class to the matching card', () => {
@@ -420,84 +370,8 @@ describe('findNextUnreadFolder', () => {
     });
 });
 
-describe('auto-mark-read after client-side navigation (integration)', () => {
-    beforeEach(() => {
-        vi.spyOn(console, 'debug').mockImplementation(() => {});
-        window.__settings = { autoMarkRead: 'true' };
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse({ status: 'ok' }));
-        window.scrollTo = vi.fn();
-    });
-
-    afterEach(() => {
-        delete window.scrollTo;
-    });
-
-    it('observer works on initial page load articles', () => {
-        document.getElementById('articles-list').innerHTML = `
-            <article class="article-card" data-id="1"></article>
-            <article class="article-card" data-id="2"></article>
-        `;
-
-        const observeSpy = vi.spyOn(MockIntersectionObserver.prototype, 'observe');
-        initAutoMarkRead();
-        expect(_getAutoMarkReadObserver()).not.toBeNull();
-        expect(observeSpy).toHaveBeenCalledTimes(2);
-        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 2 initial articles');
-        observeSpy.mockRestore();
-    });
-
-    it('observer is re-created after renderArticles (client-side nav)', async () => {
-        document.getElementById('articles-list').innerHTML =
-            '<article class="article-card" data-id="1"></article>';
-        initAutoMarkRead();
-        const initialObserver = _getAutoMarkReadObserver();
-
-        await renderArticles([
-            { id: 100, title: 'VR Article', is_read: 0, is_starred: 0, feed_name: 'VR Feed' },
-            { id: 101, title: 'VR News', is_read: 0, is_starred: 0, feed_name: 'VR Feed' },
-        ]);
-
-        expect(_getAutoMarkReadObserver()).not.toBe(initialObserver);
-        expect(_getAutoMarkReadObserver()).not.toBeNull();
-
-        const cards = document.querySelectorAll('#articles-list .article-card');
-        expect(cards.length).toBe(2);
-        expect(cards[0].dataset.id).toBe('100');
-        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 2 initial articles');
-    });
-
-    it('new paginated articles are observed', () => {
-        initAutoMarkRead();
-        const spy = vi.spyOn(_getAutoMarkReadObserver(), 'observe');
-
-        const temp = document.createElement('div');
-        temp.innerHTML = `
-            <article class="article-card" data-id="50"></article>
-            <article class="article-card" data-id="51"></article>
-            <article class="article-card" data-id="52"></article>
-        `;
-        observeNewArticles(temp);
-
-        expect(spy).toHaveBeenCalledTimes(3);
-        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 3 new articles');
-    });
-
-    it('multiple navigations each get a fresh observer', async () => {
-        const observers = [];
-
-        for (let i = 0; i < 3; i++) {
-            await renderArticles([
-                { id: i * 10 + 1, title: `Article ${i}`, is_read: 0, is_starred: 0 },
-            ]);
-            observers.push(_getAutoMarkReadObserver());
-        }
-
-        expect(observers[0]).not.toBe(observers[1]);
-        expect(observers[1]).not.toBe(observers[2]);
-        observers.forEach(obs => expect(obs).not.toBeNull());
-        expect(console.debug).toHaveBeenCalledTimes(3);
-    });
-});
+// auto-mark-read integration tests migrated to browser-unit.browser.test.js
+// (uses real IntersectionObserver and window.scrollTo)
 
 describe('markAsRead', () => {
     let reloadFn;

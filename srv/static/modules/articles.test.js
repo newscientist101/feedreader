@@ -9,7 +9,6 @@ import {
 } from './articles.js';
 import {
     _resetArticleActionsState, setQueuedArticleIds,
-    initAutoMarkRead, _getAutoMarkReadObserver,
 } from './article-actions.js';
 
 // Mock pagination module (now directly imported by articles via circular import)
@@ -527,33 +526,9 @@ describe('renderArticles', () => {
         delete window.scrollTo;
     });
 
-    it('renders articles into the list', async () => {
-        const articles = [
-            { id: 1, title: 'Article 1', is_read: 0, is_starred: 0 },
-            { id: 2, title: 'Article 2', is_read: 0, is_starred: 0 },
-        ];
-        await renderArticles(articles);
-
-        expect(window.scrollTo).toHaveBeenCalledWith(0, 0);
-        const cards = document.querySelectorAll('#articles-list .article-card');
-        expect(cards.length).toBe(2);
-        expect(cards[0].dataset.id).toBe('1');
-        expect(cards[1].dataset.id).toBe('2');
-        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 2 initial articles');
-    });
-
-    it('re-initializes the auto-mark-read observer', async () => {
-        initAutoMarkRead();
-        const firstObserver = _getAutoMarkReadObserver();
-
-        await renderArticles([
-            { id: 10, title: 'New', is_read: 0, is_starred: 0 },
-        ]);
-
-        expect(_getAutoMarkReadObserver()).not.toBeNull();
-        expect(_getAutoMarkReadObserver()).not.toBe(firstObserver);
-        expect(console.debug).toHaveBeenCalledWith('[auto-mark-read] observing 1 initial articles');
-    });
+    // "renders articles into the list" and "re-initializes the auto-mark-read
+    // observer" tests migrated to browser-unit.browser.test.js
+    // (uses real IntersectionObserver and window.scrollTo)
 
     it('handles empty article list', async () => {
         await renderArticles([]);
