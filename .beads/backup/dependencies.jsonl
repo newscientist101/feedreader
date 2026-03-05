@@ -103,11 +103,16 @@
 {"created_at":"2026-03-04T17:09:11Z","created_by":"exe.dev user","depends_on_id":"feedreader-e2d","issue_id":"feedreader-e2d.2","type":"parent-child"}
 {"created_at":"2026-03-05T01:13:36Z","created_by":"exe.dev user","depends_on_id":"feedreader-e2d","issue_id":"feedreader-e2d.3","type":"parent-child"}
 {"created_at":"2026-03-05T01:13:45Z","created_by":"exe.dev user","depends_on_id":"feedreader-e2d.3","issue_id":"feedreader-e2d.3.1","type":"parent-child"}
+{"created_at":"2026-03-05T01:33:22Z","created_by":"exe.dev user","depends_on_id":"feedreader-e2d.3.5","issue_id":"feedreader-e2d.3.1","type":"blocks"}
 {"created_at":"2026-03-05T01:13:57Z","created_by":"exe.dev user","depends_on_id":"feedreader-e2d.3","issue_id":"feedreader-e2d.3.2","type":"parent-child"}
 {"created_at":"2026-03-05T01:14:10Z","created_by":"exe.dev user","depends_on_id":"feedreader-e2d.3","issue_id":"feedreader-e2d.3.3","type":"parent-child"}
 {"created_at":"2026-03-05T01:14:42Z","created_by":"exe.dev user","depends_on_id":"feedreader-e2d.3.1","issue_id":"feedreader-e2d.3.3","type":"blocks"}
 {"created_at":"2026-03-05T01:14:42Z","created_by":"exe.dev user","depends_on_id":"feedreader-e2d.3.2","issue_id":"feedreader-e2d.3.3","type":"blocks"}
 {"created_at":"2026-03-05T01:14:18Z","created_by":"exe.dev user","depends_on_id":"feedreader-e2d.3","issue_id":"feedreader-e2d.3.4","type":"parent-child"}
+{"created_at":"2026-03-05T01:33:26Z","created_by":"exe.dev user","depends_on_id":"feedreader-e2d.3.3","issue_id":"feedreader-e2d.3.4","type":"blocks"}
+{"created_at":"2026-03-05T01:41:08Z","created_by":"exe.dev user","depends_on_id":"feedreader-e2d","issue_id":"feedreader-e2d.3.5","type":"parent-child"}
+{"created_at":"2026-03-05T01:41:20Z","created_by":"exe.dev user","depends_on_id":"feedreader-e2d","issue_id":"feedreader-e2d.4","type":"parent-child"}
+{"created_at":"2026-03-05T01:41:24Z","created_by":"exe.dev user","depends_on_id":"feedreader-e2d.3.5","issue_id":"feedreader-e2d.4","type":"blocks"}
 {"created_at":"2026-03-02T01:11:20Z","created_by":"exe.dev user","depends_on_id":"feedreader-e2l","issue_id":"feedreader-e2l.1","type":"parent-child"}
 {"created_at":"2026-03-02T01:11:20Z","created_by":"exe.dev user","depends_on_id":"feedreader-e2l","issue_id":"feedreader-e2l.2","type":"parent-child"}
 {"created_at":"2026-03-02T01:11:20Z","created_by":"exe.dev user","depends_on_id":"feedreader-e2l","issue_id":"feedreader-e2l.3","type":"parent-child"}
