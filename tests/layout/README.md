@@ -87,7 +87,29 @@ describe('header at 860px', () => {
 });
 ```
 
+## Existing Tests
+
+| File | Description |
+|---|---|
+| `smoke.test.js` | Infrastructure smoke test — verifies `fetchPageHTML` and `measureLayout` commands work |
+| `header-mobile.test.js` | Header layout at 375px and 430px (mobile breakpoint) with 7 feed name lengths |
+| `header-860.test.js` | Header layout at 860px (Goldilocks zone) — catches feedreader-wei regression |
+| `header-wide.test.js` | Header layout at 1920px (wide desktop) with full controls visible |
+
 ## Adding Tests
 
 Create new `*.test.js` files in this directory. They'll be picked up
 automatically by the `vitest.browser.config.mjs` include pattern.
+
+### Custom Commands
+
+In addition to the helper functions, these Vitest custom commands are
+available (via `commands` from `vitest/browser`):
+
+| Command | Description |
+|---|---|
+| `fetchPageHTML(url)` | Navigate to URL and return rendered HTML |
+| `measureLayout(url, selectors, width?, height?)` | Get bounding rects at a viewport size |
+| `measureLayoutMultiWidth(url, selectors, widths, height?)` | Get rects at multiple widths (single page load) |
+| `getFeedName(feedId)` | Get current feed name via API |
+| `setFeedName(feedId, name)` | Rename a feed via API |

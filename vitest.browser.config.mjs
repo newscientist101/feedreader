@@ -56,6 +56,69 @@ export default defineConfig({
             await page.close();
           }
         },
+
+        /**
+         * Measure bounding rects at multiple viewport widths without
+         * reopening the page. Navigates once, then resizes and re-measures.
+         * Returns: { [width]: { [selector]: box | null } }
+         */
+        async measureLayoutMultiWidth(ctx, url, selectors, widths, viewportHeight) {
+          const baseURL = 'http://localhost:3000';
+          const full = url.startsWith('http') ? url : `${baseURL}${url}`;
+          const vh = viewportHeight || 720;
+
+          const page = await ctx.context.newPage();
+          try {
+            // Start at the first width and navigate
+            await page.setViewportSize({ width: widths[0], height: vh });
+            await page.goto(full, { waitUntil: 'networkidle' });
+
+            const allResults = {};
+            for (const w of widths) {
+              await page.setViewportSize({ width: w, height: vh });
+              // Small delay for layout to settle after resize
+              await page.waitForTimeout(100);
+
+              const results = {};
+              for (const sel of selectors) {
+                const el = page.locator(sel).first();
+                const box = await el.boundingBox().catch(() => null);
+                results[sel] = box;
+              }
+              allResults[w] = results;
+            }
+            return allResults;
+          } finally {
+            await page.close();
+          }
+        },
+
+        /**
+         * Get the current name of a feed via the API.
+         */
+        async getFeedName(ctx, feedId) {
+          const resp = await fetch(`http://localhost:3000/api/feeds/${feedId}`);
+          const data = await resp.json();
+          return data.name;
+        },
+
+        /**
+         * Set the name of a feed via the API.
+         */
+        async setFeedName(ctx, feedId, name) {
+          const resp = await fetch(`http://localhost:3000/api/feeds/${feedId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Requested-With': 'vitest',
+            },
+            body: JSON.stringify({ name }),
+          });
+          if (!resp.ok) {
+            throw new Error(`Failed to set feed name: ${resp.status}`);
+          }
+          return true;
+        },
       },
     },
   },

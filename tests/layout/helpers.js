@@ -38,6 +38,39 @@ export async function measure(url, selectors, viewportWidth, viewportHeight) {
 }
 
 /**
+ * Measure bounding rects at multiple viewport widths on a single page load.
+ * More efficient than calling measure() multiple times.
+ *
+ * @param {string} url - Path to load
+ * @param {string[]} selectors - CSS selectors to measure
+ * @param {number[]} widths - Viewport widths to test
+ * @param {number} [viewportHeight=720] - Viewport height
+ * @returns {Promise<Record<number, Record<string, object|null>>>}
+ */
+export async function measureMultiWidth(url, selectors, widths, viewportHeight) {
+  return commands.measureLayoutMultiWidth(url, selectors, widths, viewportHeight);
+}
+
+/**
+ * Get the current name of a feed.
+ * @param {number} feedId
+ * @returns {Promise<string>}
+ */
+export async function getFeedName(feedId) {
+  return commands.getFeedName(feedId);
+}
+
+/**
+ * Set the name of a feed via the API.
+ * @param {number} feedId
+ * @param {string} name
+ * @returns {Promise<boolean>}
+ */
+export async function setFeedName(feedId, name) {
+  return commands.setFeedName(feedId, name);
+}
+
+/**
  * Assert that two elements do not overlap at a given viewport width.
  *
  * @param {Record<string, object|null>} rects - Output from measure()
