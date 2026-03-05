@@ -219,7 +219,7 @@ describe('initDragDrop — drop reorder (real layout)', () => {
                 '/api/categories/reorder',
                 expect.objectContaining({ method: 'POST' }),
             );
-        });
+        }, { interval: 1 });
     });
 
     it('shows console.error on reorder api failure', async () => {
@@ -243,7 +243,7 @@ describe('initDragDrop — drop reorder (real layout)', () => {
                 'Failed to save folder order:',
                 expect.any(Error),
             );
-        });
+        }, { interval: 1 });
     });
 });
 
@@ -273,7 +273,7 @@ describe('initDragDrop — drop nesting (real layout)', () => {
                 'Failed to nest folder:',
                 expect.any(Error),
             );
-        });
+        }, { interval: 1 });
     });
 
     it('calls api to nest folder on shift+drop', async () => {
@@ -304,7 +304,7 @@ describe('initDragDrop — drop nesting (real layout)', () => {
             const body = JSON.parse(nestCall[1].body);
             expect(body.parent_id).toBe(2);
             expect(body.sort_order).toBe(0);
-        });
+        }, { interval: 1 });
     });
 });
 

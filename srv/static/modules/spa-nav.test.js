@@ -102,7 +102,7 @@ describe('nav-item click interception', () => {
 
         await vi.waitFor(() => {
             expect(api).toHaveBeenCalledWith('GET', '/api/articles/starred');
-        });
+        }, { interval: 1 });
 
         // Loading state shown before API call
         expect(showArticlesLoading).toHaveBeenCalled();
@@ -152,7 +152,7 @@ describe('nav-item click interception', () => {
 
         await vi.waitFor(() => {
             expect(api).toHaveBeenCalledWith('GET', '/api/articles/unread');
-        });
+        }, { interval: 1 });
 
         expect(document.querySelector('.view-header h1').textContent).toBe('All Unread');
         expect(renderArticles).toHaveBeenCalled();
@@ -218,7 +218,7 @@ describe('nav-item click interception', () => {
                 'SPA navigation failed:',
                 expect.any(Error),
             );
-        });
+        }, { interval: 1 });
 
         // renderArticles should not be called on error
         expect(renderArticles).not.toHaveBeenCalled();
@@ -239,7 +239,7 @@ describe('popstate (browser back/forward)', () => {
 
         await vi.waitFor(() => {
             expect(api).toHaveBeenCalledWith('GET', '/api/articles/starred');
-        });
+        }, { interval: 1 });
 
         expect(showArticlesLoading).toHaveBeenCalled();
         expect(renderArticles).toHaveBeenCalledWith([{ id: 1, title: 'Test' }]);
@@ -285,7 +285,7 @@ describe('popstate (browser back/forward)', () => {
                 'SPA popstate navigation failed:',
                 expect.any(Error),
             );
-        });
+        }, { interval: 1 });
 
         expect(renderArticles).not.toHaveBeenCalled();
     });
@@ -301,7 +301,7 @@ describe('popstate (browser back/forward)', () => {
 
         await vi.waitFor(() => {
             expect(renderArticles).toHaveBeenCalled();
-        });
+        }, { interval: 1 });
 
         const dropdown = document.querySelector('.dropdown');
         expect(dropdown.dataset.feedId).toBe('');

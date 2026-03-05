@@ -173,7 +173,7 @@ describe('initSettingsPage', () => {
         // loadNewsletterAddress should have been called (it calls api)
         await vi.waitFor(() => {
             expect(api).toHaveBeenCalledWith('GET', '/api/newsletter/address');
-        });
+        }, { interval: 1 });
     });
 });
 
@@ -567,7 +567,7 @@ describe('initSettingsPageListeners', () => {
         document.getElementById('inner').click();
         await vi.waitFor(() => {
             expect(api).toHaveBeenCalledWith('POST', '/api/retention/cleanup');
-        });
+        }, { interval: 1 });
     });
 
     it('ignores clicks that do not match any data-action', () => {

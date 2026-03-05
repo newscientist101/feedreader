@@ -67,7 +67,7 @@ describe('initQueuePage', () => {
         // Wait for async handler
         await vi.waitFor(() => {
             expect(api).toHaveBeenCalledWith('DELETE', '/api/articles/10/queue');
-        });
+        }, { interval: 1 });
 
         expect(window.location.href).toBe('/queue');
 

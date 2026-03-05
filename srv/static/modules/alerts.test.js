@@ -52,7 +52,7 @@ describe('initAlertsPage', () => {
         document.querySelector('[data-action="dismiss-all-alert"]').click();
         await vi.waitFor(() => {
             expect(api).toHaveBeenCalledWith('POST', '/api/alerts/5/dismiss');
-        });
+        }, { interval: 1 });
     });
 
     it('wires dismiss-article-alert delegated click', async () => {
@@ -69,7 +69,7 @@ describe('initAlertsPage', () => {
         document.querySelector('[data-action="dismiss-article-alert"]').click();
         await vi.waitFor(() => {
             expect(api).toHaveBeenCalledWith('POST', '/api/article-alerts/42/dismiss');
-        });
+        }, { interval: 1 });
     });
 
     it('ignores dismiss-all click with no alertId', () => {
@@ -124,7 +124,7 @@ describe('initAlertsPage', () => {
         document.getElementById('create-alert-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
         await vi.waitFor(() => {
             expect(api).toHaveBeenCalledWith('POST', '/api/alerts', expect.objectContaining({ name: 'Test' }));
-        });
+        }, { interval: 1 });
 
         window.location = origLocation;
     });
@@ -342,7 +342,7 @@ describe('initAlertDetailPage', () => {
                 is_regex: true,
                 match_field: 'content',
             });
-        });
+        }, { interval: 1 });
     });
 
     it('wires delete button', async () => {
@@ -360,7 +360,7 @@ describe('initAlertDetailPage', () => {
         document.querySelector('[data-action="delete-alert"]').click();
         await vi.waitFor(() => {
             expect(api).toHaveBeenCalledWith('DELETE', '/api/alerts/3');
-        });
+        }, { interval: 1 });
         expect(window.location.href).toBe('/alerts');
 
         window.location = origLocation;
@@ -378,7 +378,7 @@ describe('initAlertDetailPage', () => {
         document.querySelector('[data-action="dismiss-article-alert"]').click();
         await vi.waitFor(() => {
             expect(api).toHaveBeenCalledWith('POST', '/api/article-alerts/50/dismiss');
-        });
+        }, { interval: 1 });
     });
 
     it('wires undismiss-article-alert delegated click', async () => {
@@ -393,7 +393,7 @@ describe('initAlertDetailPage', () => {
         document.querySelector('[data-action="undismiss-article-alert"]').click();
         await vi.waitFor(() => {
             expect(api).toHaveBeenCalledWith('POST', '/api/article-alerts/50/undismiss');
-        });
+        }, { interval: 1 });
     });
 });
 

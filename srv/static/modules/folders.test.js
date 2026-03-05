@@ -467,7 +467,7 @@ describe('initFoldersPageListeners', () => {
         });
 
         document.querySelector('[data-action="unparent-category"]').click();
-        await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalled(), { interval: 1 });
 
         expect(fetch).toHaveBeenCalledWith('/api/categories/7/parent', expect.objectContaining({
             method: 'POST',
@@ -503,7 +503,7 @@ describe('initFoldersPageListeners', () => {
         });
 
         document.querySelector('[data-action="delete-exclusion"]').click();
-        await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalled(), { interval: 1 });
 
         expect(window.confirm).toHaveBeenCalledWith('Delete this exclusion rule?');
         expect(fetch).toHaveBeenCalledWith('/api/exclusions/3', expect.objectContaining({
@@ -546,7 +546,7 @@ describe('initFoldersPageListeners', () => {
         });
 
         document.querySelector('[data-action="delete-exclusion"]').click();
-        await vi.waitFor(() => expect(showToast).toHaveBeenCalled());
+        await vi.waitFor(() => expect(showToast).toHaveBeenCalled(), { interval: 1 });
 
         expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Failed to delete rule'));
     });
@@ -591,13 +591,13 @@ describe('initCategorySettingsPage', () => {
 
         const form = document.getElementById('add-exclusion-form');
         form.dispatchEvent(new Event('submit', { cancelable: true }));
-        await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalled(), { interval: 1 });
 
         expect(fetch).toHaveBeenCalledWith('/api/categories/5/exclusions', expect.objectContaining({
             method: 'POST',
             body: JSON.stringify({ type: 'keyword', pattern: 'spam', isRegex: false }),
         }));
-        await vi.waitFor(() => expect(reloadMock).toHaveBeenCalled());
+        await vi.waitFor(() => expect(reloadMock).toHaveBeenCalled(), { interval: 1 });
     });
 
     it('submits exclusion form with regex checked', async () => {
@@ -626,7 +626,7 @@ describe('initCategorySettingsPage', () => {
 
         const form = document.getElementById('add-exclusion-form');
         form.dispatchEvent(new Event('submit', { cancelable: true }));
-        await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalled(), { interval: 1 });
 
         expect(fetch).toHaveBeenCalledWith('/api/categories/5/exclusions', expect.objectContaining({
             body: JSON.stringify({ type: 'author', pattern: 'bot.*', isRegex: true }),
@@ -659,7 +659,7 @@ describe('initCategorySettingsPage', () => {
 
         const form = document.getElementById('add-exclusion-form');
         form.dispatchEvent(new Event('submit', { cancelable: true }));
-        await vi.waitFor(() => expect(showToast).toHaveBeenCalled());
+        await vi.waitFor(() => expect(showToast).toHaveBeenCalled(), { interval: 1 });
 
         expect(showToast).toHaveBeenCalledWith(expect.stringContaining('Failed to add exclusion'));
         expect(reloadMock).not.toHaveBeenCalled();

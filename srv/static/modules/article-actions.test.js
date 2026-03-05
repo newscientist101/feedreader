@@ -504,7 +504,7 @@ describe('initArticleActionListeners', () => {
         // markAsRead is async — wait for the promise chain
         await vi.waitFor(() => {
             expect(fetchMock).toHaveBeenCalledWith('/api/feeds/5/read-all?age=day', expect.any(Object));
-        });
+        }, { interval: 1 });
     });
 
     it('opens article on article-body click', () => {
