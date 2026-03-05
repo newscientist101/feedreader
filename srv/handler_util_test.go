@@ -115,23 +115,6 @@ func TestDeref(t *testing.T) {
 
 // TestFaviconURL and TestFaviconDomain are in favicon_test.go
 
-func TestConvertSteamNewsURL(t *testing.T) {
-	tests := []struct {
-		input, want string
-	}{
-		{"https://store.steampowered.com/news/app/4115450", "https://store.steampowered.com/feeds/news/app/4115450"},
-		{"https://store.steampowered.com/news/app/4115450/", "https://store.steampowered.com/feeds/news/app/4115450"},
-		{"https://example.com/feed", "https://example.com/feed"},
-		{"", ""},
-	}
-	for _, tt := range tests {
-		got := convertSteamNewsURL(tt.input)
-		if got != tt.want {
-			t.Errorf("convertSteamNewsURL(%q) = %q, want %q", tt.input, got, tt.want)
-		}
-	}
-}
-
 func TestSanitizeHTMLBasic(t *testing.T) {
 	got := sanitizeHTML("<b>bold</b>")
 	if string(got) != "<b>bold</b>" {

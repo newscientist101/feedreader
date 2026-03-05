@@ -14,6 +14,7 @@ import (
 	"github.com/newscientist101/feedreader/db"
 	"github.com/newscientist101/feedreader/db/dbgen"
 	"github.com/newscientist101/feedreader/srv/scrapers"
+	"github.com/newscientist101/feedreader/srv/sources"
 )
 
 // cachedSchema holds the fully-migrated schema SQL so we only run
@@ -78,6 +79,7 @@ func testServer(t *testing.T) *Server {
 		ScraperRunner:    scrapers.NewRunner(),
 		StaticHashes:     map[string]string{},
 		ShelleyGenerator: NewShelleyScraperGenerator(),
+		Sources:          sources.DefaultRegistry(),
 		bgCtx:            ctx,
 		bgCancel:         cancel,
 	}

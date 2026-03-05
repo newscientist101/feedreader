@@ -30,10 +30,10 @@ import (
 	"github.com/newscientist101/feedreader/db/dbgen"
 	"github.com/newscientist101/feedreader/srv/email"
 	"github.com/newscientist101/feedreader/srv/feeds"
-	"github.com/newscientist101/feedreader/srv/huggingface"
 	"github.com/newscientist101/feedreader/srv/opml"
 	"github.com/newscientist101/feedreader/srv/safenet"
 	"github.com/newscientist101/feedreader/srv/scrapers"
+	"github.com/newscientist101/feedreader/srv/sources"
 )
 
 type Server struct {
@@ -51,6 +51,7 @@ type Server struct {
 	FaviconClient    *http.Client // HTTP client for favicon fetches; defaults to safe client
 
 	CountsCache *CountsCache // per-user article count cache
+	Sources     *sources.Registry
 
 	// templateCache holds pre-parsed templates keyed by page name.
 	// Populated by initTemplates(); nil disables caching (re-parse each request).
@@ -72,6 +73,7 @@ func New(dbPath, hostname string) (*Server, error) {
 		StaticDir:     filepath.Join(baseDir, "static"),
 		ScraperRunner: scrapers.NewRunner(),
 		CountsCache:   NewCountsCache(30 * time.Second),
+		Sources:       sources.DefaultRegistry(),
 		bgCtx:         ctx,
 		bgCancel:      cancel,
 	}
@@ -125,12 +127,6 @@ func hashStaticFiles(dir string) map[string]string {
 	slog.Info("static file hashes computed", "count", len(hashes))
 	return hashes
 }
-
-var (
-	steamFeedAppRe = regexp.MustCompile(`store\.steampowered\.com/feeds/news/app/(\d+)`)
-	redditSubRe    = regexp.MustCompile(`reddit\.com/r/([^/]+)`)
-	steamNewsURLRe = regexp.MustCompile(`^(https?://store\.steampowered\.com)/news/(app/\d+)/?.*$`)
-)
 
 func (s *Server) setUpDatabase(dbPath string) error {
 	wdb, err := db.Open(dbPath)
@@ -1064,38 +1060,8 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 		req.FeedType = "rss"
 	}
 
-	// Auto-convert Steam news URLs to RSS feed URLs
-	// e.g. https://store.steampowered.com/news/app/4115450 -> https://store.steampowered.com/feeds/news/app/4115450
-	if req.FeedType == "rss" {
-		req.URL = convertSteamNewsURL(req.URL)
-	}
-
-	// Auto-generate name for Steam feeds
-	if req.Name == "" && req.FeedType == "rss" {
-		if m := steamFeedAppRe.FindStringSubmatch(req.URL); m != nil {
-			if name := fetchSteamAppName(m[1]); name != "" {
-				req.Name = name
-			}
-		}
-	}
-
-	// Auto-generate name for Reddit RSS feeds
-	if req.Name == "" && req.FeedType == "rss" {
-		if m := redditSubRe.FindStringSubmatch(req.URL); m != nil {
-			req.Name = "r/" + m[1]
-		}
-	}
-
-	// Auto-generate name for HuggingFace feeds
-	if req.Name == "" && req.FeedType == "huggingface" && req.ScraperConfig != "" {
-		var hfConfig huggingface.FeedConfig
-		if err := json.Unmarshal([]byte(req.ScraperConfig), &hfConfig); err == nil {
-			hfClient := huggingface.NewClient("")
-			if name, err := hfClient.GetFeedName(ctx, &hfConfig); err == nil && name != "" {
-				req.Name = name
-			}
-		}
-	}
+	// Apply feed-source-specific URL normalization and auto-naming.
+	req.URL, req.Name, req.FeedType = s.Sources.Resolve(ctx, req.URL, req.Name, req.FeedType, req.ScraperConfig)
 
 	if req.Name == "" {
 		req.Name = req.URL
@@ -2000,42 +1966,6 @@ func (s *Server) apiFavicon(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", ct)
 	w.Header().Set("Cache-Control", "public, max-age=604800")
 	_, _ = io.Copy(w, resp.Body)
-}
-
-// steamClient is a safe HTTP client for Steam API requests.
-// Tests can replace it to redirect requests to a mock server.
-var steamClient *http.Client = safenet.NewSafeClient(10*time.Second, nil)
-
-// fetchSteamAppName gets the game name from the Steam store API.
-// The appID is already validated by the steamFeedAppRe regex (digits only).
-func fetchSteamAppName(appID string) string {
-	resp, err := steamClient.Get("https://store.steampowered.com/api/appdetails?appids=" + url.QueryEscape(appID))
-	if err != nil {
-		return ""
-	}
-	defer func() { _ = resp.Body.Close() }()
-	var result map[string]struct {
-		Success bool `json:"success"`
-		Data    struct {
-			Name string `json:"name"`
-		} `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return ""
-	}
-	if app, ok := result[appID]; ok && app.Success {
-		return app.Data.Name
-	}
-	return ""
-}
-
-// convertSteamNewsURL converts Steam store news URLs to their RSS feed equivalents
-func convertSteamNewsURL(rawURL string) string {
-	// Match https://store.steampowered.com/news/app/DIGITS with optional trailing slash/params
-	if m := steamNewsURLRe.FindStringSubmatch(rawURL); m != nil {
-		return m[1] + "/feeds/news/" + m[2]
-	}
-	return rawURL
 }
 
 // Category handlers

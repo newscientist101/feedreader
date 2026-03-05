@@ -43,6 +43,13 @@ srv/
     runner.go            CSS-selector-based HTML scraper (goquery)
     runner_test.go       Scraper tests
     json_scraper.go      JSON API scraper
+  sources/
+    registry.go          Feed source registry interface and Resolve logic
+    defaults.go          DefaultRegistry with all built-in sources
+    steam.go             Steam news URL normalization and name lookup
+    reddit.go            Reddit subreddit auto-naming
+    huggingface.go       HuggingFace config-based name resolution
+    *_test.go            Unit tests for each source and the registry
   huggingface/
     huggingface.go       Hugging Face-specific feed source
   opml/
