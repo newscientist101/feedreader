@@ -1,4 +1,4 @@
-.PHONY: build clean stop start restart test lint lint-go lint-js lint-css lint-templates lint-html fmt fmt-check fix-check vulncheck check
+.PHONY: build clean stop start restart test lint lint-go lint-js lint-css lint-templates lint-html fmt fmt-check fix-check vulncheck check layout-test
 
 build:
 	go build -o feedreader ./cmd/srv
@@ -39,5 +39,8 @@ fix-check:
 
 vulncheck:
 	govulncheck ./...
+
+layout-test:
+	npx vitest run --config vitest.browser.config.mjs
 
 check: fmt-check fix-check lint test vulncheck
