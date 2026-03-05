@@ -3,6 +3,7 @@
 This is a Go web application — a multi-user feed reader — hosted on exe.dev.
 
 See README.md for user-facing docs (features, API endpoints, scraper config, etc.).
+See STYLE.md for coding conventions — **read it before writing code**.
 
 ## Important
 
