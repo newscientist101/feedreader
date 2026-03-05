@@ -68,6 +68,7 @@
                         <option value="rss">RSS/Atom</option>
                         <option value="reddit">Reddit</option>
                         <option value="youtube">YouTube</option>
+                        <option value="github">GitHub Releases</option>
                         <option value="scraper">Custom Scraper</option>
                         <option value="huggingface">Hugging Face</option>
                     </select>
@@ -112,6 +113,11 @@
                     <label for="youtube-url">YouTube URL</label>
                     <input type="text" id="youtube-url" placeholder="Paste a channel, @handle, or playlist URL">
                     <small>Supports youtube.com/@handle, /channel/UCxxx, /playlist?list=PLxxx, /c/Name, /user/Name</small>
+                </div>
+                <div class="form-group" id="github-group" style="display:none">
+                    <label for="github-repo">Repository</label>
+                    <input type="text" id="github-repo" placeholder="owner/repo or full GitHub URL">
+                    <small>e.g. golang/go or https://github.com/golang/go</small>
                 </div>
                 <div class="form-group" id="huggingface-group" style="display:none">
                     <label for="hf-type">HuggingFace Feed Type</label>
@@ -278,15 +284,18 @@ document.getElementById('feed-type').addEventListener('change', function() {
         this.value === 'reddit' ? 'block' : 'none';
     document.getElementById('youtube-group').style.display = 
         this.value === 'youtube' ? 'block' : 'none';
+    document.getElementById('github-group').style.display = 
+        this.value === 'github' ? 'block' : 'none';
     
     // Update URL placeholder based on type
     const urlInput = document.getElementById('feed-url');
-    const autoTypes = ['huggingface', 'reddit', 'youtube'];
+    const autoTypes = ['huggingface', 'reddit', 'youtube', 'github'];
     if (autoTypes.includes(this.value)) {
         const placeholders = {
             reddit: 'Auto-generated from subreddit',
             huggingface: 'Auto-generated from HuggingFace config',
-            youtube: 'Auto-generated from YouTube URL'
+            youtube: 'Auto-generated from YouTube URL',
+            github: 'Auto-generated from repository'
         };
         urlInput.placeholder = placeholders[this.value];
         urlInput.required = false;

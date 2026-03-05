@@ -9,5 +9,6 @@ func DefaultRegistry() *Registry {
 	r.Register(RedditSource{})
 	r.Register(HuggingFaceSource{})
 	r.Register(YouTubeSource{})
+	r.Register(GitHubSource{})
 	return r
 }

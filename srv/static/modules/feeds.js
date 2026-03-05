@@ -468,6 +468,23 @@ export function initAddFeedForm() {
             actualFeedType = 'youtube';
         }
 
+        // Handle GitHub Releases feed type — construct URL from owner/repo
+        if (feedType === 'github') {
+            const ghInput = document.getElementById('github-repo').value.trim();
+            if (!ghInput) {
+                showToast('Please enter a repository (owner/repo or GitHub URL)', 'info');
+                return;
+            }
+            // If it looks like a full URL, pass it through for server normalization
+            if (ghInput.includes('github.com')) {
+                url = ghInput;
+            } else {
+                // Treat as owner/repo
+                url = `https://github.com/${ghInput}`;
+            }
+            actualFeedType = 'github';
+        }
+
         // Handle HuggingFace feed type
         if (feedType === 'huggingface') {
             const hfType = document.getElementById('hf-type').value;
