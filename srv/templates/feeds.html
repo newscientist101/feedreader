@@ -67,6 +67,7 @@
                     <select id="feed-type" name="feedType">
                         <option value="rss">RSS/Atom</option>
                         <option value="reddit">Reddit</option>
+                        <option value="youtube">YouTube</option>
                         <option value="scraper">Custom Scraper</option>
                         <option value="huggingface">Hugging Face</option>
                     </select>
@@ -106,6 +107,11 @@
                             </select>
                         </div>
                     </div>
+                </div>
+                <div class="form-group" id="youtube-group" style="display:none">
+                    <label for="youtube-url">YouTube URL</label>
+                    <input type="text" id="youtube-url" placeholder="Paste a channel, @handle, or playlist URL">
+                    <small>Supports youtube.com/@handle, /channel/UCxxx, /playlist?list=PLxxx, /c/Name, /user/Name</small>
                 </div>
                 <div class="form-group" id="huggingface-group" style="display:none">
                     <label for="hf-type">HuggingFace Feed Type</label>
@@ -270,11 +276,19 @@ document.getElementById('feed-type').addEventListener('change', function() {
         this.value === 'huggingface' ? 'block' : 'none';
     document.getElementById('reddit-group').style.display = 
         this.value === 'reddit' ? 'block' : 'none';
+    document.getElementById('youtube-group').style.display = 
+        this.value === 'youtube' ? 'block' : 'none';
     
     // Update URL placeholder based on type
     const urlInput = document.getElementById('feed-url');
-    if (this.value === 'huggingface' || this.value === 'reddit') {
-        urlInput.placeholder = this.value === 'reddit' ? 'Auto-generated from subreddit' : 'Auto-generated from HuggingFace config';
+    const autoTypes = ['huggingface', 'reddit', 'youtube'];
+    if (autoTypes.includes(this.value)) {
+        const placeholders = {
+            reddit: 'Auto-generated from subreddit',
+            huggingface: 'Auto-generated from HuggingFace config',
+            youtube: 'Auto-generated from YouTube URL'
+        };
+        urlInput.placeholder = placeholders[this.value];
         urlInput.required = false;
     } else {
         urlInput.placeholder = 'https://example.com/feed.xml';

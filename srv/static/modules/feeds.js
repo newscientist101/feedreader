@@ -457,6 +457,17 @@ export function initAddFeedForm() {
             actualFeedType = 'rss';
         }
 
+        // Handle YouTube feed type — pass through to server for normalization
+        if (feedType === 'youtube') {
+            const ytUrl = document.getElementById('youtube-url').value.trim();
+            if (!ytUrl) {
+                showToast('Please enter a YouTube URL', 'info');
+                return;
+            }
+            url = ytUrl;
+            actualFeedType = 'youtube';
+        }
+
         // Handle HuggingFace feed type
         if (feedType === 'huggingface') {
             const hfType = document.getElementById('hf-type').value;
