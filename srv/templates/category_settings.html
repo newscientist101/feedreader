@@ -31,6 +31,7 @@
                         <label for="exclusion-type">Type</label>
                         <select id="exclusion-type" name="type" required>
                             <option value="keyword">Keyword (title & description)</option>
+                            <option value="title">Title only</option>
                             <option value="author">Author</option>
                         </select>
                     </div>
@@ -94,6 +95,12 @@
                 <p>Type: <code>keyword</code></p>
                 <p>Pattern: <code>sponsored</code></p>
                 <p class="hint">Hides articles with "sponsored" in title or description</p>
+            </div>
+            <div class="example-card">
+                <h4>Hide by title</h4>
+                <p>Type: <code>title</code></p>
+                <p>Pattern: <code>open thread</code></p>
+                <p class="hint">Hides articles with "open thread" in the title only (not description)</p>
             </div>
             <div class="example-card">
                 <h4>Hide by author</h4>

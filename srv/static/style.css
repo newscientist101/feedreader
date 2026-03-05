@@ -2372,6 +2372,11 @@ th {
     color: var(--accent);
 }
 
+.exclusion-type-badge.title {
+    background: rgba(76, 175, 80, 0.2);
+    color: var(--success);
+}
+
 .exclusion-type-badge.author {
     background: rgba(255, 193, 7, 0.2);
     color: var(--warning);

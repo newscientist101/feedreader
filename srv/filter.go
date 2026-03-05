@@ -210,6 +210,11 @@ func (s *Server) shouldExclude(title, summary, author string, exclusions []dbgen
 			if matchesPattern(author, excl.Pattern, excl.IsRegex != nil && *excl.IsRegex == 1) {
 				return true
 			}
+		case "title":
+			// Check title only
+			if matchesPattern(title, excl.Pattern, excl.IsRegex != nil && *excl.IsRegex == 1) {
+				return true
+			}
 		case "keyword":
 			// Check both title and summary
 			if matchesPattern(title, excl.Pattern, excl.IsRegex != nil && *excl.IsRegex == 1) {

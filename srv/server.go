@@ -2563,7 +2563,7 @@ func (s *Server) apiCreateExclusion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Type    string `json:"type"` // "author" or "keyword"
+		Type    string `json:"type"` // "author", "keyword", or "title"
 		Pattern string `json:"pattern"`
 		IsRegex bool   `json:"isRegex"`
 	}
@@ -2572,8 +2572,8 @@ func (s *Server) apiCreateExclusion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Type != "author" && req.Type != "keyword" {
-		jsonError(w, "Type must be 'author' or 'keyword'", 400)
+	if req.Type != "author" && req.Type != "keyword" && req.Type != "title" {
+		jsonError(w, "Type must be 'author', 'keyword', or 'title'", 400)
 		return
 	}
 	if req.Pattern == "" {

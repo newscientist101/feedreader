@@ -79,22 +79,30 @@ func TestPtrToStr(t *testing.T) {
 // shouldExclude
 // ---------------------------------------------------------------------------
 
+func makeExclusion(exclType, pattern string, isRegex bool) dbgen.CategoryExclusion {
+	var r *int64
+	if isRegex {
+		one := int64(1)
+		r = &one
+	} else {
+		zero := int64(0)
+		r = &zero
+	}
+	return dbgen.CategoryExclusion{
+		ExclusionType: exclType,
+		Pattern:       pattern,
+		IsRegex:       r,
+	}
+}
+
 func TestShouldExclude(t *testing.T) {
 	s := &Server{}
-	oneInt := int64(1)
 
-	exclusions := []struct {
-		exclType string
-		pattern  string
-		isRegex  *int64
-	}{
-		{"keyword", "sponsored", nil},
-		{"author", "spambot", nil},
-		{"keyword", "^\\[AD\\]", &oneInt},
+	exclusions := []dbgen.CategoryExclusion{
+		makeExclusion("keyword", "sponsored", false),
+		makeExclusion("author", "spambot", false),
+		makeExclusion("keyword", `^\[AD\]`, true),
 	}
-
-	// Since shouldExclude takes []dbgen.CategoryExclusion, we need the actual type.
-	// Let's test matchesPattern directly instead, which is the core logic.
 
 	tests := []struct {
 		name    string
@@ -110,12 +118,71 @@ func TestShouldExclude(t *testing.T) {
 		{"no match", "Normal article", "Normal summary", "RealAuthor", false},
 	}
 
-	_ = s
-	_ = tests
-	_ = exclusions
-	// The actual shouldExclude requires dbgen.CategoryExclusion. Test the
-	// underlying matchesPattern instead, which we've already tested above.
-	// This validates the logic chain.
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := s.shouldExclude(tc.title, tc.summary, tc.author, exclusions)
+			if got != tc.want {
+				t.Errorf("shouldExclude(%q, %q, %q) = %v, want %v", tc.title, tc.summary, tc.author, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestShouldExclude_TitleOnly(t *testing.T) {
+	s := &Server{}
+
+	exclusions := []dbgen.CategoryExclusion{
+		makeExclusion("title", "sponsored", false),
+	}
+
+	tests := []struct {
+		name    string
+		title   string
+		summary string
+		want    bool
+	}{
+		{"match in title", "Sponsored post", "clean summary", true},
+		{"match in summary only", "Clean title", "This is sponsored", false},
+		{"match in both", "Sponsored post", "Also sponsored", true},
+		{"no match", "Normal title", "Normal summary", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := s.shouldExclude(tc.title, tc.summary, "", exclusions)
+			if got != tc.want {
+				t.Errorf("shouldExclude(%q, %q, \"\") = %v, want %v", tc.title, tc.summary, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestShouldExclude_TitleOnlyRegex(t *testing.T) {
+	s := &Server{}
+
+	exclusions := []dbgen.CategoryExclusion{
+		makeExclusion("title", `^\[MEGA\]`, true),
+	}
+
+	tests := []struct {
+		name    string
+		title   string
+		summary string
+		want    bool
+	}{
+		{"regex match in title", "[MEGA] Thread", "", true},
+		{"regex in summary only", "Normal", "[MEGA] Thread", false},
+		{"no match", "Normal title", "Normal summary", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := s.shouldExclude(tc.title, tc.summary, "", exclusions)
+			if got != tc.want {
+				t.Errorf("shouldExclude(%q, %q, \"\") = %v, want %v", tc.title, tc.summary, got, tc.want)
+			}
+		})
+	}
 }
 
 // isRead returns the is_read value, defaulting to 0 for nil.
@@ -290,6 +357,50 @@ func TestMarkExcludedArticlesReadForFeed_AuthorExclusion(t *testing.T) {
 	}
 	if isRead(good.IsRead) != 0 {
 		t.Error("good author article should still be unread")
+	}
+}
+
+func TestMarkExcludedArticlesReadForFeed_TitleOnlyExclusion(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	ctx, user := testUser(t, s)
+	q := dbgen.New(s.DB)
+
+	feed := createFeed(t, s, user.ID, "Test", "https://example.com/feed")
+	cat, _ := q.CreateCategory(ctx, dbgen.CreateCategoryParams{Name: "News", UserID: &user.ID})
+	q.AddFeedToCategory(ctx, dbgen.AddFeedToCategoryParams{FeedID: feed.ID, CategoryID: cat.ID})
+
+	var zero int64
+	q.CreateExclusion(ctx, dbgen.CreateExclusionParams{
+		CategoryID: cat.ID, ExclusionType: "title", Pattern: "open thread", IsRegex: &zero,
+	})
+
+	// Title match — should be excluded
+	titleMatch := createArticle(t, s, feed.ID, "Open Thread #42", "g1")
+	// Summary-only match — should NOT be excluded
+	summary := "This is an open thread discussion"
+	url := "https://example.com/g2"
+	summaryOnly, _ := q.CreateArticle(ctx, dbgen.CreateArticleParams{
+		FeedID: feed.ID, Title: "Weekly Discussion", Guid: "g2", Summary: &summary, Url: &url,
+	})
+	// No match
+	noMatch := createArticle(t, s, feed.ID, "Normal Article", "g3")
+
+	s.MarkExcludedArticlesReadForFeed(ctx, feed.ID)
+
+	for _, tc := range []struct {
+		name string
+		id   int64
+		want int64
+	}{
+		{"title match", titleMatch.ID, 1},
+		{"summary only match", summaryOnly.ID, 0},
+		{"no match", noMatch.ID, 0},
+	} {
+		art, _ := q.GetArticle(ctx, dbgen.GetArticleParams{ID: tc.id, UserID: &user.ID})
+		if isRead(art.IsRead) != tc.want {
+			t.Errorf("%s: is_read = %d, want %d", tc.name, isRead(art.IsRead), tc.want)
+		}
 	}
 }
 
