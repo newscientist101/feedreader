@@ -19,6 +19,7 @@ import {
 // Temporary flag: when true, the current view includes read/hidden articles.
 // Reset on the next navigation.
 let showingHiddenArticles = false;
+let _articleListListenerAC = null;
 
 export function getShowingHiddenArticles() {
     return showingHiddenArticles;
@@ -292,8 +293,6 @@ export function extractYouTubeId(url) {
 
 // Delegated listeners for article list buttons (replaces inline onclick
 // in index.html and JS-built empty-state HTML).
-let _articleListListenerAC = null;
-
 export function initArticleListListeners() {
     if (_articleListListenerAC) _articleListListenerAC.abort();
     _articleListListenerAC = new AbortController();

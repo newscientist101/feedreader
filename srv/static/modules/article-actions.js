@@ -26,6 +26,7 @@ export function setQueuedIdsReady(promise) {
 let autoMarkReadObserver = null;
 let _markReadQueue = [];
 let _markReadTimer = null;
+let _actionListenerAC = null;
 
 // Test-only accessors for internal state (used by app.test.js during migration)
 export function _getAutoMarkReadObserver() { return autoMarkReadObserver; }
@@ -280,8 +281,6 @@ export function findNextUnreadFolder(currentCategoryId) {
     }
     return null;
 }
-
-let _actionListenerAC = null;
 
 // Delegated listeners for article actions (replaces inline onclick handlers in
 // index.html and dynamically-built article HTML).

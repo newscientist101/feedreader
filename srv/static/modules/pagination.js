@@ -15,6 +15,7 @@ let paginationCursorTime = null;
 let paginationCursorId = null;
 let paginationLoading = false;
 let paginationDone = false;
+let _paginationAC = null;
 
 export function getPaginationState() {
     return {
@@ -129,7 +130,6 @@ export function checkScrollForMore() {
 
 // Bootstrap pagination state from server-rendered articles and register
 // the scroll listener for infinite scrolling.
-let _paginationAC = null;
 export function initPagination() {
     if (_paginationAC) _paginationAC.abort();
     _paginationAC = new AbortController();

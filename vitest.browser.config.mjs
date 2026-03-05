@@ -22,7 +22,7 @@ export default defineConfig({
           // Use a new context with the same auth headers the mitm proxy adds
           const page = await ctx.context.newPage();
           try {
-            await page.goto(full, { waitUntil: 'networkidle' });
+            await page.goto(full, { waitUntil: 'domcontentloaded' });
             return await page.content();
           } finally {
             await page.close();
@@ -43,7 +43,7 @@ export default defineConfig({
           const page = await ctx.context.newPage();
           try {
             await page.setViewportSize({ width: vw, height: vh });
-            await page.goto(full, { waitUntil: 'networkidle' });
+            await page.goto(full, { waitUntil: 'domcontentloaded' });
 
             const results = {};
             for (const sel of selectors) {
@@ -71,7 +71,7 @@ export default defineConfig({
           try {
             // Start at the first width and navigate
             await page.setViewportSize({ width: widths[0], height: vh });
-            await page.goto(full, { waitUntil: 'networkidle' });
+            await page.goto(full, { waitUntil: 'domcontentloaded' });
 
             const allResults = {};
             for (const w of widths) {
