@@ -9,7 +9,8 @@ import {
     applyDefaultViewForScope,
 } from './views.js';
 
-// Mock settings module
+// Mock settings with in-memory store so view persistence round-trips work.
+// views.js saves then reads back settings — this mock must track state.
 const store = {};
 vi.mock('./settings.js', () => ({
     getSetting: vi.fn((key, def) => store[key] !== undefined ? store[key] : (def || '')),
