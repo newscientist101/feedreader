@@ -11,7 +11,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "MIT",
+  "license": "CC0-1.0",
   "devDependencies": {
     "@vitest/browser-playwright": "^4.0.18",
     "@vitest/coverage-v8": "^4.0.18",
