@@ -93,6 +93,9 @@
 {"created_at":"2026-03-05T04:40:51Z","created_by":"exe.dev user","depends_on_id":"feedreader-7dq.35","issue_id":"feedreader-7dq.35.4","type":"parent-child"}
 {"created_at":"2026-03-05T04:40:57Z","created_by":"exe.dev user","depends_on_id":"feedreader-7dq.35.1","issue_id":"feedreader-7dq.35.4","type":"blocks"}
 {"created_at":"2026-03-05T06:12:20Z","created_by":"exe.dev user","depends_on_id":"feedreader-7dq.35","issue_id":"feedreader-7dq.35.5","type":"parent-child"}
+{"created_at":"2026-03-05T15:57:47Z","created_by":"exe.dev user","depends_on_id":"feedreader-7dq.35","issue_id":"feedreader-7dq.35.6","type":"parent-child"}
+{"created_at":"2026-03-05T15:58:00Z","created_by":"exe.dev user","depends_on_id":"feedreader-7dq.35","issue_id":"feedreader-7dq.35.7","type":"parent-child"}
+{"created_at":"2026-03-05T15:58:04Z","created_by":"exe.dev user","depends_on_id":"feedreader-7dq.35.6","issue_id":"feedreader-7dq.35.7","type":"blocks"}
 {"created_at":"2026-03-05T04:46:06Z","created_by":"exe.dev user","depends_on_id":"feedreader-7dq","issue_id":"feedreader-7dq.36","type":"parent-child"}
 {"created_at":"2026-03-05T04:46:11Z","created_by":"exe.dev user","depends_on_id":"feedreader-7dq.35","issue_id":"feedreader-7dq.36","type":"blocks"}
 {"created_at":"2026-03-05T04:55:48Z","created_by":"exe.dev user","depends_on_id":"feedreader-7dq.36","issue_id":"feedreader-7dq.36.1","type":"parent-child"}
@@ -128,6 +131,9 @@
 {"created_at":"2026-03-03T01:53:10Z","created_by":"exe.dev user","depends_on_id":"feedreader-7dq","issue_id":"feedreader-7dq.4","type":"parent-child"}
 {"created_at":"2026-03-05T09:08:25Z","created_by":"exe.dev user","depends_on_id":"feedreader-7dq","issue_id":"feedreader-7dq.40","type":"parent-child"}
 {"created_at":"2026-03-05T12:48:56Z","created_by":"exe.dev user","depends_on_id":"feedreader-7dq","issue_id":"feedreader-7dq.41","type":"parent-child"}
+{"created_at":"2026-03-05T16:07:17Z","created_by":"exe.dev user","depends_on_id":"feedreader-7dq","issue_id":"feedreader-7dq.42","type":"parent-child"}
+{"created_at":"2026-03-05T16:07:49Z","created_by":"exe.dev user","depends_on_id":"feedreader-7dq","issue_id":"feedreader-7dq.43","type":"parent-child"}
+{"created_at":"2026-03-05T16:09:09Z","created_by":"exe.dev user","depends_on_id":"feedreader-7dq","issue_id":"feedreader-7dq.44","type":"parent-child"}
 {"created_at":"2026-03-03T01:53:11Z","created_by":"exe.dev user","depends_on_id":"feedreader-7dq","issue_id":"feedreader-7dq.5","type":"parent-child"}
 {"created_at":"2026-03-03T01:53:11Z","created_by":"exe.dev user","depends_on_id":"feedreader-7dq","issue_id":"feedreader-7dq.6","type":"parent-child"}
 {"created_at":"2026-03-03T01:53:11Z","created_by":"exe.dev user","depends_on_id":"feedreader-7dq","issue_id":"feedreader-7dq.7","type":"parent-child"}
