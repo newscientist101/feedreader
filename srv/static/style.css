@@ -336,10 +336,8 @@ body {
 
 .view-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
     margin-bottom: 25px;
-    flex-wrap: wrap;
     gap: 15px;
     position: sticky;
     top: 0;
@@ -347,14 +345,12 @@ body {
     background: var(--bg-page);
     padding-top: 10px;
     padding-bottom: 10px;
-    overflow: visible;
 }
 
 .view-header h1 {
     font-size: 1.75rem;
     font-weight: 600;
-    flex: 0 1 auto;
-    max-width: calc(100% - 350px);
+    flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -363,7 +359,7 @@ body {
 
 .header-actions {
     display: flex;
-    flex: 1 1 0;
+    flex: 0 1 auto;
     gap: 10px;
     align-items: center;
     justify-content: flex-end;
@@ -372,6 +368,16 @@ body {
 
 .dropdown.feed-overflow-menu {
     display: none;
+}
+
+.overflow-mark-read {
+    display: none;
+}
+
+.dropdown-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 4px 0;
 }
 
 .search-box {
@@ -1708,8 +1714,16 @@ th {
         display: none;
     }
 
+    .header-actions .mark-read-dropdown {
+        display: none;
+    }
+
     .header-actions .dropdown.feed-overflow-menu {
         display: inline-block;
+    }
+
+    .overflow-mark-read {
+        display: block;
     }
 
 }
