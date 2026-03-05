@@ -41,9 +41,9 @@ vulncheck:
 	govulncheck ./...
 
 layout-test:
-	npx vitest run --config vitest.browser.config.mjs
+	NO_COLOR=1 npx vitest run --config vitest.browser.config.mjs
 
 browser-unit-test:
-	npx vitest run --config vitest.browser-unit.config.mjs
+	NO_COLOR=1 npx vitest run --config vitest.browser-unit.config.mjs
 
 check: fmt-check fix-check lint test vulncheck
