@@ -1,9 +1,9 @@
 export default [
   {
-    ignores: ["../../srv/static/**/*.test.js"],
+    ignores: ["srv/static/**/*.test.js"],
   },
   {
-    files: ["../../srv/static/**/*.js"],
+    files: ["srv/static/**/*.js"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
