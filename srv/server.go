@@ -1038,6 +1038,7 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 		ScraperConfig string `json:"scraperConfig"`
 		Interval      int64  `json:"interval"`
 		CategoryID    int64  `json:"categoryId"`
+		PlaylistOrder string `json:"playlistOrder"` // "top" (default/RSS) or "bottom" (YouTube Data API)
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1062,6 +1063,18 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 
 	// Apply feed-source-specific URL normalization and auto-naming.
 	req.URL, req.Name, req.FeedType = s.Sources.Resolve(ctx, req.URL, req.Name, req.FeedType, req.ScraperConfig)
+
+	// YouTube "add to bottom" playlists use the Data API instead of RSS.
+	if req.PlaylistOrder == "bottom" && req.FeedType == "rss" {
+		if u, err := url.Parse(req.URL); err == nil {
+			if pid := u.Query().Get("playlist_id"); pid != "" {
+				req.FeedType = "youtube-playlist"
+				cfg := feeds.YouTubePlaylistConfig{PlaylistID: pid}
+				cfgBytes, _ := json.Marshal(cfg)
+				req.ScraperConfig = string(cfgBytes)
+			}
+		}
+	}
 
 	if req.Name == "" {
 		req.Name = req.URL
@@ -2662,6 +2675,7 @@ var validSettings = map[string][]string{
 	"defaultFeedView":   {"card", "list", "magazine", "expanded"},
 	"defaultView":       {"card", "list", "magazine", "expanded"},
 	"retentionDays":     {"7", "14", "30", "60", "90", "180", "365"},
+	"youtubeApiKey":     {},
 }
 
 func (s *Server) apiGetSettings(w http.ResponseWriter, r *http.Request) {

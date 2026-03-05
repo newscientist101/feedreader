@@ -30,6 +30,13 @@ export function initSettingsPage() {
     const feedRadio = document.querySelector(`input[name="feed-view"][value="${feedView}"]`);
     if (feedRadio) feedRadio.checked = true;
 
+    // Load YouTube API key.
+    const ytKeyInput = document.getElementById('youtube-api-key');
+    const ytKey = getSetting('youtubeApiKey');
+    if (ytKeyInput && ytKey) {
+        ytKeyInput.value = ytKey;
+    }
+
     // Load newsletter address
     loadNewsletterAddress();
 }
@@ -174,5 +181,13 @@ export function initSettingsPageListeners() {
 
     document.addEventListener('click', (e) => {
         if (e.target.closest('[data-action="copy-newsletter"]')) copyNewsletterAddress();
+    }, { signal });
+
+    // YouTube API key: save on blur or Enter.
+    document.addEventListener('change', (e) => {
+        const input = e.target.closest('[data-action="save-youtube-key"]');
+        if (!input) return;
+        saveSetting('youtubeApiKey', input.value.trim());
+        showToast('YouTube API key saved');
     }, { signal });
 }

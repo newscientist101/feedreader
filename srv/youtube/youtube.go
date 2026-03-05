@@ -13,9 +13,20 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/newscientist101/feedreader/srv/feeds"
 	"github.com/newscientist101/feedreader/srv/safenet"
 )
+
+// Item represents a YouTube video from a playlist, suitable for conversion
+// to feed items by the caller.
+type Item struct {
+	GUID        string
+	Title       string
+	URL         string
+	Author      string
+	Content     string
+	ImageURL    string
+	PublishedAt *time.Time
+}
 
 // Client fetches playlist items from the YouTube Data API v3.
 type Client struct {
@@ -87,10 +98,10 @@ type apiErrorDetail struct {
 }
 
 // FetchPlaylistItems fetches all items from a YouTube playlist.
-// It paginates through the full playlist, returning items as FeedItems.
+// It paginates through the full playlist, returning items as Items.
 // maxPages limits the number of API pages fetched (0 = unlimited).
-func (c *Client) FetchPlaylistItems(ctx context.Context, playlistID string, maxPages int) ([]feeds.FeedItem, int, error) {
-	var allItems []feeds.FeedItem
+func (c *Client) FetchPlaylistItems(ctx context.Context, playlistID string, maxPages int) ([]Item, int, error) {
+	var allItems []Item
 	var totalResults int
 	pageToken := ""
 	page := 0
@@ -174,7 +185,7 @@ func (c *Client) fetchPage(ctx context.Context, playlistID, pageToken string) (*
 	return &result, nil
 }
 
-func convertItem(item *playlistItemEntry) feeds.FeedItem {
+func convertItem(item *playlistItemEntry) Item {
 	s := item.Snippet
 	videoURL := "https://www.youtube.com/watch?v=" + s.ResourceID.VideoID
 	embedURL := "https://www.youtube.com/embed/" + s.ResourceID.VideoID
@@ -193,7 +204,7 @@ func convertItem(item *playlistItemEntry) feeds.FeedItem {
 		pubTime = &t
 	}
 
-	return feeds.FeedItem{
+	return Item{
 		GUID:        "yt:video:" + s.ResourceID.VideoID,
 		Title:       s.Title,
 		URL:         videoURL,

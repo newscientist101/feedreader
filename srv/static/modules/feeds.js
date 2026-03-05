@@ -458,6 +458,7 @@ export function initAddFeedForm() {
         }
 
         // Handle YouTube feed type — pass through to server for normalization
+        let playlistOrder = '';
         if (feedType === 'youtube') {
             const ytUrl = document.getElementById('youtube-url').value.trim();
             if (!ytUrl) {
@@ -466,6 +467,11 @@ export function initAddFeedForm() {
             }
             url = ytUrl;
             actualFeedType = 'youtube';
+            // Check playlist order selection.
+            const orderRadio = document.querySelector('input[name="playlist-order"]:checked');
+            if (orderRadio) {
+                playlistOrder = orderRadio.value;
+            }
         }
 
         // Handle GitHub Releases feed type — construct URL from owner/repo
@@ -520,14 +526,18 @@ export function initAddFeedForm() {
         try {
             // Let the server auto-generate the name when none is provided
             const feedName = name || '';
-            const feed = await api('POST', '/api/feeds', {
+            const body = {
                 url,
                 name: feedName,
                 feedType: actualFeedType,
                 scraperModule,
                 scraperConfig,
                 interval
-            });
+            };
+            if (playlistOrder) {
+                body.playlistOrder = playlistOrder;
+            }
+            const feed = await api('POST', '/api/feeds', body);
 
             // Set category if specified
             if (categoryId > 0 && feed.id) {

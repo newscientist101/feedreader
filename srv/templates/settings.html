@@ -133,6 +133,22 @@
     </section>
 
     <section class="settings-section">
+        <h2>YouTube</h2>
+        <p class="section-description">
+            A YouTube Data API key is required for &ldquo;add to bottom&rdquo; playlist feeds.
+            Get a key from the <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console</a>.
+        </p>
+        <div class="preference-row">
+            <div>
+                <label for="youtube-api-key">API Key</label>
+                <p class="preference-description">Used to fetch playlist items via the YouTube Data API v3.</p>
+            </div>
+            <input type="password" id="youtube-api-key" placeholder="Enter your API key"
+                   data-action="save-youtube-key" autocomplete="off" style="max-width:320px">
+        </div>
+    </section>
+
+    <section class="settings-section">
         <h2>Email Newsletters</h2>
         <p class="section-description">
             Receive email newsletters directly in your feed reader. Subscribe to newsletters using your personal address below.

@@ -13,7 +13,10 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+
 	"time"
+
+	"github.com/newscientist101/feedreader/srv/youtube"
 
 	"github.com/newscientist101/feedreader/db/dbgen"
 	"github.com/newscientist101/feedreader/srv/huggingface"
@@ -135,6 +138,8 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed *dbgen.Feed) error {
 		}
 	case "huggingface":
 		items, fetchErr = f.fetchHuggingFace(ctx, feed)
+	case "youtube-playlist":
+		items, fetchErr = f.fetchYouTubePlaylist(ctx, feed)
 	default:
 		fetchErr = fmt.Errorf("unknown feed type: %s", feed.FeedType)
 	}
@@ -347,6 +352,95 @@ func (f *Fetcher) fetchHuggingFace(ctx context.Context, feed *dbgen.Feed) ([]Fee
 		}
 	}
 	return items, nil
+}
+
+// YouTubePlaylistConfig is the JSON config stored in scraper_config for youtube-playlist feeds.
+type YouTubePlaylistConfig struct {
+	PlaylistID     string `json:"playlist_id"`
+	LastKnownCount int    `json:"last_known_count"`
+}
+
+func (f *Fetcher) fetchYouTubePlaylist(ctx context.Context, feed *dbgen.Feed) ([]FeedItem, error) {
+	if feed.ScraperConfig == nil || *feed.ScraperConfig == "" {
+		return nil, fmt.Errorf("youtube-playlist config not set")
+	}
+
+	var config YouTubePlaylistConfig
+	if err := json.Unmarshal([]byte(*feed.ScraperConfig), &config); err != nil {
+		return nil, fmt.Errorf("parse youtube-playlist config: %w", err)
+	}
+	if config.PlaylistID == "" {
+		return nil, fmt.Errorf("playlist_id not set in config")
+	}
+
+	// Look up user's YouTube API key.
+	if feed.UserID == nil {
+		return nil, fmt.Errorf("feed has no user_id")
+	}
+	q := dbgen.New(f.DB)
+	apiKey, err := q.GetUserSetting(ctx, dbgen.GetUserSettingParams{
+		UserID: *feed.UserID,
+		Key:    "youtubeApiKey",
+	})
+	if err != nil || apiKey == "" {
+		// Fall back to RSS if no API key configured.
+		slog.Warn("no YouTube API key configured, falling back to RSS",
+			"feed_id", feed.ID, "playlist_id", config.PlaylistID)
+		items, _, fetchErr := f.fetchRSSFeed(ctx,
+			"https://www.youtube.com/feeds/videos.xml?playlist_id="+config.PlaylistID)
+		return items, fetchErr
+	}
+
+	client := youtube.NewClient(apiKey)
+	ytItems, totalResults, err := client.FetchPlaylistItems(ctx, config.PlaylistID, 0)
+	if err != nil {
+		return nil, fmt.Errorf("youtube API: %w", err)
+	}
+
+	// Only return items past the last known count (newly appended items).
+	var newYTItems []youtube.Item
+	if config.LastKnownCount > 0 && config.LastKnownCount < len(ytItems) {
+		newYTItems = ytItems[config.LastKnownCount:]
+	} else if config.LastKnownCount == 0 {
+		// First fetch: return all items.
+		newYTItems = ytItems
+	}
+	// If totalResults <= lastKnownCount, no new items (items may have been removed).
+
+	// Convert youtube.Item to FeedItem.
+	newItems := make([]FeedItem, len(newYTItems))
+	for i, yt := range newYTItems {
+		newItems[i] = FeedItem{
+			GUID:        yt.GUID,
+			Title:       yt.Title,
+			URL:         yt.URL,
+			Author:      yt.Author,
+			Content:     yt.Content,
+			ImageURL:    yt.ImageURL,
+			PublishedAt: yt.PublishedAt,
+		}
+	}
+
+	// Persist the new count for next fetch.
+	if totalResults != config.LastKnownCount {
+		config.LastKnownCount = totalResults
+		cfgBytes, _ := json.Marshal(config)
+		cfgStr := string(cfgBytes)
+		if err := q.UpdateFeedScraperConfig(ctx, dbgen.UpdateFeedScraperConfigParams{
+			ScraperConfig: &cfgStr,
+			ID:            feed.ID,
+		}); err != nil {
+			slog.Warn("update youtube-playlist config", "error", err, "feed_id", feed.ID)
+		}
+	}
+
+	slog.Info("youtube-playlist fetch",
+		"feed_id", feed.ID,
+		"playlist_id", config.PlaylistID,
+		"total", totalResults,
+		"new", len(newItems))
+
+	return newItems, nil
 }
 
 // httpErrorDescription returns a human-readable description of HTTP error codes

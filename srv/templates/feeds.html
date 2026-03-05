@@ -113,6 +113,19 @@
                     <label for="youtube-url">YouTube URL</label>
                     <input type="text" id="youtube-url" placeholder="Paste a channel, @handle, or playlist URL">
                     <small>Supports youtube.com/@handle, /channel/UCxxx, /playlist?list=PLxxx, /c/Name, /user/Name</small>
+                    <div id="youtube-playlist-order" style="display:none; margin-top: 0.5rem">
+                        <label>New videos are added to:</label>
+                        <div class="radio-group">
+                            <label class="radio-option">
+                                <input type="radio" name="playlist-order" value="top" checked>
+                                <span>Top of playlist (newest first — uses RSS)</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="playlist-order" value="bottom">
+                                <span>Bottom of playlist (oldest first — requires YouTube API key)</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
                 <div class="form-group" id="github-group" style="display:none">
                     <label for="github-repo">Repository</label>
@@ -308,6 +321,13 @@ document.getElementById('feed-type').addEventListener('change', function() {
 document.getElementById('reddit-sort').addEventListener('change', function() {
     document.getElementById('reddit-top-period-group').style.display = 
         this.value === 'top' ? 'block' : 'none';
+});
+
+// Show playlist order option when a playlist URL is entered.
+document.getElementById('youtube-url').addEventListener('input', function() {
+    const isPlaylist = /\/playlist\?list=|[?&]playlist_id=/.test(this.value);
+    document.getElementById('youtube-playlist-order').style.display =
+        isPlaylist ? 'block' : 'none';
 });
 </script>
 {{end}}

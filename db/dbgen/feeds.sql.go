@@ -778,6 +778,20 @@ func (q *Queries) UpdateFeedLastFetched(ctx context.Context, arg UpdateFeedLastF
 	return err
 }
 
+const updateFeedScraperConfig = `-- name: UpdateFeedScraperConfig :exec
+UPDATE feeds SET scraper_config = ?, updated_at = datetime('now') WHERE id = ?
+`
+
+type UpdateFeedScraperConfigParams struct {
+	ScraperConfig *string `json:"scraper_config"`
+	ID            int64   `json:"id"`
+}
+
+func (q *Queries) UpdateFeedScraperConfig(ctx context.Context, arg UpdateFeedScraperConfigParams) error {
+	_, err := q.db.ExecContext(ctx, updateFeedScraperConfig, arg.ScraperConfig, arg.ID)
+	return err
+}
+
 const updateFeedSiteURL = `-- name: UpdateFeedSiteURL :exec
 UPDATE feeds SET site_url = ? WHERE id = ?
 `

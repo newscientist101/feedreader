@@ -114,3 +114,6 @@ JOIN feeds f ON a.feed_id = f.id
 JOIN feed_categories fc ON f.id = fc.feed_id
 WHERE a.is_read = 0 AND f.user_id = ?
 GROUP BY fc.category_id;
+
+-- name: UpdateFeedScraperConfig :exec
+UPDATE feeds SET scraper_config = ?, updated_at = datetime('now') WHERE id = ?;
