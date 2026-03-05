@@ -18,6 +18,7 @@ WHERE a.is_starred = 0
   AND a.id NOT IN (SELECT article_id FROM queue_articles)
   AND a.fetched_at < datetime('now', '-' || ? || ' days')
   AND f.user_id = ?
+  AND f.skip_retention = 0
 `
 
 type CountOldUnstarredArticlesParams struct {
@@ -37,6 +38,7 @@ SELECT COUNT(*) FROM articles
 WHERE is_starred = 0 
   AND id NOT IN (SELECT article_id FROM queue_articles)
   AND fetched_at < datetime('now', '-' || ? || ' days')
+  AND feed_id NOT IN (SELECT id FROM feeds WHERE skip_retention = 1)
 `
 
 func (q *Queries) CountOldUnstarredArticlesGlobal(ctx context.Context, dollar_1 *string) (int64, error) {
@@ -108,7 +110,7 @@ DELETE FROM articles
 WHERE articles.is_starred = 0 
   AND articles.id NOT IN (SELECT article_id FROM queue_articles)
   AND articles.fetched_at < datetime('now', '-' || ? || ' days')
-  AND articles.feed_id IN (SELECT id FROM feeds WHERE feeds.user_id = ?)
+  AND articles.feed_id IN (SELECT id FROM feeds WHERE feeds.user_id = ? AND feeds.skip_retention = 0)
 `
 
 type DeleteOldUnstarredArticlesParams struct {
@@ -125,6 +127,7 @@ DELETE FROM articles
 WHERE is_starred = 0 
   AND id NOT IN (SELECT article_id FROM queue_articles)
   AND fetched_at < datetime('now', '-' || ? || ' days')
+  AND feed_id NOT IN (SELECT id FROM feeds WHERE skip_retention = 1)
 `
 
 // For background cleanup - deletes across all users

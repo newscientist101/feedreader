@@ -1091,6 +1091,11 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 		scraperConfig = &req.ScraperConfig
 	}
 
+	var skipRetention int64
+	if req.FeedType == "youtube-playlist" {
+		skipRetention = 1
+	}
+
 	feed, err := q.CreateFeed(ctx, dbgen.CreateFeedParams{
 		Name:                 req.Name,
 		Url:                  req.URL,
@@ -1099,6 +1104,7 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 		ScraperConfig:        scraperConfig,
 		FetchIntervalMinutes: &req.Interval,
 		UserID:               &user.ID,
+		SkipRetention:        skipRetention,
 	})
 	if err != nil {
 		jsonError(w, "Failed to create feed: "+err.Error(), 500)
@@ -1194,6 +1200,7 @@ func (s *Server) apiUpdateFeed(w http.ResponseWriter, r *http.Request) {
 		ScraperConfig        *string `json:"scraper_config"`
 		FetchIntervalMinutes *int64  `json:"fetch_interval_minutes"`
 		ContentFilters       *string `json:"content_filters"`
+		SkipRetention        *bool   `json:"skip_retention"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonError(w, "Invalid request body", 400)
@@ -1237,6 +1244,14 @@ func (s *Server) apiUpdateFeed(w http.ResponseWriter, r *http.Request) {
 	if contentFilters == nil {
 		contentFilters = feed.ContentFilters
 	}
+	skipRetention := feed.SkipRetention
+	if req.SkipRetention != nil {
+		if *req.SkipRetention {
+			skipRetention = 1
+		} else {
+			skipRetention = 0
+		}
+	}
 
 	if err := q.UpdateFeed(ctx, dbgen.UpdateFeedParams{
 		Name:                 name,
@@ -1246,6 +1261,7 @@ func (s *Server) apiUpdateFeed(w http.ResponseWriter, r *http.Request) {
 		ScraperConfig:        scraperConfig,
 		FetchIntervalMinutes: interval,
 		ContentFilters:       contentFilters,
+		SkipRetention:        skipRetention,
 		ID:                   feedID,
 		UserID:               &user.ID,
 	}); err != nil {
@@ -2470,6 +2486,7 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 			FeedType:             "rss",
 			FetchIntervalMinutes: &interval,
 			UserID:               &user.ID,
+			SkipRetention:        0,
 		})
 		if err != nil {
 			slog.Warn("import: create feed failed", "error", err, "url", feed.URL, "name", feed.Name)

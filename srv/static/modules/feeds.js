@@ -301,6 +301,13 @@ export function createEditFeedModal() {
                     <p class="form-hint">Remove elements from article content. One CSS selector per line.</p>
                     <textarea id="edit-feed-filters" rows="4" placeholder="div.ref-ar&#10;.advertisement&#10;#sidebar"></textarea>
                 </div>
+                <div class="form-group form-group-checkbox">
+                    <label>
+                        <input type="checkbox" id="edit-feed-skip-retention">
+                        Skip retention cleanup
+                    </label>
+                    <p class="form-hint">Keep articles forever (ignore retention age limit).</p>
+                </div>
                 <div class="modal-actions">
                     <button type="button" data-action="close-edit-modal" class="btn btn-secondary">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save</button>
@@ -320,6 +327,7 @@ export async function editFeed(id) {
         document.getElementById('edit-feed-name').value = feed.name;
         document.getElementById('edit-feed-url').value = feed.url;
         document.getElementById('edit-feed-interval').value = feed.fetch_interval_minutes || 60;
+        document.getElementById('edit-feed-skip-retention').checked = feed.skip_retention === 1;
 
         // Load content filters (CSS selectors)
         const filtersTextarea = document.getElementById('edit-feed-filters');
@@ -364,12 +372,15 @@ export async function saveFeed(event) {
         contentFilters = JSON.stringify(filters);
     }
 
+    const skipRetention = document.getElementById('edit-feed-skip-retention').checked;
+
     try {
         await api('PUT', `/api/feeds/${id}`, {
             name: name,
             url: url,
             fetch_interval_minutes: interval,
-            content_filters: contentFilters
+            content_filters: contentFilters,
+            skip_retention: skipRetention
         });
         closeEditModal();
 

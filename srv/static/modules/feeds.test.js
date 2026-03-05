@@ -283,6 +283,7 @@ describe('saveFeed', () => {
             <input id="edit-feed-url" value="https://example.com/rss">
             <input id="edit-feed-interval" value="30">
             <textarea id="edit-feed-filters"></textarea>
+            <input type="checkbox" id="edit-feed-skip-retention">
             <table><tbody>
                 <tr data-feed-id="5">
                     <td><a>Old Name</a></td>
@@ -484,6 +485,7 @@ describe('createEditFeedModal', () => {
         expect(document.getElementById('edit-feed-url')).not.toBeNull();
         expect(document.getElementById('edit-feed-interval')).not.toBeNull();
         expect(document.getElementById('edit-feed-filters')).not.toBeNull();
+        expect(document.getElementById('edit-feed-skip-retention')).not.toBeNull();
         expect(modal.querySelector('[data-action="close-edit-modal"]')).not.toBeNull();
         expect(modal.querySelector('form#edit-feed-form')).not.toBeNull();
     });
@@ -507,6 +509,7 @@ describe('editFeed', () => {
                 url: 'https://example.com/rss',
                 fetch_interval_minutes: 120,
                 content_filters: null,
+                skip_retention: 0,
             }),
         });
 
@@ -517,6 +520,7 @@ describe('editFeed', () => {
         expect(document.getElementById('edit-feed-url').value).toBe('https://example.com/rss');
         expect(document.getElementById('edit-feed-interval').value).toBe('120');
         expect(document.getElementById('edit-feed-filters').value).toBe('');
+        expect(document.getElementById('edit-feed-skip-retention').checked).toBe(false);
         // Modal should be visible
         expect(document.getElementById('edit-feed-modal').style.display).toBe('flex');
     });
@@ -913,6 +917,7 @@ describe('initFeedActionListeners', () => {
                 <input id="edit-feed-url" value="https://saved.com/rss">
                 <input id="edit-feed-interval" value="45">
                 <textarea id="edit-feed-filters"></textarea>
+                <input type="checkbox" id="edit-feed-skip-retention">
             </form>
         `;
         initFeedActionListeners();

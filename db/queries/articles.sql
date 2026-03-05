@@ -186,7 +186,7 @@ DELETE FROM articles
 WHERE articles.is_starred = 0 
   AND articles.id NOT IN (SELECT article_id FROM queue_articles)
   AND articles.fetched_at < datetime('now', '-' || ? || ' days')
-  AND articles.feed_id IN (SELECT id FROM feeds WHERE feeds.user_id = ?);
+  AND articles.feed_id IN (SELECT id FROM feeds WHERE feeds.user_id = ? AND feeds.skip_retention = 0);
 
 -- name: CountOldUnstarredArticles :one
 SELECT COUNT(*) FROM articles a
@@ -194,7 +194,8 @@ JOIN feeds f ON a.feed_id = f.id
 WHERE a.is_starred = 0 
   AND a.id NOT IN (SELECT article_id FROM queue_articles)
   AND a.fetched_at < datetime('now', '-' || ? || ' days')
-  AND f.user_id = ?;
+  AND f.user_id = ?
+  AND f.skip_retention = 0;
 
 -- name: GetOldestArticleDate :one
 SELECT MIN(a.fetched_at) FROM articles a
@@ -231,13 +232,15 @@ WHERE is_read = 0
 DELETE FROM articles
 WHERE is_starred = 0 
   AND id NOT IN (SELECT article_id FROM queue_articles)
-  AND fetched_at < datetime('now', '-' || ? || ' days');
+  AND fetched_at < datetime('now', '-' || ? || ' days')
+  AND feed_id NOT IN (SELECT id FROM feeds WHERE skip_retention = 1);
 
 -- name: CountOldUnstarredArticlesGlobal :one
 SELECT COUNT(*) FROM articles
 WHERE is_starred = 0 
   AND id NOT IN (SELECT article_id FROM queue_articles)
-  AND fetched_at < datetime('now', '-' || ? || ' days');
+  AND fetched_at < datetime('now', '-' || ? || ' days')
+  AND feed_id NOT IN (SELECT id FROM feeds WHERE skip_retention = 1);
 
 -- name: GetOldestArticleDateGlobal :one
 SELECT MIN(fetched_at) FROM articles WHERE is_starred = 0;

@@ -74,6 +74,7 @@ type Feed struct {
 	UserID               *int64     `json:"user_id"`
 	ContentFilters       *string    `json:"content_filters"`
 	SiteUrl              string     `json:"site_url"`
+	SkipRetention        int64      `json:"skip_retention"`
 }
 
 type FeedCategory struct {

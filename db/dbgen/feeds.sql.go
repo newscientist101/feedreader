@@ -57,9 +57,9 @@ func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) 
 }
 
 const createFeed = `-- name: CreateFeed :one
-INSERT INTO feeds (name, url, feed_type, scraper_module, scraper_config, fetch_interval_minutes, user_id)
-VALUES (?, ?, ?, ?, ?, ?, ?)
-RETURNING id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id, content_filters, site_url
+INSERT INTO feeds (name, url, feed_type, scraper_module, scraper_config, fetch_interval_minutes, user_id, skip_retention)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id, content_filters, site_url, skip_retention
 `
 
 type CreateFeedParams struct {
@@ -70,6 +70,7 @@ type CreateFeedParams struct {
 	ScraperConfig        *string `json:"scraper_config"`
 	FetchIntervalMinutes *int64  `json:"fetch_interval_minutes"`
 	UserID               *int64  `json:"user_id"`
+	SkipRetention        int64   `json:"skip_retention"`
 }
 
 func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (Feed, error) {
@@ -81,6 +82,7 @@ func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (Feed, e
 		arg.ScraperConfig,
 		arg.FetchIntervalMinutes,
 		arg.UserID,
+		arg.SkipRetention,
 	)
 	var i Feed
 	err := row.Scan(
@@ -98,6 +100,7 @@ func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (Feed, e
 		&i.UserID,
 		&i.ContentFilters,
 		&i.SiteUrl,
+		&i.SkipRetention,
 	)
 	return i, err
 }
@@ -301,7 +304,7 @@ func (q *Queries) GetChildCategories(ctx context.Context, arg GetChildCategories
 }
 
 const getFeed = `-- name: GetFeed :one
-SELECT id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id, content_filters, site_url FROM feeds WHERE id = ? AND user_id = ?
+SELECT id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id, content_filters, site_url, skip_retention FROM feeds WHERE id = ? AND user_id = ?
 `
 
 type GetFeedParams struct {
@@ -327,12 +330,13 @@ func (q *Queries) GetFeed(ctx context.Context, arg GetFeedParams) (Feed, error) 
 		&i.UserID,
 		&i.ContentFilters,
 		&i.SiteUrl,
+		&i.SkipRetention,
 	)
 	return i, err
 }
 
 const getFeedByURL = `-- name: GetFeedByURL :one
-SELECT id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id, content_filters, site_url FROM feeds WHERE url = ? AND user_id = ?
+SELECT id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id, content_filters, site_url, skip_retention FROM feeds WHERE url = ? AND user_id = ?
 `
 
 type GetFeedByURLParams struct {
@@ -358,6 +362,7 @@ func (q *Queries) GetFeedByURL(ctx context.Context, arg GetFeedByURLParams) (Fee
 		&i.UserID,
 		&i.ContentFilters,
 		&i.SiteUrl,
+		&i.SkipRetention,
 	)
 	return i, err
 }
@@ -484,7 +489,7 @@ func (q *Queries) ListFeedCategoryMappings(ctx context.Context, userID *int64) (
 }
 
 const listFeeds = `-- name: ListFeeds :many
-SELECT id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id, content_filters, site_url FROM feeds WHERE user_id = ? ORDER BY name
+SELECT id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id, content_filters, site_url, skip_retention FROM feeds WHERE user_id = ? ORDER BY name
 `
 
 func (q *Queries) ListFeeds(ctx context.Context, userID *int64) ([]Feed, error) {
@@ -511,6 +516,7 @@ func (q *Queries) ListFeeds(ctx context.Context, userID *int64) ([]Feed, error) 
 			&i.UserID,
 			&i.ContentFilters,
 			&i.SiteUrl,
+			&i.SkipRetention,
 		); err != nil {
 			return nil, err
 		}
@@ -526,7 +532,7 @@ func (q *Queries) ListFeeds(ctx context.Context, userID *int64) ([]Feed, error) 
 }
 
 const listFeedsByCategory = `-- name: ListFeedsByCategory :many
-SELECT f.id, f.name, f.url, f.feed_type, f.scraper_module, f.scraper_config, f.last_fetched_at, f.last_error, f.fetch_interval_minutes, f.created_at, f.updated_at, f.user_id, f.content_filters, f.site_url FROM feeds f
+SELECT f.id, f.name, f.url, f.feed_type, f.scraper_module, f.scraper_config, f.last_fetched_at, f.last_error, f.fetch_interval_minutes, f.created_at, f.updated_at, f.user_id, f.content_filters, f.site_url, f.skip_retention FROM feeds f
 JOIN feed_categories fc ON f.id = fc.feed_id
 WHERE fc.category_id = ? AND f.user_id = ?
 ORDER BY f.name
@@ -561,6 +567,7 @@ func (q *Queries) ListFeedsByCategory(ctx context.Context, arg ListFeedsByCatego
 			&i.UserID,
 			&i.ContentFilters,
 			&i.SiteUrl,
+			&i.SkipRetention,
 		); err != nil {
 			return nil, err
 		}
@@ -576,7 +583,7 @@ func (q *Queries) ListFeedsByCategory(ctx context.Context, arg ListFeedsByCatego
 }
 
 const listFeedsToFetch = `-- name: ListFeedsToFetch :many
-SELECT id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id, content_filters, site_url FROM feeds 
+SELECT id, name, url, feed_type, scraper_module, scraper_config, last_fetched_at, last_error, fetch_interval_minutes, created_at, updated_at, user_id, content_filters, site_url, skip_retention FROM feeds 
 WHERE feed_type != 'newsletter'
   AND (last_fetched_at IS NULL 
    OR datetime(last_fetched_at, '+' || fetch_interval_minutes || ' minutes') < datetime('now'))
@@ -607,6 +614,7 @@ func (q *Queries) ListFeedsToFetch(ctx context.Context) ([]Feed, error) {
 			&i.UserID,
 			&i.ContentFilters,
 			&i.SiteUrl,
+			&i.SkipRetention,
 		); err != nil {
 			return nil, err
 		}
@@ -622,7 +630,7 @@ func (q *Queries) ListFeedsToFetch(ctx context.Context) ([]Feed, error) {
 }
 
 const listUncategorizedFeeds = `-- name: ListUncategorizedFeeds :many
-SELECT f.id, f.name, f.url, f.feed_type, f.scraper_module, f.scraper_config, f.last_fetched_at, f.last_error, f.fetch_interval_minutes, f.created_at, f.updated_at, f.user_id, f.content_filters, f.site_url FROM feeds f
+SELECT f.id, f.name, f.url, f.feed_type, f.scraper_module, f.scraper_config, f.last_fetched_at, f.last_error, f.fetch_interval_minutes, f.created_at, f.updated_at, f.user_id, f.content_filters, f.site_url, f.skip_retention FROM feeds f
 WHERE f.user_id = ? AND NOT EXISTS (
   SELECT 1 FROM feed_categories fc WHERE fc.feed_id = f.id
 )
@@ -653,6 +661,7 @@ func (q *Queries) ListUncategorizedFeeds(ctx context.Context, userID *int64) ([]
 			&i.UserID,
 			&i.ContentFilters,
 			&i.SiteUrl,
+			&i.SkipRetention,
 		); err != nil {
 			return nil, err
 		}
@@ -733,7 +742,7 @@ func (q *Queries) UpdateCategorySortOrder(ctx context.Context, arg UpdateCategor
 }
 
 const updateFeed = `-- name: UpdateFeed :exec
-UPDATE feeds SET name = ?, url = ?, feed_type = ?, scraper_module = ?, scraper_config = ?, fetch_interval_minutes = ?, content_filters = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?
+UPDATE feeds SET name = ?, url = ?, feed_type = ?, scraper_module = ?, scraper_config = ?, fetch_interval_minutes = ?, content_filters = ?, skip_retention = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?
 `
 
 type UpdateFeedParams struct {
@@ -744,6 +753,7 @@ type UpdateFeedParams struct {
 	ScraperConfig        *string `json:"scraper_config"`
 	FetchIntervalMinutes *int64  `json:"fetch_interval_minutes"`
 	ContentFilters       *string `json:"content_filters"`
+	SkipRetention        int64   `json:"skip_retention"`
 	ID                   int64   `json:"id"`
 	UserID               *int64  `json:"user_id"`
 }
@@ -757,6 +767,7 @@ func (q *Queries) UpdateFeed(ctx context.Context, arg UpdateFeedParams) error {
 		arg.ScraperConfig,
 		arg.FetchIntervalMinutes,
 		arg.ContentFilters,
+		arg.SkipRetention,
 		arg.ID,
 		arg.UserID,
 	)

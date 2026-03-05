@@ -353,6 +353,8 @@ body {
 .view-header h1 {
     font-size: 1.75rem;
     font-weight: 600;
+    flex: 0 1 auto;
+    max-width: calc(100% - 350px);
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1377,6 +1379,19 @@ body {
     margin-bottom: 6px;
     font-size: 0.85rem;
     color: var(--text-secondary);
+}
+
+.form-group-checkbox label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: var(--text-primary);
+}
+
+.form-group-checkbox input[type="checkbox"] {
+    width: auto;
+    margin: 0;
 }
 
 .form-hint {

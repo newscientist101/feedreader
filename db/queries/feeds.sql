@@ -1,6 +1,6 @@
 -- name: CreateFeed :one
-INSERT INTO feeds (name, url, feed_type, scraper_module, scraper_config, fetch_interval_minutes, user_id)
-VALUES (?, ?, ?, ?, ?, ?, ?)
+INSERT INTO feeds (name, url, feed_type, scraper_module, scraper_config, fetch_interval_minutes, user_id, skip_retention)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: GetFeed :one
@@ -23,7 +23,7 @@ ORDER BY last_fetched_at NULLS FIRST;
 UPDATE feeds SET last_fetched_at = ?, last_error = ?, updated_at = datetime('now') WHERE id = ?;
 
 -- name: UpdateFeed :exec
-UPDATE feeds SET name = ?, url = ?, feed_type = ?, scraper_module = ?, scraper_config = ?, fetch_interval_minutes = ?, content_filters = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?;
+UPDATE feeds SET name = ?, url = ?, feed_type = ?, scraper_module = ?, scraper_config = ?, fetch_interval_minutes = ?, content_filters = ?, skip_retention = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?;
 
 -- name: DeleteFeed :exec
 DELETE FROM feeds WHERE id = ? AND user_id = ?;
