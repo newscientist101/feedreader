@@ -5,6 +5,7 @@ export default defineConfig({
     environment: 'happy-dom',
     setupFiles: ['./vitest.setup.mjs'],
     include: ['srv/static/**/*.test.js'],
+    exclude: ['srv/static/**/*.browser.test.js'],
     reporters: ['default'],
     coverage: {
       provider: 'v8',

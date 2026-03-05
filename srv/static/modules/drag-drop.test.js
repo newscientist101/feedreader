@@ -1,15 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
     initFolderDragDrop, initDragDrop, syncFolderOrder,
-    reorderElements, getDragAfterElementAmongSiblings,
-    initDragPrevention,
+    reorderElements, initDragPrevention,
 } from './drag-drop.js';
 
 vi.mock('./api.js');
 vi.mock('./toast.js');
 
 import { api } from './api.js';
-import { showToast } from './toast.js';
 
 beforeEach(() => {
     document.body.innerHTML = '';
@@ -21,59 +19,8 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-describe('getDragAfterElementAmongSiblings', () => {
-    it('returns element below the cursor', () => {
-        const el1 = document.createElement('div');
-        const el2 = document.createElement('div');
-        // Mock getBoundingClientRect
-        el1.getBoundingClientRect = () => ({ top: 0, height: 50 });
-        el2.getBoundingClientRect = () => ({ top: 50, height: 50 });
-
-        // y=10 is above the midpoint of el1 (25), so el1 should be the after element
-        const result = getDragAfterElementAmongSiblings([el1, el2], 10);
-        expect(result).toBe(el1);
-    });
-
-    it('returns undefined when cursor is below all elements', () => {
-        const el1 = document.createElement('div');
-        el1.getBoundingClientRect = () => ({ top: 0, height: 50 });
-
-        // y=100 is well below el1's midpoint
-        const result = getDragAfterElementAmongSiblings([el1], 100);
-        expect(result).toBeUndefined();
-    });
-
-    it('skips elements with dragging class', () => {
-        const el1 = document.createElement('div');
-        el1.classList.add('dragging');
-        el1.getBoundingClientRect = () => ({ top: 0, height: 50 });
-        const el2 = document.createElement('div');
-        el2.getBoundingClientRect = () => ({ top: 50, height: 50 });
-
-        // Even though y=10 is above el1 midpoint, el1 is dragging so skip it
-        // y=10 is above el2 midpoint (75), so el2
-        const result = getDragAfterElementAmongSiblings([el1, el2], 10);
-        expect(result).toBe(el2);
-    });
-
-    it('returns closest element above cursor', () => {
-        const el1 = document.createElement('div');
-        const el2 = document.createElement('div');
-        const el3 = document.createElement('div');
-        el1.getBoundingClientRect = () => ({ top: 0, height: 40 });
-        el2.getBoundingClientRect = () => ({ top: 40, height: 40 });
-        el3.getBoundingClientRect = () => ({ top: 80, height: 40 });
-
-        // y=50 is above el2 midpoint (60) and el3 midpoint (100), but closer to el2
-        const result = getDragAfterElementAmongSiblings([el1, el2, el3], 50);
-        expect(result).toBe(el2);
-    });
-
-    it('handles empty array', () => {
-        const result = getDragAfterElementAmongSiblings([], 50);
-        expect(result).toBeUndefined();
-    });
-});
+// getDragAfterElementAmongSiblings tests migrated to browser-unit.browser.test.js
+// (uses real browser layout instead of mocked getBoundingClientRect)
 
 describe('reorderElements', () => {
     it('reorders elements to match the given order', () => {
@@ -514,141 +461,12 @@ describe('initDragDrop — dragover shift-key nesting', () => {
     });
 });
 
-describe('initDragDrop — dragover placeholder positioning', () => {
-    function startDrag(container, itemSelector, dataId) {
-        const item = container.querySelector(`${itemSelector}[data-id="${dataId}"]`);
-        const event = new Event('dragstart', { bubbles: true });
-        Object.defineProperty(event, 'dataTransfer', {
-            value: { effectAllowed: '', setData: vi.fn() },
-        });
-        item.dispatchEvent(event);
-        return item;
-    }
+// dragover placeholder positioning tests migrated to browser-unit.browser.test.js
+// (uses real browser layout instead of mocked getBoundingClientRect)
 
-    it('inserts placeholder before add-category card when at end', () => {
-        document.body.innerHTML = `
-            <div id="container">
-                <div class="item" data-id="1" draggable="true">A</div>
-                <div class="item" data-id="2" draggable="true">B</div>
-                <div class="add-category">+ Add</div>
-            </div>
-        `;
-        const container = document.getElementById('container');
-        initDragDrop(container, '.item', 'data-id');
-
-        // Mock getBoundingClientRect for items
-        container.querySelectorAll('.item').forEach((el, i) => {
-            el.getBoundingClientRect = () => ({ top: i * 50, height: 50 });
-        });
-
-        startDrag(container, '.item', '1');
-
-        // Dragover below all items
-        const dragoverEvent = new Event('dragover', { bubbles: true, cancelable: true });
-        Object.defineProperty(dragoverEvent, 'dataTransfer', { value: { dropEffect: '' } });
-        Object.defineProperty(dragoverEvent, 'shiftKey', { value: false });
-        Object.defineProperty(dragoverEvent, 'clientY', { value: 200 });
-        container.dispatchEvent(dragoverEvent);
-
-        // Placeholder should be before add-category
-        const addCard = container.querySelector('.add-category');
-        const placeholder = container.querySelector('.drag-placeholder');
-        expect(placeholder).not.toBeNull();
-        expect(placeholder.nextElementSibling).toBe(addCard);
-    });
-});
+// Drop reorder tests with real layout migrated to browser-unit.browser.test.js
 
 describe('initDragDrop — drop reorder', () => {
-    function startDrag(container, itemSelector, dataId) {
-        const item = container.querySelector(`${itemSelector}[data-id="${dataId}"]`);
-        const event = new Event('dragstart', { bubbles: true });
-        Object.defineProperty(event, 'dataTransfer', {
-            value: { effectAllowed: '', setData: vi.fn() },
-        });
-        item.dispatchEvent(event);
-        return item;
-    }
-
-    function createDropEvent() {
-        const event = new Event('drop', { bubbles: true, cancelable: true });
-        Object.defineProperty(event, 'dataTransfer', {
-            value: { dropEffect: '' },
-        });
-        return event;
-    }
-
-    it('calls api to save reorder and syncs folder order', async () => {
-        document.body.innerHTML = `
-            <div id="container">
-                <div class="item" data-id="1" draggable="true">A</div>
-                <div class="item" data-id="2" draggable="true">B</div>
-            </div>
-        `;
-        const container = document.getElementById('container');
-        initDragDrop(container, '.item', 'data-id');
-
-        // Mock getBoundingClientRect
-        container.querySelectorAll('.item').forEach((el, i) => {
-            el.getBoundingClientRect = () => ({ top: i * 50, height: 50 });
-        });
-
-        startDrag(container, '.item', '2');
-
-        // Dragover to create placeholder
-        const dragoverEvent = new Event('dragover', { bubbles: true, cancelable: true });
-        Object.defineProperty(dragoverEvent, 'dataTransfer', { value: { dropEffect: '' } });
-        Object.defineProperty(dragoverEvent, 'shiftKey', { value: false });
-        Object.defineProperty(dragoverEvent, 'clientY', { value: 10 });
-        container.querySelector('.item[data-id="1"]').dispatchEvent(dragoverEvent);
-
-        api.mockResolvedValueOnce({});
-
-        // Drop
-        container.dispatchEvent(createDropEvent());
-
-        await vi.waitFor(() => {
-            expect(api).toHaveBeenCalledWith('POST', '/api/categories/reorder', {
-                order: expect.any(Array),
-                parent_id: null,
-            });
-        });
-    });
-
-    it('shows toast on reorder api failure', async () => {
-        document.body.innerHTML = `
-            <div id="container">
-                <div class="item" data-id="1" draggable="true">A</div>
-                <div class="item" data-id="2" draggable="true">B</div>
-            </div>
-        `;
-        const container = document.getElementById('container');
-        initDragDrop(container, '.item', 'data-id');
-
-        container.querySelectorAll('.item').forEach((el, i) => {
-            el.getBoundingClientRect = () => ({ top: i * 50, height: 50 });
-        });
-
-        startDrag(container, '.item', '2');
-
-        // Dragover to create placeholder
-        const dragoverEvent = new Event('dragover', { bubbles: true, cancelable: true });
-        Object.defineProperty(dragoverEvent, 'dataTransfer', { value: { dropEffect: '' } });
-        Object.defineProperty(dragoverEvent, 'shiftKey', { value: false });
-        Object.defineProperty(dragoverEvent, 'clientY', { value: 10 });
-        container.querySelector('.item[data-id="1"]').dispatchEvent(dragoverEvent);
-
-        const err = new Error('Network error');
-        api.mockRejectedValueOnce(err);
-        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-        container.dispatchEvent(createDropEvent());
-
-        await vi.waitFor(() => {
-            expect(showToast).toHaveBeenCalledWith('Failed to save folder order');
-        });
-        expect(consoleSpy).toHaveBeenCalledWith('Failed to save folder order:', err);
-    });
-
     it('does nothing on drop when no drag started', () => {
         document.body.innerHTML = `
             <div id="container">
@@ -658,107 +476,18 @@ describe('initDragDrop — drop reorder', () => {
         const container = document.getElementById('container');
         initDragDrop(container, '.item', 'data-id');
 
-        const dropEvent = createDropEvent();
+        const dropEvent = new Event('drop', { bubbles: true, cancelable: true });
+        Object.defineProperty(dropEvent, 'dataTransfer', {
+            value: { dropEffect: '' },
+        });
         container.dispatchEvent(dropEvent);
 
         expect(api).not.toHaveBeenCalled();
     });
 });
 
-describe('initDragDrop — drop nesting (shift+drag)', () => {
-    function startDrag(container, itemSelector, dataId) {
-        const item = container.querySelector(`${itemSelector}[data-id="${dataId}"]`);
-        const event = new Event('dragstart', { bubbles: true });
-        Object.defineProperty(event, 'dataTransfer', {
-            value: { effectAllowed: '', setData: vi.fn() },
-        });
-        item.dispatchEvent(event);
-        return item;
-    }
-
-    it('calls api to nest folder and reloads on success', async () => {
-        document.body.innerHTML = `
-            <div id="container">
-                <div class="item" data-id="1" draggable="true">A</div>
-                <div class="item" data-id="2" draggable="true">B</div>
-            </div>
-        `;
-        const container = document.getElementById('container');
-        initDragDrop(container, '.item', 'data-id');
-
-        container.querySelectorAll('.item').forEach((el, i) => {
-            el.getBoundingClientRect = () => ({ top: i * 50, height: 50 });
-        });
-
-        startDrag(container, '.item', '1');
-
-        // Shift+dragover to set nest target
-        const target = container.querySelector('.item[data-id="2"]');
-        const dragoverEvent = new Event('dragover', { bubbles: true, cancelable: true });
-        Object.defineProperty(dragoverEvent, 'dataTransfer', { value: { dropEffect: '' } });
-        Object.defineProperty(dragoverEvent, 'shiftKey', { value: true });
-        Object.defineProperty(dragoverEvent, 'clientY', { value: 75 });
-        target.dispatchEvent(dragoverEvent);
-
-        api.mockResolvedValueOnce({});
-        const reloadMock = vi.fn();
-        Object.defineProperty(window, 'location', {
-            value: { reload: reloadMock },
-            writable: true,
-            configurable: true,
-        });
-
-        const dropEvent = new Event('drop', { bubbles: true, cancelable: true });
-        Object.defineProperty(dropEvent, 'dataTransfer', { value: { dropEffect: '' } });
-        container.dispatchEvent(dropEvent);
-
-        await vi.waitFor(() => {
-            expect(api).toHaveBeenCalledWith('POST', '/api/categories/1/parent', {
-                parent_id: 2,
-                sort_order: 0,
-            });
-        });
-        expect(reloadMock).toHaveBeenCalled();
-    });
-
-    it('shows toast on nesting api failure', async () => {
-        document.body.innerHTML = `
-            <div id="container">
-                <div class="item" data-id="1" draggable="true">A</div>
-                <div class="item" data-id="2" draggable="true">B</div>
-            </div>
-        `;
-        const container = document.getElementById('container');
-        initDragDrop(container, '.item', 'data-id');
-
-        container.querySelectorAll('.item').forEach((el, i) => {
-            el.getBoundingClientRect = () => ({ top: i * 50, height: 50 });
-        });
-
-        startDrag(container, '.item', '1');
-
-        // Shift+dragover to set nest target
-        const target = container.querySelector('.item[data-id="2"]');
-        const dragoverEvent = new Event('dragover', { bubbles: true, cancelable: true });
-        Object.defineProperty(dragoverEvent, 'dataTransfer', { value: { dropEffect: '' } });
-        Object.defineProperty(dragoverEvent, 'shiftKey', { value: true });
-        Object.defineProperty(dragoverEvent, 'clientY', { value: 75 });
-        target.dispatchEvent(dragoverEvent);
-
-        const err = new Error('Server error');
-        api.mockRejectedValueOnce(err);
-        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-        const dropEvent = new Event('drop', { bubbles: true, cancelable: true });
-        Object.defineProperty(dropEvent, 'dataTransfer', { value: { dropEffect: '' } });
-        container.dispatchEvent(dropEvent);
-
-        await vi.waitFor(() => {
-            expect(showToast).toHaveBeenCalledWith('Failed to move folder');
-        });
-        expect(consoleSpy).toHaveBeenCalledWith('Failed to nest folder:', err);
-    });
-});
+// Drop nesting (shift+drag) tests migrated to browser-unit.browser.test.js
+// (uses real browser layout instead of mocked getBoundingClientRect)
 
 describe('initDragPrevention', () => {
     it('prevents dragstart on folder chevrons', () => {

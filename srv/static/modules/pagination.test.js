@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
     updateEndOfArticlesIndicator, updatePaginationCursor, getPaginationUrl,
-    loadMoreArticles, checkScrollForMore, initPagination,
+    loadMoreArticles, initPagination,
     setPaginationState, getPaginationState, PAGE_SIZE,
     _resetPaginationState,
 } from './pagination.js';
@@ -433,70 +433,8 @@ describe('loadMoreArticles', () => {
     });
 });
 
-describe('checkScrollForMore', () => {
-    it('does nothing when pagination is done', () => {
-        setPaginationState({ done: true });
-        checkScrollForMore();
-        expect(globalThis.fetch).not.toHaveBeenCalled();
-    });
-
-    it('does nothing when loading', () => {
-        setPaginationState({ loading: true });
-        checkScrollForMore();
-        expect(globalThis.fetch).not.toHaveBeenCalled();
-    });
-
-    it('does nothing when far from bottom', () => {
-        Object.defineProperty(window, 'location', {
-            value: { pathname: '/' }, writable: true, configurable: true,
-        });
-        setPaginationState({
-            done: false,
-            loading: false,
-            cursorTime: '2025-01-01T00:00:00Z',
-            cursorId: '999',
-        });
-        // Far from bottom: scrollY + innerHeight is much less than offsetHeight - 600
-        Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true });
-        Object.defineProperty(window, 'scrollY', { value: 0, configurable: true, writable: true });
-        Object.defineProperty(document.body, 'offsetHeight', { value: 5000, configurable: true });
-
-        checkScrollForMore();
-
-        expect(globalThis.fetch).not.toHaveBeenCalled();
-    });
-
-    it('calls loadMoreArticles when near the bottom of the page', async () => {
-        Object.defineProperty(window, 'location', {
-            value: { pathname: '/feed/8' }, writable: true, configurable: true,
-        });
-
-        setPaginationState({
-            done: false,
-            loading: false,
-            cursorTime: '2025-01-01T00:00:00Z',
-            cursorId: '999',
-        });
-        setQueuedIdsReady(Promise.resolve());
-
-        // Simulate being near the bottom: scrollY + innerHeight >= offsetHeight - 600
-        Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true });
-        Object.defineProperty(window, 'scrollY', { value: 600, configurable: true, writable: true });
-        Object.defineProperty(document.body, 'offsetHeight', { value: 1000, configurable: true });
-
-        vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ({
-            ok: true,
-            json: async () => ({ articles: [] }),
-            text: async () => '',
-        }));
-
-        checkScrollForMore();
-        // loadMoreArticles is async — flush microtasks via fake timers
-        await vi.advanceTimersByTimeAsync(0);
-
-        expect(globalThis.fetch).toHaveBeenCalled();
-    });
-});
+// checkScrollForMore tests migrated to browser-unit.browser.test.js
+// (uses real scroll measurements instead of mocked offsetHeight/innerHeight/scrollY)
 
 describe('initPagination', () => {
     let scrollHandler;
