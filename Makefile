@@ -1,4 +1,4 @@
-.PHONY: build clean stop start restart test lint lint-go lint-js lint-css lint-templates lint-html fmt fmt-check fix-check vulncheck check
+.PHONY: build clean stop start restart test lint lint-go lint-js lint-css lint-templates lint-html fmt fmt-check fix-check vulncheck check layout-test
 
 build:
 	go build -o feedreader ./cmd/srv
@@ -41,3 +41,6 @@ vulncheck:
 	govulncheck ./...
 
 check: fmt-check fix-check lint test vulncheck
+
+layout-test:
+	npx playwright test

@@ -10,3 +10,4 @@ logs/
 # Environment
 .env
 backups/
+test-results/
