@@ -24,7 +24,7 @@ import {
   assertNoOverlap,
   assertVisible,
   getFeedName,
-  measure,
+  measureForNames,
   setFeedName,
 } from './helpers.js';
 
@@ -59,9 +59,15 @@ const TEST_NAMES = [
 
 describe('header layout at 860px (Goldilocks zone)', () => {
   let originalName;
+  /** @type {Record<string, Record<string, object|null>>} */
+  let allRects;
 
   beforeAll(async () => {
     originalName = await getFeedName(FEED_ID);
+    allRects = await measureForNames(
+      FEED_URL, HEADER_SELECTORS, FEED_ID,
+      TEST_NAMES.map(t => t.name), WIDTH, 720,
+    );
   });
 
   afterAll(async () => {
@@ -69,9 +75,8 @@ describe('header layout at 860px (Goldilocks zone)', () => {
   });
 
   for (const { chars, name } of TEST_NAMES) {
-    test(`${chars}-char name: "${name}"`, async () => {
-      await setFeedName(FEED_ID, name);
-      const rects = await measure(FEED_URL, HEADER_SELECTORS, WIDTH, 720);
+    test(`${chars}-char name: "${name}"`, () => {
+      const rects = allRects[name];
 
       // View toggle must be visible with non-zero width
       assertVisible(rects, '.view-toggle');

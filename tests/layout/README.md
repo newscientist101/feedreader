@@ -65,6 +65,8 @@ Import from `./helpers.js`:
 | `assertNoOverlap(rects, selA, selB)` | Assert two elements don't overlap |
 | `assertMinWidth(rects, selector, minPx)` | Assert element width ≥ N px |
 | `assertVisible(rects, selector)` | Assert element has non-zero dimensions |
+| `measureForNames(url, selectors, feedId, names, width, height?)` | Batch measure across feed names (one page) |
+| `measureForNamesMultiWidth(url, selectors, feedId, names, widths, height?)` | Batch measure across names × widths (one page) |
 
 ### Example
 
@@ -111,5 +113,7 @@ available (via `commands` from `vitest/browser`):
 | `fetchPageHTML(url)` | Navigate to URL and return rendered HTML |
 | `measureLayout(url, selectors, width?, height?)` | Get bounding rects at a viewport size |
 | `measureLayoutMultiWidth(url, selectors, widths, height?)` | Get rects at multiple widths (single page load) |
+| `measureLayoutForNames(url, selectors, feedId, names, width, height?)` | Get rects for multiple feed names (single page) |
+| `measureLayoutForNamesMultiWidth(url, selectors, feedId, names, widths, height?)` | Get rects for multiple names × widths (single page) |
 | `getFeedName(feedId)` | Get current feed name via API |
 | `setFeedName(feedId, name)` | Rename a feed via API |

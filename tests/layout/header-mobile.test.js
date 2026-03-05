@@ -17,7 +17,7 @@ import {
   assertNoOverlap,
   assertVisible,
   getFeedName,
-  measure,
+  measureForNamesMultiWidth,
   setFeedName,
 } from './helpers.js';
 
@@ -49,9 +49,15 @@ const MOBILE_WIDTHS = [375, 430];
 
 describe('header layout at mobile widths', () => {
   let originalName;
+  /** @type {Record<string, Record<number, Record<string, object|null>>>} */
+  let allRects;
 
   beforeAll(async () => {
     originalName = await getFeedName(FEED_ID);
+    allRects = await measureForNamesMultiWidth(
+      FEED_URL, HEADER_SELECTORS, FEED_ID,
+      TEST_NAMES.map(t => t.name), MOBILE_WIDTHS, 720,
+    );
   });
 
   afterAll(async () => {
@@ -61,9 +67,8 @@ describe('header layout at mobile widths', () => {
   for (const width of MOBILE_WIDTHS) {
     describe(`at ${width}px`, () => {
       for (const { chars, name } of TEST_NAMES) {
-        test(`${chars}-char name: "${name}"`, async () => {
-          await setFeedName(FEED_ID, name);
-          const rects = await measure(FEED_URL, HEADER_SELECTORS, width, 720);
+        test(`${chars}-char name: "${name}"`, () => {
+          const rects = allRects[name][width];
 
           // View toggle should be visible at mobile
           assertVisible(rects, '.view-toggle');

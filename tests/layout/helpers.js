@@ -126,3 +126,34 @@ export function assertVisible(rects, selector) {
     `Expected "${selector}" to have non-zero height`,
   ).toBeGreaterThan(0);
 }
+
+/**
+ * Measure layout for multiple feed names on a single Playwright page.
+ * Much faster than calling measure() per name since it avoids page open/close overhead.
+ *
+ * @param {string} url - Path to load
+ * @param {string[]} selectors - CSS selectors to measure
+ * @param {number} feedId - Feed ID to rename between measurements
+ * @param {string[]} names - Feed names to test
+ * @param {number} viewportWidth - Viewport width
+ * @param {number} [viewportHeight=720] - Viewport height
+ * @returns {Promise<Record<string, Record<string, object|null>>>}
+ */
+export async function measureForNames(url, selectors, feedId, names, viewportWidth, viewportHeight) {
+  return commands.measureLayoutForNames(url, selectors, feedId, names, viewportWidth, viewportHeight);
+}
+
+/**
+ * Measure layout for multiple feed names at multiple viewport widths on a single page.
+ *
+ * @param {string} url - Path to load
+ * @param {string[]} selectors - CSS selectors to measure
+ * @param {number} feedId - Feed ID to rename between measurements
+ * @param {string[]} names - Feed names to test
+ * @param {number[]} widths - Viewport widths to test
+ * @param {number} [viewportHeight=720] - Viewport height
+ * @returns {Promise<Record<string, Record<number, Record<string, object|null>>>>}
+ */
+export async function measureForNamesMultiWidth(url, selectors, feedId, names, widths, viewportHeight) {
+  return commands.measureLayoutForNamesMultiWidth(url, selectors, feedId, names, widths, viewportHeight);
+}
