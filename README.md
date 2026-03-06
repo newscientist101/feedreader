@@ -75,7 +75,7 @@ Optional environment variables (or `.env` file):
 
 | Variable | Description |
 |---|---|
-| `ANTHROPIC_API_KEY` | Enables AI-powered scraper generation via Claude |
+| `SHELLEY_URL` | Shelley API URL for AI scraper generation (default: `http://localhost:9999`) |
 
 ## Tech Stack
 
@@ -154,7 +154,7 @@ go generate ./db/...
 
 ### AI-Powered Generation
 
-1. Set `ANTHROPIC_API_KEY` in your `.env` file
+1. Ensure the Shelley API is running (or set `SHELLEY_URL` in your `.env` file)
 2. Go to **Scrapers** → click **AI Generate**
 3. Enter the URL and describe what to extract
 4. Review and save the generated configuration
