@@ -691,3 +691,101 @@ func TestStopNil(t *testing.T) {
 	w := &Watcher{}
 	w.Stop() // should be a no-op
 }
+
+func TestProcessMessage(t *testing.T) {
+	sqlDB, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	if err := db.RunMigrations(sqlDB); err != nil {
+		t.Fatal(err)
+	}
+
+	q := dbgen.New(sqlDB)
+	ctx := context.Background()
+	token := "procmsg12345"
+	user, err := q.GetOrCreateUser(ctx, dbgen.GetOrCreateUserParams{
+		ExternalID: "pm-user",
+		Email:      "pmuser@example.com",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.SetNewsletterToken(ctx, dbgen.SetNewsletterTokenParams{
+		UserID: user.ID,
+		Value:  token,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	raw := "Delivered-To: nl-" + token + "@example.com\r\n" +
+		"From: \"Test Sender\" <test@sender.com>\r\n" +
+		"Subject: ProcessMessage Test\r\n" +
+		"Message-ID: <unique-msg@sender.com>\r\n" +
+		"Date: Thu, 01 Jan 2026 00:00:00 +0000\r\n" +
+		"Content-Type: text/plain\r\n" +
+		"\r\n" +
+		"Newsletter body text."
+
+	if err := ProcessMessage(ctx, sqlDB, strings.NewReader(raw)); err != nil {
+		t.Fatalf("ProcessMessage: %v", err)
+	}
+
+	feeds, err := q.ListFeeds(ctx, &user.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(feeds) != 1 {
+		t.Fatalf("expected 1 feed, got %d", len(feeds))
+	}
+	if feeds[0].Url != "newsletter://test@sender.com" {
+		t.Errorf("feed url = %q, want %q", feeds[0].Url, "newsletter://test@sender.com")
+	}
+	if feeds[0].Name != "Test Sender" {
+		t.Errorf("feed name = %q, want %q", feeds[0].Name, "Test Sender")
+	}
+
+	articles, err := q.ListArticlesByFeed(ctx, dbgen.ListArticlesByFeedParams{
+		FeedID: feeds[0].ID,
+		UserID: &user.ID,
+		Limit:  10,
+		Offset: 0,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(articles) != 1 {
+		t.Fatalf("expected 1 article, got %d", len(articles))
+	}
+	if articles[0].Title != "ProcessMessage Test" {
+		t.Errorf("title = %q, want %q", articles[0].Title, "ProcessMessage Test")
+	}
+	if articles[0].Guid != "<unique-msg@sender.com>" {
+		t.Errorf("guid = %q, want %q", articles[0].Guid, "<unique-msg@sender.com>")
+	}
+}
+
+func TestProcessMessage_MissingDeliveredTo(t *testing.T) {
+	sqlDB, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	if err := db.RunMigrations(sqlDB); err != nil {
+		t.Fatal(err)
+	}
+
+	raw := "From: sender@example.com\r\n" +
+		"Subject: No Delivered-To\r\n" +
+		"\r\n" +
+		"Body"
+
+	err = ProcessMessage(context.Background(), sqlDB, strings.NewReader(raw))
+	if err == nil {
+		t.Fatal("expected error for missing Delivered-To")
+	}
+	if !strings.Contains(err.Error(), "no Delivered-To") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}

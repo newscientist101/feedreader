@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"database/sql"
 	_ "embed"
 	"encoding/hex"
@@ -49,9 +50,10 @@ type Server struct {
 	FaviconBaseURL   string       // upstream favicon service; default Google S2
 	FaviconClient    *http.Client // HTTP client for favicon fetches; defaults to safe client
 
-	CountsCache  *CountsCache // per-user article count cache
-	Sources      *sources.Registry
-	AuthProvider AuthProvider // pluggable auth; defaults to ExeDevProvider
+	CountsCache   *CountsCache // per-user article count cache
+	Sources       *sources.Registry
+	AuthProvider  AuthProvider // pluggable auth; defaults to ExeDevProvider
+	WebhookSecret string       // shared secret for newsletter webhook auth
 
 	// templateCache holds pre-parsed templates keyed by page name.
 	// Populated by initTemplates(); nil disables caching (re-parse each request).
@@ -241,6 +243,7 @@ func (s *Server) Handler() http.Handler {
 	// Newsletter email
 	mux.HandleFunc("POST /api/newsletter/generate-address", s.apiGenerateNewsletterAddress)
 	mux.HandleFunc("GET /api/newsletter/address", s.apiGetNewsletterAddress)
+	mux.HandleFunc("POST "+newsletterIngestPath, s.apiNewsletterIngest)
 
 	mux.HandleFunc("GET /api/favicon", s.apiFavicon)
 
@@ -2799,6 +2802,48 @@ func (s *Server) apiGenerateNewsletterAddress(w http.ResponseWriter, r *http.Req
 	addr := email.EmailAddress(token, s.Hostname)
 	slog.Info("generated newsletter address", "user_id", user.ID, "address", addr)
 	jsonResponse(w, map[string]any{"address": addr})
+}
+
+// newsletterIngestPath is the route for the newsletter webhook endpoint.
+// Used in both the route registration and the auth middleware bypass.
+const newsletterIngestPath = "/api/newsletter/ingest"
+
+// newsletterIngestMaxBody is the maximum request body for newsletter emails (10 MB).
+const newsletterIngestMaxBody int64 = 10 << 20
+
+func (s *Server) apiNewsletterIngest(w http.ResponseWriter, r *http.Request) {
+	// Authenticate via Bearer token.
+	if s.WebhookSecret == "" {
+		http.Error(w, "newsletter webhook not configured", http.StatusNotFound)
+		return
+	}
+
+	const bearerPrefix = "Bearer "
+	auth := r.Header.Get("Authorization")
+	if !strings.HasPrefix(auth, bearerPrefix) {
+		http.Error(w, "missing or invalid Authorization header", http.StatusUnauthorized)
+		return
+	}
+	token := strings.TrimPrefix(auth, bearerPrefix)
+	if subtle.ConstantTimeCompare([]byte(token), []byte(s.WebhookSecret)) != 1 {
+		http.Error(w, "invalid webhook secret", http.StatusForbidden)
+		return
+	}
+
+	// Expect raw RFC 822 email in the request body.
+	ct := r.Header.Get("Content-Type")
+	if ct != "" && !strings.HasPrefix(ct, "message/rfc822") && !strings.HasPrefix(ct, "application/octet-stream") {
+		http.Error(w, "expected Content-Type: message/rfc822", http.StatusUnsupportedMediaType)
+		return
+	}
+
+	if err := email.ProcessMessage(r.Context(), s.DB, r.Body); err != nil {
+		slog.Warn("newsletter webhook: processing failed", "error", err)
+		http.Error(w, "failed to process email: "+err.Error(), http.StatusUnprocessableEntity)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // ---------------------------------------------------------------------------

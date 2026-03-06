@@ -47,7 +47,7 @@ func run() error {
 		return err
 	}
 
-	// Apply auth provider from config.
+	// Apply auth provider and newsletter config.
 	if cfg != nil {
 		provider, providerErr := buildAuthProvider(cfg)
 		if providerErr != nil {
@@ -56,6 +56,7 @@ func run() error {
 		if provider != nil {
 			server.AuthProvider = provider
 		}
+		server.WebhookSecret = cfg.Newsletter.WebhookSecret
 	}
 
 	return server.Serve(listenAddr)

@@ -74,8 +74,9 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 		cache = make(map[string]*cachedUser)
 	)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Allow static files and service worker without auth
-		if (len(r.URL.Path) >= 7 && r.URL.Path[:7] == "/static") || r.URL.Path == "/sw.js" {
+		// Allow static files, service worker, and newsletter webhook without auth.
+		// The webhook has its own Bearer-token authentication.
+		if (len(r.URL.Path) >= 7 && r.URL.Path[:7] == "/static") || r.URL.Path == "/sw.js" || r.URL.Path == newsletterIngestPath {
 			next.ServeHTTP(w, r)
 			return
 		}

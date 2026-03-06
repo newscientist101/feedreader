@@ -1,5 +1,6 @@
-// Package email processes incoming newsletter emails from ~/Maildir/new/
-// and converts them into feedreader articles.
+// Package email processes incoming newsletter emails and converts them
+// into feedreader articles. Supports Maildir polling and raw RFC 822
+// message processing for webhook ingestion.
 package email
 
 import (
@@ -114,7 +115,16 @@ func (w *Watcher) processFile(path string) error {
 	}
 	defer func() { _ = f.Close() }()
 
-	msg, err := mail.ReadMessage(f)
+	return ProcessMessage(context.Background(), w.DB, f)
+}
+
+// ProcessMessage reads a raw RFC 822 email from r and ingests it as a
+// newsletter article. The email must have a Delivered-To header with a
+// "nl-{token}" local part so the message can be routed to the correct
+// user. This function is used by both the Maildir watcher and the HTTP
+// webhook endpoint.
+func ProcessMessage(ctx context.Context, sqlDB *sql.DB, r io.Reader) error {
+	msg, err := mail.ReadMessage(r)
 	if err != nil {
 		return fmt.Errorf("parse: %w", err)
 	}
@@ -145,8 +155,7 @@ func (w *Watcher) processFile(path string) error {
 	token := strings.TrimPrefix(localPart, "nl-")
 
 	// Look up user by newsletter token
-	ctx := context.Background()
-	q := dbgen.New(w.DB)
+	q := dbgen.New(sqlDB)
 	userID, err := q.GetUserIDByNewsletterToken(ctx, token)
 	if err != nil {
 		return fmt.Errorf("unknown newsletter token %q: %w", token, err)
