@@ -1,0 +1,91 @@
+# Authelia configuration for feedreader deployment.
+# Docs: https://www.authelia.com/configuration/
+#
+# Replace all <CHANGE_ME> values before starting.
+
+# ─── Server ──────────────────────────────────────────────────────────
+# Authelia listens on this address inside the container.
+server:
+  address: 'tcp://:9091'
+
+# ─── Log ─────────────────────────────────────────────────────────────
+log:
+  level: info
+
+# ─── TOTP ────────────────────────────────────────────────────────────
+# Time-based one-time passwords (optional second factor).
+totp:
+  disable: false
+  issuer: feedreader
+
+# ─── WebAuthn ────────────────────────────────────────────────────────
+# Enable passkey / hardware-key authentication.
+webauthn:
+  disable: false
+  display_name: feedreader
+  # 'preferred' prompts for user verification (biometric/PIN) but does
+  # not require it. Use 'required' for stricter passkey enforcement.
+  user_verification: preferred
+  # Timeout for the browser WebAuthn ceremony (how long the user has
+  # to tap their key or scan their fingerprint).
+  timeout: 60s
+
+# ─── Authentication backend ─────────────────────────────────────────
+# File-based user database. For production with many users consider
+# LDAP instead.
+authentication_backend:
+  file:
+    path: /config/users_database.yml
+    # argon2 password hashing settings (defaults are fine).
+    password:
+      algorithm: argon2id
+
+# ─── Access control ─────────────────────────────────────────────────
+# one_factor: a single authentication step (passkey tap OR password).
+# This is sufficient when WebAuthn passkeys are used — the passkey
+# itself provides cryptographic proof of identity.
+access_control:
+  default_policy: one_factor
+
+# ─── Session ─────────────────────────────────────────────────────────
+# Browser session cookie settings.
+session:
+  name: authelia_session
+  # Secret used to encrypt session data. Generate with:
+  #   openssl rand -hex 32
+  secret: '<CHANGE_ME_SESSION_SECRET>'
+  expiration: 12h
+  inactivity: 1h
+  remember_me: 1M
+  cookies:
+    - domain: '<CHANGE_ME_DOMAIN>'  # e.g. feeds.example.com
+      authelia_url: 'https://<CHANGE_ME_DOMAIN>/authelia'
+
+# ─── Storage ─────────────────────────────────────────────────────────
+# Local SQLite storage for Authelia's internal data (sessions, TOTP
+# secrets, WebAuthn credentials).
+storage:
+  # Encryption key for the database. Generate with:
+  #   openssl rand -hex 32
+  encryption_key: '<CHANGE_ME_STORAGE_ENCRYPTION_KEY>'
+  local:
+    path: /data/db.sqlite3
+
+# ─── Notifier ────────────────────────────────────────────────────────
+# Filesystem notifier writes notification emails to a file instead of
+# sending them. This is the simplest option for single-user setups.
+# Check /data/notifications.txt for account verification links.
+#
+# For real email delivery, replace with an SMTP notifier:
+# https://www.authelia.com/configuration/notifications/smtp/
+notifier:
+  filesystem:
+    filename: /data/notifications.txt
+
+# ─── Identity validation ─────────────────────────────────────────────
+# Secret used for identity verification tokens (e.g. passkey
+# registration links). Generate with:
+#   openssl rand -hex 32
+identity_validation:
+  reset_password:
+    jwt_secret: '<CHANGE_ME_JWT_SECRET>'
