@@ -45,7 +45,6 @@ type Server struct {
 	Fetcher          *feeds.Fetcher
 	ScraperRunner    *scrapers.Runner
 	RetentionManager *RetentionManager
-	ShelleyGenerator *ShelleyScraperGenerator
 	EmailWatcher     *email.Watcher
 	FaviconBaseURL   string       // upstream favicon service; default Google S2
 	FaviconClient    *http.Client // HTTP client for favicon fetches; defaults to safe client
@@ -157,9 +156,6 @@ func (s *Server) Serve(addr string) error {
 	s.EmailWatcher.Start(10 * time.Second)
 	defer s.EmailWatcher.Stop()
 
-	// Initialize Shelley scraper generator
-	s.ShelleyGenerator = NewShelleyScraperGenerator()
-
 	handler := s.Handler()
 
 	srv := &http.Server{
@@ -244,10 +240,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/newsletter/generate-address", s.apiGenerateNewsletterAddress)
 	mux.HandleFunc("GET /api/newsletter/address", s.apiGetNewsletterAddress)
 
-	// AI scraper generation
-	mux.HandleFunc("GET /api/ai/status", s.apiAIStatus)
 	mux.HandleFunc("GET /api/favicon", s.apiFavicon)
-	mux.HandleFunc("POST /api/ai/generate-scraper", s.apiGenerateScraper)
 
 	// Exclusion rules endpoints
 	mux.HandleFunc("GET /api/categories/{id}/exclusions", s.apiListExclusions)
@@ -2804,46 +2797,6 @@ func (s *Server) apiGenerateNewsletterAddress(w http.ResponseWriter, r *http.Req
 	addr := email.EmailAddress(token, s.Hostname)
 	slog.Info("generated newsletter address", "user_id", user.ID, "address", addr)
 	jsonResponse(w, map[string]any{"address": addr})
-}
-
-// AI Scraper API handlers
-func (s *Server) apiAIStatus(w http.ResponseWriter, r *http.Request) {
-	jsonResponse(w, map[string]any{
-		"available": s.ShelleyGenerator.IsAvailable(),
-	})
-}
-
-func (s *Server) apiGenerateScraper(w http.ResponseWriter, r *http.Request) {
-	if !s.ShelleyGenerator.IsAvailable() {
-		jsonError(w, "Shelley is not available. Make sure the Shelley service is running.", 503)
-		return
-	}
-
-	var req GenerateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonError(w, "Invalid request body", 400)
-		return
-	}
-
-	if req.URL == "" {
-		jsonError(w, "URL is required", 400)
-		return
-	}
-	if req.Description == "" {
-		jsonError(w, "Description is required", 400)
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), aiScraperTimeout)
-	defer cancel()
-
-	resp, err := s.ShelleyGenerator.Generate(ctx, req)
-	if err != nil {
-		jsonError(w, err.Error(), 500)
-		return
-	}
-
-	jsonResponse(w, resp)
 }
 
 // ---------------------------------------------------------------------------

@@ -12,7 +12,6 @@ import { api } from './api.js';
 import { showToast } from './toast.js';
 import { openModal, closeModal } from './modal.js';
 import {
-    switchScraperTab,
     insertField,
     toggleSchemaPanel,
     updateSchemaContent,
@@ -38,22 +37,6 @@ beforeEach(() => {
     // Ensure dialog functions exist for happy-dom compatibility
     window.confirm ??= () => false;
     window.prompt ??= () => null;
-});
-
-describe('switchScraperTab', () => {
-    it('activates the selected tab and panel', () => {
-        document.body.innerHTML = `
-            <button class="scraper-tab active" data-tab="ai"></button>
-            <button class="scraper-tab" data-tab="manual"></button>
-            <div class="scraper-panel active" data-panel="ai"></div>
-            <div class="scraper-panel" data-panel="manual"></div>
-        `;
-        switchScraperTab('manual');
-        expect(document.querySelector('[data-tab="ai"]').classList.contains('active')).toBe(false);
-        expect(document.querySelector('[data-tab="manual"]').classList.contains('active')).toBe(true);
-        expect(document.querySelector('[data-panel="ai"]').classList.contains('active')).toBe(false);
-        expect(document.querySelector('[data-panel="manual"]').classList.contains('active')).toBe(true);
-    });
 });
 
 describe('insertField', () => {
@@ -378,136 +361,36 @@ describe('initScraperPage', () => {
         initScraperPage(); // should not throw
     });
 
-    it('checks AI status when on scrapers page — available', async () => {
+    it('wires up manual form when on scrapers page', async () => {
         document.body.innerHTML = `
             <div class="scrapers-view">
-                <div id="ai-status" class="ai-status">
-                    <span class="status-text">Checking...</span>
-                </div>
-            </div>
-        `;
-        api.mockResolvedValue({ available: true });
-        initScraperPage();
-        await flushPromises();
-        expect(document.getElementById('ai-status').className).toBe('ai-status available');
-    });
-
-    it('checks AI status — unavailable path', async () => {
-        document.body.innerHTML = `
-            <div class="scrapers-view">
-                <div id="ai-status" class="ai-status">
-                    <span class="status-text">Checking...</span>
-                </div>
-                <form id="ai-generate-form">
-                    <button id="ai-generate-btn" type="submit">Generate</button>
+                <form id="add-scraper-form">
+                    <input id="scraper-name" value="My Scraper" />
+                    <textarea id="scraper-description">A description</textarea>
+                    <textarea id="scraper-script">{"type": "html"}</textarea>
+                    <select id="script-type"><option value="json-config" selected>HTML</option></select>
+                    <button type="submit">Create</button>
                 </form>
             </div>
         `;
-        api.mockResolvedValue({ available: false });
-        initScraperPage();
-        await flushPromises();
-        expect(document.getElementById('ai-status').className).toBe('ai-status unavailable');
-        expect(document.querySelector('#ai-status .status-text').textContent).toBe('Shelley is not running');
-        expect(document.getElementById('ai-generate-form').classList.contains('disabled')).toBe(true);
-        expect(document.getElementById('ai-generate-btn').disabled).toBe(true);
-    });
+        api.mockResolvedValueOnce({});
 
-    it('checks AI status — error/catch path', async () => {
-        document.body.innerHTML = `
-            <div class="scrapers-view">
-                <div id="ai-status" class="ai-status">
-                    <span class="status-text">Checking...</span>
-                </div>
-            </div>
-        `;
-        api.mockRejectedValue(new Error('network'));
-        initScraperPage();
-        await flushPromises();
-        expect(document.getElementById('ai-status').className).toBe('ai-status error');
-        expect(document.querySelector('#ai-status .status-text').textContent).toBe('Could not check AI status');
-    });
-});
-
-describe('initAiForm', () => {
-    function setupAiFormDOM() {
-        document.body.innerHTML = `
-            <div class="scrapers-view">
-                <div id="ai-status" class="ai-status">
-                    <span class="status-text">Checking...</span>
-                </div>
-                <form id="ai-generate-form">
-                    <input id="ai-url" value="https://example.com" />
-                    <textarea id="ai-description">Get articles</textarea>
-                    <button id="ai-generate-btn" type="submit">Generate</button>
-                </form>
-                <input id="scraper-name" />
-                <textarea id="scraper-script"></textarea>
-                <button class="scraper-tab" data-tab="ai"></button>
-                <button class="scraper-tab" data-tab="manual"></button>
-                <div class="scraper-panel" data-panel="ai"></div>
-                <div class="scraper-panel" data-panel="manual"></div>
-            </div>
-        `;
-    }
-
-    it('success: calls API, sets fields, switches to manual tab, restores button', async () => {
-        setupAiFormDOM();
-        // First call for checkAiStatus, second for form submit
-        api.mockResolvedValueOnce({ available: true });
-        api.mockResolvedValueOnce({ name: 'Generated Scraper', config: '{"type":"html"}' });
+        delete window.location;
+        window.location = { href: '' };
 
         initScraperPage();
-        await flushPromises();
-        expect(document.getElementById('ai-status').className).toBe('ai-status available');
 
-        const form = document.getElementById('ai-generate-form');
+        const form = document.getElementById('add-scraper-form');
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         await flushPromises();
 
-        expect(api).toHaveBeenCalledWith('POST', '/api/ai/generate-scraper', {
-            url: 'https://example.com',
-            description: 'Get articles',
+        expect(api).toHaveBeenCalledWith('POST', '/api/scrapers', {
+            name: 'My Scraper',
+            description: 'A description',
+            script: '{"type": "html"}',
+            script_type: 'json-config',
         });
-        expect(document.getElementById('scraper-name').value).toBe('Generated Scraper');
-        expect(document.getElementById('scraper-script').value).toBe('{"type":"html"}');
-        expect(document.querySelector('[data-tab="manual"]').classList.contains('active')).toBe(true);
-        // Button should be restored
-        const btn = document.getElementById('ai-generate-btn');
-        expect(btn.disabled).toBe(false);
-    });
-
-    it('error: shows toast and restores button', async () => {
-        setupAiFormDOM();
-        api.mockResolvedValueOnce({ available: true });
-        api.mockRejectedValueOnce(new Error('AI failed'));
-
-        initScraperPage();
-        await flushPromises();
-        expect(document.getElementById('ai-status').className).toBe('ai-status available');
-
-        const form = document.getElementById('ai-generate-form');
-        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-        await flushPromises();
-
-        expect(showToast).toHaveBeenCalledWith('Failed to generate: AI failed');
-        const btn = document.getElementById('ai-generate-btn');
-        expect(btn.disabled).toBe(false);
-    });
-
-    it('success with no name defaults to Custom Scraper', async () => {
-        setupAiFormDOM();
-        api.mockResolvedValueOnce({ available: true });
-        api.mockResolvedValueOnce({ config: '{"type":"json"}' }); // no name
-
-        initScraperPage();
-        await flushPromises();
-        expect(document.getElementById('ai-status').className).toBe('ai-status available');
-
-        const form = document.getElementById('ai-generate-form');
-        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-        await flushPromises();
-
-        expect(document.getElementById('scraper-name').value).toBe('Custom Scraper');
+        expect(window.location.href).toBe('/scrapers');
     });
 });
 
@@ -515,9 +398,6 @@ describe('initManualForm', () => {
     function setupManualFormDOM() {
         document.body.innerHTML = `
             <div class="scrapers-view">
-                <div id="ai-status" class="ai-status">
-                    <span class="status-text">Checking...</span>
-                </div>
                 <form id="add-scraper-form">
                     <input id="scraper-name" value="My Scraper" />
                     <textarea id="scraper-description">A description</textarea>
@@ -531,15 +411,12 @@ describe('initManualForm', () => {
 
     it('success: validates JSON, calls API POST, redirects', async () => {
         setupManualFormDOM();
-        api.mockResolvedValueOnce({ available: true }); // checkAiStatus
         api.mockResolvedValueOnce({}); // POST
 
         delete window.location;
         window.location = { href: '' };
 
         initScraperPage();
-        await flushPromises();
-        expect(document.getElementById('ai-status').className).toBe('ai-status available');
 
         const form = document.getElementById('add-scraper-form');
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
@@ -557,11 +434,8 @@ describe('initManualForm', () => {
     it('invalid JSON: re-enables button and resets submitting flag', async () => {
         setupManualFormDOM();
         document.getElementById('scraper-script').value = 'NOT JSON';
-        api.mockResolvedValueOnce({ available: true }); // checkAiStatus
 
         initScraperPage();
-        await flushPromises();
-        expect(document.getElementById('ai-status').className).toBe('ai-status available');
 
         const form = document.getElementById('add-scraper-form');
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
@@ -576,12 +450,9 @@ describe('initManualForm', () => {
 
     it('API error: shows toast, re-enables button, resets submitting flag', async () => {
         setupManualFormDOM();
-        api.mockResolvedValueOnce({ available: true }); // checkAiStatus
         api.mockRejectedValueOnce(new Error('create failed')); // POST
 
         initScraperPage();
-        await flushPromises();
-        expect(document.getElementById('ai-status').className).toBe('ai-status available');
 
         const form = document.getElementById('add-scraper-form');
         form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
@@ -594,7 +465,6 @@ describe('initManualForm', () => {
 
     it('double-submit guard: second submit is ignored while first is in-flight', async () => {
         setupManualFormDOM();
-        api.mockResolvedValueOnce({ available: true }); // checkAiStatus
 
         // Make the POST hang until we resolve it
         let resolvePost;
@@ -604,8 +474,6 @@ describe('initManualForm', () => {
         window.location = { href: '' };
 
         initScraperPage();
-        await flushPromises();
-        expect(document.getElementById('ai-status').className).toBe('ai-status available');
 
         const form = document.getElementById('add-scraper-form');
         // First submit
@@ -630,18 +498,6 @@ describe('initScraperPageListeners', () => {
     // Re-init before each test since _resetScraperPageState aborts the AbortController
     beforeEach(() => {
         initScraperPageListeners();
-    });
-
-    it('delegates switch-scraper-tab clicks', () => {
-        document.body.innerHTML = `
-            <button class="scraper-tab active" data-tab="ai" data-action="switch-scraper-tab"></button>
-            <button class="scraper-tab" data-tab="manual" data-action="switch-scraper-tab"></button>
-            <div class="scraper-panel active" data-panel="ai"></div>
-            <div class="scraper-panel" data-panel="manual"></div>
-        `;
-        document.querySelector('[data-tab="manual"]').click();
-        expect(document.querySelector('[data-tab="manual"]').classList.contains('active')).toBe(true);
-        expect(document.querySelector('[data-panel="manual"]').classList.contains('active')).toBe(true);
     });
 
     it('delegates toggle-schema-panel clicks', () => {

@@ -29,13 +29,12 @@ func benchServer(b *testing.B) *Server {
 		b.Fatal(err)
 	}
 	s := &Server{
-		DB:               sqlDB,
-		Hostname:         "test",
-		ScraperRunner:    scrapers.NewRunner(),
-		StaticHashes:     map[string]string{},
-		ShelleyGenerator: NewShelleyScraperGenerator(),
-		bgCtx:            ctx,
-		bgCancel:         cancel,
+		DB:            sqlDB,
+		Hostname:      "test",
+		ScraperRunner: scrapers.NewRunner(),
+		StaticHashes:  map[string]string{},
+		bgCtx:         ctx,
+		bgCancel:      cancel,
 	}
 	s.RetentionManager = &RetentionManager{server: s}
 	return s

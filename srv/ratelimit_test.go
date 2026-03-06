@@ -109,33 +109,6 @@ func TestRateLimitMiddleware_BlocksExcessiveTraffic(t *testing.T) {
 	}
 }
 
-func TestRateLimitMiddleware_AIEndpointTighterLimit(t *testing.T) {
-	rl := newRateLimiter()
-	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	handler := rateLimitMiddleware(rl)(inner)
-
-	user := &User{ID: 3, ExternalID: "test3", Email: "test3@test.com"}
-	ctx := context.WithValue(context.Background(), userContextKey, user)
-
-	// AI burst is 3 — should block after that
-	blocked := false
-	for range 10 {
-		req := httptest.NewRequest(http.MethodPost, "/api/ai/generate-scraper", http.NoBody)
-		req = req.WithContext(ctx)
-		rr := httptest.NewRecorder()
-		handler.ServeHTTP(rr, req)
-		if rr.Code == http.StatusTooManyRequests {
-			blocked = true
-			break
-		}
-	}
-	if !blocked {
-		t.Error("expected AI rate limit to kick in quickly")
-	}
-}
-
 func TestRateLimitMiddleware_DifferentUsersIndependent(t *testing.T) {
 	rl := newRateLimiter()
 	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

@@ -2535,102 +2535,7 @@ th {
     color: var(--text-secondary);
 }
 
-/* AI Scraper Section */
-.scraper-tabs {
-    display: flex;
-    gap: 0;
-    margin-bottom: 0;
-}
-
-.scraper-tab {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 24px;
-    background: transparent;
-    border: 1px solid var(--border-color);
-    border-bottom: none;
-    border-radius: var(--card-radius) var(--card-radius) 0 0;
-    color: var(--text-secondary);
-    font-size: 0.95rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.2s, color 0.2s;
-    position: relative;
-    bottom: -1px;
-}
-
-.scraper-tab:hover {
-    color: var(--text-primary);
-    background: rgba(100, 255, 218, 0.05);
-}
-
-.scraper-tab.active {
-    background: var(--bg-card);
-    color: var(--accent);
-    border-color: rgba(100, 255, 218, 0.2);
-    z-index: 1;
-}
-
-.scraper-panel {
-    display: none;
-}
-
-.scraper-panel.active {
-    display: block;
-}
-
-.ai-scraper-section {
-    background: linear-gradient(135deg, var(--bg-card) 0%, rgba(100, 255, 218, 0.05) 100%);
-    border: 1px solid rgba(100, 255, 218, 0.2);
-    border-radius: 0 var(--card-radius) var(--card-radius) var(--card-radius);
-    padding: var(--card-padding);
-    margin-bottom: var(--space-2xl);
-}
-
-.ai-scraper-section h2 {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--accent);
-    margin-bottom: 10px;
-}
-
-.ai-scraper-section h2 svg {
-    color: var(--accent);
-}
-
-.ai-status {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 15px;
-    background: var(--bg-secondary);
-    border-radius: var(--radius-lg);
-    margin-bottom: 20px;
-}
-
-.ai-status .status-indicator {
-    width: 10px;
-    height: 10px;
-    border-radius: var(--radius-round);
-    background: var(--text-secondary);
-}
-
-.ai-status.available .status-indicator {
-    background: var(--accent-green);
-    box-shadow: 0 0 8px var(--accent-green);
-}
-
-.ai-status.unavailable .status-indicator {
-    background: var(--text-secondary);
-}
-
-.ai-status.error .status-indicator {
-    background: var(--accent-red);
-}
-
-.ai-form,
+/* Scraper Section */
 .scraper-form {
     display: flex;
     flex-direction: column;
@@ -2645,23 +2550,9 @@ th {
     width: fit-content;
 }
 
-.ai-form.disabled {
-    opacity: 0.5;
-    pointer-events: none;
-}
-
-.ai-form textarea {
-    min-height: 80px;
-    resize: vertical;
-}
-
-.ai-form button {
-    width: fit-content;
-}
-
 .manual-scraper-section {
     border: 1px solid rgba(100, 255, 218, 0.2);
-    border-radius: 0 var(--card-radius) var(--card-radius) var(--card-radius);
+    border-radius: var(--card-radius);
 }
 
 .manual-scraper-section h2,

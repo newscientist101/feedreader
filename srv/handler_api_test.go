@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 	"testing"
 
@@ -776,22 +775,3 @@ func TestHandlerCreateExclusion_MarksExistingArticlesRead(t *testing.T) {
 }
 
 // --------------- AI Status ---------------
-
-func TestHandlerAIStatus(t *testing.T) {
-	t.Parallel()
-	s := testServer(t)
-	ctx, _ := testUser(t, s)
-
-	w := serveAPI(t, s.apiAIStatus, "GET", "/api/ai/status", "", ctx)
-	if w.Code != http.StatusOK {
-		t.Fatalf("got %d", w.Code)
-	}
-	m := jsonBody(t, w)
-	if _, ok := m["available"]; !ok {
-		t.Fatalf("missing 'available' key in response: %v", m)
-	}
-	// available is a bool; value depends on whether Shelley is running
-	if _, ok := m["available"].(bool); !ok {
-		t.Fatalf("expected bool for 'available', got %T", m["available"])
-	}
-}

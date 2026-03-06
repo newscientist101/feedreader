@@ -4,57 +4,7 @@
         <h1>Scraper Modules</h1>
     </header>
 
-    <div class="scraper-tabs">
-        <button class="scraper-tab active" data-tab="ai" data-action="switch-scraper-tab">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-            </svg>
-            Shelley-Powered
-        </button>
-        <button class="scraper-tab" data-tab="manual" data-action="switch-scraper-tab">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                <path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/>
-            </svg>
-            Manual Config
-        </button>
-    </div>
-
-    <section class="ai-scraper-section scraper-panel active" data-panel="ai">
-        <h2>
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-            </svg>
-            Shelley-Powered Scraper Generator
-        </h2>
-        <p class="section-description">
-            Let Shelley analyze a webpage and automatically create the scraper configuration for you.
-            Shelley will fetch the page, examine its HTML structure, and generate the appropriate regex patterns.
-        </p>
-
-        <div id="ai-status" class="ai-status">
-            <span class="status-indicator"></span>
-            <span class="status-text">Checking Shelley availability...</span>
-        </div>
-
-        <form id="ai-generate-form" class="ai-form">
-            <div class="form-group">
-                <label for="ai-url">Page URL</label>
-                <input type="url" id="ai-url" placeholder="https://example.com/news" required>
-            </div>
-            <div class="form-group">
-                <label for="ai-description">What to Extract</label>
-                <textarea id="ai-description" rows="3" placeholder="Extract all article titles, links, and publication dates from the news listing page" required></textarea>
-            </div>
-            <button type="submit" class="btn btn-primary" id="ai-generate-btn">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                    <path d="M19 9l-7 7-7-7"/>
-                </svg>
-                Generate Scraper Config
-            </button>
-        </form>
-    </section>
-
-    <section class="manual-scraper-section scraper-panel" data-panel="manual">
+    <section class="manual-scraper-section">
         <h2>Create Scraper Manually</h2>
         <form id="add-scraper-form" class="scraper-form">
             <div class="form-row">

@@ -74,14 +74,13 @@ func testServer(t *testing.T) *Server {
 		t.Fatal(err)
 	}
 	s := &Server{
-		DB:               sqlDB,
-		Hostname:         "test",
-		ScraperRunner:    scrapers.NewRunner(),
-		StaticHashes:     map[string]string{},
-		ShelleyGenerator: NewShelleyScraperGenerator(),
-		Sources:          sources.DefaultRegistry(),
-		bgCtx:            ctx,
-		bgCancel:         cancel,
+		DB:            sqlDB,
+		Hostname:      "test",
+		ScraperRunner: scrapers.NewRunner(),
+		StaticHashes:  map[string]string{},
+		Sources:       sources.DefaultRegistry(),
+		bgCtx:         ctx,
+		bgCancel:      cancel,
 	}
 	s.RetentionManager = &RetentionManager{server: s}
 	return s

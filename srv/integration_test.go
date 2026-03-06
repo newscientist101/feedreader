@@ -425,12 +425,6 @@ func TestIntegration_ScraperAndSettings(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	// 10. AI status
-	resp = authGet(t, ts, "/api/ai/status")
-	if resp.StatusCode != 200 {
-		t.Fatalf("ai status: %d", resp.StatusCode)
-	}
-	resp.Body.Close()
 }
 
 // ---------- OPML round-trip ----------
