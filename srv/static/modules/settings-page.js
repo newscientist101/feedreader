@@ -42,6 +42,36 @@ export function initSettingsPage() {
 }
 
 /**
+ * Import user data from a JSON backup file.
+ */
+export async function importJSON(input) {
+    if (!input.files?.length) return;
+    const file = input.files[0];
+    try {
+        const form = new FormData();
+        form.append('file', file);
+        const res = await fetch('/api/import', { method: 'POST', body: form });
+        const result = await res.json();
+        if (!res.ok) {
+            showToast('Import failed: ' + (result.error || 'unknown error'));
+            return;
+        }
+        const parts = [];
+        if (result.feeds_created) parts.push(`${result.feeds_created} feeds`);
+        if (result.folders_created) parts.push(`${result.folders_created} folders`);
+        if (result.scrapers_created) parts.push(`${result.scrapers_created} scrapers`);
+        if (result.alerts_created) parts.push(`${result.alerts_created} alerts`);
+        if (result.settings_applied) parts.push(`${result.settings_applied} settings`);
+        const summary = parts.length ? `Imported ${parts.join(', ')}` : 'Nothing new to import';
+        showToast(summary, 'success');
+    } catch (e) {
+        showToast('Failed to import: ' + e.message);
+    } finally {
+        input.value = '';
+    }
+}
+
+/**
  * Update retention period from the settings page dropdown.
  */
 export async function changeRetention(value) {
@@ -181,6 +211,12 @@ export function initSettingsPageListeners() {
 
     document.addEventListener('click', (e) => {
         if (e.target.closest('[data-action="copy-newsletter"]')) copyNewsletterAddress();
+    }, { signal });
+
+    // JSON import
+    document.addEventListener('change', (e) => {
+        const input = e.target.closest('[data-action="import-json"]');
+        if (input) importJSON(input);
     }, { signal });
 
     // YouTube API key: save on blur or Enter.

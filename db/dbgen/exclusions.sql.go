@@ -134,6 +134,43 @@ func (q *Queries) GetExclusion(ctx context.Context, arg GetExclusionParams) (Cat
 	return i, err
 }
 
+const listAllCategorySettings = `-- name: ListAllCategorySettings :many
+SELECT cs.id, cs.category_id, cs.setting_key, cs.setting_value, cs.created_at, cs.user_id FROM category_settings cs
+JOIN categories c ON cs.category_id = c.id
+WHERE c.user_id = ?
+ORDER BY c.name, cs.setting_key
+`
+
+func (q *Queries) ListAllCategorySettings(ctx context.Context, userID *int64) ([]CategorySetting, error) {
+	rows, err := q.db.QueryContext(ctx, listAllCategorySettings, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CategorySetting{}
+	for rows.Next() {
+		var i CategorySetting
+		if err := rows.Scan(
+			&i.ID,
+			&i.CategoryID,
+			&i.SettingKey,
+			&i.SettingValue,
+			&i.CreatedAt,
+			&i.UserID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAllExclusions = `-- name: ListAllExclusions :many
 SELECT e.id, e.category_id, e.exclusion_type, e.pattern, e.is_regex, e.created_at, c.name as category_name 
 FROM category_exclusions e

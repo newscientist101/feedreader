@@ -29,6 +29,7 @@ import (
 	"github.com/newscientist101/feedreader/db"
 	"github.com/newscientist101/feedreader/db/dbgen"
 	"github.com/newscientist101/feedreader/srv/email"
+	"github.com/newscientist101/feedreader/srv/export"
 	"github.com/newscientist101/feedreader/srv/feeds"
 	"github.com/newscientist101/feedreader/srv/opml"
 	"github.com/newscientist101/feedreader/srv/safenet"
@@ -232,6 +233,10 @@ func (s *Server) Handler() http.Handler {
 	// OPML endpoints
 	mux.HandleFunc("GET /api/opml/export", s.apiExportOPML)
 	mux.HandleFunc("POST /api/opml/import", s.apiImportOPML)
+
+	// Full JSON export/import endpoints
+	mux.HandleFunc("GET /api/export", s.apiExportJSON)
+	mux.HandleFunc("POST /api/import", s.apiImportJSON)
 
 	// Retention/cleanup endpoints
 	mux.HandleFunc("GET /api/retention/stats", s.apiRetentionStats)
@@ -1918,6 +1923,13 @@ func deref(p any) any {
 	}
 }
 
+func derefInt64(p *int64) int64 {
+	if p == nil {
+		return 0
+	}
+	return *p
+}
+
 // faviconDomain extracts the domain to use for a favicon lookup.
 func faviconDomain(siteURL, feedURL string) string {
 	src := siteURL
@@ -2528,6 +2540,498 @@ func (s *Server) apiImportOPML(w http.ResponseWriter, r *http.Request) {
 		"skipped":  skipped,
 		"total":    len(opmlFeeds),
 	})
+}
+
+// ---------------------------------------------------------------------------
+// Full JSON export/import handlers
+// ---------------------------------------------------------------------------
+
+func (s *Server) apiExportJSON(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	exp := &export.Export{
+		Version:    export.Version,
+		ExportedAt: time.Now().UTC(),
+		Folders:    []export.Folder{},
+		Feeds:      []export.Feed{},
+		Scrapers:   []export.Scraper{},
+		Alerts:     []export.Alert{},
+		Settings:   []export.Setting{},
+	}
+
+	// --- Categories/Folders ---
+	cats, err := q.ListCategories(ctx, &user.ID)
+	if err != nil {
+		jsonError(w, "Failed to list categories", 500)
+		return
+	}
+
+	// Build a map of category ID -> name for parent lookup and feed assignment.
+	catNameByID := make(map[int64]string, len(cats))
+	for i := range cats {
+		catNameByID[cats[i].ID] = cats[i].Name
+	}
+
+	// Load all exclusions and category settings for the user.
+	allExclusions, err := q.ListAllExclusions(ctx, &user.ID)
+	if err != nil {
+		slog.Warn("export: list exclusions", "error", err)
+	}
+	exclusionsByCat := make(map[int64][]export.Exclusion)
+	for _, e := range allExclusions {
+		exclusionsByCat[e.CategoryID] = append(exclusionsByCat[e.CategoryID], export.Exclusion{
+			Type:    e.ExclusionType,
+			Pattern: e.Pattern,
+			IsRegex: e.IsRegex != nil && *e.IsRegex != 0,
+		})
+	}
+
+	allCatSettings, err := q.ListAllCategorySettings(ctx, &user.ID)
+	if err != nil {
+		slog.Warn("export: list category settings", "error", err)
+	}
+	settingsByCat := make(map[int64][]export.Setting)
+	for _, cs := range allCatSettings {
+		val := ""
+		if cs.SettingValue != nil {
+			val = *cs.SettingValue
+		}
+		settingsByCat[cs.CategoryID] = append(settingsByCat[cs.CategoryID], export.Setting{
+			Key:   cs.SettingKey,
+			Value: val,
+		})
+	}
+
+	for i := range cats {
+		f := export.Folder{
+			Name:       cats[i].Name,
+			SortOrder:  derefInt64(cats[i].SortOrder),
+			Exclusions: exclusionsByCat[cats[i].ID],
+			Settings:   settingsByCat[cats[i].ID],
+		}
+		if cats[i].ParentID != nil {
+			f.Parent = catNameByID[*cats[i].ParentID]
+		}
+		exp.Folders = append(exp.Folders, f)
+	}
+
+	// --- Feeds ---
+	feedList, err := q.ListFeeds(ctx, &user.ID)
+	if err != nil {
+		jsonError(w, "Failed to list feeds", 500)
+		return
+	}
+
+	// Load all feed-category mappings.
+	mappings, err := q.ListFeedCategoryMappings(ctx, &user.ID)
+	if err != nil {
+		slog.Warn("export: list feed category mappings", "error", err)
+	}
+	feedFolders := make(map[int64][]string)
+	for _, m := range mappings {
+		if name, ok := catNameByID[m.CategoryID]; ok {
+			feedFolders[m.FeedID] = append(feedFolders[m.FeedID], name)
+		}
+	}
+
+	for i := range feedList {
+		fd := feedList[i]
+		ef := export.Feed{
+			Name:          fd.Name,
+			URL:           fd.Url,
+			SiteURL:       fd.SiteUrl,
+			FeedType:      fd.FeedType,
+			FetchInterval: derefInt64(fd.FetchIntervalMinutes),
+			SkipRetention: fd.SkipRetention != 0,
+			Folders:       feedFolders[fd.ID],
+		}
+		if fd.ScraperModule != nil {
+			ef.ScraperModule = *fd.ScraperModule
+		}
+		if fd.ScraperConfig != nil {
+			ef.ScraperConfig = *fd.ScraperConfig
+		}
+		if fd.ContentFilters != nil {
+			ef.ContentFilters = *fd.ContentFilters
+		}
+		exp.Feeds = append(exp.Feeds, ef)
+	}
+
+	// --- Scraper modules ---
+	scraperList, err := q.ListScraperModules(ctx, &user.ID)
+	if err != nil {
+		slog.Warn("export: list scrapers", "error", err)
+	}
+	for i := range scraperList {
+		sc := scraperList[i]
+		es := export.Scraper{
+			Name:       sc.Name,
+			Script:     sc.Script,
+			ScriptType: sc.ScriptType,
+			Enabled:    sc.Enabled == nil || *sc.Enabled != 0,
+		}
+		if sc.Description != nil {
+			es.Description = *sc.Description
+		}
+		exp.Scrapers = append(exp.Scrapers, es)
+	}
+
+	// --- Alerts ---
+	alertList, err := q.ListAlertsByUser(ctx, user.ID)
+	if err != nil {
+		slog.Warn("export: list alerts", "error", err)
+	}
+	for i := range alertList {
+		a := alertList[i]
+		exp.Alerts = append(exp.Alerts, export.Alert{
+			Name:       a.Name,
+			Pattern:    a.Pattern,
+			IsRegex:    a.IsRegex != 0,
+			MatchField: a.MatchField,
+		})
+	}
+
+	// --- User settings ---
+	settingRows, err := q.GetUserSettings(ctx, user.ID)
+	if err != nil {
+		slog.Warn("export: get user settings", "error", err)
+	}
+	for _, s := range settingRows {
+		// Don't export internal tokens.
+		if s.Key == "newsletter_token" {
+			continue
+		}
+		exp.Settings = append(exp.Settings, export.Setting{
+			Key:   s.Key,
+			Value: s.Value,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", `attachment; filename="feedreader-export.json"`)
+	if err := export.Encode(w, exp); err != nil {
+		slog.Error("failed to write JSON export", "error", err)
+	}
+}
+
+// maxImportSize is the maximum allowed size for a JSON import file (10 MB).
+const maxImportSize = 10 << 20
+
+func (s *Server) apiImportJSON(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	// Handle both multipart form and raw JSON body.
+	var reader io.Reader
+	contentType := r.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "application/json") {
+		reader = io.LimitReader(r.Body, maxImportSize)
+	} else {
+		if err := r.ParseMultipartForm(maxImportSize); err != nil {
+			jsonError(w, "Failed to parse form", 400)
+			return
+		}
+		file, _, err := r.FormFile("file")
+		if err != nil {
+			jsonError(w, "No file uploaded", 400)
+			return
+		}
+		defer func() { _ = file.Close() }()
+		reader = file
+	}
+
+	exp, err := export.Decode(reader)
+	if err != nil {
+		jsonError(w, "Invalid export file: "+err.Error(), 400)
+		return
+	}
+
+	result := export.ImportResult{}
+
+	// --- Scraper modules (import first, feeds may reference them) ---
+	for _, sc := range exp.Scrapers {
+		_, lookupErr := q.GetScraperModuleByName(ctx, dbgen.GetScraperModuleByNameParams{
+			Name:   sc.Name,
+			UserID: &user.ID,
+		})
+		if lookupErr == nil {
+			result.ScrapersSkipped++
+			continue
+		}
+		desc := &sc.Description
+		if sc.Description == "" {
+			desc = nil
+		}
+		_, createErr := q.CreateScraperModule(ctx, dbgen.CreateScraperModuleParams{
+			Name:        sc.Name,
+			Description: desc,
+			Script:      sc.Script,
+			ScriptType:  sc.ScriptType,
+			UserID:      &user.ID,
+		})
+		if createErr != nil {
+			slog.Warn("import: create scraper", "error", createErr, "name", sc.Name)
+			result.ScrapersSkipped++
+			continue
+		}
+		result.ScrapersCreated++
+	}
+
+	// --- Folders (create in order, parents first) ---
+	// catNameToID maps folder name -> DB ID for parent resolution and feed assignment.
+	catNameToID := make(map[string]int64)
+
+	// Pre-load existing categories.
+	existingCats, err := q.ListCategories(ctx, &user.ID)
+	if err != nil {
+		jsonError(w, "Failed to list categories", 500)
+		return
+	}
+	for i := range existingCats {
+		catNameToID[existingCats[i].Name] = existingCats[i].ID
+	}
+
+	// Two-pass: first create categories without parents, then set parent relationships.
+	for _, f := range exp.Folders {
+		if _, exists := catNameToID[f.Name]; exists {
+			result.FoldersSkipped++
+			continue
+		}
+		cat, createErr := q.CreateCategory(ctx, dbgen.CreateCategoryParams{
+			Name:   f.Name,
+			UserID: &user.ID,
+		})
+		if createErr != nil {
+			slog.Warn("import: create folder", "error", createErr, "name", f.Name)
+			result.FoldersSkipped++
+			continue
+		}
+		catNameToID[f.Name] = cat.ID
+		if f.SortOrder != 0 {
+			if soErr := q.UpdateCategorySortOrder(ctx, dbgen.UpdateCategorySortOrderParams{
+				SortOrder: &f.SortOrder,
+				ID:        cat.ID,
+				UserID:    &user.ID,
+			}); soErr != nil {
+				slog.Warn("import: set folder sort order", "error", soErr, "name", f.Name)
+			}
+		}
+		result.FoldersCreated++
+	}
+
+	// Second pass: set parent relationships for newly-created folders.
+	for _, f := range exp.Folders {
+		if f.Parent == "" {
+			continue
+		}
+		childID, childOK := catNameToID[f.Name]
+		parentID, parentOK := catNameToID[f.Parent]
+		if !childOK || !parentOK {
+			continue
+		}
+		if pErr := q.UpdateCategoryParent(ctx, dbgen.UpdateCategoryParentParams{
+			ParentID:  &parentID,
+			SortOrder: &f.SortOrder,
+			ID:        childID,
+			UserID:    &user.ID,
+		}); pErr != nil {
+			slog.Warn("import: set folder parent", "error", pErr, "name", f.Name, "parent", f.Parent)
+		}
+	}
+
+	// Import exclusion rules for newly-created folders.
+	for _, f := range exp.Folders {
+		catID, ok := catNameToID[f.Name]
+		if !ok {
+			continue
+		}
+		for _, e := range f.Exclusions {
+			isRegex := int64(0)
+			if e.IsRegex {
+				isRegex = 1
+			}
+			_, exErr := q.CreateExclusion(ctx, dbgen.CreateExclusionParams{
+				CategoryID:    catID,
+				ExclusionType: e.Type,
+				Pattern:       e.Pattern,
+				IsRegex:       &isRegex,
+			})
+			if exErr != nil {
+				slog.Warn("import: create exclusion", "error", exErr, "folder", f.Name)
+			}
+		}
+	}
+
+	// Import category settings for newly-created folders.
+	for _, f := range exp.Folders {
+		catID, ok := catNameToID[f.Name]
+		if !ok {
+			continue
+		}
+		for _, s := range f.Settings {
+			if csErr := q.SetCategorySetting(ctx, dbgen.SetCategorySettingParams{
+				CategoryID:   catID,
+				SettingKey:   s.Key,
+				SettingValue: &s.Value,
+			}); csErr != nil {
+				slog.Warn("import: set category setting", "error", csErr, "folder", f.Name)
+			}
+		}
+	}
+
+	// --- Feeds ---
+	var importedFeeds []dbgen.Feed
+	for i := range exp.Feeds {
+		ef := &exp.Feeds[i]
+		_, lookupErr := q.GetFeedByURL(ctx, dbgen.GetFeedByURLParams{
+			Url:    ef.URL,
+			UserID: &user.ID,
+		})
+		if lookupErr == nil {
+			result.FeedsSkipped++
+			continue
+		}
+
+		interval := ef.FetchInterval
+		if interval == 0 {
+			interval = 60
+		}
+
+		var scraperMod *string
+		if ef.ScraperModule != "" {
+			scraperMod = &ef.ScraperModule
+		}
+		var scraperCfg *string
+		if ef.ScraperConfig != "" {
+			scraperCfg = &ef.ScraperConfig
+		}
+
+		var skipRet int64
+		if ef.SkipRetention {
+			skipRet = 1
+		}
+
+		newFeed, createErr := q.CreateFeed(ctx, dbgen.CreateFeedParams{
+			Name:                 ef.Name,
+			Url:                  ef.URL,
+			FeedType:             ef.FeedType,
+			ScraperModule:        scraperMod,
+			ScraperConfig:        scraperCfg,
+			FetchIntervalMinutes: &interval,
+			UserID:               &user.ID,
+			SkipRetention:        skipRet,
+		})
+		if createErr != nil {
+			slog.Warn("import: create feed", "error", createErr, "url", ef.URL)
+			result.FeedsSkipped++
+			continue
+		}
+
+		// Set content_filters and site_url via update (not in CreateFeed params).
+		var contentFilters *string
+		if ef.ContentFilters != "" {
+			contentFilters = &ef.ContentFilters
+		}
+		if ef.ContentFilters != "" || ef.SiteURL != "" {
+			updErr := q.UpdateFeed(ctx, dbgen.UpdateFeedParams{
+				Name:                 newFeed.Name,
+				Url:                  newFeed.Url,
+				FeedType:             newFeed.FeedType,
+				ScraperModule:        newFeed.ScraperModule,
+				ScraperConfig:        newFeed.ScraperConfig,
+				FetchIntervalMinutes: newFeed.FetchIntervalMinutes,
+				ContentFilters:       contentFilters,
+				SkipRetention:        newFeed.SkipRetention,
+				ID:                   newFeed.ID,
+				UserID:               &user.ID,
+			})
+			if updErr != nil {
+				slog.Warn("import: update feed", "error", updErr, "url", ef.URL)
+			}
+		}
+
+		// Assign feed to folders.
+		for _, folderName := range ef.Folders {
+			catID, ok := catNameToID[folderName]
+			if !ok {
+				continue
+			}
+			if addErr := q.AddFeedToCategory(ctx, dbgen.AddFeedToCategoryParams{
+				FeedID:     newFeed.ID,
+				CategoryID: catID,
+			}); addErr != nil {
+				slog.Warn("import: add feed to category", "error", addErr, "feed", ef.URL, "folder", folderName)
+			}
+		}
+
+		result.FeedsCreated++
+		importedFeeds = append(importedFeeds, newFeed)
+	}
+
+	// --- Alerts ---
+	for _, a := range exp.Alerts {
+		var isRegex int64
+		if a.IsRegex {
+			isRegex = 1
+		}
+		_, createErr := q.CreateAlert(ctx, dbgen.CreateAlertParams{
+			UserID:     user.ID,
+			Name:       a.Name,
+			Pattern:    a.Pattern,
+			IsRegex:    isRegex,
+			MatchField: a.MatchField,
+		})
+		if createErr != nil {
+			slog.Warn("import: create alert", "error", createErr, "name", a.Name)
+			result.AlertsSkipped++
+			continue
+		}
+		result.AlertsCreated++
+	}
+
+	// --- User settings ---
+	for _, s := range exp.Settings {
+		// Skip internal tokens.
+		if s.Key == "newsletter_token" {
+			continue
+		}
+		// Validate against allowed settings.
+		allowed, ok := validSettings[s.Key]
+		if !ok {
+			continue
+		}
+		if len(allowed) > 0 && !slices.Contains(allowed, s.Value) {
+			continue
+		}
+		if setErr := q.SetUserSetting(ctx, dbgen.SetUserSettingParams{
+			UserID: user.ID,
+			Key:    s.Key,
+			Value:  s.Value,
+		}); setErr != nil {
+			slog.Warn("import: set user setting", "error", setErr, "key", s.Key)
+			continue
+		}
+		result.SettingsApplied++
+	}
+
+	// Queue fetches for imported feeds in background.
+	go func() {
+		for i := range importedFeeds {
+			if s.bgCtx.Err() != nil {
+				return
+			}
+			if fetchErr := s.Fetcher.FetchFeed(s.bgCtx, &importedFeeds[i]); fetchErr != nil {
+				if s.bgCtx.Err() == nil {
+					slog.Warn("import: background feed fetch failed", "error", fetchErr, "feed_id", importedFeeds[i].ID)
+				}
+			}
+		}
+	}()
+
+	jsonResponse(w, result)
 }
 
 // Exclusion handlers

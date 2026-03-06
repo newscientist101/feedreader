@@ -51,3 +51,9 @@ WHERE cs.category_id = ? AND c.user_id = ?;
 DELETE FROM category_settings 
 WHERE category_settings.category_id = ? AND setting_key = ? 
   AND category_settings.category_id IN (SELECT categories.id FROM categories WHERE categories.user_id = ?);
+
+-- name: ListAllCategorySettings :many
+SELECT cs.* FROM category_settings cs
+JOIN categories c ON cs.category_id = c.id
+WHERE c.user_id = ?
+ORDER BY c.name, cs.setting_key;

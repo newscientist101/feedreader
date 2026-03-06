@@ -185,8 +185,31 @@
         
         <div class="data-actions">
             <div class="action-card">
-                <h3>Export Data</h3>
-                <p>Download all your feeds and folders as an OPML file.</p>
+                <h3>Full Backup</h3>
+                <p>Download all feeds, folders, scrapers, alerts, exclusion rules, and settings as JSON.</p>
+                <a href="/api/export" class="btn btn-secondary" download="feedreader-export.json">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                    </svg>
+                    Export JSON
+                </a>
+            </div>
+
+            <div class="action-card">
+                <h3>Restore Backup</h3>
+                <p>Import feeds, folders, scrapers, alerts, and settings from a JSON backup. Duplicates are skipped.</p>
+                <label class="btn btn-secondary">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                    </svg>
+                    Import JSON
+                    <input type="file" accept=".json" data-action="import-json" style="display: none;">
+                </label>
+            </div>
+
+            <div class="action-card">
+                <h3>Export OPML</h3>
+                <p>Download feeds and folders as OPML for use with other readers.</p>
                 <a href="/api/opml/export" class="btn btn-secondary" download="feedreader-export.opml">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
@@ -194,9 +217,9 @@
                     Export OPML
                 </a>
             </div>
-            
+
             <div class="action-card">
-                <h3>Import Data</h3>
+                <h3>Import OPML</h3>
                 <p>Import feeds from another reader using OPML.</p>
                 <a href="/feeds" class="btn btn-secondary">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
