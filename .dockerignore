@@ -1,0 +1,35 @@
+# Build artifacts
+feedreader
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Data and config
+/data/
+config.toml
+
+# Version control
+.git
+.gitignore
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Node modules (for JS linting/testing only)
+node_modules/
+
+# Test artifacts
+tests/
+coverage/
+
+# Documentation (not needed in image)
+*.md
+LICENSE
