@@ -98,7 +98,7 @@ func (w *Watcher) processAll() {
 			slog.Warn("email: failed to process", "file", entry.Name(), "error", err)
 			// Move to cur/ anyway to avoid re-processing failures forever
 		}
-		// Move to cur/ as required by exe.dev
+		// Move to cur/ per Maildir convention (new/ → cur/ after processing)
 		curDir := filepath.Join(filepath.Dir(w.Maildir), "cur")
 		dst := filepath.Join(curDir, entry.Name())
 		if err := os.Rename(path, dst); err != nil {

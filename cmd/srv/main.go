@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strings"
 
 	"github.com/newscientist101/feedreader/config"
 	"github.com/newscientist101/feedreader/srv"
@@ -169,12 +168,7 @@ func initServer(dbPath, emailDomain string) (*srv.Server, error) {
 	if emailDomain == "" {
 		hostname, err := os.Hostname()
 		if err != nil {
-			hostname = "unknown"
-		}
-		// The OS hostname is short (e.g. "lynx-fairy"); the exe.dev
-		// email domain requires the full ".exe.xyz" suffix.
-		if !strings.Contains(hostname, ".") {
-			hostname += ".exe.xyz"
+			hostname = "localhost"
 		}
 		emailDomain = hostname
 	}

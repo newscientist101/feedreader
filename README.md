@@ -1,7 +1,7 @@
 # FeedReader
 
-A self-hosted feed reader built with Go and SQLite. Supports RSS/Atom feeds,
-custom web scrapers for sites without feeds, and AI-powered scraper generation.
+A self-hosted feed reader built with Go and SQLite. Supports RSS/Atom feeds
+and custom web scrapers for sites without feeds.
 
 ![FeedReader screenshot](screenshot.png)
 
@@ -9,7 +9,6 @@ custom web scrapers for sites without feeds, and AI-powered scraper generation.
 
 - **RSS/Atom feeds** — subscribe to standard feeds with conditional GET support
 - **Custom scrapers** — CSS-selector-based scrapers for sites without RSS
-- **AI scraper generation** — paste a URL and let Claude generate the scraper config
 - **Folders & categories** — organize feeds into nested folders
 - **Multiple views** — card, list, magazine, and expanded layouts
 - **Reading queue** — save articles to read later
@@ -47,35 +46,49 @@ migrations applied.
 
 ### Authentication
 
-FeedReader expects authentication headers on each request:
+FeedReader uses pluggable auth providers. Configure one via `config.toml` or
+the interactive setup UI (runs automatically on first start with no config).
 
-| Header | Description |
+Supported providers:
+
+| Provider | Description |
 |---|---|
-| `X-Exedev-Userid` | Unique user identifier |
-| `X-Exedev-Email` | User's email address |
+| `proxy` | Generic reverse proxy headers (configurable header names) |
+| `tailscale` | Tailscale Serve/Funnel identity headers |
+| `cloudflare` | Cloudflare Access with JWT validation |
+| `authelia` | Authelia forward auth headers |
+| `oauth2_proxy` | OAuth2 Proxy forwarded headers |
+| `exedev` | Legacy exe.dev platform (backward compat) |
 
-In production, a reverse proxy injects these headers. For local development,
-use a proxy like [mitmdump](https://mitmproxy.org/) to add them:
+Example `config.toml`:
 
-```bash
-mitmdump \
-  --mode reverse:http://localhost:8000 \
-  --listen-port 3000 \
-  --set modify_headers='/~q/X-Exedev-Email/you@example.com' \
-  --set modify_headers='/~q/X-Exedev-Userid/user-1'
+```toml
+[auth]
+provider = "proxy"
+
+[auth.proxy]
+user_id_header = "Remote-User"
+email_header = "Remote-Email"
 ```
 
-Then open `http://localhost:3000/`.
+For local development, run the interactive config wizard:
+
+```bash
+./feedreader init
+```
 
 A new user record is created automatically on first login.
 
 ### Configuration
 
-Optional environment variables (or `.env` file):
+Configure via `config.toml`, CLI flags, or environment variables.
 
-| Variable | Description |
-|---|---|
-| `SHELLEY_URL` | Shelley API URL for AI scraper generation (default: `http://localhost:9999`) |
+| Flag | Config key | Default | Description |
+|---|---|---|---|
+| `--listen` | `listen` | `:8000` | Listen address |
+| `--db` | `db` | `db.sqlite3` | SQLite database path |
+| `--email-domain` | `email_domain` | (hostname) | Email domain for newsletters |
+| `--config` / `CONFIG_FILE` | — | `config.toml` | Config file path |
 
 ## Tech Stack
 
@@ -92,12 +105,13 @@ Optional environment variables (or `.env` file):
 cmd/srv/main.go            Entry point
 srv/
   server.go                HTTP handlers
-  auth.go                  Auth middleware
+  auth.go                  Auth middleware (pluggable providers)
+  auth_*.go                Auth provider implementations
+  setup_page.go            First-run setup UI
   filter.go                Folder exclusion-rule filtering
   content_filter.go        Per-feed content transform filters
   category_tree.go         Nested folder tree builder
   retention.go             Data retention / cleanup
-  ai_scraper.go            Claude API integration for scraper generation
   feeds/                   RSS/Atom fetcher and parser
   scrapers/                CSS-selector and JSON API scrapers
   huggingface/             Hugging Face model feed source
@@ -108,11 +122,15 @@ srv/
     app.js                 JS entry point
     modules/               ES modules (each with a .test.js companion)
     style.css              Styles
+config/
+  config.go                TOML config file parsing
 db/
   db.go                    Database setup, migrations, pragmas
   migrations/              Numbered SQL migrations (001–015)
   queries/                 SQL queries for sqlc
   dbgen/                   Generated Go code (do not edit)
+Dockerfile                 Multi-stage Docker build
+docker-compose.yml         Example deployment with OAuth2 Proxy
 ```
 
 ## Development
@@ -151,15 +169,6 @@ go generate ./db/...
 ```
 
 ## Scraper System
-
-### AI-Powered Generation
-
-1. Ensure the Shelley API is running (or set `SHELLEY_URL` in your `.env` file)
-2. Go to **Scrapers** → click **AI Generate**
-3. Enter the URL and describe what to extract
-4. Review and save the generated configuration
-
-### Manual Configuration
 
 Scraper configs use CSS selectors to extract articles from HTML pages:
 
@@ -234,8 +243,6 @@ All endpoints require authentication headers.
 - `POST /api/scrapers` — create scraper
 - `PUT /api/scrapers/{id}` — update scraper
 - `DELETE /api/scrapers/{id}` — delete scraper
-- `POST /api/ai/generate-scraper` — AI generate config
-- `GET /api/ai/status` — AI availability
 
 ### Newsletter
 - `GET /api/newsletter/address` — get address
@@ -255,7 +262,20 @@ All endpoints require authentication headers.
 
 FeedReader is a single binary + SQLite database. Deploy however you like.
 
-Example with systemd:
+### Docker
+
+```bash
+# Build the image
+docker build -t feedreader .
+
+# Run with a config file
+docker run -v ./config.toml:/app/config.toml -v ./data:/app/data \
+  -p 8000:8000 feedreader
+```
+
+See `docker-compose.yml` for a full example with OAuth2 Proxy.
+
+### Systemd
 
 ```bash
 # Copy and edit the service file
@@ -268,7 +288,7 @@ make build && sudo systemctl restart feedreader
 ```
 
 Put a reverse proxy (nginx, Caddy, etc.) in front to handle TLS and
-inject the authentication headers.
+inject authentication headers.
 
 ## License
 

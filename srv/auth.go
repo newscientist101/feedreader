@@ -163,7 +163,7 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 }
 
 // unauthenticatedPage is a minimal HTML page shown when no identity is found.
-// This replaces the exe.dev-specific login redirect with a portable 401 response.
+// This is a portable 401 response shown when no auth provider identifies the user.
 const unauthenticatedPage = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Not Authenticated</title>
