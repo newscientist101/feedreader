@@ -5,6 +5,7 @@ go 1.26.0
 require (
 	github.com/PuerkitoBio/goquery v1.11.0
 	github.com/microcosm-cc/bluemonday v1.0.27
+	github.com/pelletier/go-toml/v2 v2.2.4
 	golang.org/x/net v0.47.0
 	golang.org/x/time v0.14.0
 	modernc.org/sqlite v1.39.0

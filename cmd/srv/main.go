@@ -20,6 +20,12 @@ func main() {
 }
 
 func run() error {
+	// Check for subcommands before parsing flags.
+	// "init" must be the first argument.
+	if len(os.Args) > 1 && os.Args[1] == "init" {
+		return initCmd(os.Args[2:], os.Stdin, os.Stdout)
+	}
+
 	flag.Parse()
 	server, err := initServer(*flagDBPath, *flagEmailDomain)
 	if err != nil {
