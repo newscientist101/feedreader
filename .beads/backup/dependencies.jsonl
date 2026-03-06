@@ -206,6 +206,7 @@
 {"created_at":"2026-03-06T04:00:03Z","created_by":"exe.dev user","depends_on_id":"feedreader-lc7.10","issue_id":"feedreader-lc7.10.4","type":"parent-child"}
 {"created_at":"2026-03-06T04:00:08Z","created_by":"exe.dev user","depends_on_id":"feedreader-lc7.10.3","issue_id":"feedreader-lc7.10.4","type":"blocks"}
 {"created_at":"2026-03-06T04:01:23Z","created_by":"exe.dev user","depends_on_id":"feedreader-lc7","issue_id":"feedreader-lc7.11","type":"parent-child"}
+{"created_at":"2026-03-06T04:24:03Z","created_by":"exe.dev user","depends_on_id":"feedreader-lc7","issue_id":"feedreader-lc7.12","type":"parent-child"}
 {"created_at":"2026-03-06T02:42:35Z","created_by":"exe.dev user","depends_on_id":"feedreader-lc7","issue_id":"feedreader-lc7.2","type":"parent-child"}
 {"created_at":"2026-03-06T02:53:29Z","created_by":"exe.dev user","depends_on_id":"feedreader-lc7.2","issue_id":"feedreader-lc7.2.1","type":"parent-child"}
 {"created_at":"2026-03-06T02:57:38Z","created_by":"exe.dev user","depends_on_id":"feedreader-lc7.4","issue_id":"feedreader-lc7.2.1","type":"blocks"}
@@ -220,6 +221,8 @@
 {"created_at":"2026-03-06T02:53:58Z","created_by":"exe.dev user","depends_on_id":"feedreader-lc7.2","issue_id":"feedreader-lc7.2.6","type":"parent-child"}
 {"created_at":"2026-03-06T02:54:03Z","created_by":"exe.dev user","depends_on_id":"feedreader-lc7.2.1","issue_id":"feedreader-lc7.2.6","type":"blocks"}
 {"created_at":"2026-03-06T04:14:41Z","created_by":"exe.dev user","depends_on_id":"feedreader-lc7.2","issue_id":"feedreader-lc7.2.7","type":"parent-child"}
+{"created_at":"2026-03-06T04:23:28Z","created_by":"exe.dev user","depends_on_id":"feedreader-lc7.2","issue_id":"feedreader-lc7.2.8","type":"parent-child"}
+{"created_at":"2026-03-06T04:23:32Z","created_by":"exe.dev user","depends_on_id":"feedreader-lc7.2.1","issue_id":"feedreader-lc7.2.8","type":"blocks"}
 {"created_at":"2026-03-06T02:42:41Z","created_by":"exe.dev user","depends_on_id":"feedreader-lc7","issue_id":"feedreader-lc7.3","type":"parent-child"}
 {"created_at":"2026-03-06T02:42:44Z","created_by":"exe.dev user","depends_on_id":"feedreader-lc7.1","issue_id":"feedreader-lc7.3","type":"blocks"}
 {"created_at":"2026-03-06T02:42:45Z","created_by":"exe.dev user","depends_on_id":"feedreader-lc7.2","issue_id":"feedreader-lc7.3","type":"blocks"}
