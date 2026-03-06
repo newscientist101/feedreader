@@ -536,3 +536,114 @@ type errorProvider struct{}
 func (errorProvider) Authenticate(_ *http.Request) (*Identity, error) {
 	return nil, http.ErrAbortHandler
 }
+
+// --- Provider unit tests: AutheliaProvider ---
+
+func TestAutheliaProvider_WithAllHeaders(t *testing.T) {
+	t.Parallel()
+	p := AutheliaProvider{}
+	r := httptest.NewRequest("GET", "/", http.NoBody)
+	r.Header.Set("Remote-User", "alice")
+	r.Header.Set("Remote-Name", "Alice Smith")
+	r.Header.Set("Remote-Email", "alice@example.com")
+	r.Header.Set("Remote-Groups", "admins,users")
+
+	id, err := p.Authenticate(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id == nil {
+		t.Fatal("expected identity")
+	}
+	if id.ExternalID != "alice" {
+		t.Errorf("ExternalID = %q, want alice", id.ExternalID)
+	}
+	if id.Email != "alice@example.com" {
+		t.Errorf("Email = %q, want alice@example.com", id.Email)
+	}
+}
+
+func TestAutheliaProvider_UserOnly(t *testing.T) {
+	t.Parallel()
+	p := AutheliaProvider{}
+	r := httptest.NewRequest("GET", "/", http.NoBody)
+	r.Header.Set("Remote-User", "bob")
+	// No email, name, or groups headers
+
+	id, err := p.Authenticate(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id == nil {
+		t.Fatal("expected identity")
+	}
+	if id.ExternalID != "bob" {
+		t.Errorf("ExternalID = %q, want bob", id.ExternalID)
+	}
+	if id.Email != "" {
+		t.Errorf("Email = %q, want empty", id.Email)
+	}
+}
+
+func TestAutheliaProvider_NoHeaders(t *testing.T) {
+	t.Parallel()
+	p := AutheliaProvider{}
+	r := httptest.NewRequest("GET", "/", http.NoBody)
+
+	id, err := p.Authenticate(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != nil {
+		t.Errorf("expected nil identity, got %+v", id)
+	}
+}
+
+func TestAutheliaProvider_EmailOnly_NoUser(t *testing.T) {
+	t.Parallel()
+	p := AutheliaProvider{}
+	r := httptest.NewRequest("GET", "/", http.NoBody)
+	r.Header.Set("Remote-Email", "alice@example.com")
+	// No Remote-User header
+
+	id, err := p.Authenticate(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != nil {
+		t.Errorf("expected nil identity without Remote-User, got %+v", id)
+	}
+}
+
+func TestAuthMiddleware_WithAutheliaHeaders(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	s.AuthProvider = AutheliaProvider{}
+
+	var gotUser *User
+	handler := s.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUser = GetUser(r.Context())
+		w.WriteHeader(200)
+	}))
+
+	r := httptest.NewRequest("GET", "/api/feeds", http.NoBody)
+	r.Header.Set("Remote-User", "carol")
+	r.Header.Set("Remote-Name", "Carol Jones")
+	r.Header.Set("Remote-Email", "carol@example.com")
+	r.Header.Set("Remote-Groups", "users")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if gotUser == nil {
+		t.Fatal("user not set in context")
+	}
+	if gotUser.ExternalID != "carol" {
+		t.Errorf("external_id = %q, want carol", gotUser.ExternalID)
+	}
+	if gotUser.Email != "carol@example.com" {
+		t.Errorf("email = %q, want carol@example.com", gotUser.Email)
+	}
+}
