@@ -272,4 +272,4 @@ inject the authentication headers.
 
 ## License
 
-[MIT](LICENSE)
+[CC0](LICENSE)
