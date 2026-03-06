@@ -3,6 +3,7 @@ package srv
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -45,7 +46,7 @@ func TestAuthMiddleware_NoHeaders_APIReturns401(t *testing.T) {
 	}
 }
 
-func TestAuthMiddleware_NoHeaders_PageRedirects(t *testing.T) {
+func TestAuthMiddleware_NoHeaders_PageReturns401HTML(t *testing.T) {
 	t.Parallel()
 	s := testServer(t)
 	handler := s.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -55,16 +56,18 @@ func TestAuthMiddleware_NoHeaders_PageRedirects(t *testing.T) {
 	r := httptest.NewRequest("GET", "/feeds", http.NoBody)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, r)
-	if w.Code != http.StatusTemporaryRedirect {
-		t.Fatalf("expected redirect, got %d", w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", w.Code)
 	}
-	loc := w.Header().Get("Location")
-	if loc != "/__exe.dev/login?redirect=/feeds" {
-		t.Errorf("redirect location = %q", loc)
+	if ct := w.Header().Get("Content-Type"); ct != "text/html; charset=utf-8" {
+		t.Errorf("Content-Type = %q, want text/html", ct)
+	}
+	if !strings.Contains(w.Body.String(), "Not Authenticated") {
+		t.Error("response should contain 'Not Authenticated'")
 	}
 }
 
-func TestAuthMiddleware_WithHeaders(t *testing.T) {
+func TestAuthMiddleware_WithExeDevHeaders(t *testing.T) {
 	t.Parallel()
 	s := testServer(t)
 	var gotUser *User
@@ -90,6 +93,68 @@ func TestAuthMiddleware_WithHeaders(t *testing.T) {
 	}
 	if gotUser.Email != "user@example.com" {
 		t.Errorf("email = %q", gotUser.Email)
+	}
+}
+
+func TestAuthMiddleware_WithProxyHeaders(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	s.AuthProvider = &ProxyHeaderProvider{}
+
+	var gotUser *User
+	handler := s.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUser = GetUser(r.Context())
+		w.WriteHeader(200)
+	}))
+
+	r := httptest.NewRequest("GET", "/api/feeds", http.NoBody)
+	r.Header.Set("Remote-User", "proxy-user-1")
+	r.Header.Set("Remote-Email", "proxy@example.com")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if gotUser == nil {
+		t.Fatal("user not set in context")
+	}
+	if gotUser.ExternalID != "proxy-user-1" {
+		t.Errorf("external_id = %q, want proxy-user-1", gotUser.ExternalID)
+	}
+	if gotUser.Email != "proxy@example.com" {
+		t.Errorf("email = %q, want proxy@example.com", gotUser.Email)
+	}
+}
+
+func TestAuthMiddleware_WithCustomProxyHeaders(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	s.AuthProvider = &ProxyHeaderProvider{
+		UserIDHeader: "X-Auth-User",
+		EmailHeader:  "X-Auth-Email",
+	}
+
+	var gotUser *User
+	handler := s.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUser = GetUser(r.Context())
+		w.WriteHeader(200)
+	}))
+
+	r := httptest.NewRequest("GET", "/api/feeds", http.NoBody)
+	r.Header.Set("X-Auth-User", "custom-user")
+	r.Header.Set("X-Auth-Email", "custom@example.com")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if gotUser == nil {
+		t.Fatal("user not set in context")
+	}
+	if gotUser.ExternalID != "custom-user" {
+		t.Errorf("external_id = %q, want custom-user", gotUser.ExternalID)
 	}
 }
 
@@ -212,4 +277,171 @@ func TestAuthMiddleware_CachePerServer(t *testing.T) {
 	if user1.ExternalID != "shared-ext-id" || user2.ExternalID != "shared-ext-id" {
 		t.Error("external IDs should match")
 	}
+}
+
+// --- Provider unit tests ---
+
+func TestExeDevProvider_WithHeaders(t *testing.T) {
+	t.Parallel()
+	p := ExeDevProvider{}
+	r := httptest.NewRequest("GET", "/", http.NoBody)
+	r.Header.Set("X-Exedev-Userid", "u1")
+	r.Header.Set("X-Exedev-Email", "u1@example.com")
+
+	id, err := p.Authenticate(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id == nil {
+		t.Fatal("expected identity")
+	}
+	if id.ExternalID != "u1" {
+		t.Errorf("ExternalID = %q", id.ExternalID)
+	}
+	if id.Email != "u1@example.com" {
+		t.Errorf("Email = %q", id.Email)
+	}
+}
+
+func TestExeDevProvider_NoHeaders(t *testing.T) {
+	t.Parallel()
+	p := ExeDevProvider{}
+	r := httptest.NewRequest("GET", "/", http.NoBody)
+
+	id, err := p.Authenticate(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != nil {
+		t.Errorf("expected nil identity, got %+v", id)
+	}
+}
+
+func TestProxyHeaderProvider_DefaultHeaders(t *testing.T) {
+	t.Parallel()
+	p := &ProxyHeaderProvider{}
+	r := httptest.NewRequest("GET", "/", http.NoBody)
+	r.Header.Set("Remote-User", "alice")
+	r.Header.Set("Remote-Email", "alice@example.com")
+
+	id, err := p.Authenticate(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id == nil {
+		t.Fatal("expected identity")
+	}
+	if id.ExternalID != "alice" {
+		t.Errorf("ExternalID = %q", id.ExternalID)
+	}
+	if id.Email != "alice@example.com" {
+		t.Errorf("Email = %q", id.Email)
+	}
+}
+
+func TestProxyHeaderProvider_CustomHeaders(t *testing.T) {
+	t.Parallel()
+	p := &ProxyHeaderProvider{
+		UserIDHeader: "X-Forwarded-User",
+		EmailHeader:  "X-Forwarded-Email",
+	}
+	r := httptest.NewRequest("GET", "/", http.NoBody)
+	r.Header.Set("X-Forwarded-User", "bob")
+	r.Header.Set("X-Forwarded-Email", "bob@corp.com")
+
+	id, err := p.Authenticate(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id == nil {
+		t.Fatal("expected identity")
+	}
+	if id.ExternalID != "bob" {
+		t.Errorf("ExternalID = %q", id.ExternalID)
+	}
+	if id.Email != "bob@corp.com" {
+		t.Errorf("Email = %q", id.Email)
+	}
+}
+
+func TestProxyHeaderProvider_NoHeaders(t *testing.T) {
+	t.Parallel()
+	p := &ProxyHeaderProvider{}
+	r := httptest.NewRequest("GET", "/", http.NoBody)
+
+	id, err := p.Authenticate(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != nil {
+		t.Errorf("expected nil identity, got %+v", id)
+	}
+}
+
+func TestProxyHeaderProvider_UserIDOnly(t *testing.T) {
+	t.Parallel()
+	p := &ProxyHeaderProvider{}
+	r := httptest.NewRequest("GET", "/", http.NoBody)
+	r.Header.Set("Remote-User", "carol")
+	// No email header
+
+	id, err := p.Authenticate(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id == nil {
+		t.Fatal("expected identity")
+	}
+	if id.ExternalID != "carol" {
+		t.Errorf("ExternalID = %q", id.ExternalID)
+	}
+	if id.Email != "" {
+		t.Errorf("Email = %q, want empty", id.Email)
+	}
+}
+
+func TestDevProvider(t *testing.T) {
+	t.Parallel()
+	p := DevProvider{}
+	r := httptest.NewRequest("GET", "/", http.NoBody)
+
+	id, err := p.Authenticate(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id == nil {
+		t.Fatal("expected identity")
+	}
+	if id.ExternalID != "dev-user" {
+		t.Errorf("ExternalID = %q", id.ExternalID)
+	}
+	if id.Email != "dev@localhost" {
+		t.Errorf("Email = %q", id.Email)
+	}
+}
+
+// TestAuthMiddleware_ProviderError verifies that an error from the
+// provider results in a 500 response.
+func TestAuthMiddleware_ProviderError(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	s.AuthProvider = errorProvider{}
+
+	handler := s.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	}))
+
+	r := httptest.NewRequest("GET", "/api/feeds", http.NoBody)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", w.Code)
+	}
+}
+
+// errorProvider is a test helper that always returns an error.
+type errorProvider struct{}
+
+func (errorProvider) Authenticate(_ *http.Request) (*Identity, error) {
+	return nil, http.ErrAbortHandler
 }

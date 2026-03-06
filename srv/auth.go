@@ -31,13 +31,34 @@ func GetUser(ctx context.Context) *User {
 	return nil
 }
 
-// isDevelopment checks if running in development mode (no exe.dev proxy)
+// Identity holds the external identity extracted from an HTTP request
+// by an AuthProvider. The app uses ExternalID to look up or create a
+// database user.
+type Identity struct {
+	ExternalID string
+	Email      string
+}
+
+// AuthProvider extracts an identity from an incoming HTTP request.
+// Implementations read provider-specific headers, cookies, or tokens.
+// A nil *Identity with nil error means "not authenticated".
+type AuthProvider interface {
+	Authenticate(r *http.Request) (*Identity, error)
+}
+
+// DevProvider is the development-mode auth provider. It always returns
+// a fixed identity so the app can run without a reverse proxy.
+type DevProvider struct{}
+
+// Authenticate always returns the dev user identity.
+func (DevProvider) Authenticate(_ *http.Request) (*Identity, error) {
+	slog.Debug("using development user")
+	return &Identity{ExternalID: "dev-user", Email: "dev@localhost"}, nil
+}
+
+// isDevelopment checks if running in development mode.
 func isDevelopment() bool {
-	// If DEV environment variable is set, use dev mode
-	if os.Getenv("DEV") != "" {
-		return true
-	}
-	return false
+	return os.Getenv("DEV") != ""
 }
 
 type cachedUser struct {
@@ -45,45 +66,47 @@ type cachedUser struct {
 	lastSeen time.Time
 }
 
-// AuthMiddleware extracts user from exe.dev headers and ensures authentication
+// AuthMiddleware extracts user identity via the configured AuthProvider
+// and ensures authentication for non-static routes.
 func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 	var (
 		mu    sync.RWMutex
 		cache = make(map[string]*cachedUser)
 	)
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { // Get exe.dev auth headers
-		externalID := r.Header.Get("X-Exedev-Userid")
-		email := r.Header.Get("X-Exedev-Email")
-
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Allow static files and service worker without auth
 		if (len(r.URL.Path) >= 7 && r.URL.Path[:7] == "/static") || r.URL.Path == "/sw.js" {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		// Development mode - create a default user
-		if externalID == "" && isDevelopment() {
-			externalID = "dev-user"
-			email = "dev@localhost"
-			slog.Debug("using development user")
+		identity, err := s.AuthProvider.Authenticate(r)
+		if err != nil {
+			slog.Error("auth: provider error", "error", err)
+			http.Error(w, "Authentication error", http.StatusInternalServerError)
+			return
 		}
 
-		// If no auth headers, redirect to login
-		if externalID == "" {
-			// Check if this is an API request
+		// Fall back to dev provider if primary returned no identity and DEV=1
+		if identity == nil && isDevelopment() {
+			identity, _ = DevProvider{}.Authenticate(r)
+		}
+
+		if identity == nil {
 			if len(r.URL.Path) >= 4 && r.URL.Path[:4] == "/api" {
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
-			// Redirect to exe.dev login
-			redirectURL := "/__exe.dev/login?redirect=" + r.URL.Path
-			http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+			// Return a plain 401 page — no provider-specific redirect.
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(unauthenticatedPage))
 			return
 		}
 
 		// Fast path: serve from in-memory cache (no DB hit)
 		mu.RLock()
-		cached := cache[externalID]
+		cached := cache[identity.ExternalID]
 		mu.RUnlock()
 		if cached != nil {
 			ctx := context.WithValue(r.Context(), userContextKey, &cached.user)
@@ -93,7 +116,7 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 				go func() {
 					q := dbgen.New(s.DB)
 					_ = q.UpdateUserLastSeen(context.Background(), dbgen.UpdateUserLastSeenParams{
-						Email: email,
+						Email: identity.Email,
 						ID:    cached.user.ID,
 					})
 				}()
@@ -110,11 +133,11 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 		q := dbgen.New(s.DB)
 
 		dbUser, err := q.GetOrCreateUser(ctx, dbgen.GetOrCreateUserParams{
-			ExternalID: externalID,
-			Email:      email,
+			ExternalID: identity.ExternalID,
+			Email:      identity.Email,
 		})
 		if err != nil {
-			slog.Error("auth: GetOrCreateUser failed", "error", err, "external_id", externalID)
+			slog.Error("auth: GetOrCreateUser failed", "error", err, "external_id", identity.ExternalID)
 			http.Error(w, "Failed to authenticate user", http.StatusInternalServerError)
 			return
 		}
@@ -127,7 +150,7 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 
 		// Cache for subsequent requests
 		mu.Lock()
-		cache[externalID] = &cachedUser{user: *user, lastSeen: time.Now()}
+		cache[identity.ExternalID] = &cachedUser{user: *user, lastSeen: time.Now()}
 		mu.Unlock()
 
 		// Add user to context
@@ -138,3 +161,13 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
+
+// unauthenticatedPage is a minimal HTML page shown when no identity is found.
+// This replaces the exe.dev-specific login redirect with a portable 401 response.
+const unauthenticatedPage = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Not Authenticated</title>
+<style>body{font-family:system-ui,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#f5f5f5;color:#333}div{text-align:center}h1{font-size:1.5rem;margin-bottom:.5rem}p{color:#666}</style>
+</head>
+<body><div><h1>Not Authenticated</h1><p>Please sign in through your reverse proxy to access this application.</p></div></body>
+</html>`

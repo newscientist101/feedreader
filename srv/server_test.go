@@ -79,6 +79,7 @@ func testServer(t *testing.T) *Server {
 		ScraperRunner: scrapers.NewRunner(),
 		StaticHashes:  map[string]string{},
 		Sources:       sources.DefaultRegistry(),
+		AuthProvider:  ExeDevProvider{},
 		bgCtx:         ctx,
 		bgCancel:      cancel,
 	}

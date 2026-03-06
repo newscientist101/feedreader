@@ -118,21 +118,21 @@ func TestIntegration_UnauthenticatedAPIReturns401(t *testing.T) {
 	}
 }
 
-func TestIntegration_UnauthenticatedPageRedirects(t *testing.T) {
+func TestIntegration_UnauthenticatedPageReturns401(t *testing.T) {
 	t.Parallel()
 	ts, _ := integrationServer(t)
 
-	// Disable redirect following
-	client := &http.Client{CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
-	}}
-	resp, err := client.Get(ts.URL + "/feeds")
+	resp, err := http.Get(ts.URL + "/feeds")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusTemporaryRedirect {
-		t.Fatalf("expected 307, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", resp.StatusCode)
+	}
+	ct := resp.Header.Get("Content-Type")
+	if ct != "text/html; charset=utf-8" {
+		t.Fatalf("expected text/html, got %q", ct)
 	}
 }
 

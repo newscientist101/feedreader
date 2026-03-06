@@ -49,8 +49,9 @@ type Server struct {
 	FaviconBaseURL   string       // upstream favicon service; default Google S2
 	FaviconClient    *http.Client // HTTP client for favicon fetches; defaults to safe client
 
-	CountsCache *CountsCache // per-user article count cache
-	Sources     *sources.Registry
+	CountsCache  *CountsCache // per-user article count cache
+	Sources      *sources.Registry
+	AuthProvider AuthProvider // pluggable auth; defaults to ExeDevProvider
 
 	// templateCache holds pre-parsed templates keyed by page name.
 	// Populated by initTemplates(); nil disables caching (re-parse each request).
@@ -73,6 +74,7 @@ func New(dbPath, hostname string) (*Server, error) {
 		ScraperRunner: scrapers.NewRunner(),
 		CountsCache:   NewCountsCache(30 * time.Second),
 		Sources:       sources.DefaultRegistry(),
+		AuthProvider:  ExeDevProvider{},
 		bgCtx:         ctx,
 		bgCancel:      cancel,
 	}
