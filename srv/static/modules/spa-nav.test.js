@@ -307,4 +307,28 @@ describe('popstate (browser back/forward)', () => {
         expect(dropdown.dataset.categoryId).toBe('');
         expect(document.querySelector('[data-feed-action]').style.display).toBe('none');
     });
+
+    it('scrolls to top when restored from back/forward cache', () => {
+        setupArticleListPage();
+        initSpaNav();
+
+        window.scrollTo = vi.fn();
+        const event = new Event('pageshow');
+        Object.defineProperty(event, 'persisted', { value: true });
+        window.dispatchEvent(event);
+
+        expect(window.scrollTo).toHaveBeenCalledWith(0, 0);
+    });
+
+    it('does not scroll on initial pageshow (not from bfcache)', () => {
+        setupArticleListPage();
+        initSpaNav();
+
+        window.scrollTo = vi.fn();
+        const event = new Event('pageshow');
+        Object.defineProperty(event, 'persisted', { value: false });
+        window.dispatchEvent(event);
+
+        expect(window.scrollTo).not.toHaveBeenCalled();
+    });
 });

@@ -186,6 +186,13 @@ export function initSpaNav() {
         restoreFromState(e.state, path);
     }, { signal });
 
+    // Scroll to top when restored from back/forward cache.
+    window.addEventListener('pageshow', (e) => {
+        if (e.persisted) {
+            window.scrollTo(0, 0);
+        }
+    }, { signal });
+
     // Replace the current history entry with SPA state so popstate works
     // when navigating back to the initial page.
     const route = matchRoute(window.location.pathname);
