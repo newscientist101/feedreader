@@ -420,6 +420,97 @@ func TestDevProvider(t *testing.T) {
 	}
 }
 
+func TestAuthMiddleware_WithTailscaleHeaders(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	s.AuthProvider = TailscaleProvider{}
+
+	var gotUser *User
+	handler := s.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUser = GetUser(r.Context())
+		w.WriteHeader(200)
+	}))
+
+	r := httptest.NewRequest("GET", "/api/feeds", http.NoBody)
+	r.Header.Set("Tailscale-User-Login", "alice@example.com")
+	r.Header.Set("Tailscale-User-Name", "Alice")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if gotUser == nil {
+		t.Fatal("user not set in context")
+	}
+	if gotUser.ExternalID != "alice@example.com" {
+		t.Errorf("external_id = %q, want alice@example.com", gotUser.ExternalID)
+	}
+	if gotUser.Email != "alice@example.com" {
+		t.Errorf("email = %q, want alice@example.com", gotUser.Email)
+	}
+}
+
+// --- Provider unit tests: TailscaleProvider ---
+
+func TestTailscaleProvider_WithLogin(t *testing.T) {
+	t.Parallel()
+	p := TailscaleProvider{}
+	r := httptest.NewRequest("GET", "/", http.NoBody)
+	r.Header.Set("Tailscale-User-Login", "bob@tailnet.ts.net")
+	r.Header.Set("Tailscale-User-Name", "Bob")
+
+	id, err := p.Authenticate(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id == nil {
+		t.Fatal("expected identity")
+	}
+	if id.ExternalID != "bob@tailnet.ts.net" {
+		t.Errorf("ExternalID = %q", id.ExternalID)
+	}
+	if id.Email != "bob@tailnet.ts.net" {
+		t.Errorf("Email = %q", id.Email)
+	}
+}
+
+func TestTailscaleProvider_LoginOnly(t *testing.T) {
+	t.Parallel()
+	p := TailscaleProvider{}
+	r := httptest.NewRequest("GET", "/", http.NoBody)
+	r.Header.Set("Tailscale-User-Login", "carol@example.com")
+	// No name or profile pic headers
+
+	id, err := p.Authenticate(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id == nil {
+		t.Fatal("expected identity")
+	}
+	if id.ExternalID != "carol@example.com" {
+		t.Errorf("ExternalID = %q", id.ExternalID)
+	}
+	if id.Email != "carol@example.com" {
+		t.Errorf("Email = %q", id.Email)
+	}
+}
+
+func TestTailscaleProvider_NoHeaders(t *testing.T) {
+	t.Parallel()
+	p := TailscaleProvider{}
+	r := httptest.NewRequest("GET", "/", http.NoBody)
+
+	id, err := p.Authenticate(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != nil {
+		t.Errorf("expected nil identity, got %+v", id)
+	}
+}
+
 // TestAuthMiddleware_ProviderError verifies that an error from the
 // provider results in a 500 response.
 func TestAuthMiddleware_ProviderError(t *testing.T) {
