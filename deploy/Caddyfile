@@ -1,0 +1,41 @@
+# Caddyfile for feedreader + Authelia deployment.
+#
+# Replace <CHANGE_ME_DOMAIN> with your domain name (e.g. feeds.example.com).
+# Caddy automatically provisions a Let's Encrypt TLS certificate.
+#
+# Authelia auth flow:
+#   Browser → Caddy → forward_auth check → Authelia
+#                 ↓ (authenticated)
+#             feedreader (port 8000)
+#
+# Authelia sets Remote-User and Remote-Email response headers on success.
+# Caddy copies them to the upstream request so feedreader knows who is
+# logged in.
+
+<CHANGE_ME_DOMAIN> {
+    # ── Authelia portal ─────────────────────────────────────────────
+    # Route /authelia/* directly to the Authelia container so users can
+    # log in, register passkeys, and manage their account.
+    handle_path /authelia/* {
+        reverse_proxy authelia:9091
+    }
+
+    # ── Forward auth ────────────────────────────────────────────────
+    # Every request (except the Authelia portal itself) is checked by
+    # Authelia's verify endpoint before being forwarded to feedreader.
+    #
+    # On 200 OK, Authelia sets the Remote-User and Remote-Email
+    # response headers. The copy_headers directive forwards them to
+    # feedreader so the Authelia auth provider can identify the user.
+    #
+    # On 4xx, Caddy returns the Authelia redirect/challenge response
+    # (e.g. redirect to /authelia/ for the login page).
+    forward_auth authelia:9091 {
+        uri /api/verify?rd=https://<CHANGE_ME_DOMAIN>/authelia/
+        copy_headers Remote-User Remote-Email
+    }
+
+    # ── Feedreader ───────────────────────────────────────────────────
+    # Authenticated requests are proxied to the feedreader container.
+    reverse_proxy feedreader:8000
+}
