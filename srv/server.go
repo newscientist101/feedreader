@@ -331,7 +331,14 @@ func (s *Server) templateFuncMap() template.FuncMap {
 		"modulePreloadTags": func() template.HTML {
 			var tags []string
 			for name, hash := range s.StaticHashes {
-				if strings.HasPrefix(name, "modules/") && strings.HasSuffix(name, ".js") && !strings.HasSuffix(name, ".test.js") && !strings.Contains(name, "__mocks__") {
+				if strings.HasPrefix(name, "modules/") &&
+					strings.HasSuffix(name, ".js") &&
+					!strings.HasSuffix(name, ".test.js") &&
+					!strings.Contains(name, "__mocks__") &&
+					!strings.Contains(name, "test-helpers") &&
+					!strings.Contains(name, "opml") &&
+					!strings.Contains(name, "scraper-page") &&
+					!strings.Contains(name, "settings-page") {
 					tags = append(tags, fmt.Sprintf(`<link rel="modulepreload" href="/static/%s?v=%s">`, name, hash))
 				}
 			}
