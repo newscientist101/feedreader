@@ -144,19 +144,23 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed *dbgen.Feed) error {
 		fetchErr = fmt.Errorf("unknown feed type: %s", feed.FeedType)
 	}
 
-	var errStr *string
+	// Update feed status: increment error counter on failure, reset on success.
 	if fetchErr != nil {
-		s := fetchErr.Error()
-		errStr = &s
-	}
-
-	// Update feed status
-	if err := q.UpdateFeedLastFetched(ctx, dbgen.UpdateFeedLastFetchedParams{
-		LastFetchedAt: &now,
-		LastError:     errStr,
-		ID:            feed.ID,
-	}); err != nil {
-		slog.Warn("update feed status", "error", err)
+		errMsg := fetchErr.Error()
+		if err := q.IncrementFeedErrors(ctx, dbgen.IncrementFeedErrorsParams{
+			LastError:     &errMsg,
+			LastFetchedAt: &now,
+			ID:            feed.ID,
+		}); err != nil {
+			slog.Warn("increment feed errors", "error", err)
+		}
+	} else {
+		if err := q.ResetFeedErrors(ctx, dbgen.ResetFeedErrorsParams{
+			LastFetchedAt: &now,
+			ID:            feed.ID,
+		}); err != nil {
+			slog.Warn("reset feed errors", "error", err)
+		}
 	}
 
 	if fetchErr != nil {

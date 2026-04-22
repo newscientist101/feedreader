@@ -1477,7 +1477,8 @@ func (s *Server) apiMarkRead(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) apiBatchMarkRead(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	// Use a detached context so DB writes complete even if the client disconnects.
+	ctx := context.WithoutCancel(r.Context())
 	user := GetUser(ctx)
 	q := dbgen.New(s.DB)
 
