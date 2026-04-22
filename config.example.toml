@@ -1,0 +1,95 @@
+# FeedReader Configuration
+# Copy this file to config.toml and customize.
+# Lines starting with # are comments and have no effect.
+#
+# Usage:
+#   cp config.example.toml config.toml
+#   # Edit config.toml to match your setup
+#   ./feedreader --config config.toml
+
+# ─── Server ──────────────────────────────────────────────────────────────────
+
+# Address and port to listen on.
+# Default: ":8000"
+listen = ":8000"
+
+# Path to the SQLite database file.
+# Default: "db.sqlite3"
+db = "db.sqlite3"
+
+# Email domain for newsletter delivery addresses.
+# If empty, the server's hostname is used.
+# Example: set to "feeds.example.com" so newsletter addresses look like
+#   nl-<feed-slug>@feeds.example.com
+# email_domain = "feeds.example.com"
+
+# ─── Authentication ───────────────────────────────────────────────────────────
+#
+# FeedReader relies on a reverse proxy to handle authentication.
+# The proxy authenticates users and injects identity headers before forwarding
+# requests to feedreader. Choose the provider that matches your proxy setup.
+#
+# Supported providers:
+#   proxy        — generic configurable headers (Nginx, Caddy, Traefik, etc.)
+#   tailscale    — Tailscale Serve / Funnel
+#   cloudflare   — Cloudflare Tunnel + Access (with JWT validation)
+#   authelia     — Authelia (Remote-User / Remote-Email headers)
+#   oauth2_proxy — OAuth2 Proxy (X-Forwarded-User / X-Forwarded-Email headers)
+
+[auth]
+provider = "proxy"
+
+[auth.proxy]
+# Header names injected by your reverse proxy.
+# Defaults match Authelia and most Caddy/Nginx setups.
+user_id_header = "Remote-User"
+email_header = "Remote-Email"
+
+# ── Tailscale ────────────────────────────────────────────────────────────────
+# Use when running feedreader behind Tailscale Serve or Funnel.
+# No additional configuration needed — Tailscale injects identity headers
+# automatically when the provider is set to "tailscale".
+#
+# [auth]
+# provider = "tailscale"
+
+# ── Cloudflare Access ─────────────────────────────────────────────────────────
+# Use when running behind a Cloudflare Tunnel with Access policies.
+# Validates Cf-Access-Jwt-Assertion JWTs using your team's JWKS endpoint.
+#
+# [auth]
+# provider = "cloudflare"
+#
+# [auth.cloudflare]
+# team_domain = "myteam"          # Your team name (myteam.cloudflareaccess.com)
+# audience = ""                   # AUD tag from the Cloudflare Access dashboard
+#                                  # Leave empty to skip audience validation.
+
+# ── Authelia ──────────────────────────────────────────────────────────────────
+# Use when running behind Authelia's forward_auth.
+# Uses Remote-User and Remote-Email headers (Authelia defaults).
+#
+# [auth]
+# provider = "authelia"
+
+# ── OAuth2 Proxy ──────────────────────────────────────────────────────────────
+# Use when running behind oauth2-proxy.
+# Uses X-Forwarded-Email (primary) and X-Forwarded-User (fallback) headers.
+#
+# [auth]
+# provider = "oauth2_proxy"
+
+# ─── Newsletter ───────────────────────────────────────────────────────────────
+
+[newsletter]
+# Shared secret for the HTTP webhook endpoint POST /api/newsletter/ingest.
+# Generate a random value: openssl rand -hex 32
+# Leave empty to disable webhook ingestion.
+# webhook_secret = "change-me-to-a-random-secret"
+
+# ── Built-in SMTP server ──────────────────────────────────────────────────────
+# The built-in SMTP server lets email newsletters be delivered directly to
+# feedreader without a separate mail server. Bind it to a non-standard port
+# (e.g. 2525) and configure your MTA or email provider to relay to it.
+#
+# smtp_port = 2525   # 0 or omitted = disabled

@@ -7,6 +7,9 @@ logs/
 # Internal infrastructure
 .beads/
 
+# Configuration (contains secrets)
+config.toml
+
 # Environment
 .env
 backups/
