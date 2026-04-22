@@ -1,6 +1,6 @@
 # Agent Instructions
 
-This is a Go web application — a multi-user feed reader — hosted on exe.dev.
+This is a Go web application — a multi-user feed reader — designed for standalone, self-hosted deployment.
 
 See README.md for user-facing docs (features, API endpoints, scraper config, etc.).
 See STYLE.md for coding conventions — **read it before writing code**.
@@ -16,12 +16,12 @@ vulnerability scanning in one command.
 
 ## Tech Stack
 
-- **Go** (module `srv.exe.dev`) with the standard library `net/http` router
+- **Go** (module `github.com/newscientist101/feedreader`) with the standard library `net/http` router
 - **SQLite** via `modernc.org/sqlite` (pure-Go, no CGO)
 - **sqlc** for type-safe query generation (`db/queries/` → `db/dbgen/`)
 - **HTML templates** (`html/template`) served server-side
 - **Vanilla JS** frontend (no framework) in `srv/static/`
-- Runs on port **8000** behind the exe.dev HTTPS proxy
+- Runs on port **8000** (configurable via `--port` flag or `config.toml`)
 
 ## Code Layout
 
@@ -29,12 +29,11 @@ vulnerability scanning in one command.
 cmd/srv/main.go          Entry point — parses flags, opens DB, starts server
 srv/
   server.go              HTTP server, all route handlers (~2600 lines, the bulk of the app)
-  auth.go                exe.dev auth middleware (reads X-Exedev-* headers; DEV=1 bypass)
+  auth.go                Pluggable auth middleware (AuthProvider interface; DEV=1 bypass)
   filter.go              Exclusion-rule filtering (keyword/author per folder)
   content_filter.go      Per-feed content transform filters
   category_tree.go       Nested category/folder tree builder
   retention.go           Data retention / old-article cleanup
-  ai_scraper.go          Anthropic API integration for AI scraper config generation
   feeds/
     fetcher.go           RSS/Atom feed fetching with conditional GET support
     parser.go            RSS and Atom XML parser
@@ -105,9 +104,11 @@ db/
 
 ## Key Patterns
 
-- **Authentication**: All non-static routes go through auth middleware. The
-  exe.dev proxy injects `X-Exedev-Userid` and `X-Exedev-Email` headers.
-  Set `DEV=1` to skip auth for local development.
+- **Authentication**: All non-static routes go through auth middleware. Auth
+  is handled by pluggable providers configured in `config.toml`. See
+  `srv/auth.go` for the `AuthProvider` interface. Supported providers:
+  `proxy` (generic header-based), `tailscale`, `cloudflare`, `authelia`,
+  `oauth2_proxy`. Set `DEV=1` to skip auth for local development.
 - **Database migrations**: Auto-applied on startup in `db.Open()`. Add new
   migrations as sequentially numbered `.sql` files in `db/migrations/`.
 - **sqlc workflow**: Edit SQL in `db/queries/*.sql`, then run
@@ -122,8 +123,9 @@ db/
   Circular dependencies are resolved via late-bound setters (e.g.,
   `setArticleActionDeps()`). Each module has a companion `.test.js` file.
 - **Build & validation**: See the Build Workflow section below.
-- **Service**: Managed via systemd (`srv.service`). Restart after changes
-  with `make build && sudo systemctl restart feedreader`.
+- **Service**: Optionally managed via systemd using the provided
+  `srv.service.example` template. Restart after changes with
+  `make build && sudo systemctl restart feedreader`.
 
 ## Build Workflow
 
@@ -178,8 +180,10 @@ If `make fmt-check` fails, run `make fmt` to auto-fix, then re-run
 
 See README.md for full details. Quick options:
 
-1. **With auth proxy**: Use `mitmdump` on port 3000 to inject auth headers,
-   then browse `http://localhost:3000/`.
+1. **No auth (dev mode)**: Run with `DEV=1 ./feedreader` to skip auth and
+   browse `http://localhost:8000/` directly.
+2. **With config**: Create a `config.toml` with an auth provider configured
+   and run `./feedreader --config config.toml`.
 
 ### Test Users
 
@@ -188,13 +192,6 @@ All testing and development should use **user 1** (`external_id: dev-user-1`,
 
 - **Do not** modify user 4 — this is the real production user.
 - **Do not** create additional users.
-
-For the auth proxy, inject these headers:
-```bash
-mitmdump -p 3000 --mode reverse:http://localhost:8000 \
-  --set modify_headers='/~q/X-Exedev-Userid/dev-user-1' \
-  --set modify_headers='/~q/X-Exedev-Email/test@example.com'
-```
 
 Look up user credentials with:
 ```bash
