@@ -95,6 +95,14 @@ func (rm *RetentionManager) cleanup() {
 		days := rm.getUserRetentionDays(ctx, q, uid)
 		daysStr := fmt.Sprintf("%d", days)
 
+		// Record GUIDs before deletion so the fetcher can skip re-insertion.
+		if err := q.InsertSeenGuids(ctx, dbgen.InsertSeenGuidsParams{
+			Column1: &daysStr,
+			UserID:  &uid,
+		}); err != nil {
+			slog.Warn("retention: record seen guids", "user_id", uid, "error", err)
+		}
+
 		result, err := q.DeleteOldUnstarredArticles(ctx, dbgen.DeleteOldUnstarredArticlesParams{
 			Column1: &daysStr,
 			UserID:  &uid,
@@ -108,6 +116,12 @@ func (rm *RetentionManager) cleanup() {
 		if deleted > 0 {
 			slog.Info("retention: cleaned up articles", "user_id", uid, "deleted", deleted, "retention_days", days)
 			totalDeleted += deleted
+		}
+
+		// Prune seen_guids older than 2x the retention window to bound table growth.
+		pruneDays := fmt.Sprintf("%d", days*2)
+		if err := q.PruneSeenGuids(ctx, &pruneDays); err != nil {
+			slog.Warn("retention: prune seen guids", "error", err)
 		}
 	}
 
@@ -126,6 +140,14 @@ func (rm *RetentionManager) RunCleanupNow(userID int64) (int64, error) {
 
 	days := rm.getUserRetentionDays(ctx, q, userID)
 	daysStr := fmt.Sprintf("%d", days)
+
+	// Record GUIDs before deletion so the fetcher can skip re-insertion.
+	if err := q.InsertSeenGuids(ctx, dbgen.InsertSeenGuidsParams{
+		Column1: &daysStr,
+		UserID:  &userID,
+	}); err != nil {
+		slog.Warn("retention: record seen guids", "user_id", userID, "error", err)
+	}
 
 	result, err := q.DeleteOldUnstarredArticles(ctx, dbgen.DeleteOldUnstarredArticlesParams{
 		Column1: &daysStr,

@@ -180,13 +180,21 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed *dbgen.Feed) error {
 		if i == 0 {
 			slog.Info("first item", "guid", item.GUID, "title", item.Title, "url", item.URL)
 		}
+		// Skip GUIDs that were already seen and hard-deleted by retention cleanup.
+		// This prevents re-insertion of articles that were intentionally removed.
+		seen, err := q.IsGuidSeen(ctx, dbgen.IsGuidSeenParams{FeedID: feed.ID, Guid: item.GUID})
+		if err != nil {
+			slog.Warn("seen_guids check failed", "error", err, "guid", item.GUID, "feed_id", feed.ID)
+		} else if seen > 0 {
+			continue
+		}
 		// Normalize time to UTC for consistent storage
 		var pubAt *time.Time
 		if item.PublishedAt != nil {
 			utc := item.PublishedAt.UTC()
 			pubAt = &utc
 		}
-		_, err := q.CreateArticle(ctx, dbgen.CreateArticleParams{
+		_, err = q.CreateArticle(ctx, dbgen.CreateArticleParams{
 			FeedID:      feed.ID,
 			Guid:        item.GUID,
 			Title:       item.Title,

@@ -1119,6 +1119,7 @@ func (s *Server) apiCreateFeed(w http.ResponseWriter, r *http.Request) {
 		SkipRetention:        skipRetention,
 	})
 	if err != nil {
+		slog.Error("create feed failed", "error", err, "user_id", user.ID)
 		jsonError(w, "Failed to create feed: "+err.Error(), 500)
 		return
 	}
@@ -1158,6 +1159,7 @@ func (s *Server) apiDeleteFeed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := q.DeleteFeed(ctx, dbgen.DeleteFeedParams{ID: feedID, UserID: &user.ID}); err != nil {
+		slog.Error("delete feed failed", "error", err, "user_id", user.ID, "feed_id", feedID)
 		jsonError(w, "Failed to delete feed", 500)
 		return
 	}
@@ -1277,6 +1279,7 @@ func (s *Server) apiUpdateFeed(w http.ResponseWriter, r *http.Request) {
 		ID:                   feedID,
 		UserID:               &user.ID,
 	}); err != nil {
+		slog.Error("update feed failed", "error", err, "user_id", user.ID, "feed_id", feedID)
 		jsonError(w, "Failed to update feed", 500)
 		return
 	}
@@ -1516,6 +1519,7 @@ func (s *Server) apiMarkUnread(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := q.MarkArticleUnread(ctx, dbgen.MarkArticleUnreadParams{ID: articleID, UserID: &user.ID}); err != nil {
+		slog.Error("mark article unread failed", "error", err, "user_id", user.ID, "article_id", articleID)
 		jsonError(w, "Failed to mark unread", 500)
 		return
 	}
@@ -1536,6 +1540,7 @@ func (s *Server) apiToggleStar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := q.ToggleArticleStar(ctx, dbgen.ToggleArticleStarParams{ID: articleID, UserID: &user.ID}); err != nil {
+		slog.Error("toggle article star failed", "error", err, "user_id", user.ID, "article_id", articleID)
 		jsonError(w, "Failed to toggle star", 500)
 		return
 	}
@@ -1558,6 +1563,7 @@ func (s *Server) apiToggleQueue(w http.ResponseWriter, r *http.Request) {
 	queued, _ := q.IsArticleQueued(ctx, dbgen.IsArticleQueuedParams{UserID: user.ID, ArticleID: articleID})
 	if queued > 0 {
 		if err := q.RemoveFromQueue(ctx, dbgen.RemoveFromQueueParams{UserID: user.ID, ArticleID: articleID}); err != nil {
+			slog.Error("remove from queue failed", "error", err, "user_id", user.ID, "article_id", articleID)
 			jsonError(w, "Failed to remove from queue", 500)
 			return
 		}
@@ -1565,6 +1571,7 @@ func (s *Server) apiToggleQueue(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, map[string]any{"status": "ok", "queued": false})
 	} else {
 		if err := q.AddToQueue(ctx, dbgen.AddToQueueParams{UserID: user.ID, ArticleID: articleID}); err != nil {
+			slog.Error("add to queue failed", "error", err, "user_id", user.ID, "article_id", articleID)
 			jsonError(w, "Failed to add to queue", 500)
 			return
 		}
@@ -1585,6 +1592,7 @@ func (s *Server) apiRemoveFromQueue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := q.RemoveFromQueue(ctx, dbgen.RemoveFromQueueParams{UserID: user.ID, ArticleID: articleID}); err != nil {
+		slog.Error("remove from queue failed", "error", err, "user_id", user.ID, "article_id", articleID)
 		jsonError(w, "Failed to remove from queue", 500)
 		return
 	}
@@ -1619,6 +1627,7 @@ func (s *Server) apiListQueue(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	if err != nil {
+		slog.Error("list queue failed", "error", err, "user_id", user.ID)
 		jsonError(w, "Failed to list queue", 500)
 		return
 	}
@@ -1643,6 +1652,7 @@ func (s *Server) apiMarkAllRead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
+		slog.Error("mark all read failed", "error", err, "user_id", user.ID)
 		jsonError(w, "Failed to mark all read", 500)
 		return
 	}
@@ -1681,6 +1691,7 @@ func (s *Server) apiMarkFeedRead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
+		slog.Error("mark feed read failed", "error", err, "user_id", user.ID, "feed_id", feedID)
 		jsonError(w, "Failed to mark feed read", 500)
 		return
 	}
@@ -1753,6 +1764,7 @@ func (s *Server) apiCreateScraper(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			jsonError(w, "A scraper with that name already exists", 409)
 		} else {
+			slog.Error("create scraper failed", "error", err, "user_id", user.ID)
 			jsonError(w, "Failed to create scraper: "+err.Error(), 500)
 		}
 		return
@@ -1800,6 +1812,7 @@ func (s *Server) apiUpdateScraper(w http.ResponseWriter, r *http.Request) {
 		ScriptType:  req.ScriptType,
 		UserID:      &user.ID,
 	}); err != nil {
+		slog.Error("update scraper failed", "error", err, "user_id", user.ID, "scraper_id", id)
 		jsonError(w, "Failed to update scraper", 500)
 		return
 	}
@@ -1819,6 +1832,7 @@ func (s *Server) apiDeleteScraper(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := q.DeleteScraperModule(ctx, dbgen.DeleteScraperModuleParams{ID: id, UserID: &user.ID}); err != nil {
+		slog.Error("delete scraper failed", "error", err, "user_id", user.ID, "scraper_id", id)
 		jsonError(w, "Failed to delete scraper", 500)
 		return
 	}
@@ -1883,6 +1897,7 @@ func (s *Server) apiSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
+		slog.Error("search failed", "error", err, "user_id", user.ID)
 		jsonError(w, "Search failed", 500)
 		return
 	}
@@ -2239,6 +2254,7 @@ func (s *Server) apiSetCategoryParent(w http.ResponseWriter, r *http.Request) {
 		UserID:    &user.ID,
 	})
 	if err != nil {
+		slog.Error("update category parent failed", "error", err, "user_id", user.ID, "category_id", catID)
 		jsonError(w, "Failed to update category", 500)
 		return
 	}
@@ -2266,6 +2282,7 @@ func (s *Server) apiCreateCategory(w http.ResponseWriter, r *http.Request) {
 
 	cat, err := q.CreateCategory(ctx, dbgen.CreateCategoryParams{Name: req.Name, UserID: &user.ID})
 	if err != nil {
+		slog.Error("create category failed", "error", err, "user_id", user.ID)
 		jsonError(w, "Failed to create category: "+err.Error(), 500)
 		return
 	}
@@ -2293,6 +2310,7 @@ func (s *Server) apiUpdateCategory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := q.UpdateCategory(ctx, dbgen.UpdateCategoryParams{Name: req.Name, ID: id, UserID: &user.ID}); err != nil {
+		slog.Error("update category failed", "error", err, "user_id", user.ID, "category_id", id)
 		jsonError(w, "Failed to update category", 500)
 		return
 	}
@@ -2312,6 +2330,7 @@ func (s *Server) apiDeleteCategory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := q.DeleteCategory(ctx, dbgen.DeleteCategoryParams{ID: id, UserID: &user.ID}); err != nil {
+		slog.Error("delete category failed", "error", err, "user_id", user.ID, "category_id", id)
 		jsonError(w, "Failed to delete category", 500)
 		return
 	}
@@ -2355,6 +2374,7 @@ func (s *Server) apiSetFeedCategory(w http.ResponseWriter, r *http.Request) {
 			FeedID:     feedID,
 			CategoryID: req.CategoryID,
 		}); err != nil {
+			slog.Error("set feed category failed", "error", err, "user_id", user.ID, "feed_id", feedID)
 			jsonError(w, "Failed to set category", 500)
 			return
 		}
@@ -2393,6 +2413,7 @@ func (s *Server) apiMarkCategoryRead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
+		slog.Error("mark category read failed", "error", err, "user_id", user.ID, "category_id", catID)
 		jsonError(w, "Failed to mark category read", 500)
 		return
 	}
@@ -2409,6 +2430,7 @@ func (s *Server) apiExportOPML(w http.ResponseWriter, r *http.Request) {
 
 	feedList, err := q.ListFeeds(ctx, &user.ID)
 	if err != nil {
+		slog.Error("export opml: list feeds failed", "error", err, "user_id", user.ID)
 		jsonError(w, "Failed to list feeds", 500)
 		return
 	}
@@ -2429,6 +2451,7 @@ func (s *Server) apiExportOPML(w http.ResponseWriter, r *http.Request) {
 
 	data, err := opml.Export(exportFeeds, "FeedReader Export")
 	if err != nil {
+		slog.Error("export opml: generate failed", "error", err, "user_id", user.ID)
 		jsonError(w, "Failed to generate OPML", 500)
 		return
 	}
@@ -2571,6 +2594,7 @@ func (s *Server) apiExportJSON(w http.ResponseWriter, r *http.Request) {
 	// --- Categories/Folders ---
 	cats, err := q.ListCategories(ctx, &user.ID)
 	if err != nil {
+		slog.Error("export json: list categories failed", "error", err, "user_id", user.ID)
 		jsonError(w, "Failed to list categories", 500)
 		return
 	}
@@ -2627,6 +2651,7 @@ func (s *Server) apiExportJSON(w http.ResponseWriter, r *http.Request) {
 	// --- Feeds ---
 	feedList, err := q.ListFeeds(ctx, &user.ID)
 	if err != nil {
+		slog.Error("export json: list feeds failed", "error", err, "user_id", user.ID)
 		jsonError(w, "Failed to list feeds", 500)
 		return
 	}
@@ -2794,6 +2819,7 @@ func (s *Server) apiImportJSON(w http.ResponseWriter, r *http.Request) {
 	// Pre-load existing categories.
 	existingCats, err := q.ListCategories(ctx, &user.ID)
 	if err != nil {
+		slog.Error("import json: list categories failed", "error", err, "user_id", user.ID)
 		jsonError(w, "Failed to list categories", 500)
 		return
 	}
@@ -3055,6 +3081,7 @@ func (s *Server) apiListExclusions(w http.ResponseWriter, r *http.Request) {
 
 	exclusions, err := q.ListExclusionsByCategory(ctx, dbgen.ListExclusionsByCategoryParams{CategoryID: catID, UserID: &user.ID})
 	if err != nil {
+		slog.Error("list exclusions failed", "error", err, "user_id", user.ID, "category_id", catID)
 		jsonError(w, "Failed to list exclusions", 500)
 		return
 	}
@@ -3104,6 +3131,7 @@ func (s *Server) apiCreateExclusion(w http.ResponseWriter, r *http.Request) {
 		IsRegex:       &isRegex,
 	})
 	if err != nil {
+		slog.Error("create exclusion failed", "error", err, "user_id", user.ID, "category_id", catID)
 		jsonError(w, "Failed to create exclusion: "+err.Error(), 500)
 		return
 	}
@@ -3127,6 +3155,7 @@ func (s *Server) apiDeleteExclusion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := q.DeleteExclusion(ctx, dbgen.DeleteExclusionParams{ID: id, UserID: &user.ID}); err != nil {
+		slog.Error("delete exclusion failed", "error", err, "user_id", user.ID, "exclusion_id", id)
 		jsonError(w, "Failed to delete exclusion", 500)
 		return
 	}
@@ -3173,6 +3202,7 @@ func (s *Server) apiRetentionStats(w http.ResponseWriter, r *http.Request) {
 
 	stats, err := s.RetentionManager.GetStats(r.Context(), user.ID)
 	if err != nil {
+		slog.Error("retention stats failed", "error", err, "user_id", user.ID)
 		jsonError(w, err.Error(), 500)
 		return
 	}
@@ -3184,6 +3214,7 @@ func (s *Server) apiRetentionCleanup(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
 	deleted, err := s.RetentionManager.RunCleanupNow(user.ID)
 	if err != nil {
+		slog.Error("retention cleanup failed", "error", err, "user_id", user.ID)
 		jsonError(w, err.Error(), 500)
 		return
 	}
@@ -3211,6 +3242,7 @@ func (s *Server) apiGetSettings(w http.ResponseWriter, r *http.Request) {
 	q := dbgen.New(s.DB)
 	rows, err := q.GetUserSettings(r.Context(), user.ID)
 	if err != nil {
+		slog.Error("get settings failed", "error", err, "user_id", user.ID)
 		jsonError(w, "Failed to get settings", 500)
 		return
 	}
@@ -3247,6 +3279,7 @@ func (s *Server) apiUpdateSettings(w http.ResponseWriter, r *http.Request) {
 			Key:    key,
 			Value:  value,
 		}); err != nil {
+			slog.Error("save setting failed", "error", err, "user_id", user.ID, "key", key)
 			jsonError(w, "Failed to save setting", 500)
 			return
 		}
@@ -3300,6 +3333,7 @@ func (s *Server) apiGenerateNewsletterAddress(w http.ResponseWriter, r *http.Req
 
 	token, err := email.GenerateToken()
 	if err != nil {
+		slog.Error("generate newsletter token failed", "error", err, "user_id", user.ID)
 		jsonError(w, "Failed to generate token", 500)
 		return
 	}
@@ -3308,6 +3342,7 @@ func (s *Server) apiGenerateNewsletterAddress(w http.ResponseWriter, r *http.Req
 		UserID: user.ID,
 		Value:  token,
 	}); err != nil {
+		slog.Error("save newsletter token failed", "error", err, "user_id", user.ID)
 		jsonError(w, "Failed to save token", 500)
 		return
 	}
@@ -3350,6 +3385,7 @@ func (s *Server) apiGenerateScraper(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := s.ShelleyGenerator.Generate(ctx, req)
 	if err != nil {
+		slog.Error("generate scraper failed", "error", err)
 		jsonError(w, err.Error(), 500)
 		return
 	}
@@ -3411,6 +3447,7 @@ func (s *Server) apiCreateAlert(w http.ResponseWriter, r *http.Request) {
 		MatchField: req.MatchField,
 	})
 	if err != nil {
+		slog.Error("create alert failed", "error", err, "user_id", user.ID)
 		jsonError(w, "Failed to create alert: "+err.Error(), 500)
 		return
 	}
@@ -3425,6 +3462,7 @@ func (s *Server) apiListAlerts(w http.ResponseWriter, r *http.Request) {
 
 	alerts, err := q.ListAlertsByUser(ctx, user.ID)
 	if err != nil {
+		slog.Error("list alerts failed", "error", err, "user_id", user.ID)
 		jsonError(w, "Failed to list alerts", 500)
 		return
 	}
@@ -3457,6 +3495,7 @@ func (s *Server) apiGetAlert(w http.ResponseWriter, r *http.Request) {
 		Offset:  0,
 	})
 	if err != nil {
+		slog.Error("list alert articles failed", "error", err, "user_id", user.ID, "alert_id", id)
 		jsonError(w, "Failed to list alert articles", 500)
 		return
 	}
@@ -3524,6 +3563,7 @@ func (s *Server) apiUpdateAlert(w http.ResponseWriter, r *http.Request) {
 		MatchField: req.MatchField,
 	})
 	if err != nil {
+		slog.Error("update alert failed", "error", err, "user_id", user.ID, "alert_id", id)
 		jsonError(w, "Failed to update alert", 500)
 		return
 	}
@@ -3543,6 +3583,7 @@ func (s *Server) apiDeleteAlert(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := q.DeleteAlert(ctx, dbgen.DeleteAlertParams{ID: id, UserID: user.ID}); err != nil {
+		slog.Error("delete alert failed", "error", err, "user_id", user.ID, "alert_id", id)
 		jsonError(w, "Failed to delete alert", 500)
 		return
 	}
@@ -3563,6 +3604,7 @@ func (s *Server) apiDismissAllForAlert(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := q.DismissAllForAlert(ctx, dbgen.DismissAllForAlertParams{AlertID: id, UserID: user.ID}); err != nil {
+		slog.Error("dismiss all alerts failed", "error", err, "user_id", user.ID, "alert_id", id)
 		jsonError(w, "Failed to dismiss alerts", 500)
 		return
 	}
@@ -3583,6 +3625,7 @@ func (s *Server) apiDismissArticleAlert(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := q.DismissArticleAlert(ctx, dbgen.DismissArticleAlertParams{ID: id, UserID: user.ID}); err != nil {
+		slog.Error("dismiss article alert failed", "error", err, "user_id", user.ID, "article_alert_id", id)
 		jsonError(w, "Failed to dismiss article alert", 500)
 		return
 	}
@@ -3603,6 +3646,7 @@ func (s *Server) apiUndismissArticleAlert(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := q.UndismissArticleAlert(ctx, dbgen.UndismissArticleAlertParams{ID: id, UserID: user.ID}); err != nil {
+		slog.Error("undismiss article alert failed", "error", err, "user_id", user.ID, "article_alert_id", id)
 		jsonError(w, "Failed to undismiss article alert", 500)
 		return
 	}

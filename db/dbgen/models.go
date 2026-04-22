@@ -124,6 +124,12 @@ type ScraperModule struct {
 	UserID      *int64    `json:"user_id"`
 }
 
+type SeenGuid struct {
+	FeedID int64     `json:"feed_id"`
+	Guid   string    `json:"guid"`
+	SeenAt time.Time `json:"seen_at"`
+}
+
 type User struct {
 	ID         int64     `json:"id"`
 	ExternalID string    `json:"external_id"`
