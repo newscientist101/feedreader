@@ -897,3 +897,5 @@
 {"actor":"exe.dev user","comment":null,"created_at":"2026-03-23T06:07:42Z","event_type":"created","id":897,"issue_id":"feedreader-rvv","new_value":"","old_value":""}
 {"actor":"exe.dev user","comment":null,"created_at":"2026-03-23T06:07:55Z","event_type":"created","id":898,"issue_id":"feedreader-tc3","new_value":"","old_value":""}
 {"actor":"exe.dev user","comment":null,"created_at":"2026-04-07T06:04:56Z","event_type":"created","id":899,"issue_id":"feedreader-8pw","new_value":"","old_value":""}
+{"actor":"exe.dev user","comment":null,"created_at":"2026-04-22T20:57:06Z","event_type":"created","id":900,"issue_id":"feedreader-lc7.8.1","new_value":"","old_value":""}
+{"actor":"exe.dev user","comment":"Added label: decouple","created_at":"2026-04-22T20:57:06Z","event_type":"label_added","id":901,"issue_id":"feedreader-lc7.8.1","new_value":null,"old_value":null}
