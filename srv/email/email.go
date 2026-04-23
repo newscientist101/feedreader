@@ -1,6 +1,6 @@
 // Package email processes incoming newsletter emails and converts them
-// into feedreader articles. Supports Maildir polling and raw RFC 822
-// message processing for webhook ingestion.
+// into feedreader articles. Accepts raw RFC 822 messages via HTTP webhook
+// or the built-in SMTP server.
 package email
 
 import (
@@ -18,8 +18,6 @@ import (
 	"mime/multipart"
 	"mime/quotedprintable"
 	"net/mail"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -27,102 +25,11 @@ import (
 	"github.com/newscientist101/feedreader/db/dbgen"
 )
 
-// Watcher polls ~/Maildir/new/ for incoming emails and processes them.
-type Watcher struct {
-	DB       *sql.DB
-	Hostname string // e.g. "lynx-fairy.exe.xyz"
-	Maildir  string // path to Maildir/new/
-	stopCh   chan struct{}
-}
-
-// NewWatcher creates a new email watcher.
-func NewWatcher(db *sql.DB, hostname string) *Watcher {
-	home, _ := os.UserHomeDir()
-	return &Watcher{
-		DB:       db,
-		Hostname: hostname,
-		Maildir:  filepath.Join(home, "Maildir", "new"),
-	}
-}
-
-// Start begins polling for new emails.
-func (w *Watcher) Start(interval time.Duration) {
-	w.stopCh = make(chan struct{})
-
-	// Ensure Maildir directories exist
-	for _, sub := range []string{"new", "cur"} {
-		dir := filepath.Join(filepath.Dir(w.Maildir), sub)
-		if err := os.MkdirAll(dir, 0o700); err != nil {
-			slog.Warn("email: failed to create maildir", "dir", dir, "error", err)
-		}
-	}
-
-	go func() {
-		// Process any existing mail immediately
-		w.processAll()
-
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				w.processAll()
-			case <-w.stopCh:
-				return
-			}
-		}
-	}()
-}
-
-// Stop halts the email watcher.
-func (w *Watcher) Stop() {
-	if w.stopCh != nil {
-		close(w.stopCh)
-	}
-}
-
-func (w *Watcher) processAll() {
-	entries, err := os.ReadDir(w.Maildir)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			slog.Warn("email: failed to read maildir", "error", err)
-		}
-		return
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		path := filepath.Join(w.Maildir, entry.Name())
-		if err := w.processFile(path); err != nil {
-			slog.Warn("email: failed to process", "file", entry.Name(), "error", err)
-			// Move to cur/ anyway to avoid re-processing failures forever
-		}
-		// Move to cur/ per Maildir convention (new/ → cur/ after processing)
-		curDir := filepath.Join(filepath.Dir(w.Maildir), "cur")
-		dst := filepath.Join(curDir, entry.Name())
-		if err := os.Rename(path, dst); err != nil {
-			slog.Warn("email: failed to move to cur/", "file", entry.Name(), "error", err)
-		}
-	}
-}
-
-func (w *Watcher) processFile(path string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return fmt.Errorf("open: %w", err)
-	}
-	defer func() { _ = f.Close() }()
-
-	return ProcessMessage(context.Background(), w.DB, f)
-}
-
 // ProcessMessage reads a raw RFC 822 email from r and ingests it as a
 // newsletter article. The email must have a Delivered-To header with a
 // "nl-{token}" local part so the message can be routed to the correct
-// user. This function is used by both the Maildir watcher and the HTTP
-// webhook endpoint.
+// user. This function is used by both the HTTP webhook endpoint and the
+// built-in SMTP server.
 func ProcessMessage(ctx context.Context, sqlDB *sql.DB, r io.Reader) error {
 	msg, err := mail.ReadMessage(r)
 	if err != nil {

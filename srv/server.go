@@ -46,7 +46,6 @@ type Server struct {
 	Fetcher          *feeds.Fetcher
 	ScraperRunner    *scrapers.Runner
 	RetentionManager *RetentionManager
-	EmailWatcher     *email.Watcher
 	FaviconBaseURL   string       // upstream favicon service; default Google S2
 	FaviconClient    *http.Client // HTTP client for favicon fetches; defaults to safe client
 
@@ -154,11 +153,6 @@ func (s *Server) Serve(addr string) error {
 	s.RetentionManager = NewRetentionManager(s)
 	s.RetentionManager.Start()
 	defer s.RetentionManager.Stop()
-
-	// Start email newsletter watcher
-	s.EmailWatcher = email.NewWatcher(s.DB, s.Hostname)
-	s.EmailWatcher.Start(10 * time.Second)
-	defer s.EmailWatcher.Stop()
 
 	handler := s.Handler()
 
