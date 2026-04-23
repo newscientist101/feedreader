@@ -144,19 +144,23 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed *dbgen.Feed) error {
 		fetchErr = fmt.Errorf("unknown feed type: %s", feed.FeedType)
 	}
 
-	var errStr *string
+	// Update feed status: increment error counter on failure, reset on success.
 	if fetchErr != nil {
-		s := fetchErr.Error()
-		errStr = &s
-	}
-
-	// Update feed status
-	if err := q.UpdateFeedLastFetched(ctx, dbgen.UpdateFeedLastFetchedParams{
-		LastFetchedAt: &now,
-		LastError:     errStr,
-		ID:            feed.ID,
-	}); err != nil {
-		slog.Warn("update feed status", "error", err)
+		errMsg := fetchErr.Error()
+		if err := q.IncrementFeedErrors(ctx, dbgen.IncrementFeedErrorsParams{
+			LastError:     &errMsg,
+			LastFetchedAt: &now,
+			ID:            feed.ID,
+		}); err != nil {
+			slog.Warn("increment feed errors", "error", err)
+		}
+	} else {
+		if err := q.ResetFeedErrors(ctx, dbgen.ResetFeedErrorsParams{
+			LastFetchedAt: &now,
+			ID:            feed.ID,
+		}); err != nil {
+			slog.Warn("reset feed errors", "error", err)
+		}
 	}
 
 	if fetchErr != nil {
@@ -180,13 +184,21 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed *dbgen.Feed) error {
 		if i == 0 {
 			slog.Info("first item", "guid", item.GUID, "title", item.Title, "url", item.URL)
 		}
+		// Skip GUIDs that were already seen and hard-deleted by retention cleanup.
+		// This prevents re-insertion of articles that were intentionally removed.
+		seen, err := q.IsGuidSeen(ctx, dbgen.IsGuidSeenParams{FeedID: feed.ID, Guid: item.GUID})
+		if err != nil {
+			slog.Warn("seen_guids check failed", "error", err, "guid", item.GUID, "feed_id", feed.ID)
+		} else if seen > 0 {
+			continue
+		}
 		// Normalize time to UTC for consistent storage
 		var pubAt *time.Time
 		if item.PublishedAt != nil {
 			utc := item.PublishedAt.UTC()
 			pubAt = &utc
 		}
-		_, err := q.CreateArticle(ctx, dbgen.CreateArticleParams{
+		_, err = q.CreateArticle(ctx, dbgen.CreateArticleParams{
 			FeedID:      feed.ID,
 			Guid:        item.GUID,
 			Title:       item.Title,

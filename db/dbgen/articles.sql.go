@@ -267,6 +267,58 @@ func (q *Queries) GetUnreadCount(ctx context.Context, userID *int64) (int64, err
 	return count, err
 }
 
+const insertSeenGuids = `-- name: InsertSeenGuids :exec
+INSERT OR IGNORE INTO seen_guids (feed_id, guid)
+SELECT feed_id, guid FROM articles
+WHERE is_starred = 0
+  AND id NOT IN (SELECT article_id FROM queue_articles)
+  AND fetched_at < datetime('now', '-' || ? || ' days')
+  AND feed_id IN (SELECT id FROM feeds WHERE feeds.user_id = ? AND feeds.skip_retention = 0)
+`
+
+type InsertSeenGuidsParams struct {
+	Column1 *string `json:"column_1"`
+	UserID  *int64  `json:"user_id"`
+}
+
+// Record GUIDs of deleted articles so they won't be re-inserted after retention cleanup.
+func (q *Queries) InsertSeenGuids(ctx context.Context, arg InsertSeenGuidsParams) error {
+	_, err := q.db.ExecContext(ctx, insertSeenGuids, arg.Column1, arg.UserID)
+	return err
+}
+
+const insertSeenGuidsGlobal = `-- name: InsertSeenGuidsGlobal :exec
+INSERT OR IGNORE INTO seen_guids (feed_id, guid)
+SELECT feed_id, guid FROM articles
+WHERE is_starred = 0
+  AND id NOT IN (SELECT article_id FROM queue_articles)
+  AND fetched_at < datetime('now', '-' || ? || ' days')
+  AND feed_id NOT IN (SELECT id FROM feeds WHERE skip_retention = 1)
+`
+
+// Record GUIDs of deleted articles (global/background cleanup variant).
+func (q *Queries) InsertSeenGuidsGlobal(ctx context.Context, dollar_1 *string) error {
+	_, err := q.db.ExecContext(ctx, insertSeenGuidsGlobal, dollar_1)
+	return err
+}
+
+const isGuidSeen = `-- name: IsGuidSeen :one
+SELECT COUNT(*) FROM seen_guids WHERE feed_id = ? AND guid = ?
+`
+
+type IsGuidSeenParams struct {
+	FeedID int64  `json:"feed_id"`
+	Guid   string `json:"guid"`
+}
+
+// Check whether a GUID has been seen (and thus should not be re-inserted).
+func (q *Queries) IsGuidSeen(ctx context.Context, arg IsGuidSeenParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, isGuidSeen, arg.FeedID, arg.Guid)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const listArticles = `-- name: ListArticles :many
 SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
 JOIN feeds f ON a.feed_id = f.id
@@ -1413,6 +1465,17 @@ type MarkFeedReadParams struct {
 
 func (q *Queries) MarkFeedRead(ctx context.Context, arg MarkFeedReadParams) error {
 	_, err := q.db.ExecContext(ctx, markFeedRead, arg.FeedID, arg.UserID)
+	return err
+}
+
+const pruneSeenGuids = `-- name: PruneSeenGuids :exec
+DELETE FROM seen_guids WHERE seen_at < datetime('now', '-' || ? || ' days')
+`
+
+// Remove seen_guids entries older than the given number of days.
+// Called periodically to bound table growth (typically at 2x retention period).
+func (q *Queries) PruneSeenGuids(ctx context.Context, dollar_1 *string) error {
+	_, err := q.db.ExecContext(ctx, pruneSeenGuids, dollar_1)
 	return err
 }
 

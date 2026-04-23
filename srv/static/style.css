@@ -817,6 +817,7 @@ body {
 .article-actions {
     display: flex;
     gap: 8px;
+    width: fit-content;
 }
 
 /* Article View */

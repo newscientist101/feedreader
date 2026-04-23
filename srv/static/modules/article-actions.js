@@ -24,6 +24,7 @@ export function setQueuedIdsReady(promise) {
 
 // --- Auto-mark-read state ---
 let autoMarkReadObserver = null;
+let _autoMarkReadAC = null;
 let _markReadQueue = [];
 let _markReadTimer = null;
 let _actionListenerAC = null;
@@ -34,6 +35,7 @@ export function _setAutoMarkReadObserver(v) { autoMarkReadObserver = v; }
 export function _getMarkReadQueue() { return _markReadQueue; }
 export function _resetArticleActionsState() {
     if (autoMarkReadObserver) { autoMarkReadObserver.disconnect(); autoMarkReadObserver = null; }
+    if (_autoMarkReadAC) { _autoMarkReadAC.abort(); _autoMarkReadAC = null; }
     _markReadQueue = [];
     if (_markReadTimer) { clearTimeout(_markReadTimer); _markReadTimer = null; }
     queuedArticleIds = new Set();
@@ -63,16 +65,23 @@ export function initQueueState(renderArticleActions) {
 }
 
 export function initAutoMarkRead() {
-    // Disconnect any previous observer
+    // Disconnect any previous observer and abort any previous scroll listener
     if (autoMarkReadObserver) {
         autoMarkReadObserver.disconnect();
         autoMarkReadObserver = null;
+    }
+    if (_autoMarkReadAC) {
+        _autoMarkReadAC.abort();
+        _autoMarkReadAC = null;
     }
 
     if (getSetting('autoMarkRead') !== 'true') {
         console.debug('[auto-mark-read] disabled by setting');
         return;
     }
+
+    _autoMarkReadAC = new AbortController();
+    const signal = _autoMarkReadAC.signal;
 
     // Use IntersectionObserver to detect when articles scroll out of view
     autoMarkReadObserver = new IntersectionObserver((entries) => {
@@ -102,6 +111,40 @@ export function initAutoMarkRead() {
     cards.forEach(article => {
         autoMarkReadObserver.observe(article);
     });
+
+    // Mark the last article when user scrolls to the bottom of the page.
+    // The IntersectionObserver only fires when articles scroll OUT of view,
+    // so the last article (which stays visible at the bottom) is never caught.
+    const markLastVisibleIfAtBottom = () => {
+        const scrollableHeight = document.documentElement.scrollHeight;
+        const scrollBottom = window.innerHeight + window.scrollY;
+        // Consider "at bottom" if within 50px OR if the page is not scrollable
+        // (scrollHeight <= clientHeight means everything fits in the viewport).
+        const atBottom = scrollableHeight <= document.documentElement.clientHeight ||
+            scrollBottom >= scrollableHeight - 50;
+        if (!atBottom) return;
+
+        // User is at the bottom — mark the last unread article card as read.
+        const unreadCards = document.querySelectorAll('#articles-list .article-card:not(.read)');
+        if (unreadCards.length === 0) return;
+        const last = unreadCards[unreadCards.length - 1];
+        const rect = last.getBoundingClientRect();
+        // Only mark if the card is at least partially visible in the viewport.
+        if (rect.top < window.innerHeight && rect.bottom > 0) {
+            const articleId = last.dataset.id;
+            if (articleId) {
+                console.debug(`[auto-mark-read] marking last article ${articleId} as read (scrolled to bottom)`);
+                markReadSilent(articleId);
+                last.classList.add('read');
+            }
+        }
+    };
+    window.addEventListener('scroll', markLastVisibleIfAtBottom, { passive: true, signal });
+    // Also run once immediately: if the page content fits entirely in the viewport
+    // (no scrolling needed), the scroll event never fires but we still want to
+    // mark the last item as read when the user is "done" viewing the list.
+    // We defer slightly so the observer has time to fire for off-screen items first.
+    setTimeout(markLastVisibleIfAtBottom, 100);
 }
 
 // Observe newly added article cards (e.g. from pagination)

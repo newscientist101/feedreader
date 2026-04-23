@@ -16,11 +16,17 @@ SELECT * FROM feeds WHERE user_id = ? ORDER BY name;
 SELECT * FROM feeds 
 WHERE feed_type != 'newsletter'
   AND (last_fetched_at IS NULL 
-   OR datetime(last_fetched_at, '+' || fetch_interval_minutes || ' minutes') < datetime('now'))
+   OR datetime(last_fetched_at, '+' || (fetch_interval_minutes * MIN(MAX(consecutive_errors, 1), 24)) || ' minutes') < datetime('now'))
 ORDER BY last_fetched_at NULLS FIRST;
 
 -- name: UpdateFeedLastFetched :exec
 UPDATE feeds SET last_fetched_at = ?, last_error = ?, updated_at = datetime('now') WHERE id = ?;
+
+-- name: IncrementFeedErrors :exec
+UPDATE feeds SET consecutive_errors = consecutive_errors + 1, last_error = ?, last_fetched_at = ?, updated_at = datetime('now') WHERE id = ?;
+
+-- name: ResetFeedErrors :exec
+UPDATE feeds SET consecutive_errors = 0, last_error = NULL, last_fetched_at = ?, updated_at = datetime('now') WHERE id = ?;
 
 -- name: UpdateFeed :exec
 UPDATE feeds SET name = ?, url = ?, feed_type = ?, scraper_module = ?, scraper_config = ?, fetch_interval_minutes = ?, content_filters = ?, skip_retention = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?;

@@ -258,3 +258,30 @@ UPDATE articles SET is_read = 1 WHERE id = ?;
 SELECT a.id, a.title, a.summary, a.author FROM articles a
 JOIN feed_categories fc ON a.feed_id = fc.feed_id
 WHERE fc.category_id = ? AND a.is_read = 0;
+
+-- name: InsertSeenGuids :exec
+-- Record GUIDs of deleted articles so they won't be re-inserted after retention cleanup.
+INSERT OR IGNORE INTO seen_guids (feed_id, guid)
+SELECT feed_id, guid FROM articles
+WHERE is_starred = 0
+  AND id NOT IN (SELECT article_id FROM queue_articles)
+  AND fetched_at < datetime('now', '-' || ? || ' days')
+  AND feed_id IN (SELECT id FROM feeds WHERE feeds.user_id = ? AND feeds.skip_retention = 0);
+
+-- name: InsertSeenGuidsGlobal :exec
+-- Record GUIDs of deleted articles (global/background cleanup variant).
+INSERT OR IGNORE INTO seen_guids (feed_id, guid)
+SELECT feed_id, guid FROM articles
+WHERE is_starred = 0
+  AND id NOT IN (SELECT article_id FROM queue_articles)
+  AND fetched_at < datetime('now', '-' || ? || ' days')
+  AND feed_id NOT IN (SELECT id FROM feeds WHERE skip_retention = 1);
+
+-- name: PruneSeenGuids :exec
+-- Remove seen_guids entries older than the given number of days.
+-- Called periodically to bound table growth (typically at 2x retention period).
+DELETE FROM seen_guids WHERE seen_at < datetime('now', '-' || ? || ' days');
+
+-- name: IsGuidSeen :one
+-- Check whether a GUID has been seen (and thus should not be re-inserted).
+SELECT COUNT(*) FROM seen_guids WHERE feed_id = ? AND guid = ?;

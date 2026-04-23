@@ -75,6 +75,7 @@ type Feed struct {
 	ContentFilters       *string    `json:"content_filters"`
 	SiteUrl              string     `json:"site_url"`
 	SkipRetention        int64      `json:"skip_retention"`
+	ConsecutiveErrors    int64      `json:"consecutive_errors"`
 }
 
 type FeedCategory struct {
@@ -122,6 +123,12 @@ type ScraperModule struct {
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 	UserID      *int64    `json:"user_id"`
+}
+
+type SeenGuid struct {
+	FeedID int64     `json:"feed_id"`
+	Guid   string    `json:"guid"`
+	SeenAt time.Time `json:"seen_at"`
 }
 
 type User struct {

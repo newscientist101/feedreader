@@ -3,7 +3,7 @@ import {
     initSettingsPage, runCleanup,
     loadNewsletterAddress, generateNewsletterAddress,
     showNewsletterAddress, copyNewsletterAddress,
-    initSettingsPageListeners,
+    initSettingsPageListeners, importJSON,
 } from './settings-page.js';
 
 // Use the real getSetting (reads from window.__settings), mock side-effecting functions
@@ -576,5 +576,93 @@ describe('initSettingsPageListeners', () => {
         document.getElementById('random').click();
 
         expect(api).not.toHaveBeenCalled();
+    });
+
+    it('delegates import-json file change', async () => {
+        document.body.innerHTML = `
+            <input type="file" data-action="import-json">
+        `;
+        const mockFile = new File(['{"version":1}'], 'export.json', { type: 'application/json' });
+        const input = document.querySelector('[data-action="import-json"]');
+
+        // Mock fetch for the import
+        const origFetch = globalThis.fetch;
+        globalThis.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({ feeds_created: 2, folders_created: 1, scrapers_created: 0, alerts_created: 0, settings_applied: 3 }),
+        });
+
+        // Simulate file selection
+        Object.defineProperty(input, 'files', { value: [mockFile], configurable: true });
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        await vi.waitFor(() => {
+            expect(globalThis.fetch).toHaveBeenCalled();
+        }, { interval: 1 });
+
+        const [url, opts] = globalThis.fetch.mock.calls[0];
+        expect(url).toBe('/api/import');
+        expect(opts.method).toBe('POST');
+        expect(opts.body).toBeInstanceOf(FormData);
+
+        await vi.waitFor(() => {
+            expect(showToast).toHaveBeenCalledWith(
+                expect.stringContaining('2 feeds'),
+                'success'
+            );
+        }, { interval: 1 });
+
+        globalThis.fetch = origFetch;
+    });
+});
+
+describe('importJSON', () => {
+    it('does nothing when no files selected', async () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        // files is empty by default
+        await importJSON(input);
+        expect(showToast).not.toHaveBeenCalled();
+    });
+
+    it('shows error toast on server error', async () => {
+        const mockFile = new File(['{"version":1}'], 'export.json', { type: 'application/json' });
+        const input = document.createElement('input');
+        input.type = 'file';
+        Object.defineProperty(input, 'files', { value: [mockFile], configurable: true });
+
+        const origFetch = globalThis.fetch;
+        globalThis.fetch = vi.fn().mockResolvedValue({
+            ok: false,
+            json: () => Promise.resolve({ error: 'bad format' }),
+        });
+
+        await importJSON(input);
+
+        expect(showToast).toHaveBeenCalledWith(expect.stringContaining('bad format'));
+        globalThis.fetch = origFetch;
+    });
+
+    it('shows "nothing new" when all counts are zero', async () => {
+        const mockFile = new File(['{"version":1}'], 'export.json', { type: 'application/json' });
+        const input = document.createElement('input');
+        input.type = 'file';
+        Object.defineProperty(input, 'files', { value: [mockFile], configurable: true });
+
+        const origFetch = globalThis.fetch;
+        globalThis.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: () => Promise.resolve({
+                feeds_created: 0, feeds_skipped: 5,
+                folders_created: 0, folders_skipped: 2,
+                scrapers_created: 0, scrapers_skipped: 0,
+                alerts_created: 0, alerts_skipped: 0,
+                settings_applied: 0,
+            }),
+        });
+
+        await importJSON(input);
+
+        expect(showToast).toHaveBeenCalledWith('Nothing new to import', 'success');
+        globalThis.fetch = origFetch;
     });
 });
