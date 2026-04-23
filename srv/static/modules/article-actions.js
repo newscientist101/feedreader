@@ -115,9 +115,14 @@ export function initAutoMarkRead() {
     // Mark the last article when user scrolls to the bottom of the page.
     // The IntersectionObserver only fires when articles scroll OUT of view,
     // so the last article (which stays visible at the bottom) is never caught.
-    const onScroll = () => {
+    const markLastVisibleIfAtBottom = () => {
+        const scrollableHeight = document.documentElement.scrollHeight;
         const scrollBottom = window.innerHeight + window.scrollY;
-        if (scrollBottom < document.body.offsetHeight - 50) return;
+        // Consider "at bottom" if within 50px OR if the page is not scrollable
+        // (scrollHeight <= clientHeight means everything fits in the viewport).
+        const atBottom = scrollableHeight <= document.documentElement.clientHeight ||
+            scrollBottom >= scrollableHeight - 50;
+        if (!atBottom) return;
 
         // User is at the bottom — mark the last unread article card as read.
         const unreadCards = document.querySelectorAll('#articles-list .article-card:not(.read)');
@@ -134,7 +139,12 @@ export function initAutoMarkRead() {
             }
         }
     };
-    window.addEventListener('scroll', onScroll, { passive: true, signal });
+    window.addEventListener('scroll', markLastVisibleIfAtBottom, { passive: true, signal });
+    // Also run once immediately: if the page content fits entirely in the viewport
+    // (no scrolling needed), the scroll event never fires but we still want to
+    // mark the last item as read when the user is "done" viewing the list.
+    // We defer slightly so the observer has time to fire for off-screen items first.
+    setTimeout(markLastVisibleIfAtBottom, 100);
 }
 
 // Observe newly added article cards (e.g. from pagination)
