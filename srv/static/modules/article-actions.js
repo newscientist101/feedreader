@@ -24,6 +24,7 @@ export function setQueuedIdsReady(promise) {
 
 // --- Auto-mark-read state ---
 let autoMarkReadObserver = null;
+let _autoMarkReadAC = null;
 let _markReadQueue = [];
 let _markReadTimer = null;
 let _actionListenerAC = null;
@@ -34,6 +35,7 @@ export function _setAutoMarkReadObserver(v) { autoMarkReadObserver = v; }
 export function _getMarkReadQueue() { return _markReadQueue; }
 export function _resetArticleActionsState() {
     if (autoMarkReadObserver) { autoMarkReadObserver.disconnect(); autoMarkReadObserver = null; }
+    if (_autoMarkReadAC) { _autoMarkReadAC.abort(); _autoMarkReadAC = null; }
     _markReadQueue = [];
     if (_markReadTimer) { clearTimeout(_markReadTimer); _markReadTimer = null; }
     queuedArticleIds = new Set();
@@ -63,16 +65,23 @@ export function initQueueState(renderArticleActions) {
 }
 
 export function initAutoMarkRead() {
-    // Disconnect any previous observer
+    // Disconnect any previous observer and abort any previous scroll listener
     if (autoMarkReadObserver) {
         autoMarkReadObserver.disconnect();
         autoMarkReadObserver = null;
+    }
+    if (_autoMarkReadAC) {
+        _autoMarkReadAC.abort();
+        _autoMarkReadAC = null;
     }
 
     if (getSetting('autoMarkRead') !== 'true') {
         console.debug('[auto-mark-read] disabled by setting');
         return;
     }
+
+    _autoMarkReadAC = new AbortController();
+    const signal = _autoMarkReadAC.signal;
 
     // Use IntersectionObserver to detect when articles scroll out of view
     autoMarkReadObserver = new IntersectionObserver((entries) => {
@@ -102,6 +111,30 @@ export function initAutoMarkRead() {
     cards.forEach(article => {
         autoMarkReadObserver.observe(article);
     });
+
+    // Mark the last article when user scrolls to the bottom of the page.
+    // The IntersectionObserver only fires when articles scroll OUT of view,
+    // so the last article (which stays visible at the bottom) is never caught.
+    const onScroll = () => {
+        const scrollBottom = window.innerHeight + window.scrollY;
+        if (scrollBottom < document.body.offsetHeight - 50) return;
+
+        // User is at the bottom — mark the last unread article card as read.
+        const unreadCards = document.querySelectorAll('#articles-list .article-card:not(.read)');
+        if (unreadCards.length === 0) return;
+        const last = unreadCards[unreadCards.length - 1];
+        const rect = last.getBoundingClientRect();
+        // Only mark if the card is at least partially visible in the viewport.
+        if (rect.top < window.innerHeight && rect.bottom > 0) {
+            const articleId = last.dataset.id;
+            if (articleId) {
+                console.debug(`[auto-mark-read] marking last article ${articleId} as read (scrolled to bottom)`);
+                markReadSilent(articleId);
+                last.classList.add('read');
+            }
+        }
+    };
+    window.addEventListener('scroll', onScroll, { passive: true, signal });
 }
 
 // Observe newly added article cards (e.g. from pagination)
