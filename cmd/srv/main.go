@@ -8,6 +8,7 @@ import (
 
 	"github.com/newscientist101/feedreader/config"
 	"github.com/newscientist101/feedreader/srv"
+	"github.com/newscientist101/feedreader/srv/email"
 )
 
 var flagListenAddr = flag.String("listen", ":8000", "address to listen on")
@@ -57,6 +58,19 @@ func run() error {
 			server.AuthProvider = provider
 		}
 		server.WebhookSecret = cfg.Newsletter.WebhookSecret
+
+		// Start built-in SMTP server if configured.
+		if cfg.Newsletter.SMTP.Enabled {
+			smtpSrv := email.NewSMTPServer(server.DB, cfg.Newsletter.SMTP.Listen)
+			if err := smtpSrv.Start(); err != nil {
+				return err
+			}
+			defer func() {
+				if stopErr := smtpSrv.Stop(); stopErr != nil {
+					slog.Warn("smtp server stop error", "error", stopErr)
+				}
+			}()
+		}
 	}
 
 	return server.Serve(listenAddr)

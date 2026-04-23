@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/mail"
 	"strings"
+	"time"
 
 	smtp "github.com/emersion/go-smtp"
 )
@@ -120,4 +122,58 @@ func isAllowedDomain(domain string, allowed []string) bool {
 		}
 	}
 	return false
+}
+
+// defaultSMTPListen is the default listen address for the built-in SMTP server.
+const defaultSMTPListen = ":2525"
+
+// SMTPServer wraps go-smtp's Server with lifecycle management.
+type SMTPServer struct {
+	server     *smtp.Server
+	listenAddr string
+}
+
+// NewSMTPServer creates an SMTP server that pipes received messages to
+// ProcessMessage. listenAddr defaults to ":2525" when empty.
+func NewSMTPServer(db *sql.DB, listenAddr string) *SMTPServer {
+	if listenAddr == "" {
+		listenAddr = defaultSMTPListen
+	}
+
+	backend := &Backend{DB: db}
+	s := smtp.NewServer(backend)
+	s.Domain = "localhost"
+	s.MaxMessageBytes = 10 * 1024 * 1024 // 10 MB
+	s.AllowInsecureAuth = true
+	s.ReadTimeout = 60 * time.Second
+	s.WriteTimeout = 60 * time.Second
+
+	return &SMTPServer{
+		server:     s,
+		listenAddr: listenAddr,
+	}
+}
+
+// Start begins listening for SMTP connections in a background goroutine.
+func (s *SMTPServer) Start() error {
+	ln, err := net.Listen("tcp", s.listenAddr)
+	if err != nil {
+		return fmt.Errorf("smtp: listen %s: %w", s.listenAddr, err)
+	}
+
+	slog.Info("smtp server listening", "addr", s.listenAddr)
+
+	go func() {
+		if err := s.server.Serve(ln); err != nil {
+			// Serve returns when the server is stopped; log non-close errors.
+			slog.Info("smtp server stopped", "error", err)
+		}
+	}()
+
+	return nil
+}
+
+// Stop shuts down the SMTP server gracefully.
+func (s *SMTPServer) Stop() error {
+	return s.server.Close()
 }

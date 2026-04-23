@@ -126,7 +126,8 @@ func TestInitOAuth2Proxy(t *testing.T) {
 
 func TestInitWithNewsletter(t *testing.T) {
 	// Tailscale + newsletter with webhook and SMTP
-	input := "\n\n2\ny\nmail.example.com\ny\nsecret123\ny\n2525\n"
+	// The SMTP prompt asks for a listen address (e.g. ":2525")
+	input := "\n\n2\ny\nmail.example.com\ny\nsecret123\ny\n:2525\n"
 	_, cfg := simulateInit(t, input)
 
 	if cfg.EmailDomain != "mail.example.com" {
@@ -135,8 +136,11 @@ func TestInitWithNewsletter(t *testing.T) {
 	if cfg.Newsletter.WebhookSecret != "secret123" {
 		t.Errorf("WebhookSecret = %q, want %q", cfg.Newsletter.WebhookSecret, "secret123")
 	}
-	if cfg.Newsletter.SMTPPort != 2525 {
-		t.Errorf("SMTPPort = %d, want %d", cfg.Newsletter.SMTPPort, 2525)
+	if !cfg.Newsletter.SMTP.Enabled {
+		t.Errorf("SMTP.Enabled = false, want true")
+	}
+	if cfg.Newsletter.SMTP.Listen != ":2525" {
+		t.Errorf("SMTP.Listen = %q, want %q", cfg.Newsletter.SMTP.Listen, ":2525")
 	}
 }
 

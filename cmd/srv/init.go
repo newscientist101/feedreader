@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/newscientist101/feedreader/config"
@@ -152,12 +151,9 @@ func initCmd(args []string, stdin io.Reader, stdout io.Writer) error {
 		}
 
 		if promptYesNo("Enable built-in SMTP server?", false) {
-			portStr := prompt("SMTP port", "2525")
-			port, err := strconv.Atoi(portStr)
-			if err != nil {
-				return fmt.Errorf("invalid SMTP port %q: %w", portStr, err)
-			}
-			cfg.Newsletter.SMTPPort = port
+			listenAddr := prompt("SMTP listen address", ":2525")
+			cfg.Newsletter.SMTP.Enabled = true
+			cfg.Newsletter.SMTP.Listen = listenAddr
 		}
 	}
 	w.println("")

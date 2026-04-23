@@ -62,13 +62,23 @@ type CloudflareAuthConfig struct {
 	Audience string `toml:"audience,omitempty"`
 }
 
+// SMTPConfig holds settings for the built-in SMTP server.
+type SMTPConfig struct {
+	// Enabled controls whether the built-in SMTP server is started.
+	Enabled bool `toml:"enabled"`
+
+	// Listen is the address to listen on (e.g. ":2525").
+	// Defaults to ":2525" when empty.
+	Listen string `toml:"listen,omitempty"`
+}
+
 // NewsletterConfig holds newsletter ingestion settings.
 type NewsletterConfig struct {
 	// WebhookSecret is the shared secret for HTTP webhook ingestion.
 	WebhookSecret string `toml:"webhook_secret,omitempty"`
 
-	// SMTPPort is the port for the built-in SMTP server (0 = disabled).
-	SMTPPort int `toml:"smtp_port,omitempty"`
+	// SMTP holds configuration for the built-in SMTP server.
+	SMTP SMTPConfig `toml:"smtp"`
 }
 
 // Defaults for configuration values.

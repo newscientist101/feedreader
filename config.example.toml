@@ -92,4 +92,6 @@ email_header = "Remote-Email"
 # feedreader without a separate mail server. Bind it to a non-standard port
 # (e.g. 2525) and configure your MTA or email provider to relay to it.
 #
-# smtp_port = 2525   # 0 or omitted = disabled
+# [newsletter.smtp]
+# enabled = true
+# listen = ":2525"  # default: ":2525"

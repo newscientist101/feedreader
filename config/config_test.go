@@ -131,7 +131,10 @@ func TestNewsletterConfig(t *testing.T) {
 		Auth: AuthConfig{Provider: "tailscale"},
 		Newsletter: NewsletterConfig{
 			WebhookSecret: "secret123",
-			SMTPPort:      2525,
+			SMTP: SMTPConfig{
+				Enabled: true,
+				Listen:  ":2525",
+			},
 		},
 	}
 
@@ -150,7 +153,10 @@ func TestNewsletterConfig(t *testing.T) {
 	if loaded.Newsletter.WebhookSecret != "secret123" {
 		t.Errorf("WebhookSecret = %q, want %q", loaded.Newsletter.WebhookSecret, "secret123")
 	}
-	if loaded.Newsletter.SMTPPort != 2525 {
-		t.Errorf("SMTPPort = %d, want %d", loaded.Newsletter.SMTPPort, 2525)
+	if !loaded.Newsletter.SMTP.Enabled {
+		t.Errorf("SMTP.Enabled = false, want true")
+	}
+	if loaded.Newsletter.SMTP.Listen != ":2525" {
+		t.Errorf("SMTP.Listen = %q, want %q", loaded.Newsletter.SMTP.Listen, ":2525")
 	}
 }
