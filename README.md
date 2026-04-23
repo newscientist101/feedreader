@@ -1,7 +1,7 @@
 # FeedReader
 
-A self-hosted feed reader built with Go and SQLite. Supports RSS/Atom feeds
-and custom web scrapers for sites without feeds.
+A self-hosted, multi-user feed reader built with Go and SQLite. Supports
+RSS/Atom feeds and custom web scrapers for sites without feeds.
 
 ![FeedReader screenshot](screenshot.png)
 
@@ -15,52 +15,62 @@ and custom web scrapers for sites without feeds.
 - **Reading history** — track recently read articles
 - **Exclusion rules** — filter articles by keyword or author per folder
 - **OPML import/export** — migrate to and from other feed readers
-- **Newsletter support** — receive newsletters as feed items via SMTP
+- **Newsletter support** — receive newsletters as feed items via webhook or built-in SMTP
 - **Data retention** — automatic cleanup of old articles (starred items preserved)
 - **Multi-user** — each user gets their own feeds, folders, and settings
 - **Responsive UI** — works on desktop, tablet, and mobile
 - **Offline support** — service worker for offline reading
+- **Pluggable auth** — works with Authelia, Cloudflare Access, Tailscale, OAuth2 Proxy, or any proxy that injects identity headers
+- **Docker-ready** — single-binary or Docker Compose with Caddy + Authelia for passkey auth
+- **Config file** — full TOML configuration with environment variable overrides
 
 ## Quick Start
 
-### Prerequisites
+### Option A: Docker Compose (recommended)
+
+The easiest way to run FeedReader in production. Uses Caddy as a reverse proxy
+and Authelia for WebAuthn/passkey authentication.
+
+```bash
+git clone https://github.com/newscientist101/feedreader.git
+cd feedreader/deploy
+cp .env.example .env          # set DOMAIN=feeds.yourdomain.com
+$EDITOR authelia/users_database.yml   # add your user
+docker compose up -d
+```
+
+See **[DEPLOY.md](DEPLOY.md)** for the full walkthrough including domain setup,
+user creation, passkey registration, and backup.
+
+### Option B: Binary
+
+#### Prerequisites
 
 - Go 1.22+
 - Node.js 18+ (for JS tests and linting only)
 
-### Build and Run
+#### Build from source
 
 ```bash
+git clone https://github.com/newscientist101/feedreader.git
+cd feedreader
+
 # Install JS dev dependencies (for tests/linting)
 npm install
 
 # Build the binary
 make build
-
-# Run (listens on port 8000)
-./feedreader
 ```
 
-The database (`db.sqlite3`) is created automatically on first run with all
-migrations applied.
+#### Create a config file
 
-### Authentication
+```bash
+# Copy the example config and edit it
+cp config.example.toml config.toml
+$EDITOR config.toml
+```
 
-FeedReader uses pluggable auth providers. Configure one via `config.toml` or
-the interactive setup UI (runs automatically on first start with no config).
-
-Supported providers:
-
-| Provider | Description |
-|---|---|
-| `proxy` | Generic reverse proxy headers (configurable header names) |
-| `tailscale` | Tailscale Serve/Funnel identity headers |
-| `cloudflare` | Cloudflare Access with JWT validation |
-| `authelia` | Authelia forward auth headers |
-| `oauth2_proxy` | OAuth2 Proxy forwarded headers |
-| `exedev` | Legacy exe.dev platform (backward compat) |
-
-Example `config.toml`:
+Minimal `config.toml` example (generic reverse proxy):
 
 ```toml
 [auth]
@@ -71,24 +81,104 @@ user_id_header = "Remote-User"
 email_header = "Remote-Email"
 ```
 
-For local development, run the interactive config wizard:
+Or run the interactive setup wizard to generate a config:
 
 ```bash
 ./feedreader init
 ```
 
-A new user record is created automatically on first login.
+#### Run
 
-### Configuration
+```bash
+./feedreader --config config.toml
+# Listens on :8000 by default
+```
+
+The database (`db.sqlite3`) is created automatically on first run.
+
+#### Systemd
+
+```bash
+sudo cp srv.service.example /etc/systemd/system/feedreader.service
+# Edit the service file to match your paths and config
+sudo systemctl daemon-reload
+sudo systemctl enable --now feedreader
+```
+
+Put a reverse proxy (nginx, Caddy, etc.) in front to handle TLS and
+inject authentication headers.
+
+## Configuration
 
 Configure via `config.toml`, CLI flags, or environment variables.
+CLI flags override config file values; environment variables override both.
 
-| Flag | Config key | Default | Description |
-|---|---|---|---|
-| `--listen` | `listen` | `:8000` | Listen address |
-| `--db` | `db` | `db.sqlite3` | SQLite database path |
-| `--email-domain` | `email_domain` | (hostname) | Email domain for newsletters |
-| `--config` / `CONFIG_FILE` | — | `config.toml` | Config file path |
+| Flag | Env var | Config key | Default | Description |
+|---|---|---|---|---|
+| `--listen` | — | `listen` | `:8000` | Listen address |
+| `--db` | — | `db` | `db.sqlite3` | SQLite database path |
+| `--email-domain` | — | `email_domain` | (hostname) | Email domain for newsletters |
+| `--config` | `CONFIG_FILE` | — | `config.toml` | Config file path |
+
+See **[CONFIGURATION.md](CONFIGURATION.md)** for the full configuration reference,
+all auth provider options, and example configs.
+
+## Auth Providers
+
+FeedReader delegates authentication to a reverse proxy. The proxy authenticates
+users and injects identity headers; FeedReader reads those headers to identify
+the current user.
+
+| Provider | Description |
+|---|---|
+| `proxy` | Generic reverse proxy headers (configurable header names) |
+| `tailscale` | Tailscale Serve/Funnel identity headers |
+| `cloudflare` | Cloudflare Access with JWT validation |
+| `authelia` | Authelia forward auth headers |
+| `oauth2_proxy` | OAuth2 Proxy forwarded headers |
+| `exedev` | Legacy exe.dev platform (backward compat) |
+
+For local development, skip auth entirely:
+
+```bash
+DEV=1 ./feedreader
+```
+
+## Newsletter
+
+FeedReader can receive email newsletters and surface them as feed items.
+Two ingestion methods are available:
+
+### Webhook (recommended)
+
+Send the raw RFC 822 message to the HTTP endpoint:
+
+```
+POST /api/newsletter/ingest
+Authorization: Bearer <webhook_secret>
+Content-Type: message/rfc822
+```
+
+Configure in `config.toml`:
+
+```toml
+[newsletter]
+webhook_secret = "your-secret-here"
+```
+
+### Built-in SMTP
+
+Point your email forwarder at the built-in SMTP server (localhost only,
+no TLS, no auth — intended for local delivery):
+
+```toml
+[newsletter.smtp]
+enabled = true
+listen = ":2525"
+```
+
+Newsletter addresses have the form `nl-<token>@<email_domain>`.
+Generate an address in the app: **Settings → Newsletter**.
 
 ## Tech Stack
 
@@ -116,7 +206,7 @@ srv/
   scrapers/                CSS-selector and JSON API scrapers
   huggingface/             Hugging Face model feed source
   opml/                    OPML import/export
-  email/                   Newsletter SMTP receiver
+  email/                   Newsletter SMTP receiver and webhook
   templates/               Server-rendered HTML templates
   static/                  CSS, JS, icons
     app.js                 JS entry point
@@ -129,8 +219,13 @@ db/
   migrations/              Numbered SQL migrations (001–015)
   queries/                 SQL queries for sqlc
   dbgen/                   Generated Go code (do not edit)
+deploy/
+  docker-compose.yml       Docker Compose deployment (Caddy + Authelia)
+  Caddyfile                Caddy reverse proxy config
+  authelia/                Authelia config templates
 Dockerfile                 Multi-stage Docker build
-docker-compose.yml         Example deployment with OAuth2 Proxy
+config.example.toml        Example configuration
+srv.service.example        Systemd service template
 ```
 
 ## Development
@@ -247,6 +342,7 @@ All endpoints require authentication headers.
 ### Newsletter
 - `GET /api/newsletter/address` — get address
 - `POST /api/newsletter/generate-address` — generate new address
+- `POST /api/newsletter/ingest` — ingest raw email (webhook)
 
 ### Settings & Counts
 - `GET /api/settings` — get settings
@@ -257,38 +353,6 @@ All endpoints require authentication headers.
 - `POST /api/retention/cleanup` — run cleanup
 
 </details>
-
-## Deployment
-
-FeedReader is a single binary + SQLite database. Deploy however you like.
-
-### Docker
-
-```bash
-# Build the image
-docker build -t feedreader .
-
-# Run with a config file
-docker run -v ./config.toml:/app/config.toml -v ./data:/app/data \
-  -p 8000:8000 feedreader
-```
-
-See `docker-compose.yml` for a full example with OAuth2 Proxy.
-
-### Systemd
-
-```bash
-# Copy and edit the service file
-sudo cp srv.service /etc/systemd/system/feedreader.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now feedreader
-
-# Restart after updates
-make build && sudo systemctl restart feedreader
-```
-
-Put a reverse proxy (nginx, Caddy, etc.) in front to handle TLS and
-inject authentication headers.
 
 ## License
 
