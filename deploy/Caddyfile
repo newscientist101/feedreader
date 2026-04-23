@@ -1,7 +1,8 @@
 # Caddyfile for feedreader + Authelia deployment.
 #
-# Replace <CHANGE_ME_DOMAIN> with your domain name (e.g. feeds.example.com).
-# Caddy automatically provisions a Let's Encrypt TLS certificate.
+# Set DOMAIN in your .env file (e.g. DOMAIN=feeds.example.com).
+# Caddy reads {$DOMAIN} from the environment and automatically provisions
+# a Let's Encrypt TLS certificate.
 #
 # Authelia auth flow:
 #   Browser → Caddy → forward_auth check → Authelia
@@ -12,7 +13,7 @@
 # Caddy copies them to the upstream request so feedreader knows who is
 # logged in.
 
-<CHANGE_ME_DOMAIN> {
+{$DOMAIN} {
     # ── Authelia portal ─────────────────────────────────────────────
     # Route /authelia/* directly to the Authelia container so users can
     # log in, register passkeys, and manage their account.
@@ -31,7 +32,7 @@
     # On 4xx, Caddy returns the Authelia redirect/challenge response
     # (e.g. redirect to /authelia/ for the login page).
     forward_auth authelia:9091 {
-        uri /api/verify?rd=https://<CHANGE_ME_DOMAIN>/authelia/
+        uri /api/verify?rd=https://{$DOMAIN}/authelia/
         copy_headers Remote-User Remote-Email
     }
 

@@ -1,0 +1,56 @@
+# Docker Compose deployment for feedreader with Caddy + Authelia (WebAuthn/passkey auth).
+#
+# Prerequisites:
+#   1. Copy .env.example to .env and set DOMAIN.
+#   2. Populate authelia/users_database.yml with your user.
+#   3. Generate an authelia/configuration.yml jwt_secret and session secret.
+#   See DEPLOY.md for the full setup walkthrough.
+#
+# Start:
+#   docker compose up -d
+#
+# Upgrade:
+#   docker compose pull && docker compose up -d
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+    depends_on:
+      - feedreader
+      - authelia
+    restart: unless-stopped
+
+  authelia:
+    image: authelia/authelia:latest
+    volumes:
+      - ./authelia:/config:ro
+      - authelia_data:/data
+    expose:
+      - "9091"
+    restart: unless-stopped
+
+  feedreader:
+    image: ghcr.io/newscientist101/feedreader:latest
+    volumes:
+      - feedreader_data:/data
+    environment:
+      AUTH_PROVIDER: authelia
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
+  authelia_data:
+  feedreader_data:
