@@ -150,6 +150,7 @@ async function restoreFromState(state, path) {
 
         removeFeedErrorBanner();
         applyDefaultViewForScope(route.scope);
+        updateCounts();
     } catch (e) {
         console.error('SPA popstate navigation failed:', e);
     }
@@ -186,10 +187,14 @@ export function initSpaNav() {
         restoreFromState(e.state, path);
     }, { signal });
 
-    // Scroll to top when restored from back/forward cache.
+    // Refresh counts and scroll to top when restored from back/forward cache.
+    // The bfcache preserves stale sidebar badge values from before navigation,
+    // so we must re-fetch counts immediately to reflect any changes made on
+    // the article page (e.g. marking an article as read).
     window.addEventListener('pageshow', (e) => {
         if (e.persisted) {
             window.scrollTo(0, 0);
+            updateCounts();
         }
     }, { signal });
 
