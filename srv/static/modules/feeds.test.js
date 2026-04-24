@@ -17,6 +17,7 @@ import { _resetArticleActionsState, setQueuedArticleIds } from './article-action
 import { showToast } from './toast.js';
 import { applyDefaultViewForScope } from './views.js';
 import { showFeedErrorBanner, removeFeedErrorBanner } from './feed-errors.js';
+import { updateCounts } from './counts.js';
 import { makeCountsResponse, flushPromises } from './test-helpers.js';
 
 vi.mock('./toast.js');
@@ -27,6 +28,14 @@ vi.mock('./pagination.js');
 vi.mock('./views.js');
 
 vi.mock('./feed-errors.js');
+
+vi.mock('./counts.js', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        updateCounts: vi.fn(),
+    };
+});
 
 
 beforeEach(() => {
@@ -77,6 +86,7 @@ describe('loadCategoryArticles', () => {
         expect(removeFeedErrorBanner).toHaveBeenCalled();
         expect(applyDefaultViewForScope).toHaveBeenCalledWith('folder');
         expect(renderArticles).toHaveBeenCalledWith([{ id: 1, title: 'Test', feed_name: 'F' }]);
+        expect(updateCounts).toHaveBeenCalled();
     });
 
     it('hides feed action buttons', async () => {
@@ -130,6 +140,7 @@ describe('loadFeedArticles', () => {
         expect(removeFeedErrorBanner).toHaveBeenCalled();
         expect(applyDefaultViewForScope).toHaveBeenCalledWith('feed');
         expect(renderArticles).toHaveBeenCalledWith([{ id: 1, title: 'Test', feed_name: 'F' }]);
+        expect(updateCounts).toHaveBeenCalled();
     });
 
     it('sets active state on matching feed items', async () => {

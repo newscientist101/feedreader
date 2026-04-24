@@ -50,6 +50,7 @@ export async function loadCategoryArticles(categoryId, categoryName, { pushState
 
         renderArticles(data.articles);
         applyDefaultViewForScope('folder');
+        updateCounts();
     } catch (e) {
         if (thisGeneration !== _loadGeneration) return;
         console.error('Failed to load category articles:', e);
@@ -129,6 +130,7 @@ export async function loadFeedArticles(feedId, feedName, { pushState = true } = 
         }
 
         applyDefaultViewForScope('feed');
+        updateCounts();
     } catch (e) {
         if (thisGeneration !== _loadGeneration) return;
         console.error('Failed to load feed articles:', e);

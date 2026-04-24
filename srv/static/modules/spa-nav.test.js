@@ -245,6 +245,7 @@ describe('popstate (browser back/forward)', () => {
         expect(setSidebarActive).toHaveBeenCalled();
         expect(removeFeedErrorBanner).toHaveBeenCalled();
         expect(applyDefaultViewForScope).toHaveBeenCalledWith('all');
+        expect(updateCounts).toHaveBeenCalled();
         expect(document.querySelector('.view-header h1').textContent).toBe('Starred');
     });
 
@@ -308,7 +309,7 @@ describe('popstate (browser back/forward)', () => {
         expect(document.querySelector('[data-feed-action]').style.display).toBe('none');
     });
 
-    it('scrolls to top when restored from back/forward cache', () => {
+    it('scrolls to top and refreshes counts when restored from back/forward cache', () => {
         setupArticleListPage();
         initSpaNav();
 
@@ -318,6 +319,7 @@ describe('popstate (browser back/forward)', () => {
         window.dispatchEvent(event);
 
         expect(window.scrollTo).toHaveBeenCalledWith(0, 0);
+        expect(updateCounts).toHaveBeenCalled();
     });
 
     it('does not scroll on initial pageshow (not from bfcache)', () => {
