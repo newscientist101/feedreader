@@ -38,7 +38,8 @@ fmt-check:
 	@test -z "$$(goimports -l .)" || (echo "goimports needed on:"; goimports -l .; exit 1)
 
 fix-check:
-	@test -z "$$(go fix -diff ./... 2>&1)" || (echo "go fix has suggestions:"; go fix -diff ./...; exit 1)
+	@go fix -diff ./... 2>&1 | grep -v '^$$' || true
+	@test -z "$$(go fix -diff ./... 2>&1)" || exit 1
 
 vulncheck:
 	govulncheck ./...
