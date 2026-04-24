@@ -47,5 +47,8 @@ jobs:
       - name: Install golangci-lint
         run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(go env GOPATH)/bin
 
+      - name: Check Go version
+        run: go version
+
       - name: Run make check
         run: make check
