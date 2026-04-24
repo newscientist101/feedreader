@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"net/http"
 	"strings"
 	"sync"
@@ -248,9 +247,11 @@ func parseECPublicKey(k *cfJWK) (*ecdsa.PublicKey, error) {
 		return nil, fmt.Errorf("decoding y: %w", err)
 	}
 
-	return &ecdsa.PublicKey{
-		Curve: curve,
-		X:     new(big.Int).SetBytes(xBytes),
-		Y:     new(big.Int).SetBytes(yBytes),
-	}, nil
+	// Build the uncompressed point (0x04 || X || Y) and parse via the
+	// non-deprecated API instead of setting the big.Int fields directly.
+	uncompressed := make([]byte, 1+len(xBytes)+len(yBytes))
+	uncompressed[0] = 0x04
+	copy(uncompressed[1:], xBytes)
+	copy(uncompressed[1+len(xBytes):], yBytes)
+	return ecdsa.ParseUncompressedPublicKey(curve, uncompressed)
 }

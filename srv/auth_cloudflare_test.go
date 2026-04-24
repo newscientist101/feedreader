@@ -30,14 +30,23 @@ func testCFKey(t *testing.T) *ecdsa.PrivateKey {
 // testCFJWKS builds a JWKS JSON response containing the public key.
 func testCFJWKS(t *testing.T, kid string, pub *ecdsa.PublicKey) []byte {
 	t.Helper()
+	// Use PublicKey.Bytes() to get the uncompressed point (04 || X || Y).
+	uncompressed, err := pub.Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// P-256 coordinates are 32 bytes each; skip the 0x04 prefix byte.
+	coordLen := (len(uncompressed) - 1) / 2
+	xBytes := uncompressed[1 : 1+coordLen]
+	yBytes := uncompressed[1+coordLen:]
 	jwks := cfJWKSResponse{
 		Keys: []cfJWK{{
 			Kid: kid,
 			Kty: "EC",
 			Alg: "ES256",
 			Crv: "P-256",
-			X:   base64.RawURLEncoding.EncodeToString(pub.X.Bytes()),
-			Y:   base64.RawURLEncoding.EncodeToString(pub.Y.Bytes()),
+			X:   base64.RawURLEncoding.EncodeToString(xBytes),
+			Y:   base64.RawURLEncoding.EncodeToString(yBytes),
 		}},
 	}
 	data, err := json.Marshal(jwks)
