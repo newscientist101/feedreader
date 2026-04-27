@@ -1140,6 +1140,23 @@ body {
     font-size: 1rem;
     line-height: 1.8;
     color: var(--text-primary);
+    overflow: hidden;
+}
+
+.article-body figure,
+.article-body div,
+.article-body table,
+.article-body blockquote,
+.article-body pre {
+    max-width: 100% !important;
+    box-sizing: border-box;
+}
+
+.article-content-preview figure,
+.article-content-preview div,
+.article-content-preview table {
+    max-width: 100% !important;
+    box-sizing: border-box;
 }
 
 .article-body h1, .article-body h2, .article-body h3 {
