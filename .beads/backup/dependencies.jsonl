@@ -314,5 +314,6 @@
 {"created_at":"2026-03-03T17:10:50Z","created_by":"exe.dev user","depends_on_id":"feedreader-47z","issue_id":"feedreader-sfc","type":"parent-child"}
 {"created_at":"2026-03-03T02:17:40Z","created_by":"exe.dev user","depends_on_id":"feedreader-eja","issue_id":"feedreader-wei","type":"parent-child"}
 {"created_at":"2026-03-03T04:49:48Z","created_by":"exe.dev user","depends_on_id":"feedreader-xzaw","issue_id":"feedreader-xzaw.1","type":"parent-child"}
+{"created_at":"2026-04-24T13:49:21Z","created_by":"exe.dev user","depends_on_id":"feedreader-xzaw","issue_id":"feedreader-xzaw.2","type":"parent-child"}
 {"created_at":"2026-03-01T23:34:10Z","created_by":"exe.dev user","depends_on_id":"feedreader-xzaw","issue_id":"feedreader-z5xp","type":"parent-child"}
 {"created_at":"2026-03-10T20:10:07Z","created_by":"exe.dev user","depends_on_id":"feedreader-kvd","issue_id":"feedreader-zlzsk","type":"parent-child"}
