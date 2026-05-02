@@ -106,6 +106,14 @@ type NewsAlert struct {
 	CreatedAt  time.Time `json:"created_at"`
 }
 
+type NntpCredential struct {
+	UserID      int64     `json:"user_id"`
+	Username    string    `json:"username"`
+	PasswordEnc string    `json:"password_enc"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 type QueueArticle struct {
 	ID        int64     `json:"id"`
 	UserID    int64     `json:"user_id"`
