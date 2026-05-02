@@ -71,6 +71,7 @@
 {"created_at":"2026-05-02T20:59:17Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2.12","issue_id":"feedreader-6g2.18","type":"blocks"}
 {"created_at":"2026-05-02T20:59:17Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2.16","issue_id":"feedreader-6g2.18","type":"blocks"}
 {"created_at":"2026-05-02T20:59:17Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2.17","issue_id":"feedreader-6g2.18","type":"blocks"}
+{"created_at":"2026-05-02T21:33:40Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2.33","issue_id":"feedreader-6g2.18","type":"blocks"}
 {"created_at":"2026-05-02T20:59:16Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2.5","issue_id":"feedreader-6g2.18","type":"blocks"}
 {"created_at":"2026-05-02T20:59:16Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2.7","issue_id":"feedreader-6g2.18","type":"blocks"}
 {"created_at":"2026-05-02T20:58:54Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2","issue_id":"feedreader-6g2.19","type":"parent-child"}
@@ -121,13 +122,17 @@
 {"created_at":"2026-05-02T21:20:59Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2.2","issue_id":"feedreader-6g2.31","type":"discovered-from"}
 {"created_at":"2026-05-02T21:25:44Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2","issue_id":"feedreader-6g2.32","type":"parent-child"}
 {"created_at":"2026-05-02T21:25:44Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2.2","issue_id":"feedreader-6g2.32","type":"discovered-from"}
+{"created_at":"2026-05-02T21:33:36Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2","issue_id":"feedreader-6g2.33","type":"parent-child"}
+{"created_at":"2026-05-02T21:33:36Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2.3","issue_id":"feedreader-6g2.33","type":"discovered-from"}
 {"created_at":"2026-05-02T20:58:52Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2","issue_id":"feedreader-6g2.4","type":"parent-child"}
 {"created_at":"2026-05-02T20:59:13Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2.1","issue_id":"feedreader-6g2.4","type":"blocks"}
 {"created_at":"2026-05-02T20:59:15Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2.3","issue_id":"feedreader-6g2.4","type":"blocks"}
+{"created_at":"2026-05-02T21:33:39Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2.33","issue_id":"feedreader-6g2.4","type":"blocks"}
 {"created_at":"2026-05-02T20:58:52Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2","issue_id":"feedreader-6g2.5","type":"parent-child"}
 {"created_at":"2026-05-02T20:59:13Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2.1","issue_id":"feedreader-6g2.5","type":"blocks"}
 {"created_at":"2026-05-02T20:59:15Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2.2","issue_id":"feedreader-6g2.5","type":"blocks"}
 {"created_at":"2026-05-02T20:59:15Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2.3","issue_id":"feedreader-6g2.5","type":"blocks"}
+{"created_at":"2026-05-02T21:33:39Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2.33","issue_id":"feedreader-6g2.5","type":"blocks"}
 {"created_at":"2026-05-02T20:59:15Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2.4","issue_id":"feedreader-6g2.5","type":"blocks"}
 {"created_at":"2026-05-02T20:58:52Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2","issue_id":"feedreader-6g2.6","type":"parent-child"}
 {"created_at":"2026-05-02T20:59:13Z","created_by":"exe.dev user","depends_on_id":"feedreader-6g2.1","issue_id":"feedreader-6g2.6","type":"blocks"}
