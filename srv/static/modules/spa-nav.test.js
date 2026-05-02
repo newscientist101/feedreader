@@ -322,7 +322,7 @@ describe('popstate (browser back/forward)', () => {
         expect(updateCounts).toHaveBeenCalled();
     });
 
-    it('does not scroll on initial pageshow (not from bfcache)', () => {
+    it('refreshes counts but does not scroll on non-bfcache pageshow', () => {
         setupArticleListPage();
         initSpaNav();
 
@@ -332,5 +332,6 @@ describe('popstate (browser back/forward)', () => {
         window.dispatchEvent(event);
 
         expect(window.scrollTo).not.toHaveBeenCalled();
+        expect(updateCounts).toHaveBeenCalled();
     });
 });

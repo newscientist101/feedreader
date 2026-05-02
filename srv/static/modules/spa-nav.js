@@ -187,15 +187,15 @@ export function initSpaNav() {
         restoreFromState(e.state, path);
     }, { signal });
 
-    // Refresh counts and scroll to top when restored from back/forward cache.
-    // The bfcache preserves stale sidebar badge values from before navigation,
-    // so we must re-fetch counts immediately to reflect any changes made on
-    // the article page (e.g. marking an article as read).
+    // Refresh counts whenever a page is shown. Browser Back from an article
+    // page can restore stale sidebar badge DOM from bfcache, but some browsers
+    // report pageshow.persisted=false for cache/memory restores. Re-fetching on
+    // every pageshow keeps counts correct after article views mark items read.
     window.addEventListener('pageshow', (e) => {
         if (e.persisted) {
             window.scrollTo(0, 0);
-            updateCounts();
         }
+        updateCounts();
     }, { signal });
 
     // Replace the current history entry with SPA state so popstate works
