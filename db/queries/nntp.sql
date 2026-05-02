@@ -1,9 +1,10 @@
 -- name: UpsertNNTPCredentials :one
-INSERT INTO nntp_credentials (user_id, username, password_enc)
-VALUES (?, ?, ?)
+INSERT INTO nntp_credentials (user_id, username, password_enc, key_version)
+VALUES (?, ?, ?, ?)
 ON CONFLICT(user_id) DO UPDATE SET
   username     = excluded.username,
   password_enc = excluded.password_enc,
+  key_version  = excluded.key_version,
   updated_at   = CURRENT_TIMESTAMP
 RETURNING *;
 

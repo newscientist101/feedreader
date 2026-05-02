@@ -112,6 +112,7 @@ type NntpCredential struct {
 	PasswordEnc string    `json:"password_enc"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	KeyVersion  string    `json:"key_version"`
 }
 
 type QueueArticle struct {

@@ -1,8 +1,10 @@
-package srv
+package usenet_test
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/newscientist101/feedreader/srv/usenet"
 )
 
 func testKey(t *testing.T) []byte {
@@ -10,10 +12,10 @@ func testKey(t *testing.T) []byte {
 	return []byte("12345678901234567890123456789012") // exactly 32 bytes
 }
 
-func TestNNTPCrypto_RoundTrip(t *testing.T) {
-	c, err := NewNNTPCrypto(testKey(t))
+func TestCrypto_RoundTrip(t *testing.T) {
+	c, err := usenet.NewCrypto(testKey(t))
 	if err != nil {
-		t.Fatalf("NewNNTPCrypto: %v", err)
+		t.Fatalf("NewCrypto: %v", err)
 	}
 
 	plaintext := "supersecretpassword"
@@ -37,10 +39,10 @@ func TestNNTPCrypto_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestNNTPCrypto_UniqueNonce(t *testing.T) {
-	c, err := NewNNTPCrypto(testKey(t))
+func TestCrypto_UniqueNonce(t *testing.T) {
+	c, err := usenet.NewCrypto(testKey(t))
 	if err != nil {
-		t.Fatalf("NewNNTPCrypto: %v", err)
+		t.Fatalf("NewCrypto: %v", err)
 	}
 
 	enc1, err := c.Encrypt("password")
@@ -56,10 +58,10 @@ func TestNNTPCrypto_UniqueNonce(t *testing.T) {
 	}
 }
 
-func TestNNTPCrypto_WrongKey(t *testing.T) {
-	c1, err := NewNNTPCrypto(testKey(t))
+func TestCrypto_WrongKey(t *testing.T) {
+	c1, err := usenet.NewCrypto(testKey(t))
 	if err != nil {
-		t.Fatalf("NewNNTPCrypto: %v", err)
+		t.Fatalf("NewCrypto: %v", err)
 	}
 
 	enc, err := c1.Encrypt("password")
@@ -68,9 +70,9 @@ func TestNNTPCrypto_WrongKey(t *testing.T) {
 	}
 
 	wrongKey := []byte("aaaabbbbccccddddaaaabbbbccccdddd") // different 32-byte key
-	c2, err := NewNNTPCrypto(wrongKey)
+	c2, err := usenet.NewCrypto(wrongKey)
 	if err != nil {
-		t.Fatalf("NewNNTPCrypto wrong key: %v", err)
+		t.Fatalf("NewCrypto wrong key: %v", err)
 	}
 
 	_, err = c2.Decrypt(enc)
@@ -79,10 +81,10 @@ func TestNNTPCrypto_WrongKey(t *testing.T) {
 	}
 }
 
-func TestNNTPCrypto_EmptySecret(t *testing.T) {
-	c, err := NewNNTPCrypto(testKey(t))
+func TestCrypto_EmptySecret(t *testing.T) {
+	c, err := usenet.NewCrypto(testKey(t))
 	if err != nil {
-		t.Fatalf("NewNNTPCrypto: %v", err)
+		t.Fatalf("NewCrypto: %v", err)
 	}
 
 	_, err = c.Encrypt("")
@@ -91,10 +93,10 @@ func TestNNTPCrypto_EmptySecret(t *testing.T) {
 	}
 }
 
-func TestNNTPCrypto_MalformedCiphertext(t *testing.T) {
-	c, err := NewNNTPCrypto(testKey(t))
+func TestCrypto_MalformedCiphertext(t *testing.T) {
+	c, err := usenet.NewCrypto(testKey(t))
 	if err != nil {
-		t.Fatalf("NewNNTPCrypto: %v", err)
+		t.Fatalf("NewCrypto: %v", err)
 	}
 
 	// Non-hex input
@@ -122,19 +124,19 @@ func TestNNTPCrypto_MalformedCiphertext(t *testing.T) {
 	}
 }
 
-func TestNNTPCrypto_KeyLength(t *testing.T) {
-	_, err := NewNNTPCrypto([]byte("tooshort"))
+func TestCrypto_KeyLength(t *testing.T) {
+	_, err := usenet.NewCrypto([]byte("tooshort"))
 	if err == nil {
-		t.Error("NewNNTPCrypto with short key should fail but succeeded")
+		t.Error("NewCrypto with short key should fail but succeeded")
 	}
 
-	_, err = NewNNTPCrypto(make([]byte, 31))
+	_, err = usenet.NewCrypto(make([]byte, 31))
 	if err == nil {
-		t.Error("NewNNTPCrypto with 31-byte key should fail but succeeded")
+		t.Error("NewCrypto with 31-byte key should fail but succeeded")
 	}
 
-	_, err = NewNNTPCrypto(make([]byte, 33))
+	_, err = usenet.NewCrypto(make([]byte, 33))
 	if err == nil {
-		t.Error("NewNNTPCrypto with 33-byte key should fail but succeeded")
+		t.Error("NewCrypto with 33-byte key should fail but succeeded")
 	}
 }

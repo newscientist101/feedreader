@@ -3,6 +3,7 @@ package dbgen_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -1291,5 +1292,128 @@ func TestArticles_CursorPaginationByCategory(t *testing.T) {
 	}
 	if len(unreadCatRows) != 1 {
 		t.Fatalf("after mark-read: got %d rows, want 1", len(unreadCatRows))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// NNTP Credentials
+// ---------------------------------------------------------------------------
+
+func TestNNTPCredentials_CRUD(t *testing.T) {
+	_, q := setupTestDB(t)
+	ctx := context.Background()
+
+	u := createTestUser(t, q, "ext-nntp", "nntp@example.com")
+
+	// UpsertNNTPCredentials — insert
+	cred, err := q.UpsertNNTPCredentials(ctx, dbgen.UpsertNNTPCredentialsParams{
+		UserID:      u.ID,
+		Username:    "testuser",
+		PasswordEnc: "hexencryptedblob",
+		KeyVersion:  "v1",
+	})
+	if err != nil {
+		t.Fatalf("UpsertNNTPCredentials (insert): %v", err)
+	}
+	if cred.UserID != u.ID {
+		t.Fatalf("user_id = %d, want %d", cred.UserID, u.ID)
+	}
+	if cred.Username != "testuser" {
+		t.Fatalf("username = %q", cred.Username)
+	}
+	if cred.PasswordEnc != "hexencryptedblob" {
+		t.Fatalf("password_enc = %q", cred.PasswordEnc)
+	}
+	if cred.KeyVersion != "v1" {
+		t.Fatalf("key_version = %q, want %q", cred.KeyVersion, "v1")
+	}
+
+	// GetNNTPCredentials
+	got, err := q.GetNNTPCredentials(ctx, u.ID)
+	if err != nil {
+		t.Fatalf("GetNNTPCredentials: %v", err)
+	}
+	if got.Username != "testuser" {
+		t.Fatalf("GetNNTPCredentials username = %q", got.Username)
+	}
+	if got.KeyVersion != "v1" {
+		t.Fatalf("GetNNTPCredentials key_version = %q, want %q", got.KeyVersion, "v1")
+	}
+
+	// UpsertNNTPCredentials — update (same user_id)
+	updated, err := q.UpsertNNTPCredentials(ctx, dbgen.UpsertNNTPCredentialsParams{
+		UserID:      u.ID,
+		Username:    "newuser",
+		PasswordEnc: "newhexblob",
+		KeyVersion:  "v1",
+	})
+	if err != nil {
+		t.Fatalf("UpsertNNTPCredentials (update): %v", err)
+	}
+	if updated.Username != "newuser" {
+		t.Fatalf("after update: username = %q", updated.Username)
+	}
+	if updated.PasswordEnc != "newhexblob" {
+		t.Fatalf("after update: password_enc = %q", updated.PasswordEnc)
+	}
+	if updated.KeyVersion != "v1" {
+		t.Fatalf("after update: key_version = %q", updated.KeyVersion)
+	}
+
+	// Confirm only one row exists
+	got2, err := q.GetNNTPCredentials(ctx, u.ID)
+	if err != nil {
+		t.Fatalf("GetNNTPCredentials after update: %v", err)
+	}
+	if got2.Username != "newuser" {
+		t.Fatalf("after upsert update: username = %q", got2.Username)
+	}
+
+	// DeleteNNTPCredentials
+	err = q.DeleteNNTPCredentials(ctx, u.ID)
+	if err != nil {
+		t.Fatalf("DeleteNNTPCredentials: %v", err)
+	}
+
+	// GetNNTPCredentials after delete should return sql.ErrNoRows
+	_, err = q.GetNNTPCredentials(ctx, u.ID)
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("GetNNTPCredentials after delete: got %v, want sql.ErrNoRows", err)
+	}
+}
+
+func TestNNTPCredentials_UserDeleteCascade(t *testing.T) {
+	sqlDB, q := setupTestDB(t)
+	ctx := context.Background()
+
+	u := createTestUser(t, q, "ext-nntp-cascade", "nntp-cascade@example.com")
+
+	// Insert credentials
+	_, err := q.UpsertNNTPCredentials(ctx, dbgen.UpsertNNTPCredentialsParams{
+		UserID:      u.ID,
+		Username:    "cascadeuser",
+		PasswordEnc: "encblob",
+		KeyVersion:  "v1",
+	})
+	if err != nil {
+		t.Fatalf("UpsertNNTPCredentials: %v", err)
+	}
+
+	// Credentials exist
+	_, err = q.GetNNTPCredentials(ctx, u.ID)
+	if err != nil {
+		t.Fatalf("GetNNTPCredentials before cascade: %v", err)
+	}
+
+	// Delete the user directly — credentials should cascade-delete via FK.
+	_, err = sqlDB.ExecContext(ctx, "DELETE FROM users WHERE id = ?", u.ID)
+	if err != nil {
+		t.Fatalf("DELETE FROM users: %v", err)
+	}
+
+	// Credentials should be gone
+	_, err = q.GetNNTPCredentials(ctx, u.ID)
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("GetNNTPCredentials after user delete: got %v, want sql.ErrNoRows", err)
 	}
 }

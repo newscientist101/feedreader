@@ -19,7 +19,7 @@ func (q *Queries) DeleteNNTPCredentials(ctx context.Context, userID int64) error
 }
 
 const getNNTPCredentials = `-- name: GetNNTPCredentials :one
-SELECT user_id, username, password_enc, created_at, updated_at FROM nntp_credentials WHERE user_id = ?
+SELECT user_id, username, password_enc, created_at, updated_at, key_version FROM nntp_credentials WHERE user_id = ?
 `
 
 func (q *Queries) GetNNTPCredentials(ctx context.Context, userID int64) (NntpCredential, error) {
@@ -31,28 +31,36 @@ func (q *Queries) GetNNTPCredentials(ctx context.Context, userID int64) (NntpCre
 		&i.PasswordEnc,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.KeyVersion,
 	)
 	return i, err
 }
 
 const upsertNNTPCredentials = `-- name: UpsertNNTPCredentials :one
-INSERT INTO nntp_credentials (user_id, username, password_enc)
-VALUES (?, ?, ?)
+INSERT INTO nntp_credentials (user_id, username, password_enc, key_version)
+VALUES (?, ?, ?, ?)
 ON CONFLICT(user_id) DO UPDATE SET
   username     = excluded.username,
   password_enc = excluded.password_enc,
+  key_version  = excluded.key_version,
   updated_at   = CURRENT_TIMESTAMP
-RETURNING user_id, username, password_enc, created_at, updated_at
+RETURNING user_id, username, password_enc, created_at, updated_at, key_version
 `
 
 type UpsertNNTPCredentialsParams struct {
 	UserID      int64  `json:"user_id"`
 	Username    string `json:"username"`
 	PasswordEnc string `json:"password_enc"`
+	KeyVersion  string `json:"key_version"`
 }
 
 func (q *Queries) UpsertNNTPCredentials(ctx context.Context, arg UpsertNNTPCredentialsParams) (NntpCredential, error) {
-	row := q.db.QueryRowContext(ctx, upsertNNTPCredentials, arg.UserID, arg.Username, arg.PasswordEnc)
+	row := q.db.QueryRowContext(ctx, upsertNNTPCredentials,
+		arg.UserID,
+		arg.Username,
+		arg.PasswordEnc,
+		arg.KeyVersion,
+	)
 	var i NntpCredential
 	err := row.Scan(
 		&i.UserID,
@@ -60,6 +68,7 @@ func (q *Queries) UpsertNNTPCredentials(ctx context.Context, arg UpsertNNTPCrede
 		&i.PasswordEnc,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.KeyVersion,
 	)
 	return i, err
 }
