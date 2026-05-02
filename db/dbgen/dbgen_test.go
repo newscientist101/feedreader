@@ -1417,3 +1417,201 @@ func TestNNTPCredentials_UserDeleteCascade(t *testing.T) {
 		t.Fatalf("GetNNTPCredentials after user delete: got %v, want sql.ErrNoRows", err)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// usenet_feed_state
+// ---------------------------------------------------------------------------
+
+func TestUsenetFeedState_CreateAndGet(t *testing.T) {
+	_, q := setupTestDB(t)
+	ctx := context.Background()
+
+	u := createTestUser(t, q, "ext-usenet-state", "usenet-state@example.com")
+	f := createTestFeed(t, q, "comp.lang.go", "nntp://news.eternal-september.org/comp.lang.go", u.ID)
+
+	state, err := q.CreateUsenetFeedState(ctx, dbgen.CreateUsenetFeedStateParams{
+		FeedID:    f.ID,
+		Provider:  "eternal-september",
+		GroupName: "comp.lang.go",
+	})
+	if err != nil {
+		t.Fatalf("CreateUsenetFeedState: %v", err)
+	}
+	if state.FeedID != f.ID {
+		t.Errorf("FeedID = %d, want %d", state.FeedID, f.ID)
+	}
+	if state.GroupName != "comp.lang.go" {
+		t.Errorf("GroupName = %q, want %q", state.GroupName, "comp.lang.go")
+	}
+	if state.Provider != "eternal-september" {
+		t.Errorf("Provider = %q, want %q", state.Provider, "eternal-september")
+	}
+	if state.HighWaterArticleNumber != 0 {
+		t.Errorf("HighWaterArticleNumber = %d, want 0", state.HighWaterArticleNumber)
+	}
+
+	// GetUsenetFeedState
+	got, err := q.GetUsenetFeedState(ctx, dbgen.GetUsenetFeedStateParams{
+		FeedID: f.ID,
+		UserID: &u.ID,
+	})
+	if err != nil {
+		t.Fatalf("GetUsenetFeedState: %v", err)
+	}
+	if got.FeedID != f.ID {
+		t.Errorf("GetUsenetFeedState FeedID = %d, want %d", got.FeedID, f.ID)
+	}
+}
+
+func TestUsenetFeedState_ListFeeds(t *testing.T) {
+	_, q := setupTestDB(t)
+	ctx := context.Background()
+
+	u := createTestUser(t, q, "ext-usenet-list", "usenet-list@example.com")
+	f1 := createTestFeed(t, q, "comp.lang.go", "nntp://news.eternal-september.org/comp.lang.go", u.ID)
+	f2 := createTestFeed(t, q, "rec.arts.sf", "nntp://news.eternal-september.org/rec.arts.sf", u.ID)
+
+	_, err := q.CreateUsenetFeedState(ctx, dbgen.CreateUsenetFeedStateParams{
+		FeedID: f1.ID, Provider: "eternal-september", GroupName: "comp.lang.go",
+	})
+	if err != nil {
+		t.Fatalf("CreateUsenetFeedState f1: %v", err)
+	}
+	_, err = q.CreateUsenetFeedState(ctx, dbgen.CreateUsenetFeedStateParams{
+		FeedID: f2.ID, Provider: "eternal-september", GroupName: "rec.arts.sf",
+	})
+	if err != nil {
+		t.Fatalf("CreateUsenetFeedState f2: %v", err)
+	}
+
+	rows, err := q.ListUsenetFeeds(ctx, &u.ID)
+	if err != nil {
+		t.Fatalf("ListUsenetFeeds: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("ListUsenetFeeds: got %d rows, want 2", len(rows))
+	}
+}
+
+func TestUsenetFeedState_UpdateHighWater(t *testing.T) {
+	_, q := setupTestDB(t)
+	ctx := context.Background()
+
+	u := createTestUser(t, q, "ext-usenet-hw", "usenet-hw@example.com")
+	f := createTestFeed(t, q, "comp.lang.go", "nntp://news.eternal-september.org/comp.lang.go", u.ID)
+
+	_, err := q.CreateUsenetFeedState(ctx, dbgen.CreateUsenetFeedStateParams{
+		FeedID: f.ID, Provider: "eternal-september", GroupName: "comp.lang.go",
+	})
+	if err != nil {
+		t.Fatalf("CreateUsenetFeedState: %v", err)
+	}
+
+	err = q.UpdateUsenetHighWater(ctx, dbgen.UpdateUsenetHighWaterParams{
+		FeedID:                 f.ID,
+		HighWaterArticleNumber: 12345,
+	})
+	if err != nil {
+		t.Fatalf("UpdateUsenetHighWater: %v", err)
+	}
+
+	state, err := q.GetUsenetFeedState(ctx, dbgen.GetUsenetFeedStateParams{
+		FeedID: f.ID,
+		UserID: &u.ID,
+	})
+	if err != nil {
+		t.Fatalf("GetUsenetFeedState after update: %v", err)
+	}
+	if state.HighWaterArticleNumber != 12345 {
+		t.Errorf("HighWaterArticleNumber = %d, want 12345", state.HighWaterArticleNumber)
+	}
+}
+
+func TestUsenetFeedState_DeleteCascade(t *testing.T) {
+	sqlDB, q := setupTestDB(t)
+	ctx := context.Background()
+
+	u := createTestUser(t, q, "ext-usenet-del", "usenet-del@example.com")
+	f := createTestFeed(t, q, "alt.test", "nntp://news.eternal-september.org/alt.test", u.ID)
+
+	_, err := q.CreateUsenetFeedState(ctx, dbgen.CreateUsenetFeedStateParams{
+		FeedID: f.ID, Provider: "eternal-september", GroupName: "alt.test",
+	})
+	if err != nil {
+		t.Fatalf("CreateUsenetFeedState: %v", err)
+	}
+
+	// Delete feed — usenet_feed_state should cascade-delete.
+	_, err = sqlDB.ExecContext(ctx, "DELETE FROM feeds WHERE id = ?", f.ID)
+	if err != nil {
+		t.Fatalf("DELETE FROM feeds: %v", err)
+	}
+
+	_, err = q.GetUsenetFeedState(ctx, dbgen.GetUsenetFeedStateParams{
+		FeedID: f.ID,
+		UserID: &u.ID,
+	})
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("GetUsenetFeedState after feed delete: got %v, want sql.ErrNoRows", err)
+	}
+}
+
+func TestUsenetFeedState_DuplicatePrevention(t *testing.T) {
+	_, q := setupTestDB(t)
+	ctx := context.Background()
+
+	u := createTestUser(t, q, "ext-usenet-dup", "usenet-dup@example.com")
+	f := createTestFeed(t, q, "alt.test", "nntp://news.eternal-september.org/alt.test", u.ID)
+
+	_, err := q.CreateUsenetFeedState(ctx, dbgen.CreateUsenetFeedStateParams{
+		FeedID: f.ID, Provider: "eternal-september", GroupName: "alt.test",
+	})
+	if err != nil {
+		t.Fatalf("CreateUsenetFeedState first: %v", err)
+	}
+
+	// Attempting to create again for the same feed_id should fail.
+	_, err = q.CreateUsenetFeedState(ctx, dbgen.CreateUsenetFeedStateParams{
+		FeedID: f.ID, Provider: "eternal-september", GroupName: "alt.test",
+	})
+	if err == nil {
+		t.Error("expected error on duplicate CreateUsenetFeedState for same feed_id, got nil")
+	}
+}
+
+func TestUsenetFeedState_GetByGroup(t *testing.T) {
+	_, q := setupTestDB(t)
+	ctx := context.Background()
+
+	u := createTestUser(t, q, "ext-usenet-grp", "usenet-grp@example.com")
+	f := createTestFeed(t, q, "alt.test", "nntp://news.eternal-september.org/alt.test", u.ID)
+
+	_, err := q.CreateUsenetFeedState(ctx, dbgen.CreateUsenetFeedStateParams{
+		FeedID: f.ID, Provider: "eternal-september", GroupName: "alt.test",
+	})
+	if err != nil {
+		t.Fatalf("CreateUsenetFeedState: %v", err)
+	}
+
+	state, err := q.GetUsenetFeedStateByGroup(ctx, dbgen.GetUsenetFeedStateByGroupParams{
+		Provider:  "eternal-september",
+		GroupName: "alt.test",
+		UserID:    &u.ID,
+	})
+	if err != nil {
+		t.Fatalf("GetUsenetFeedStateByGroup: %v", err)
+	}
+	if state.FeedID != f.ID {
+		t.Errorf("GetUsenetFeedStateByGroup FeedID = %d, want %d", state.FeedID, f.ID)
+	}
+
+	// Look up a non-existent group — should return sql.ErrNoRows.
+	_, err = q.GetUsenetFeedStateByGroup(ctx, dbgen.GetUsenetFeedStateByGroupParams{
+		Provider:  "eternal-september",
+		GroupName: "no.such.group",
+		UserID:    &u.ID,
+	})
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Errorf("GetUsenetFeedStateByGroup unknown group: got %v, want sql.ErrNoRows", err)
+	}
+}

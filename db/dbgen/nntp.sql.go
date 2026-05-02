@@ -7,7 +7,34 @@ package dbgen
 
 import (
 	"context"
+	"time"
 )
+
+const createUsenetFeedState = `-- name: CreateUsenetFeedState :one
+INSERT INTO usenet_feed_state (feed_id, provider, group_name)
+VALUES (?, ?, ?)
+RETURNING feed_id, provider, group_name, high_water_article_number, created_at, updated_at
+`
+
+type CreateUsenetFeedStateParams struct {
+	FeedID    int64  `json:"feed_id"`
+	Provider  string `json:"provider"`
+	GroupName string `json:"group_name"`
+}
+
+func (q *Queries) CreateUsenetFeedState(ctx context.Context, arg CreateUsenetFeedStateParams) (UsenetFeedState, error) {
+	row := q.db.QueryRowContext(ctx, createUsenetFeedState, arg.FeedID, arg.Provider, arg.GroupName)
+	var i UsenetFeedState
+	err := row.Scan(
+		&i.FeedID,
+		&i.Provider,
+		&i.GroupName,
+		&i.HighWaterArticleNumber,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const deleteNNTPCredentials = `-- name: DeleteNNTPCredentials :exec
 DELETE FROM nntp_credentials WHERE user_id = ?
@@ -15,6 +42,15 @@ DELETE FROM nntp_credentials WHERE user_id = ?
 
 func (q *Queries) DeleteNNTPCredentials(ctx context.Context, userID int64) error {
 	_, err := q.db.ExecContext(ctx, deleteNNTPCredentials, userID)
+	return err
+}
+
+const deleteUsenetFeedState = `-- name: DeleteUsenetFeedState :exec
+DELETE FROM usenet_feed_state WHERE feed_id = ?
+`
+
+func (q *Queries) DeleteUsenetFeedState(ctx context.Context, feedID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteUsenetFeedState, feedID)
 	return err
 }
 
@@ -34,6 +70,148 @@ func (q *Queries) GetNNTPCredentials(ctx context.Context, userID int64) (NntpCre
 		&i.KeyVersion,
 	)
 	return i, err
+}
+
+const getUsenetFeedState = `-- name: GetUsenetFeedState :one
+SELECT ufs.feed_id, ufs.provider, ufs.group_name, ufs.high_water_article_number, ufs.created_at, ufs.updated_at FROM usenet_feed_state ufs
+JOIN feeds f ON f.id = ufs.feed_id
+WHERE ufs.feed_id = ? AND f.user_id = ?
+`
+
+type GetUsenetFeedStateParams struct {
+	FeedID int64  `json:"feed_id"`
+	UserID *int64 `json:"user_id"`
+}
+
+func (q *Queries) GetUsenetFeedState(ctx context.Context, arg GetUsenetFeedStateParams) (UsenetFeedState, error) {
+	row := q.db.QueryRowContext(ctx, getUsenetFeedState, arg.FeedID, arg.UserID)
+	var i UsenetFeedState
+	err := row.Scan(
+		&i.FeedID,
+		&i.Provider,
+		&i.GroupName,
+		&i.HighWaterArticleNumber,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUsenetFeedStateByGroup = `-- name: GetUsenetFeedStateByGroup :one
+SELECT ufs.feed_id, ufs.provider, ufs.group_name, ufs.high_water_article_number, ufs.created_at, ufs.updated_at FROM usenet_feed_state ufs
+JOIN feeds f ON f.id = ufs.feed_id
+WHERE ufs.provider = ? AND ufs.group_name = ? AND f.user_id = ?
+`
+
+type GetUsenetFeedStateByGroupParams struct {
+	Provider  string `json:"provider"`
+	GroupName string `json:"group_name"`
+	UserID    *int64 `json:"user_id"`
+}
+
+// Returns the usenet_feed_state row for a specific provider+group owned by a user.
+// Used for duplicate-subscription checks.
+func (q *Queries) GetUsenetFeedStateByGroup(ctx context.Context, arg GetUsenetFeedStateByGroupParams) (UsenetFeedState, error) {
+	row := q.db.QueryRowContext(ctx, getUsenetFeedStateByGroup, arg.Provider, arg.GroupName, arg.UserID)
+	var i UsenetFeedState
+	err := row.Scan(
+		&i.FeedID,
+		&i.Provider,
+		&i.GroupName,
+		&i.HighWaterArticleNumber,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listUsenetFeeds = `-- name: ListUsenetFeeds :many
+SELECT f.id, f.name, f.url, f.feed_type, f.scraper_module, f.scraper_config, f.last_fetched_at, f.last_error, f.fetch_interval_minutes, f.created_at, f.updated_at, f.user_id, f.content_filters, f.site_url, f.skip_retention, f.consecutive_errors, ufs.group_name, ufs.provider, ufs.high_water_article_number
+FROM feeds f
+JOIN usenet_feed_state ufs ON ufs.feed_id = f.id
+WHERE f.user_id = ?
+ORDER BY f.name
+`
+
+type ListUsenetFeedsRow struct {
+	ID                     int64      `json:"id"`
+	Name                   string     `json:"name"`
+	Url                    string     `json:"url"`
+	FeedType               string     `json:"feed_type"`
+	ScraperModule          *string    `json:"scraper_module"`
+	ScraperConfig          *string    `json:"scraper_config"`
+	LastFetchedAt          *time.Time `json:"last_fetched_at"`
+	LastError              *string    `json:"last_error"`
+	FetchIntervalMinutes   *int64     `json:"fetch_interval_minutes"`
+	CreatedAt              time.Time  `json:"created_at"`
+	UpdatedAt              time.Time  `json:"updated_at"`
+	UserID                 *int64     `json:"user_id"`
+	ContentFilters         *string    `json:"content_filters"`
+	SiteUrl                string     `json:"site_url"`
+	SkipRetention          int64      `json:"skip_retention"`
+	ConsecutiveErrors      int64      `json:"consecutive_errors"`
+	GroupName              string     `json:"group_name"`
+	Provider               string     `json:"provider"`
+	HighWaterArticleNumber int64      `json:"high_water_article_number"`
+}
+
+func (q *Queries) ListUsenetFeeds(ctx context.Context, userID *int64) ([]ListUsenetFeedsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUsenetFeeds, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUsenetFeedsRow{}
+	for rows.Next() {
+		var i ListUsenetFeedsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Url,
+			&i.FeedType,
+			&i.ScraperModule,
+			&i.ScraperConfig,
+			&i.LastFetchedAt,
+			&i.LastError,
+			&i.FetchIntervalMinutes,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.UserID,
+			&i.ContentFilters,
+			&i.SiteUrl,
+			&i.SkipRetention,
+			&i.ConsecutiveErrors,
+			&i.GroupName,
+			&i.Provider,
+			&i.HighWaterArticleNumber,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateUsenetHighWater = `-- name: UpdateUsenetHighWater :exec
+UPDATE usenet_feed_state
+SET high_water_article_number = ?, updated_at = CURRENT_TIMESTAMP
+WHERE feed_id = ?
+`
+
+type UpdateUsenetHighWaterParams struct {
+	HighWaterArticleNumber int64 `json:"high_water_article_number"`
+	FeedID                 int64 `json:"feed_id"`
+}
+
+func (q *Queries) UpdateUsenetHighWater(ctx context.Context, arg UpdateUsenetHighWaterParams) error {
+	_, err := q.db.ExecContext(ctx, updateUsenetHighWater, arg.HighWaterArticleNumber, arg.FeedID)
+	return err
 }
 
 const upsertNNTPCredentials = `-- name: UpsertNNTPCredentials :one

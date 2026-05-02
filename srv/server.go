@@ -35,6 +35,7 @@ import (
 	"github.com/newscientist101/feedreader/srv/safenet"
 	"github.com/newscientist101/feedreader/srv/scrapers"
 	"github.com/newscientist101/feedreader/srv/sources"
+	"github.com/newscientist101/feedreader/srv/usenet"
 )
 
 type Server struct {
@@ -51,8 +52,9 @@ type Server struct {
 	FaviconBaseURL   string       // upstream favicon service; default Google S2
 	FaviconClient    *http.Client // HTTP client for favicon fetches; defaults to safe client
 
-	CountsCache *CountsCache // per-user article count cache
-	Sources     *sources.Registry
+	CountsCache  *CountsCache // per-user article count cache
+	Sources      *sources.Registry
+	UsenetConfig *usenet.Config // Usenet feature config; Crypto is nil when disabled
 
 	// templateCache holds pre-parsed templates keyed by page name.
 	// Populated by initTemplates(); nil disables caching (re-parse each request).
@@ -68,6 +70,13 @@ func New(dbPath, hostname string) (*Server, error) {
 	_, thisFile, _, _ := runtime.Caller(0)
 	baseDir := filepath.Dir(thisFile)
 	ctx, cancel := context.WithCancel(context.Background())
+
+	usenetCfg, err := usenet.LoadConfig()
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("usenet config: %w", err)
+	}
+
 	srv := &Server{
 		Hostname:      hostname,
 		TemplatesDir:  filepath.Join(baseDir, "templates"),
@@ -75,6 +84,7 @@ func New(dbPath, hostname string) (*Server, error) {
 		ScraperRunner: scrapers.NewRunner(),
 		CountsCache:   NewCountsCache(30 * time.Second),
 		Sources:       sources.DefaultRegistry(),
+		UsenetConfig:  usenetCfg,
 		bgCtx:         ctx,
 		bgCancel:      cancel,
 	}

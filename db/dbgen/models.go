@@ -140,6 +140,15 @@ type SeenGuid struct {
 	SeenAt time.Time `json:"seen_at"`
 }
 
+type UsenetFeedState struct {
+	FeedID                 int64     `json:"feed_id"`
+	Provider               string    `json:"provider"`
+	GroupName              string    `json:"group_name"`
+	HighWaterArticleNumber int64     `json:"high_water_article_number"`
+	CreatedAt              time.Time `json:"created_at"`
+	UpdatedAt              time.Time `json:"updated_at"`
+}
+
 type User struct {
 	ID         int64     `json:"id"`
 	ExternalID string    `json:"external_id"`
