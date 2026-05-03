@@ -658,3 +658,72 @@ func TestAPIDeleteUsenetGroup_WrongUser(t *testing.T) {
 		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
+// TestAPIPostUsenetGroups_TwoUsersShareSameGroupURL verifies that two different
+// users can each subscribe to the same newsgroup URL. The feeds table must have
+// a per-user unique constraint (UNIQUE(url, user_id)) rather than a global one.
+func TestAPIPostUsenetGroups_TwoUsersShareSameGroupURL(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx1, _ := testUser(t, s)
+	ctx2, _ := testUser2(t, s)
+
+	// Both users save credentials.
+	for _, ctx := range []context.Context{ctx1, ctx2} {
+		w := serveAPI(t, s.apiPutUsenetCredentials, "PUT", "/api/usenet/credentials",
+			`{"username":"u","password":"p"}`, ctx)
+		if w.Code != 200 {
+			t.Fatalf("PUT creds: %d", w.Code)
+		}
+	}
+
+	// User1 subscribes to comp.lang.go.
+	w := serveAPI(t, s.apiPostUsenetGroups, "POST", "/api/usenet/groups",
+		`{"group_name":"comp.lang.go"}`, ctx1)
+	if w.Code != 200 {
+		t.Fatalf("user1 add group: %d %s", w.Code, w.Body.String())
+	}
+
+	// User2 subscribes to the same group — must succeed (not a UNIQUE violation).
+	w = serveAPI(t, s.apiPostUsenetGroups, "POST", "/api/usenet/groups",
+		`{"group_name":"comp.lang.go"}`, ctx2)
+	if w.Code != 200 {
+		t.Fatalf("user2 add same group: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Each user sees only their own subscription.
+	w = serveAPI(t, s.apiGetUsenetGroups, "GET", "/api/usenet/groups", "", ctx1)
+	var items1 []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &items1); err != nil {
+		t.Fatal(err)
+	}
+	if len(items1) != 1 {
+		t.Errorf("user1 should see 1 group, got %d", len(items1))
+	}
+
+	w = serveAPI(t, s.apiGetUsenetGroups, "GET", "/api/usenet/groups", "", ctx2)
+	var items2 []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &items2); err != nil {
+		t.Fatal(err)
+	}
+	if len(items2) != 1 {
+		t.Errorf("user2 should see 1 group, got %d", len(items2))
+	}
+}
+
+// TestAPIGetUsenetCredentials_NotConfigured verifies that a user with no saved
+// credentials receives a 200 response with configured=false.
+func TestAPIGetUsenetCredentials_ErrNoRowsOK(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, _ := testUser(t, s)
+
+	w := serveAPI(t, s.apiGetUsenetCredentials, "GET", "/api/usenet/credentials", "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	body := jsonBody(t, w)
+	if body["configured"] != false {
+		t.Errorf("expected configured=false, got %v", body["configured"])
+	}
+}

@@ -214,7 +214,7 @@ func TestRunMigrations_RealMigrations(t *testing.T) {
 	if err := db.QueryRow("SELECT count(*) FROM migrations").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
-	if count != 23 {
+	if count != 24 {
 		t.Fatalf("expected 23 migrations recorded, got %d", count)
 	}
 }

@@ -9,6 +9,7 @@ import (
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"html/template"
@@ -3695,6 +3696,11 @@ func (s *Server) apiGetUsenetCredentials(w http.ResponseWriter, r *http.Request)
 
 	cred, err := q.GetNNTPCredentials(r.Context(), user.ID)
 	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			slog.Error("usenet credential lookup failed", "error", err, "user_id", user.ID)
+			jsonError(w, "Failed to retrieve credential status", 500)
+			return
+		}
 		// No row means not configured; return empty status.
 		jsonResponse(w, map[string]any{
 			"enabled":     true,
@@ -3859,6 +3865,11 @@ func (s *Server) apiPostUsenetGroups(w http.ResponseWriter, r *http.Request) {
 
 	// Require credentials to be configured before adding a group.
 	if _, err := q.GetNNTPCredentials(ctx, user.ID); err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			slog.Error("usenet credential lookup failed", "error", err, "user_id", user.ID)
+			jsonError(w, "Failed to retrieve credential status", 500)
+			return
+		}
 		jsonError(w, "Usenet credentials must be configured before adding a newsgroup", 400)
 		return
 	}
