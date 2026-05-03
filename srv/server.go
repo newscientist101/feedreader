@@ -31,6 +31,7 @@ import (
 	"github.com/newscientist101/feedreader/srv/email"
 	"github.com/newscientist101/feedreader/srv/export"
 	"github.com/newscientist101/feedreader/srv/feeds"
+	"github.com/newscientist101/feedreader/srv/nntp"
 	"github.com/newscientist101/feedreader/srv/opml"
 	"github.com/newscientist101/feedreader/srv/safenet"
 	"github.com/newscientist101/feedreader/srv/scrapers"
@@ -263,6 +264,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/usenet/credentials", s.apiGetUsenetCredentials)
 	mux.HandleFunc("PUT /api/usenet/credentials", s.apiPutUsenetCredentials)
 	mux.HandleFunc("DELETE /api/usenet/credentials", s.apiDeleteUsenetCredentials)
+
+	// Usenet newsgroup subscription endpoints
+	mux.HandleFunc("GET /api/usenet/groups", s.apiGetUsenetGroups)
+	mux.HandleFunc("POST /api/usenet/groups", s.apiPostUsenetGroups)
+	mux.HandleFunc("DELETE /api/usenet/groups/{feed_id}", s.apiDeleteUsenetGroup)
 
 	// AI scraper generation
 	mux.HandleFunc("GET /api/ai/status", s.apiAIStatus)
@@ -3782,6 +3788,173 @@ func (s *Server) apiDeleteUsenetCredentials(w http.ResponseWriter, r *http.Reque
 	}
 
 	slog.Info("usenet credentials deleted", "user_id", user.ID)
+	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+// apiGetUsenetGroups returns the list of newsgroups the current user is
+// subscribed to. Each entry includes the feed ID, name, group name, provider,
+// and fetch state metadata.
+func (s *Server) apiGetUsenetGroups(w http.ResponseWriter, r *http.Request) {
+	if !s.UsenetConfig.Enabled {
+		jsonError(w, "Usenet is not enabled on this server", 503)
+		return
+	}
+
+	user := GetUser(r.Context())
+	q := dbgen.New(s.DB)
+
+	usenetFeeds, err := q.ListUsenetFeeds(r.Context(), &user.ID)
+	if err != nil {
+		slog.Error("usenet list groups failed", "error", err, "user_id", user.ID)
+		jsonError(w, "Failed to list newsgroups", 500)
+		return
+	}
+
+	type groupItem struct {
+		FeedID    int64  `json:"feed_id"`
+		Name      string `json:"name"`
+		GroupName string `json:"group_name"`
+		Provider  string `json:"provider"`
+	}
+	items := make([]groupItem, 0, len(usenetFeeds))
+	for i := range usenetFeeds {
+		f := &usenetFeeds[i]
+		items = append(items, groupItem{
+			FeedID:    f.ID,
+			Name:      f.Name,
+			GroupName: f.GroupName,
+			Provider:  f.Provider,
+		})
+	}
+	jsonResponse(w, items)
+}
+
+// apiPostUsenetGroups subscribes the current user to a newsgroup.
+// Body: {"group_name": "...", "category_id": 0}
+// Requires Usenet to be enabled and credentials to be configured.
+func (s *Server) apiPostUsenetGroups(w http.ResponseWriter, r *http.Request) {
+	if !s.UsenetConfig.Enabled {
+		jsonError(w, "Usenet is not enabled on this server", 503)
+		return
+	}
+
+	var body struct {
+		GroupName  string `json:"group_name"`
+		CategoryID int64  `json:"category_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		jsonError(w, "Invalid request body", 400)
+		return
+	}
+
+	normName, err := usenet.ValidateGroupName(body.GroupName)
+	if err != nil {
+		jsonError(w, "Invalid newsgroup name: "+err.Error(), 400)
+		return
+	}
+
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	// Require credentials to be configured before adding a group.
+	if _, err := q.GetNNTPCredentials(ctx, user.ID); err != nil {
+		jsonError(w, "Usenet credentials must be configured before adding a newsgroup", 400)
+		return
+	}
+
+	// Reject duplicate subscriptions.
+	if _, err := q.GetUsenetFeedStateByGroup(ctx, dbgen.GetUsenetFeedStateByGroupParams{
+		Provider:  nntp.ProviderName,
+		GroupName: normName,
+		UserID:    &user.ID,
+	}); err == nil {
+		jsonError(w, "Already subscribed to "+normName, 409)
+		return
+	}
+
+	// Construct the canonical feed URL.
+	feedURL := "nntp://" + nntp.EternalSeptemberHost + "/" + normName
+
+	feed, err := q.CreateFeed(ctx, dbgen.CreateFeedParams{
+		Name:     normName,
+		Url:      feedURL,
+		FeedType: "nntp",
+		UserID:   &user.ID,
+	})
+	if err != nil {
+		slog.Error("usenet create feed failed", "error", err, "user_id", user.ID, "group", normName)
+		jsonError(w, "Failed to create newsgroup feed", 500)
+		return
+	}
+
+	_, err = q.CreateUsenetFeedState(ctx, dbgen.CreateUsenetFeedStateParams{
+		FeedID:    feed.ID,
+		Provider:  nntp.ProviderName,
+		GroupName: normName,
+	})
+	if err != nil {
+		// Roll back the feed row if state creation fails.
+		_ = q.DeleteFeed(ctx, dbgen.DeleteFeedParams{ID: feed.ID, UserID: &user.ID})
+		slog.Error("usenet create feed state failed", "error", err, "user_id", user.ID, "group", normName)
+		jsonError(w, "Failed to initialise newsgroup state", 500)
+		return
+	}
+
+	if body.CategoryID > 0 {
+		if err := q.AddFeedToCategory(ctx, dbgen.AddFeedToCategoryParams{
+			FeedID:     feed.ID,
+			CategoryID: body.CategoryID,
+		}); err != nil {
+			slog.Warn("usenet set feed category failed", "error", err, "feed_id", feed.ID)
+		}
+	}
+
+	slog.Info("usenet group added", "user_id", user.ID, "group", normName, "feed_id", feed.ID)
+	jsonResponse(w, map[string]any{
+		"feed_id":    feed.ID,
+		"name":       feed.Name,
+		"group_name": normName,
+		"provider":   nntp.ProviderName,
+	})
+}
+
+// apiDeleteUsenetGroup removes a newsgroup subscription for the current user.
+// This deletes the feed row; cascade-deletes handle the usenet_feed_state row.
+func (s *Server) apiDeleteUsenetGroup(w http.ResponseWriter, r *http.Request) {
+	if !s.UsenetConfig.Enabled {
+		jsonError(w, "Usenet is not enabled on this server", 503)
+		return
+	}
+
+	feedID, err := strconv.ParseInt(r.PathValue("feed_id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid feed ID", 400)
+		return
+	}
+
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	// Verify the feed belongs to this user and is an NNTP feed.
+	// GetUsenetFeedState already joins feeds to scope by user.
+	if _, err := q.GetUsenetFeedState(ctx, dbgen.GetUsenetFeedStateParams{
+		FeedID: feedID,
+		UserID: &user.ID,
+	}); err != nil {
+		jsonError(w, "Newsgroup not found", 404)
+		return
+	}
+
+	if err := q.DeleteFeed(ctx, dbgen.DeleteFeedParams{ID: feedID, UserID: &user.ID}); err != nil {
+		slog.Error("usenet delete feed failed", "error", err, "user_id", user.ID, "feed_id", feedID)
+		jsonError(w, "Failed to remove newsgroup", 500)
+		return
+	}
+
+	s.CountsCache.Invalidate(user.ID)
+	slog.Info("usenet group removed", "user_id", user.ID, "feed_id", feedID)
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
 

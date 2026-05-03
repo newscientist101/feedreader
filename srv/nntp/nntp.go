@@ -387,6 +387,114 @@ func (c *Conn) Overview(low, high int64) ([]OverviewRow, error) {
 	return rows, nil
 }
 
+// Article holds a parsed NNTP article: the decoded headers and raw body text.
+type Article struct {
+	// Headers is a map of header name (canonical title case) to the decoded
+	// value. Folded headers (continuation lines) are joined with a single space.
+	Headers map[string]string
+	// Body is the raw body text after dot-unstuffing. Lines are joined with \n.
+	// For text/plain content this is the readable article body.
+	Body string
+}
+
+// parseArticleLines converts the raw lines from a multiline NNTP response
+// (already dot-unstuffed) into an Article. The header section ends at the
+// first blank line; everything after is the body.
+func parseArticleLines(lines []string) (*Article, error) {
+	a := &Article{
+		Headers: make(map[string]string),
+	}
+
+	i := 0
+	// Parse headers.
+	var lastName string
+	for i < len(lines) {
+		line := lines[i]
+		i++
+		if line == "" {
+			// Blank line separates headers from body.
+			break
+		}
+		// Folded header: line starting with space or tab is a continuation.
+		if (line[0] == ' ' || line[0] == '\t') && lastName != "" {
+			a.Headers[lastName] += " " + strings.TrimSpace(line)
+			continue
+		}
+		// Normal header: "Name: value"
+		before, after, ok := strings.Cut(line, ":")
+		if !ok {
+			// Malformed header line — skip.
+			lastName = ""
+			continue
+		}
+		name := strings.TrimSpace(before)
+		value := strings.TrimSpace(after)
+		if name == "" {
+			lastName = ""
+			continue
+		}
+		// Normalize header name to title case (e.g. "message-id" → "Message-Id").
+		name = toTitleCase(name)
+		a.Headers[name] = value
+		lastName = name
+	}
+
+	// Everything after the blank line is the body.
+	a.Body = strings.Join(lines[i:], "\n")
+	return a, nil
+}
+
+// toTitleCase converts a header name to title case: each word (split by "-")
+// is capitalised. E.g. "message-id" → "Message-Id", "SUBJECT" → "Subject".
+func toTitleCase(s string) string {
+	parts := strings.Split(strings.ToLower(s), "-")
+	for j, p := range parts {
+		if p != "" {
+			parts[j] = strings.ToUpper(p[:1]) + p[1:]
+		}
+	}
+	return strings.Join(parts, "-")
+}
+
+// FetchArticle sends an ARTICLE command for the given article number and
+// returns the parsed headers and body. It returns ErrArticleNotFound when
+// the server responds with 423 (no article with that number in the group)
+// or 430 (no such article). The caller must have already selected a group
+// with SelectGroup.
+func (c *Conn) FetchArticle(articleNumber int64) (*Article, error) {
+	return c.fetchArticleCmd(fmt.Sprintf("ARTICLE %d", articleNumber))
+}
+
+// FetchArticleByID sends an ARTICLE command for the given message-id
+// (including angle brackets, e.g. "<msg@host>") and returns the parsed
+// headers and body.
+func (c *Conn) FetchArticleByID(msgID string) (*Article, error) {
+	return c.fetchArticleCmd("ARTICLE " + msgID)
+}
+
+// fetchArticleCmd sends an ARTICLE command and parses the response.
+func (c *Conn) fetchArticleCmd(cmd string) (*Article, error) {
+	resp, err := c.Command(cmd)
+	if err != nil {
+		return nil, err
+	}
+	switch resp.Code {
+	case 220:
+		// "220 n message-id Article follows" — read the multiline body.
+	case 423, 430:
+		return nil, ErrArticleNotFound
+	default:
+		return nil, fmt.Errorf("nntp: ARTICLE response %d: %s", resp.Code, resp.Text)
+	}
+
+	lines, err := c.ReadMultiLine()
+	if err != nil {
+		return nil, fmt.Errorf("nntp: ARTICLE read body: %w", err)
+	}
+
+	return parseArticleLines(lines)
+}
+
 // Quit sends the QUIT command and closes the connection.
 // Errors from the server response are ignored since we're closing anyway.
 func (c *Conn) Quit() error {

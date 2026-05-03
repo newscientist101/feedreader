@@ -305,6 +305,153 @@ func TestOverview_NonNumericBytesAndLines(t *testing.T) {
 	assert.Equal(t, int64(0), rows[0].Lines)
 }
 
+// --- FetchArticle ---
+
+func TestFetchArticle_Basic(t *testing.T) {
+	// Simple article with Subject, From, and a two-line body.
+	server := "220 100 <msg100@host> Article follows\r\n" +
+		"Subject: Hello World\r\n" +
+		"From: Alice <a@example.com>\r\n" +
+		"Message-Id: <msg100@host>\r\n" +
+		"\r\n" +
+		"First line of body.\r\n" +
+		"Second line of body.\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(server)
+	art, err := conn.FetchArticle(100)
+	require.NoError(t, err)
+	require.NotNil(t, art)
+	assert.Equal(t, "Hello World", art.Headers["Subject"])
+	assert.Equal(t, "Alice <a@example.com>", art.Headers["From"])
+	assert.Equal(t, "<msg100@host>", art.Headers["Message-Id"])
+	assert.Equal(t, "First line of body.\nSecond line of body.", art.Body)
+}
+
+func TestFetchArticle_ArticleNotFound_423(t *testing.T) {
+	conn, _ := newFakeConn("423 No article with that number\r\n")
+	_, err := conn.FetchArticle(9999)
+	require.ErrorIs(t, err, nntp.ErrArticleNotFound)
+}
+
+func TestFetchArticle_ArticleNotFound_430(t *testing.T) {
+	conn, _ := newFakeConn("430 No such article\r\n")
+	_, err := conn.FetchArticle(42)
+	require.ErrorIs(t, err, nntp.ErrArticleNotFound)
+}
+
+func TestFetchArticle_UnexpectedCode(t *testing.T) {
+	conn, _ := newFakeConn("500 Unknown command\r\n")
+	_, err := conn.FetchArticle(1)
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, nntp.ErrArticleNotFound)
+}
+
+func TestFetchArticle_DotStuffedBody(t *testing.T) {
+	// A line that starts with ".." in the body should be dot-unstuffed to ".".
+	server := "220 5 <msg5@host> Article follows\r\n" +
+		"Subject: Dot test\r\n" +
+		"\r\n" +
+		"Normal line.\r\n" +
+		"..This line started with a dot.\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(server)
+	art, err := conn.FetchArticle(5)
+	require.NoError(t, err)
+	assert.Equal(t, "Normal line.\n.This line started with a dot.", art.Body)
+}
+
+func TestFetchArticle_FoldedHeader(t *testing.T) {
+	// A header continuation line (starts with whitespace) should be joined.
+	server := "220 7 <msg7@host> Article follows\r\n" +
+		"Subject: Long subject\r\n" +
+		" continued here\r\n" +
+		"\r\n" +
+		"Body.\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(server)
+	art, err := conn.FetchArticle(7)
+	require.NoError(t, err)
+	assert.Equal(t, "Long subject continued here", art.Headers["Subject"])
+	assert.Equal(t, "Body.", art.Body)
+}
+
+func TestFetchArticle_TabFoldedHeader(t *testing.T) {
+	// Tab-indented continuation lines are also valid folding.
+	server := "220 8 <msg8@host> Article follows\r\n" +
+		"References: <ref1@host>\r\n" +
+		"\t<ref2@host>\r\n" +
+		"\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(server)
+	art, err := conn.FetchArticle(8)
+	require.NoError(t, err)
+	assert.Equal(t, "<ref1@host> <ref2@host>", art.Headers["References"])
+	assert.Equal(t, "", art.Body)
+}
+
+func TestFetchArticle_HeaderTitleCase(t *testing.T) {
+	// Headers should be normalised to title case regardless of input casing.
+	server := "220 9 <msg9@host> Article follows\r\n" +
+		"MESSAGE-ID: <msg9@host>\r\n" +
+		"content-type: text/plain\r\n" +
+		"\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(server)
+	art, err := conn.FetchArticle(9)
+	require.NoError(t, err)
+	assert.Equal(t, "<msg9@host>", art.Headers["Message-Id"])
+	assert.Equal(t, "text/plain", art.Headers["Content-Type"])
+}
+
+func TestFetchArticle_EmptyBody(t *testing.T) {
+	// An article with headers but no body (blank line then dot immediately).
+	server := "220 3 <msg3@host> Article follows\r\n" +
+		"Subject: No body\r\n" +
+		"\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(server)
+	art, err := conn.FetchArticle(3)
+	require.NoError(t, err)
+	assert.Equal(t, "No body", art.Headers["Subject"])
+	assert.Equal(t, "", art.Body)
+}
+
+func TestFetchArticle_MalformedHeaderSkipped(t *testing.T) {
+	// A header line without ":" is skipped; parsing continues.
+	server := "220 4 <msg4@host> Article follows\r\n" +
+		"Subject: Good header\r\n" +
+		"this line has no colon\r\n" +
+		"From: Bob\r\n" +
+		"\r\n" +
+		"Body.\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(server)
+	art, err := conn.FetchArticle(4)
+	require.NoError(t, err)
+	assert.Equal(t, "Good header", art.Headers["Subject"])
+	assert.Equal(t, "Bob", art.Headers["From"])
+	assert.Equal(t, "Body.", art.Body)
+}
+
+func TestFetchArticleByID_Success(t *testing.T) {
+	server := "220 0 <specific@host> Article follows\r\n" +
+		"Subject: By ID\r\n" +
+		"\r\n" +
+		"Content.\r\n" +
+		".\r\n"
+	conn, rwc := newFakeConn(server)
+	art, err := conn.FetchArticleByID("<specific@host>")
+	require.NoError(t, err)
+	assert.Equal(t, "By ID", art.Headers["Subject"])
+	assert.Contains(t, rwc.w.String(), "ARTICLE <specific@host>\r\n")
+}
+
+func TestFetchArticleByID_NotFound(t *testing.T) {
+	conn, _ := newFakeConn("430 No such article\r\n")
+	_, err := conn.FetchArticleByID("<nosuch@host>")
+	require.ErrorIs(t, err, nntp.ErrArticleNotFound)
+}
+
 // --- Constants ---
 
 func TestProviderConstants(t *testing.T) {

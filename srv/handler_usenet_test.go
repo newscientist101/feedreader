@@ -3,6 +3,7 @@ package srv
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"testing"
 
 	"github.com/newscientist101/feedreader/db/dbgen"
@@ -324,5 +325,336 @@ func TestAPIDeleteUsenetCredentials_DeletesCredentials(t *testing.T) {
 	}
 	if body["configured"] != false {
 		t.Errorf("expected configured=false after delete, got %v", body["configured"])
+	}
+}
+
+// --- GET /api/usenet/groups ---
+
+func TestAPIGetUsenetGroups_Disabled(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	s.UsenetConfig = &usenet.Config{Enabled: false}
+	ctx, _ := testUser(t, s)
+
+	w := serveAPI(t, s.apiGetUsenetGroups, "GET", "/api/usenet/groups", "", ctx)
+	if w.Code != 503 {
+		t.Fatalf("expected 503, got %d", w.Code)
+	}
+}
+
+func TestAPIGetUsenetGroups_Empty(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, _ := testUser(t, s)
+
+	w := serveAPI(t, s.apiGetUsenetGroups, "GET", "/api/usenet/groups", "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var items []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &items); err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 0 {
+		t.Errorf("expected empty list, got %d items", len(items))
+	}
+}
+
+func TestAPIGetUsenetGroups_ReturnsSubscribed(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, _ := testUser(t, s)
+
+	// Save credentials first so POST succeeds.
+	w := serveAPI(t, s.apiPutUsenetCredentials, "PUT", "/api/usenet/credentials",
+		`{"username":"u","password":"p"}`, ctx)
+	if w.Code != 200 {
+		t.Fatalf("PUT creds failed: %d", w.Code)
+	}
+
+	// Add a newsgroup.
+	w = serveAPI(t, s.apiPostUsenetGroups, "POST", "/api/usenet/groups",
+		`{"group_name":"comp.lang.go"}`, ctx)
+	if w.Code != 200 {
+		t.Fatalf("POST group failed: %d %s", w.Code, w.Body.String())
+	}
+
+	w = serveAPI(t, s.apiGetUsenetGroups, "GET", "/api/usenet/groups", "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("GET groups failed: %d", w.Code)
+	}
+	var items []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &items); err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 group, got %d", len(items))
+	}
+	if items[0]["group_name"] != "comp.lang.go" {
+		t.Errorf("expected group_name=comp.lang.go, got %v", items[0]["group_name"])
+	}
+}
+
+// --- POST /api/usenet/groups ---
+
+func TestAPIPostUsenetGroups_Disabled(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	s.UsenetConfig = &usenet.Config{Enabled: false}
+	ctx, _ := testUser(t, s)
+
+	w := serveAPI(t, s.apiPostUsenetGroups, "POST", "/api/usenet/groups",
+		`{"group_name":"comp.lang.go"}`, ctx)
+	if w.Code != 503 {
+		t.Fatalf("expected 503, got %d", w.Code)
+	}
+}
+
+func TestAPIPostUsenetGroups_NoCredentials(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, _ := testUser(t, s)
+
+	// No credentials saved — should fail.
+	w := serveAPI(t, s.apiPostUsenetGroups, "POST", "/api/usenet/groups",
+		`{"group_name":"comp.lang.go"}`, ctx)
+	if w.Code != 400 {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAPIPostUsenetGroups_InvalidName(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, _ := testUser(t, s)
+
+	w := serveAPI(t, s.apiPostUsenetGroups, "POST", "/api/usenet/groups",
+		`{"group_name":"alt.binaries.pictures"}`, ctx)
+	if w.Code != 400 {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAPIPostUsenetGroups_Success(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, _ := testUser(t, s)
+
+	// Credentials required.
+	w := serveAPI(t, s.apiPutUsenetCredentials, "PUT", "/api/usenet/credentials",
+		`{"username":"alice","password":"secret"}`, ctx)
+	if w.Code != 200 {
+		t.Fatalf("PUT creds: %d", w.Code)
+	}
+
+	w = serveAPI(t, s.apiPostUsenetGroups, "POST", "/api/usenet/groups",
+		`{"group_name":"comp.lang.go"}`, ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	body := jsonBody(t, w)
+	if body["group_name"] != "comp.lang.go" {
+		t.Errorf("expected group_name=comp.lang.go, got %v", body["group_name"])
+	}
+	if body["feed_id"] == nil {
+		t.Error("expected feed_id in response")
+	}
+}
+
+func TestAPIPostUsenetGroups_NormalizesName(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, _ := testUser(t, s)
+
+	w := serveAPI(t, s.apiPutUsenetCredentials, "PUT", "/api/usenet/credentials",
+		`{"username":"u","password":"p"}`, ctx)
+	if w.Code != 200 {
+		t.Fatalf("PUT creds: %d", w.Code)
+	}
+
+	// Mixed case should be normalised to lowercase.
+	w = serveAPI(t, s.apiPostUsenetGroups, "POST", "/api/usenet/groups",
+		`{"group_name":"  Comp.Lang.Go  "}`, ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	body := jsonBody(t, w)
+	if body["group_name"] != "comp.lang.go" {
+		t.Errorf("expected normalised group_name, got %v", body["group_name"])
+	}
+}
+
+func TestAPIPostUsenetGroups_Duplicate(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, _ := testUser(t, s)
+
+	w := serveAPI(t, s.apiPutUsenetCredentials, "PUT", "/api/usenet/credentials",
+		`{"username":"u","password":"p"}`, ctx)
+	if w.Code != 200 {
+		t.Fatalf("PUT creds: %d", w.Code)
+	}
+
+	// Add once.
+	w = serveAPI(t, s.apiPostUsenetGroups, "POST", "/api/usenet/groups",
+		`{"group_name":"sci.physics"}`, ctx)
+	if w.Code != 200 {
+		t.Fatalf("first add: %d", w.Code)
+	}
+
+	// Add again — should be 409.
+	w = serveAPI(t, s.apiPostUsenetGroups, "POST", "/api/usenet/groups",
+		`{"group_name":"sci.physics"}`, ctx)
+	if w.Code != 409 {
+		t.Fatalf("expected 409 on duplicate, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAPIPostUsenetGroups_InvalidBody(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, _ := testUser(t, s)
+
+	w := serveAPI(t, s.apiPostUsenetGroups, "POST", "/api/usenet/groups", "not-json", ctx)
+	if w.Code != 400 {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestAPIPostUsenetGroups_UserIsolation(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx1, _ := testUser(t, s)
+	ctx2, _ := testUser2(t, s)
+
+	// Both users save credentials.
+	for _, ctx := range []context.Context{ctx1, ctx2} {
+		w := serveAPI(t, s.apiPutUsenetCredentials, "PUT", "/api/usenet/credentials",
+			`{"username":"u","password":"p"}`, ctx)
+		if w.Code != 200 {
+			t.Fatalf("PUT creds: %d", w.Code)
+		}
+	}
+
+	// User1 subscribes.
+	w := serveAPI(t, s.apiPostUsenetGroups, "POST", "/api/usenet/groups",
+		`{"group_name":"comp.lang.go"}`, ctx1)
+	if w.Code != 200 {
+		t.Fatalf("user1 add: %d", w.Code)
+	}
+
+	// User2 should see an empty list.
+	w = serveAPI(t, s.apiGetUsenetGroups, "GET", "/api/usenet/groups", "", ctx2)
+	if w.Code != 200 {
+		t.Fatalf("user2 GET: %d", w.Code)
+	}
+	var items []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &items); err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 0 {
+		t.Errorf("user2 should see no groups, got %d", len(items))
+	}
+}
+
+// --- DELETE /api/usenet/groups/{feed_id} ---
+
+func TestAPIDeleteUsenetGroup_Disabled(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	s.UsenetConfig = &usenet.Config{Enabled: false}
+	ctx, _ := testUser(t, s)
+
+	w := serveAPI(t, s.apiDeleteUsenetGroup, "DELETE", "/api/usenet/groups/1", "", ctx)
+	if w.Code != 503 {
+		t.Fatalf("expected 503, got %d", w.Code)
+	}
+}
+
+func TestAPIDeleteUsenetGroup_NotFound(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, _ := testUser(t, s)
+
+	// No feed exists with this ID.
+	w := serveMux(t, "DELETE /api/usenet/groups/{feed_id}", s.apiDeleteUsenetGroup,
+		"DELETE", "/api/usenet/groups/9999", "", ctx)
+	if w.Code != 404 {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAPIDeleteUsenetGroup_Success(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, _ := testUser(t, s)
+
+	// Save credentials and add a group.
+	w := serveAPI(t, s.apiPutUsenetCredentials, "PUT", "/api/usenet/credentials",
+		`{"username":"u","password":"p"}`, ctx)
+	if w.Code != 200 {
+		t.Fatalf("PUT creds: %d", w.Code)
+	}
+	w = serveAPI(t, s.apiPostUsenetGroups, "POST", "/api/usenet/groups",
+		`{"group_name":"comp.lang.go"}`, ctx)
+	if w.Code != 200 {
+		t.Fatalf("POST group: %d", w.Code)
+	}
+	postBody := jsonBody(t, w)
+	feedIDFloat, ok := postBody["feed_id"].(float64)
+	if !ok {
+		t.Fatalf("feed_id not in response")
+	}
+	feedIDStr := strconv.Itoa(int(feedIDFloat))
+
+	// Delete it.
+	w = serveMux(t, "DELETE /api/usenet/groups/{feed_id}", s.apiDeleteUsenetGroup,
+		"DELETE", "/api/usenet/groups/"+feedIDStr, "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("DELETE: %d %s", w.Code, w.Body.String())
+	}
+	body := jsonBody(t, w)
+	if body["status"] != "ok" {
+		t.Errorf("expected status=ok, got %v", body["status"])
+	}
+
+	// GET should return empty list.
+	w = serveAPI(t, s.apiGetUsenetGroups, "GET", "/api/usenet/groups", "", ctx)
+	var items []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &items); err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 0 {
+		t.Errorf("expected empty list after delete, got %d", len(items))
+	}
+}
+
+func TestAPIDeleteUsenetGroup_WrongUser(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx1, _ := testUser(t, s)
+	ctx2, _ := testUser2(t, s)
+
+	// User1 adds group.
+	w := serveAPI(t, s.apiPutUsenetCredentials, "PUT", "/api/usenet/credentials",
+		`{"username":"u","password":"p"}`, ctx1)
+	if w.Code != 200 {
+		t.Fatalf("PUT creds: %d", w.Code)
+	}
+	w = serveAPI(t, s.apiPostUsenetGroups, "POST", "/api/usenet/groups",
+		`{"group_name":"comp.lang.go"}`, ctx1)
+	if w.Code != 200 {
+		t.Fatalf("POST group: %d", w.Code)
+	}
+	postBody := jsonBody(t, w)
+	feedIDFloat := postBody["feed_id"].(float64)
+	feedIDStr := strconv.Itoa(int(feedIDFloat))
+
+	// User2 cannot delete user1's group.
+	w = serveMux(t, "DELETE /api/usenet/groups/{feed_id}", s.apiDeleteUsenetGroup,
+		"DELETE", "/api/usenet/groups/"+feedIDStr, "", ctx2)
+	if w.Code != 404 {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
 	}
 }
