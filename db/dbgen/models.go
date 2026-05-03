@@ -140,6 +140,19 @@ type SeenGuid struct {
 	SeenAt time.Time `json:"seen_at"`
 }
 
+type UsenetArticleMetum struct {
+	ArticleID        int64     `json:"article_id"`
+	FeedID           int64     `json:"feed_id"`
+	MessageID        string    `json:"message_id"`
+	ReferencesHeader *string   `json:"references_header"`
+	ParentMessageID  *string   `json:"parent_message_id"`
+	RootMessageID    string    `json:"root_message_id"`
+	GroupName        string    `json:"group_name"`
+	ArticleNumber    int64     `json:"article_number"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
 type UsenetFeedState struct {
 	FeedID                 int64     `json:"feed_id"`
 	Provider               string    `json:"provider"`

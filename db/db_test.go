@@ -196,7 +196,7 @@ func TestRunMigrations_RealMigrations(t *testing.T) {
 	}
 
 	// Verify key tables exist
-	for _, table := range []string{"migrations", "feeds", "articles", "users", "categories", "queue_articles", "user_settings"} {
+	for _, table := range []string{"migrations", "feeds", "articles", "users", "categories", "queue_articles", "user_settings", "nntp_credentials", "usenet_feed_state", "usenet_article_meta"} {
 		var name string
 		err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&name)
 		if err != nil {
@@ -214,8 +214,8 @@ func TestRunMigrations_RealMigrations(t *testing.T) {
 	if err := db.QueryRow("SELECT count(*) FROM migrations").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
-	if count != 22 {
-		t.Fatalf("expected 22 migrations recorded, got %d", count)
+	if count != 23 {
+		t.Fatalf("expected 23 migrations recorded, got %d", count)
 	}
 }
 

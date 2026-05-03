@@ -45,6 +45,15 @@ func (q *Queries) DeleteNNTPCredentials(ctx context.Context, userID int64) error
 	return err
 }
 
+const deleteUsenetArticleMeta = `-- name: DeleteUsenetArticleMeta :exec
+DELETE FROM usenet_article_meta WHERE article_id = ?
+`
+
+func (q *Queries) DeleteUsenetArticleMeta(ctx context.Context, articleID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteUsenetArticleMeta, articleID)
+	return err
+}
+
 const deleteUsenetFeedState = `-- name: DeleteUsenetFeedState :exec
 DELETE FROM usenet_feed_state WHERE feed_id = ?
 `
@@ -68,6 +77,84 @@ func (q *Queries) GetNNTPCredentials(ctx context.Context, userID int64) (NntpCre
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.KeyVersion,
+	)
+	return i, err
+}
+
+const getUsenetArticleMeta = `-- name: GetUsenetArticleMeta :one
+SELECT article_id, feed_id, message_id, references_header, parent_message_id, root_message_id, group_name, article_number, created_at, updated_at FROM usenet_article_meta WHERE article_id = ?
+`
+
+func (q *Queries) GetUsenetArticleMeta(ctx context.Context, articleID int64) (UsenetArticleMetum, error) {
+	row := q.db.QueryRowContext(ctx, getUsenetArticleMeta, articleID)
+	var i UsenetArticleMetum
+	err := row.Scan(
+		&i.ArticleID,
+		&i.FeedID,
+		&i.MessageID,
+		&i.ReferencesHeader,
+		&i.ParentMessageID,
+		&i.RootMessageID,
+		&i.GroupName,
+		&i.ArticleNumber,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUsenetArticleMetaByArticleNumber = `-- name: GetUsenetArticleMetaByArticleNumber :one
+SELECT article_id, feed_id, message_id, references_header, parent_message_id, root_message_id, group_name, article_number, created_at, updated_at FROM usenet_article_meta
+WHERE feed_id = ? AND article_number = ?
+`
+
+type GetUsenetArticleMetaByArticleNumberParams struct {
+	FeedID        int64 `json:"feed_id"`
+	ArticleNumber int64 `json:"article_number"`
+}
+
+func (q *Queries) GetUsenetArticleMetaByArticleNumber(ctx context.Context, arg GetUsenetArticleMetaByArticleNumberParams) (UsenetArticleMetum, error) {
+	row := q.db.QueryRowContext(ctx, getUsenetArticleMetaByArticleNumber, arg.FeedID, arg.ArticleNumber)
+	var i UsenetArticleMetum
+	err := row.Scan(
+		&i.ArticleID,
+		&i.FeedID,
+		&i.MessageID,
+		&i.ReferencesHeader,
+		&i.ParentMessageID,
+		&i.RootMessageID,
+		&i.GroupName,
+		&i.ArticleNumber,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUsenetArticleMetaByMessageID = `-- name: GetUsenetArticleMetaByMessageID :one
+SELECT article_id, feed_id, message_id, references_header, parent_message_id, root_message_id, group_name, article_number, created_at, updated_at FROM usenet_article_meta
+WHERE feed_id = ? AND message_id = ?
+`
+
+type GetUsenetArticleMetaByMessageIDParams struct {
+	FeedID    int64  `json:"feed_id"`
+	MessageID string `json:"message_id"`
+}
+
+func (q *Queries) GetUsenetArticleMetaByMessageID(ctx context.Context, arg GetUsenetArticleMetaByMessageIDParams) (UsenetArticleMetum, error) {
+	row := q.db.QueryRowContext(ctx, getUsenetArticleMetaByMessageID, arg.FeedID, arg.MessageID)
+	var i UsenetArticleMetum
+	err := row.Scan(
+		&i.ArticleID,
+		&i.FeedID,
+		&i.MessageID,
+		&i.ReferencesHeader,
+		&i.ParentMessageID,
+		&i.RootMessageID,
+		&i.GroupName,
+		&i.ArticleNumber,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -123,6 +210,92 @@ func (q *Queries) GetUsenetFeedStateByGroup(ctx context.Context, arg GetUsenetFe
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const insertUsenetArticleMeta = `-- name: InsertUsenetArticleMeta :one
+INSERT INTO usenet_article_meta (
+  article_id, feed_id, message_id, references_header,
+  parent_message_id, root_message_id, group_name, article_number
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING article_id, feed_id, message_id, references_header, parent_message_id, root_message_id, group_name, article_number, created_at, updated_at
+`
+
+type InsertUsenetArticleMetaParams struct {
+	ArticleID        int64   `json:"article_id"`
+	FeedID           int64   `json:"feed_id"`
+	MessageID        string  `json:"message_id"`
+	ReferencesHeader *string `json:"references_header"`
+	ParentMessageID  *string `json:"parent_message_id"`
+	RootMessageID    string  `json:"root_message_id"`
+	GroupName        string  `json:"group_name"`
+	ArticleNumber    int64   `json:"article_number"`
+}
+
+func (q *Queries) InsertUsenetArticleMeta(ctx context.Context, arg InsertUsenetArticleMetaParams) (UsenetArticleMetum, error) {
+	row := q.db.QueryRowContext(ctx, insertUsenetArticleMeta,
+		arg.ArticleID,
+		arg.FeedID,
+		arg.MessageID,
+		arg.ReferencesHeader,
+		arg.ParentMessageID,
+		arg.RootMessageID,
+		arg.GroupName,
+		arg.ArticleNumber,
+	)
+	var i UsenetArticleMetum
+	err := row.Scan(
+		&i.ArticleID,
+		&i.FeedID,
+		&i.MessageID,
+		&i.ReferencesHeader,
+		&i.ParentMessageID,
+		&i.RootMessageID,
+		&i.GroupName,
+		&i.ArticleNumber,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listUsenetArticleMetaByThread = `-- name: ListUsenetArticleMetaByThread :many
+SELECT article_id, feed_id, message_id, references_header, parent_message_id, root_message_id, group_name, article_number, created_at, updated_at FROM usenet_article_meta
+WHERE root_message_id = ?
+ORDER BY article_number ASC
+`
+
+func (q *Queries) ListUsenetArticleMetaByThread(ctx context.Context, rootMessageID string) ([]UsenetArticleMetum, error) {
+	rows, err := q.db.QueryContext(ctx, listUsenetArticleMetaByThread, rootMessageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []UsenetArticleMetum{}
+	for rows.Next() {
+		var i UsenetArticleMetum
+		if err := rows.Scan(
+			&i.ArticleID,
+			&i.FeedID,
+			&i.MessageID,
+			&i.ReferencesHeader,
+			&i.ParentMessageID,
+			&i.RootMessageID,
+			&i.GroupName,
+			&i.ArticleNumber,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listUsenetFeeds = `-- name: ListUsenetFeeds :many

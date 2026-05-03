@@ -1615,3 +1615,271 @@ func TestUsenetFeedState_GetByGroup(t *testing.T) {
 		t.Errorf("GetUsenetFeedStateByGroup unknown group: got %v, want sql.ErrNoRows", err)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// UsenetArticleMeta
+// ---------------------------------------------------------------------------
+
+func TestUsenetArticleMeta_InsertAndGet(t *testing.T) {
+	_, q := setupTestDB(t)
+	ctx := context.Background()
+
+	u := createTestUser(t, q, "ext-uam-1", "uam1@example.com")
+	f := createTestFeed(t, q, "comp.lang.go", "nntp://news.eternal-september.org/comp.lang.go", u.ID)
+	a := createTestArticle(t, q, f.ID, "<msg1@host>", "Test Article")
+
+	// InsertUsenetArticleMeta
+	meta, err := q.InsertUsenetArticleMeta(ctx, dbgen.InsertUsenetArticleMetaParams{
+		ArticleID:        a.ID,
+		FeedID:           f.ID,
+		MessageID:        "<msg1@host>",
+		ReferencesHeader: nil,
+		ParentMessageID:  nil,
+		RootMessageID:    "<msg1@host>",
+		GroupName:        "comp.lang.go",
+		ArticleNumber:    42,
+	})
+	if err != nil {
+		t.Fatalf("InsertUsenetArticleMeta: %v", err)
+	}
+	if meta.ArticleID != a.ID {
+		t.Errorf("ArticleID = %d, want %d", meta.ArticleID, a.ID)
+	}
+	if meta.MessageID != "<msg1@host>" {
+		t.Errorf("MessageID = %q, want %q", meta.MessageID, "<msg1@host>")
+	}
+
+	// GetUsenetArticleMeta by article_id
+	got, err := q.GetUsenetArticleMeta(ctx, a.ID)
+	if err != nil {
+		t.Fatalf("GetUsenetArticleMeta: %v", err)
+	}
+	if got.ArticleID != a.ID {
+		t.Errorf("GetUsenetArticleMeta ArticleID = %d, want %d", got.ArticleID, a.ID)
+	}
+}
+
+func TestUsenetArticleMeta_GetByMessageID(t *testing.T) {
+	_, q := setupTestDB(t)
+	ctx := context.Background()
+
+	u := createTestUser(t, q, "ext-uam-2", "uam2@example.com")
+	f := createTestFeed(t, q, "comp.lang.go", "nntp://news.eternal-september.org/comp.lang.go", u.ID)
+	a := createTestArticle(t, q, f.ID, "<msg2@host>", "Test Article 2")
+
+	_, err := q.InsertUsenetArticleMeta(ctx, dbgen.InsertUsenetArticleMetaParams{
+		ArticleID:     a.ID,
+		FeedID:        f.ID,
+		MessageID:     "<msg2@host>",
+		RootMessageID: "<msg2@host>",
+		GroupName:     "comp.lang.go",
+		ArticleNumber: 100,
+	})
+	if err != nil {
+		t.Fatalf("InsertUsenetArticleMeta: %v", err)
+	}
+
+	got, err := q.GetUsenetArticleMetaByMessageID(ctx, dbgen.GetUsenetArticleMetaByMessageIDParams{
+		FeedID:    f.ID,
+		MessageID: "<msg2@host>",
+	})
+	if err != nil {
+		t.Fatalf("GetUsenetArticleMetaByMessageID: %v", err)
+	}
+	if got.ArticleID != a.ID {
+		t.Errorf("ArticleID = %d, want %d", got.ArticleID, a.ID)
+	}
+
+	// Non-existent message-id
+	_, err = q.GetUsenetArticleMetaByMessageID(ctx, dbgen.GetUsenetArticleMetaByMessageIDParams{
+		FeedID:    f.ID,
+		MessageID: "<notexist@host>",
+	})
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Errorf("expected sql.ErrNoRows, got %v", err)
+	}
+}
+
+func TestUsenetArticleMeta_GetByArticleNumber(t *testing.T) {
+	_, q := setupTestDB(t)
+	ctx := context.Background()
+
+	u := createTestUser(t, q, "ext-uam-3", "uam3@example.com")
+	f := createTestFeed(t, q, "comp.lang.go", "nntp://news.eternal-september.org/comp.lang.go", u.ID)
+	a := createTestArticle(t, q, f.ID, "<msg3@host>", "Test Article 3")
+
+	_, err := q.InsertUsenetArticleMeta(ctx, dbgen.InsertUsenetArticleMetaParams{
+		ArticleID:     a.ID,
+		FeedID:        f.ID,
+		MessageID:     "<msg3@host>",
+		RootMessageID: "<msg3@host>",
+		GroupName:     "comp.lang.go",
+		ArticleNumber: 200,
+	})
+	if err != nil {
+		t.Fatalf("InsertUsenetArticleMeta: %v", err)
+	}
+
+	got, err := q.GetUsenetArticleMetaByArticleNumber(ctx, dbgen.GetUsenetArticleMetaByArticleNumberParams{
+		FeedID:        f.ID,
+		ArticleNumber: 200,
+	})
+	if err != nil {
+		t.Fatalf("GetUsenetArticleMetaByArticleNumber: %v", err)
+	}
+	if got.ArticleID != a.ID {
+		t.Errorf("ArticleID = %d, want %d", got.ArticleID, a.ID)
+	}
+}
+
+func TestUsenetArticleMeta_ListByThread(t *testing.T) {
+	_, q := setupTestDB(t)
+	ctx := context.Background()
+
+	u := createTestUser(t, q, "ext-uam-4", "uam4@example.com")
+	f := createTestFeed(t, q, "comp.lang.go", "nntp://news.eternal-september.org/comp.lang.go", u.ID)
+
+	// Create three articles in the same thread.
+	a1 := createTestArticle(t, q, f.ID, "<root@host>", "Root Post")
+	a2 := createTestArticle(t, q, f.ID, "<reply1@host>", "Reply 1")
+	a3 := createTestArticle(t, q, f.ID, "<reply2@host>", "Reply 2")
+
+	for _, row := range []struct {
+		artID   int64
+		msgID   string
+		parent  *string
+		artNum  int64
+		refsHdr *string
+	}{
+		{a1.ID, "<root@host>", nil, 300, nil},
+		{a2.ID, "<reply1@host>", new("<root@host>"), 301, new("<root@host>")},
+		{a3.ID, "<reply2@host>", new("<reply1@host>"), 302, new("<root@host> <reply1@host>")},
+	} {
+		_, err := q.InsertUsenetArticleMeta(ctx, dbgen.InsertUsenetArticleMetaParams{
+			ArticleID:        row.artID,
+			FeedID:           f.ID,
+			MessageID:        row.msgID,
+			ReferencesHeader: row.refsHdr,
+			ParentMessageID:  row.parent,
+			RootMessageID:    "<root@host>",
+			GroupName:        "comp.lang.go",
+			ArticleNumber:    row.artNum,
+		})
+		if err != nil {
+			t.Fatalf("InsertUsenetArticleMeta %s: %v", row.msgID, err)
+		}
+	}
+
+	rows, err := q.ListUsenetArticleMetaByThread(ctx, "<root@host>")
+	if err != nil {
+		t.Fatalf("ListUsenetArticleMetaByThread: %v", err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("got %d rows, want 3", len(rows))
+	}
+	if rows[0].MessageID != "<root@host>" {
+		t.Errorf("rows[0].MessageID = %q, want <root@host>", rows[0].MessageID)
+	}
+}
+
+func TestUsenetArticleMeta_DuplicateMessageID(t *testing.T) {
+	_, q := setupTestDB(t)
+	ctx := context.Background()
+
+	u := createTestUser(t, q, "ext-uam-5", "uam5@example.com")
+	f := createTestFeed(t, q, "comp.lang.go", "nntp://news.eternal-september.org/comp.lang.go", u.ID)
+	a1 := createTestArticle(t, q, f.ID, "<dup@host>", "Dup")
+	a2 := createTestArticle(t, q, f.ID, "<dup2@host>", "Dup2")
+
+	_, err := q.InsertUsenetArticleMeta(ctx, dbgen.InsertUsenetArticleMetaParams{
+		ArticleID:     a1.ID,
+		FeedID:        f.ID,
+		MessageID:     "<dup@host>",
+		RootMessageID: "<dup@host>",
+		GroupName:     "comp.lang.go",
+		ArticleNumber: 400,
+	})
+	if err != nil {
+		t.Fatalf("InsertUsenetArticleMeta first: %v", err)
+	}
+
+	// Same feed_id + message_id — should fail UNIQUE constraint.
+	_, err = q.InsertUsenetArticleMeta(ctx, dbgen.InsertUsenetArticleMetaParams{
+		ArticleID:     a2.ID,
+		FeedID:        f.ID,
+		MessageID:     "<dup@host>",
+		RootMessageID: "<dup@host>",
+		GroupName:     "comp.lang.go",
+		ArticleNumber: 401,
+	})
+	if err == nil {
+		t.Error("expected UNIQUE constraint error for duplicate message_id, got nil")
+	}
+}
+
+func TestUsenetArticleMeta_DuplicateArticleNumber(t *testing.T) {
+	_, q := setupTestDB(t)
+	ctx := context.Background()
+
+	u := createTestUser(t, q, "ext-uam-6", "uam6@example.com")
+	f := createTestFeed(t, q, "comp.lang.go", "nntp://news.eternal-september.org/comp.lang.go", u.ID)
+	a1 := createTestArticle(t, q, f.ID, "<numdup1@host>", "NumDup1")
+	a2 := createTestArticle(t, q, f.ID, "<numdup2@host>", "NumDup2")
+
+	_, err := q.InsertUsenetArticleMeta(ctx, dbgen.InsertUsenetArticleMetaParams{
+		ArticleID:     a1.ID,
+		FeedID:        f.ID,
+		MessageID:     "<numdup1@host>",
+		RootMessageID: "<numdup1@host>",
+		GroupName:     "comp.lang.go",
+		ArticleNumber: 500,
+	})
+	if err != nil {
+		t.Fatalf("InsertUsenetArticleMeta first: %v", err)
+	}
+
+	// Same feed_id + article_number — should fail UNIQUE constraint.
+	_, err = q.InsertUsenetArticleMeta(ctx, dbgen.InsertUsenetArticleMetaParams{
+		ArticleID:     a2.ID,
+		FeedID:        f.ID,
+		MessageID:     "<numdup2@host>",
+		RootMessageID: "<numdup2@host>",
+		GroupName:     "comp.lang.go",
+		ArticleNumber: 500,
+	})
+	if err == nil {
+		t.Error("expected UNIQUE constraint error for duplicate article_number, got nil")
+	}
+}
+
+func TestUsenetArticleMeta_CascadeDeleteOnArticle(t *testing.T) {
+	sqlDB, q := setupTestDB(t)
+	ctx := context.Background()
+
+	u := createTestUser(t, q, "ext-uam-7", "uam7@example.com")
+	f := createTestFeed(t, q, "comp.lang.go", "nntp://news.eternal-september.org/comp.lang.go", u.ID)
+	a := createTestArticle(t, q, f.ID, "<cascade@host>", "Cascade")
+
+	_, err := q.InsertUsenetArticleMeta(ctx, dbgen.InsertUsenetArticleMetaParams{
+		ArticleID:     a.ID,
+		FeedID:        f.ID,
+		MessageID:     "<cascade@host>",
+		RootMessageID: "<cascade@host>",
+		GroupName:     "comp.lang.go",
+		ArticleNumber: 600,
+	})
+	if err != nil {
+		t.Fatalf("InsertUsenetArticleMeta: %v", err)
+	}
+
+	// Delete the article — meta should cascade-delete.
+	_, err = sqlDB.ExecContext(ctx, "DELETE FROM articles WHERE id = ?", a.ID)
+	if err != nil {
+		t.Fatalf("DELETE FROM articles: %v", err)
+	}
+
+	_, err = q.GetUsenetArticleMeta(ctx, a.ID)
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Errorf("GetUsenetArticleMeta after article delete: got %v, want sql.ErrNoRows", err)
+	}
+}

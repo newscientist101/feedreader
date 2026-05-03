@@ -45,3 +45,29 @@ DELETE FROM usenet_feed_state WHERE feed_id = ?;
 SELECT ufs.* FROM usenet_feed_state ufs
 JOIN feeds f ON f.id = ufs.feed_id
 WHERE ufs.provider = ? AND ufs.group_name = ? AND f.user_id = ?;
+
+-- name: InsertUsenetArticleMeta :one
+INSERT INTO usenet_article_meta (
+  article_id, feed_id, message_id, references_header,
+  parent_message_id, root_message_id, group_name, article_number
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING *;
+
+-- name: GetUsenetArticleMeta :one
+SELECT * FROM usenet_article_meta WHERE article_id = ?;
+
+-- name: GetUsenetArticleMetaByMessageID :one
+SELECT * FROM usenet_article_meta
+WHERE feed_id = ? AND message_id = ?;
+
+-- name: GetUsenetArticleMetaByArticleNumber :one
+SELECT * FROM usenet_article_meta
+WHERE feed_id = ? AND article_number = ?;
+
+-- name: ListUsenetArticleMetaByThread :many
+SELECT * FROM usenet_article_meta
+WHERE root_message_id = ?
+ORDER BY article_number ASC;
+
+-- name: DeleteUsenetArticleMeta :exec
+DELETE FROM usenet_article_meta WHERE article_id = ?;
