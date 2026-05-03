@@ -259,6 +259,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/newsletter/generate-address", s.apiGenerateNewsletterAddress)
 	mux.HandleFunc("GET /api/newsletter/address", s.apiGetNewsletterAddress)
 
+	// Usenet credential endpoints
+	mux.HandleFunc("GET /api/usenet/credentials", s.apiGetUsenetCredentials)
+	mux.HandleFunc("PUT /api/usenet/credentials", s.apiPutUsenetCredentials)
+	mux.HandleFunc("DELETE /api/usenet/credentials", s.apiDeleteUsenetCredentials)
+
 	// AI scraper generation
 	mux.HandleFunc("GET /api/ai/status", s.apiAIStatus)
 	mux.HandleFunc("GET /api/favicon", s.apiFavicon)
@@ -3663,6 +3668,120 @@ func (s *Server) apiUndismissArticleAlert(w http.ResponseWriter, r *http.Request
 	}
 	s.CountsCache.Invalidate(user.ID)
 
+	jsonResponse(w, map[string]string{"status": "ok"})
+}
+
+// apiGetUsenetCredentials returns the Usenet credential status for the current
+// user. It never returns the encrypted or plaintext password. The response
+// includes:
+//   - enabled: whether USENET_ENABLED is true
+//   - configured: whether the user has saved credentials
+//   - username: the stored username, or "" when not configured
+//   - key_version: the key version used to encrypt the stored credential, or ""
+func (s *Server) apiGetUsenetCredentials(w http.ResponseWriter, r *http.Request) {
+	if !s.UsenetConfig.Enabled {
+		jsonError(w, "Usenet is not enabled on this server", 503)
+		return
+	}
+
+	user := GetUser(r.Context())
+	q := dbgen.New(s.DB)
+
+	cred, err := q.GetNNTPCredentials(r.Context(), user.ID)
+	if err != nil {
+		// No row means not configured; return empty status.
+		jsonResponse(w, map[string]any{
+			"enabled":     true,
+			"configured":  false,
+			"username":    "",
+			"key_version": "",
+		})
+		return
+	}
+
+	jsonResponse(w, map[string]any{
+		"enabled":     true,
+		"configured":  true,
+		"username":    cred.Username,
+		"key_version": cred.KeyVersion,
+	})
+}
+
+// apiPutUsenetCredentials saves (or replaces) the caller's Usenet credentials.
+// Body: {"username": "...", "password": "..."}
+// On success, returns the same status shape as GET (without the password).
+func (s *Server) apiPutUsenetCredentials(w http.ResponseWriter, r *http.Request) {
+	if !s.UsenetConfig.Enabled {
+		jsonError(w, "Usenet is not enabled on this server", 503)
+		return
+	}
+
+	var body struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		jsonError(w, "Invalid request body", 400)
+		return
+	}
+	if body.Username == "" {
+		jsonError(w, "username is required", 400)
+		return
+	}
+	if body.Password == "" {
+		jsonError(w, "password is required", 400)
+		return
+	}
+
+	encrypted, err := s.UsenetConfig.Crypto.Encrypt(body.Password)
+	if err != nil {
+		slog.Error("usenet encrypt password failed", "error", err)
+		jsonError(w, "Failed to encrypt credentials", 500)
+		return
+	}
+
+	user := GetUser(r.Context())
+	q := dbgen.New(s.DB)
+
+	cred, err := q.UpsertNNTPCredentials(r.Context(), dbgen.UpsertNNTPCredentialsParams{
+		UserID:      user.ID,
+		Username:    body.Username,
+		PasswordEnc: encrypted,
+		KeyVersion:  "v1",
+	})
+	if err != nil {
+		slog.Error("usenet save credentials failed", "error", err, "user_id", user.ID)
+		jsonError(w, "Failed to save credentials", 500)
+		return
+	}
+
+	slog.Info("usenet credentials saved", "user_id", user.ID, "username", cred.Username)
+	jsonResponse(w, map[string]any{
+		"enabled":     true,
+		"configured":  true,
+		"username":    cred.Username,
+		"key_version": cred.KeyVersion,
+	})
+}
+
+// apiDeleteUsenetCredentials removes the current user's stored Usenet
+// credentials. Returns 200 with {"status":"ok"} whether or not a row existed.
+func (s *Server) apiDeleteUsenetCredentials(w http.ResponseWriter, r *http.Request) {
+	if !s.UsenetConfig.Enabled {
+		jsonError(w, "Usenet is not enabled on this server", 503)
+		return
+	}
+
+	user := GetUser(r.Context())
+	q := dbgen.New(s.DB)
+
+	if err := q.DeleteNNTPCredentials(r.Context(), user.ID); err != nil {
+		slog.Error("usenet delete credentials failed", "error", err, "user_id", user.ID)
+		jsonError(w, "Failed to delete credentials", 500)
+		return
+	}
+
+	slog.Info("usenet credentials deleted", "user_id", user.ID)
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
 

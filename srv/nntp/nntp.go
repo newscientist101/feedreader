@@ -255,6 +255,138 @@ func (c *Conn) SelectGroup(name string) (count, low, high int64, canonName strin
 	}
 }
 
+// OverviewRow holds the parsed fields from one NNTP overview (OVER/XOVER) line.
+// Fields that are not present in the response are left as their zero values.
+type OverviewRow struct {
+	// ArticleNumber is the numeric article identifier within the group.
+	ArticleNumber int64
+	// Subject is the decoded Subject header.
+	Subject string
+	// From is the decoded From header (may include display name).
+	From string
+	// Date is the raw Date header string as returned by the server.
+	Date string
+	// MessageID is the message-id (including angle brackets) e.g. <abc@host>.
+	MessageID string
+	// References is the raw References header; space-separated message-ids.
+	References string
+	// Bytes is the approximate article byte count (0 if absent or non-numeric).
+	Bytes int64
+	// Lines is the approximate article line count (0 if absent or non-numeric).
+	Lines int64
+}
+
+// parseOverviewLine parses one tab-separated OVER/XOVER data line into an
+// OverviewRow. The eight mandatory fields are:
+//
+//	[0] article-number  [1] subject  [2] from  [3] date
+//	[4] message-id      [5] references  [6] :bytes  [7] :lines
+//
+// Missing or non-numeric byte/line counts are silently set to 0.
+// A line with fewer than five fields (number + core headers) is an error.
+func parseOverviewLine(line string) (OverviewRow, error) {
+	parts := strings.Split(line, "\t")
+	if len(parts) < 1 {
+		return OverviewRow{}, fmt.Errorf("nntp: empty overview line")
+	}
+	articleNum, err := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
+	if err != nil {
+		return OverviewRow{}, fmt.Errorf("nntp: overview article number %q: %w", parts[0], err)
+	}
+
+	// Helper to safely extract a tab field by index.
+	field := func(i int) string {
+		if i < len(parts) {
+			return strings.TrimSpace(parts[i])
+		}
+		return ""
+	}
+
+	row := OverviewRow{
+		ArticleNumber: articleNum,
+		Subject:       field(1),
+		From:          field(2),
+		Date:          field(3),
+		MessageID:     field(4),
+		References:    field(5),
+	}
+
+	// bytes and lines fields may be prefixed with ":" (e.g. ":bytes", ":lines")
+	// or just a plain number. Strip the colon prefix if present before parsing.
+	parseSizeField := func(raw string) int64 {
+		raw = strings.TrimPrefix(raw, ":")
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			return 0
+		}
+		v, parseErr := strconv.ParseInt(raw, 10, 64)
+		if parseErr != nil {
+			return 0
+		}
+		return v
+	}
+
+	row.Bytes = parseSizeField(field(6))
+	row.Lines = parseSizeField(field(7))
+
+	return row, nil
+}
+
+// Overview sends an OVER command for the given inclusive article number range
+// and returns the parsed overview rows. If the server does not support OVER
+// (500 response), it falls back to XOVER.
+//
+// The range is expressed as "low-high" (e.g. "100-199"). Either or both bounds
+// may be omitted to use server defaults, but callers should supply both for
+// predictable behaviour.
+//
+// An empty range (no articles) returns a nil slice without error.
+func (c *Conn) Overview(low, high int64) ([]OverviewRow, error) {
+	rangeStr := fmt.Sprintf("%d-%d", low, high)
+
+	// Try OVER first; fall back to XOVER if not recognised.
+	resp, err := c.Command("OVER " + rangeStr)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Code == 500 || resp.Code == 501 {
+		// OVER not recognised — try XOVER (RFC 2980).
+		resp, err = c.Command("XOVER " + rangeStr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	switch resp.Code {
+	case 224:
+		// 224 Overview information follows — read the data block.
+	case 423, 420:
+		// 423: no articles in range; 420: no current article.
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("nntp: OVER/XOVER response %d: %s", resp.Code, resp.Text)
+	}
+
+	lines, err := c.ReadMultiLine()
+	if err != nil {
+		return nil, fmt.Errorf("nntp: OVER/XOVER read body: %w", err)
+	}
+
+	rows := make([]OverviewRow, 0, len(lines))
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		row, parseErr := parseOverviewLine(line)
+		if parseErr != nil {
+			// Skip malformed lines rather than aborting the entire range.
+			continue
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
 // Quit sends the QUIT command and closes the connection.
 // Errors from the server response are ignored since we're closing anyway.
 func (c *Conn) Quit() error {

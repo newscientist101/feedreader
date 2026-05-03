@@ -201,6 +201,110 @@ func TestResponseIsPositive(t *testing.T) {
 	}
 }
 
+// --- Overview (OVER/XOVER) ---
+
+func TestOverview_Normal(t *testing.T) {
+	// 224 response followed by two overview rows and the terminating dot.
+	overviewData := "224 Overview information follows\r\n" +
+		"100\tRe: Hello\tAlice <a@example.com>\tMon, 1 Jan 2024 00:00:00 +0000\t<msg100@host>\t<msg1@host>\t1234\t20\r\n" +
+		"101\tAnother topic\tBob <b@example.com>\tTue, 2 Jan 2024 00:00:00 +0000\t<msg101@host>\t\t512\t8\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(overviewData)
+	rows, err := conn.Overview(100, 101)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+
+	assert.Equal(t, int64(100), rows[0].ArticleNumber)
+	assert.Equal(t, "Re: Hello", rows[0].Subject)
+	assert.Equal(t, "Alice <a@example.com>", rows[0].From)
+	assert.Equal(t, "Mon, 1 Jan 2024 00:00:00 +0000", rows[0].Date)
+	assert.Equal(t, "<msg100@host>", rows[0].MessageID)
+	assert.Equal(t, "<msg1@host>", rows[0].References)
+	assert.Equal(t, int64(1234), rows[0].Bytes)
+	assert.Equal(t, int64(20), rows[0].Lines)
+
+	assert.Equal(t, int64(101), rows[1].ArticleNumber)
+	assert.Equal(t, "Another topic", rows[1].Subject)
+	assert.Equal(t, "", rows[1].References)
+}
+
+func TestOverview_EmptyRange(t *testing.T) {
+	// 423 means no articles in the requested range.
+	conn, _ := newFakeConn("423 No articles in range\r\n")
+	rows, err := conn.Overview(200, 300)
+	require.NoError(t, err)
+	assert.Nil(t, rows)
+}
+
+func TestOverview_FallbackToXOVER(t *testing.T) {
+	// First response: 500 (OVER not supported). Second: XOVER 224 + data.
+	overviewData := "500 Unknown command\r\n" +
+		"224 Overview information follows\r\n" +
+		"50\tTest subject\tEve <e@host>\tWed, 3 Jan 2024 00:00:00 +0000\t<msg50@host>\t\t100\t5\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(overviewData)
+	rows, err := conn.Overview(50, 50)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, int64(50), rows[0].ArticleNumber)
+	assert.Equal(t, "Test subject", rows[0].Subject)
+}
+
+func TestOverview_MissingOptionalFields(t *testing.T) {
+	// Only five fields: number, subject, from, date, message-id (no refs/bytes/lines).
+	overviewData := "224 Overview information follows\r\n" +
+		"77\tSubj\tAuthor\tSome Date\t<77@h>\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(overviewData)
+	rows, err := conn.Overview(77, 77)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, int64(77), rows[0].ArticleNumber)
+	assert.Equal(t, "", rows[0].References)
+	assert.Equal(t, int64(0), rows[0].Bytes)
+	assert.Equal(t, int64(0), rows[0].Lines)
+}
+
+func TestOverview_MalformedRowsSkipped(t *testing.T) {
+	// A row where the article number is not numeric is skipped; the good row
+	// is still returned.
+	overviewData := "224 Overview information follows\r\n" +
+		"bad\tSubj\tAuthor\tDate\t<m@h>\t\t0\t0\r\n" +
+		"42\tGood subject\tAuthor\tDate\t<42@h>\t\t10\t1\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(overviewData)
+	rows, err := conn.Overview(42, 42)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, int64(42), rows[0].ArticleNumber)
+}
+
+func TestOverview_BytesLinesWithColonPrefix(t *testing.T) {
+	// Some servers prefix byte/line counts with ":" per RFC 2980.
+	overviewData := "224 Overview information follows\r\n" +
+		"10\tSubj\tFrom\tDate\t<10@h>\t\t:999\t:33\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(overviewData)
+	rows, err := conn.Overview(10, 10)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, int64(999), rows[0].Bytes)
+	assert.Equal(t, int64(33), rows[0].Lines)
+}
+
+func TestOverview_NonNumericBytesAndLines(t *testing.T) {
+	// Non-numeric byte/line values are silently zeroed.
+	overviewData := "224 Overview information follows\r\n" +
+		"10\tSubj\tFrom\tDate\t<10@h>\t\tn/a\tn/a\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(overviewData)
+	rows, err := conn.Overview(10, 10)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, int64(0), rows[0].Bytes)
+	assert.Equal(t, int64(0), rows[0].Lines)
+}
+
 // --- Constants ---
 
 func TestProviderConstants(t *testing.T) {
