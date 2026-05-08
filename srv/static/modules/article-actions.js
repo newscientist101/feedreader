@@ -158,13 +158,32 @@ export function observeNewArticles(container) {
     }
 }
 
-export function flushMarkReadQueue() {
+export function flushMarkReadQueue({ keepalive = false } = {}) {
     _markReadTimer = null;
     if (_markReadQueue.length === 0) return;
     const ids = _markReadQueue.slice();
     _markReadQueue = [];
     console.debug(`[auto-mark-read] flushing batch of ${ids.length} article(s):`, ids);
-    api('POST', '/api/articles/batch-read', { ids })
+
+    let sync;
+    if (keepalive) {
+        sync = fetch('/api/articles/batch-read', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({ ids }),
+            keepalive: true,
+        }).then(res => {
+            if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+            return res.json();
+        });
+    } else {
+        sync = api('POST', '/api/articles/batch-read', { ids });
+    }
+
+    sync
         .then(() => { updateCounts(); })
         .catch(e => { console.error('Failed to batch mark read:', e); showToast('Failed to sync read status'); });
 }
@@ -188,8 +207,8 @@ export function markReadSilent(id) {
 export function openArticle(id) {
     markReadSilent(id);
     markReturningFromArticleList();
+    flushMarkReadQueue({ keepalive: true });
     window.location = `/article/${id}`;
-    flushMarkReadQueue();
 }
 
 export function openArticleExternal(event, id, url) {

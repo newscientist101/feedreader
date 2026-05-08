@@ -129,7 +129,7 @@ describe('flushMarkReadQueue', () => {
 });
 
 describe('openArticle', () => {
-    it('marks the article as read, flushes queue, and navigates to /article/{id}', () => {
+    it('marks the article as read, flushes queue with keepalive, and navigates to /article/{id}', () => {
         vi.spyOn(console, 'debug').mockImplementation(() => {});
         Object.defineProperty(window, 'location', {
             value: { pathname: '/', hostname: 'localhost' },
@@ -139,12 +139,13 @@ describe('openArticle', () => {
         document.getElementById('articles-list').innerHTML =
             '<div class="article-card" data-id="5"></div>';
         openArticle(5);
-        // flushMarkReadQueue was called — article 5 should be in the batch POST
+        // flushMarkReadQueue was called with keepalive so the request survives navigation.
         expect(globalThis.fetch).toHaveBeenCalledWith(
             '/api/articles/batch-read',
             expect.objectContaining({
                 method: 'POST',
                 body: expect.stringContaining('"ids":[5]'),
+                keepalive: true,
             })
         );
         expect(console.debug).toHaveBeenCalledWith(
