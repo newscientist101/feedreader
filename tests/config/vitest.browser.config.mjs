@@ -98,6 +98,159 @@ export default defineConfig({
           }
         },
 
+
+        /**
+         * Run the auto-mark-read navigation regression scenario against an
+         * isolated feedreader server and DB fixture.
+         */
+        async runAutoMarkReadBackNavigationScenario(ctx) {
+          const fs = await import('node:fs/promises');
+          const os = await import('node:os');
+          const path = await import('node:path');
+          const childProcess = await import('node:child_process');
+          const { promisify } = await import('node:util');
+          const execFile = promisify(childProcess.execFile);
+
+          const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'feedreader-browser-'));
+          const dbPath = path.join(tmpDir, 'test.sqlite3');
+          let server;
+
+          const waitForServer = async () => {
+            const deadline = Date.now() + 15000;
+            let lastErr;
+            while (Date.now() < deadline) {
+              try {
+                const resp = await fetch('http://localhost:3200/api/counts', {
+                  headers: {
+                    'X-Exedev-Userid': 'browser-integ-user',
+                    'X-Exedev-Email': 'browser-integ@example.com',
+                  },
+                });
+                if (resp.ok) return;
+                lastErr = new Error(`status ${resp.status}`);
+              } catch (err) {
+                lastErr = err;
+              }
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            throw lastErr || new Error('server did not start');
+          };
+
+          const cleanup = async () => {
+            if (server && !server.killed) {
+              server.kill('SIGTERM');
+              await new Promise(resolve => {
+                const timer = setTimeout(() => {
+                  if (!server.killed) server.kill('SIGKILL');
+                  resolve();
+                }, 3000);
+                server.once('exit', () => {
+                  clearTimeout(timer);
+                  resolve();
+                });
+              });
+            }
+            await fs.rm(tmpDir, { recursive: true, force: true });
+          };
+
+          try {
+            await execFile('go', ['build', '-o', path.join(tmpDir, 'browser-integration-server'), './tests/config/browser-integration-server.go'], {
+              cwd: root,
+            });
+            server = childProcess.spawn(path.join(tmpDir, 'browser-integration-server'), [dbPath], {
+              cwd: root,
+              env: { ...process.env, DEV: '' },
+              stdio: ['ignore', 'pipe', 'pipe'],
+            });
+            server.stdout.on('data', chunk => process.stdout.write(chunk));
+            server.stderr.on('data', chunk => process.stderr.write(chunk));
+            await waitForServer();
+
+            const page = await ctx.context.newPage();
+            try {
+              await page.setExtraHTTPHeaders({
+                'X-Exedev-Userid': 'browser-integ-user',
+                'X-Exedev-Email': 'browser-integ@example.com',
+              });
+              await page.setViewportSize({ width: 900, height: 520 });
+              await page.goto('http://localhost:3200/', { waitUntil: 'domcontentloaded' });
+              await page.waitForSelector('.article-card');
+
+              const allIds = await page.$$eval('.article-card', cards => cards.map(card => card.dataset.id));
+              const allTitles = await page.$$eval('.article-card', cards => cards.map(card => card.querySelector('.article-title')?.textContent?.trim() || ''));
+              const state = {
+                allIds,
+                allTitles,
+                expectedRead: [],
+                expectedVisible: allIds.slice(),
+              };
+
+              const visibleIds = async () => page.$$eval('.article-card', cards => cards
+                .filter(card => getComputedStyle(card).display !== 'none')
+                .map(card => card.dataset.id));
+              const readIds = async () => page.$$eval('.article-card.read', cards => cards.map(card => card.dataset.id));
+              const unreadApiIds = async () => page.evaluate(async () => {
+                const resp = await fetch('/api/articles/unread');
+                const data = await resp.json();
+                return (data.articles || []).map(article => String(article.id));
+              });
+              const flush = async () => page.waitForTimeout(700);
+              const rememberRead = async () => {
+                const ids = await readIds();
+                for (const id of ids) {
+                  if (!state.expectedRead.includes(id)) state.expectedRead.push(id);
+                }
+                state.expectedVisible = state.allIds.filter(id => !state.expectedRead.includes(id));
+              };
+              const assertPageState = async (label) => {
+                const visible = await visibleIds();
+                const apiIds = await unreadApiIds();
+                return {
+                  label,
+                  expectedRead: state.expectedRead.slice(),
+                  expectedVisible: state.expectedVisible.slice(),
+                  visible,
+                  apiIds,
+                };
+              };
+
+              await page.evaluate(() => window.scrollTo(0, 1450));
+              await flush();
+              await rememberRead();
+              const afterFirstScroll = await assertPageState('after first scroll');
+
+              const clickId = state.expectedVisible[1] || state.expectedVisible[0];
+              await page.locator(`.article-card[data-id="${clickId}"] .article-body.clickable`).click();
+              await page.waitForURL(/\/article\/\d+$/);
+              if (!state.expectedRead.includes(clickId)) state.expectedRead.push(clickId);
+              state.expectedVisible = state.allIds.filter(id => !state.expectedRead.includes(id));
+
+              await page.goBack({ waitUntil: 'domcontentloaded' });
+              await page.waitForSelector('.article-card');
+              await flush();
+              const afterBack = await assertPageState('after back');
+
+              await page.evaluate(() => window.scrollTo(0, 1800));
+              await flush();
+              await rememberRead();
+              const afterSecondScroll = await assertPageState('after second scroll');
+
+              return {
+                allIds: state.allIds,
+                allTitles: state.allTitles,
+                clickedId: clickId,
+                afterFirstScroll,
+                afterBack,
+                afterSecondScroll,
+              };
+            } finally {
+              await page.close();
+            }
+          } finally {
+            await cleanup();
+          }
+        },
+
         /**
          * Get the current name of a feed via the API.
          */

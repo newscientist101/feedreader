@@ -346,6 +346,13 @@ export function findNextUnreadFolder(currentCategoryId) {
     return null;
 }
 
+function hideReadCardsForPageCache() {
+    if (getSetting('hideReadArticles') !== 'hide') return;
+    document.querySelectorAll('.article-card.read').forEach(card => {
+        card.style.display = 'none';
+    });
+}
+
 // Delegated listeners for article actions (replaces inline onclick handlers in
 // index.html and dynamically-built article HTML).
 export function initArticleActionListeners() {
@@ -384,6 +391,12 @@ export function initArticleActionListeners() {
         }
     }, { signal });
 
+    // Before a page enters the back/forward cache, make the cached DOM match
+    // the user's hide-read preference. Article navigation marks the clicked
+    // card read immediately, then the browser may restore this exact DOM on
+    // Back before pageshow/popstate refreshes finish.
+    window.addEventListener('pagehide', hideReadCardsForPageCache, { signal });
+
     // Article body click — open article (delegated on .article-body.clickable)
     document.addEventListener('click', (e) => {
         const body = e.target.closest('.article-body.clickable');
@@ -392,6 +405,7 @@ export function initArticleActionListeners() {
         if (e.target.closest('a, button, .article-actions')) return;
         const card = body.closest('.article-card');
         if (card) {
+            hideReadCardsForPageCache();
             openArticle(Number(card.dataset.id));
         }
     }, { signal });
@@ -438,6 +452,7 @@ export function initArticleActionListeners() {
             e.stopPropagation();
             const card = preview.closest('.article-card');
             if (card) {
+                hideReadCardsForPageCache();
                 openArticle(Number(card.dataset.id));
             }
         }
