@@ -279,6 +279,32 @@ func TestOverview_MalformedRowsSkipped(t *testing.T) {
 	assert.Equal(t, int64(42), rows[0].ArticleNumber)
 }
 
+func TestOverview_TooFewFieldsSkipped(t *testing.T) {
+	// Rows with fewer than 5 fields (missing Message-ID) are skipped.
+	overviewData := "224 Overview information follows\r\n" +
+		"10\tSubj\tAuthor\tDate\r\n" + // only 4 fields — missing message-id
+		"11\tGood\tAuthor\tDate\t<11@h>\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(overviewData)
+	rows, err := conn.Overview(10, 11)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, int64(11), rows[0].ArticleNumber)
+}
+
+func TestOverview_EmptyMessageIDSkipped(t *testing.T) {
+	// Rows with an empty Message-ID field are skipped.
+	overviewData := "224 Overview information follows\r\n" +
+		"20\tSubj\tAuthor\tDate\t\t\t100\t5\r\n" + // empty message-id
+		"21\tGood\tAuthor\tDate\t<21@h>\t\t10\t1\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(overviewData)
+	rows, err := conn.Overview(20, 21)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, int64(21), rows[0].ArticleNumber)
+}
+
 func TestOverview_BytesLinesWithColonPrefix(t *testing.T) {
 	// Some servers prefix byte/line counts with ":" per RFC 2980.
 	overviewData := "224 Overview information follows\r\n" +
@@ -450,6 +476,77 @@ func TestFetchArticleByID_NotFound(t *testing.T) {
 	conn, _ := newFakeConn("430 No such article\r\n")
 	_, err := conn.FetchArticleByID("<nosuch@host>")
 	require.ErrorIs(t, err, nntp.ErrArticleNotFound)
+}
+
+// --- GetHeader ---
+
+func TestGetHeader_ExactMatch(t *testing.T) {
+	// Exact title-case name matches the stored key directly.
+	server := "220 1 <m@h> Article follows\r\n" +
+		"Subject: Hello\r\n" +
+		"Message-Id: <m@h>\r\n" +
+		"\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(server)
+	art, err := conn.FetchArticle(1)
+	require.NoError(t, err)
+	assert.Equal(t, "Hello", art.GetHeader("Subject"))
+	assert.Equal(t, "<m@h>", art.GetHeader("Message-Id"))
+}
+
+func TestGetHeader_CaseInsensitive_MessageID(t *testing.T) {
+	// "Message-ID" (all caps ID) should resolve to the stored "Message-Id" key.
+	server := "220 2 <m2@h> Article follows\r\n" +
+		"Message-Id: <m2@h>\r\n" +
+		"\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(server)
+	art, err := conn.FetchArticle(2)
+	require.NoError(t, err)
+	assert.Equal(t, "<m2@h>", art.GetHeader("Message-ID"))
+	assert.Equal(t, "<m2@h>", art.GetHeader("message-id"))
+	assert.Equal(t, "<m2@h>", art.GetHeader("MESSAGE-ID"))
+}
+
+func TestGetHeader_CaseInsensitive_ContentType(t *testing.T) {
+	// "content-type" (lowercase) should find "Content-Type" in the headers map.
+	server := "220 3 <m3@h> Article follows\r\n" +
+		"Content-Type: text/plain; charset=utf-8\r\n" +
+		"\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(server)
+	art, err := conn.FetchArticle(3)
+	require.NoError(t, err)
+	assert.Equal(t, "text/plain; charset=utf-8", art.GetHeader("content-type"))
+	assert.Equal(t, "text/plain; charset=utf-8", art.GetHeader("CONTENT-TYPE"))
+}
+
+func TestGetHeader_Missing(t *testing.T) {
+	// Missing headers return empty string.
+	server := "220 4 <m4@h> Article follows\r\n" +
+		"Subject: Test\r\n" +
+		"\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(server)
+	art, err := conn.FetchArticle(4)
+	require.NoError(t, err)
+	assert.Equal(t, "", art.GetHeader("X-Nonexistent"))
+	assert.Equal(t, "", art.GetHeader("Content-Type"))
+}
+
+func TestGetHeader_FoldedHeader(t *testing.T) {
+	// Folded (multi-line) headers are joined; GetHeader returns the joined value.
+	server := "220 5 <m5@h> Article follows\r\n" +
+		"References: <ref1@host>\r\n" +
+		"\t<ref2@host>\r\n" +
+		"\r\n" +
+		".\r\n"
+	conn, _ := newFakeConn(server)
+	art, err := conn.FetchArticle(5)
+	require.NoError(t, err)
+	assert.Equal(t, "<ref1@host> <ref2@host>", art.GetHeader("References"))
+	assert.Equal(t, "<ref1@host> <ref2@host>", art.GetHeader("references"))
+	assert.Equal(t, "<ref1@host> <ref2@host>", art.GetHeader("REFERENCES"))
 }
 
 // --- Constants ---

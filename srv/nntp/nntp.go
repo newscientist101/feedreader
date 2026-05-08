@@ -283,11 +283,13 @@ type OverviewRow struct {
 //	[4] message-id      [5] references  [6] :bytes  [7] :lines
 //
 // Missing or non-numeric byte/line counts are silently set to 0.
-// A line with fewer than five fields (number + core headers) is an error.
+// A line with fewer than five fields (through Message-ID) is malformed and
+// returns an error. A row with an empty Message-ID is also an error.
 func parseOverviewLine(line string) (OverviewRow, error) {
 	parts := strings.Split(line, "\t")
-	if len(parts) < 1 {
-		return OverviewRow{}, fmt.Errorf("nntp: empty overview line")
+	// Require at least fields 0–4: article-number, subject, from, date, message-id.
+	if len(parts) < 5 {
+		return OverviewRow{}, fmt.Errorf("nntp: overview row has %d fields, need at least 5", len(parts))
 	}
 	articleNum, err := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
 	if err != nil {
@@ -302,12 +304,17 @@ func parseOverviewLine(line string) (OverviewRow, error) {
 		return ""
 	}
 
+	msgID := field(4)
+	if msgID == "" {
+		return OverviewRow{}, fmt.Errorf("nntp: overview row %d has empty Message-ID", articleNum)
+	}
+
 	row := OverviewRow{
 		ArticleNumber: articleNum,
 		Subject:       field(1),
 		From:          field(2),
 		Date:          field(3),
-		MessageID:     field(4),
+		MessageID:     msgID,
 		References:    field(5),
 	}
 
@@ -454,6 +461,22 @@ func toTitleCase(s string) string {
 		}
 	}
 	return strings.Join(parts, "-")
+}
+
+// GetHeader returns the header value for the given name using case-insensitive
+// matching. Header names are stored in canonical title case (e.g. "Message-Id",
+// "Content-Type"), but callers may pass any casing such as "Message-ID" or
+// "content-type". Returns an empty string if the header is not present.
+func (a *Article) GetHeader(name string) string {
+	// Fast path: exact match (headers are stored in title case).
+	if v, ok := a.Headers[name]; ok {
+		return v
+	}
+	// Slow path: normalize the requested name to title case and retry.
+	if v, ok := a.Headers[toTitleCase(name)]; ok {
+		return v
+	}
+	return ""
 }
 
 // FetchArticle sends an ARTICLE command for the given article number and
