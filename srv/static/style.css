@@ -1155,12 +1155,40 @@ body {
     color: var(--accent);
 }
 
+.article-body figure {
+    width: auto !important;
+    max-width: 100% !important;
+    margin: 15px 0;
+}
+
+.article-body figure > a:has(> img),
+.article-body figure > a:has(> video) {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+}
+
+.article-body figcaption,
+.article-body .wp-caption-text {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    margin-top: 6px;
+}
+
 .article-body img,
 .article-body video {
-    max-width: 100%;
+    display: block;
+    max-width: 100% !important;
     height: auto !important;
     border-radius: var(--radius-lg);
     margin: 15px 0;
+}
+
+.article-body figure img,
+.article-body figure video {
+    width: 100%;
+    margin: 0;
 }
 
 .article-body iframe,

@@ -7,6 +7,7 @@ vi.mock('./sidebar.js');
 vi.mock('./views.js');
 vi.mock('./feed-errors.js');
 vi.mock('./counts.js');
+vi.mock('./nav-state.js');
 
 import { api } from './api.js';
 import { showArticlesLoading, renderArticles } from './articles.js';
@@ -14,6 +15,7 @@ import { setSidebarActive } from './sidebar.js';
 import { applyDefaultViewForScope } from './views.js';
 import { removeFeedErrorBanner } from './feed-errors.js';
 import { updateCounts } from './counts.js';
+import { consumeReturningFromArticleList } from './nav-state.js';
 
 /** Set up the standard article-list page DOM for SPA navigation tests. */
 function setupArticleListPage() {
@@ -35,6 +37,7 @@ beforeEach(() => {
     document.body.innerHTML = '';
     vi.clearAllMocks();
     api.mockResolvedValue({ articles: [{ id: 1, title: 'Test' }] });
+    consumeReturningFromArticleList.mockReturnValue(false);
     Object.defineProperty(window, 'location', {
         value: { ...window.location, pathname: '/', reload: vi.fn() },
         writable: true,
@@ -322,7 +325,7 @@ describe('popstate (browser back/forward)', () => {
         expect(updateCounts).toHaveBeenCalled();
     });
 
-    it('does not scroll on initial pageshow (not from bfcache)', () => {
+    it('refreshes counts but does not scroll on non-bfcache pageshow', () => {
         setupArticleListPage();
         initSpaNav();
 
@@ -332,5 +335,37 @@ describe('popstate (browser back/forward)', () => {
         window.dispatchEvent(event);
 
         expect(window.scrollTo).not.toHaveBeenCalled();
+        expect(updateCounts).toHaveBeenCalled();
+    });
+
+    it('re-fetches the current article list after returning from an article page', async () => {
+        setupArticleListPage();
+        consumeReturningFromArticleList.mockReturnValue(true);
+        initSpaNav();
+
+        const event = new Event('pageshow');
+        Object.defineProperty(event, 'persisted', { value: false });
+        window.dispatchEvent(event);
+
+        await vi.waitFor(() => {
+            expect(api).toHaveBeenCalledWith('GET', '/api/articles/unread');
+        }, { interval: 1 });
+
+        expect(renderArticles).toHaveBeenCalledWith([{ id: 1, title: 'Test' }]);
+        expect(updateCounts).toHaveBeenCalled();
+    });
+
+    it('does not consume article-return state on non-list pages', () => {
+        document.body.innerHTML = '<div class="article-view"></div>';
+        consumeReturningFromArticleList.mockReturnValue(true);
+        initSpaNav();
+
+        const event = new Event('pageshow');
+        Object.defineProperty(event, 'persisted', { value: false });
+        window.dispatchEvent(event);
+
+        expect(api).not.toHaveBeenCalled();
+        expect(updateCounts).toHaveBeenCalled();
+        expect(consumeReturningFromArticleList).not.toHaveBeenCalled();
     });
 });

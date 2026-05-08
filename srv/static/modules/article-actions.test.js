@@ -16,12 +16,14 @@ import {
     SVG_STAR_FILLED, SVG_STAR_EMPTY, SVG_QUEUE_ADD, SVG_QUEUE_REMOVE
 } from './icons.js';
 import { makeFetchResponse } from './test-helpers.js';
+import { markReturningFromArticleList } from './nav-state.js';
 
 vi.mock('./pagination.js');
 vi.mock('./counts.js');
 vi.mock('./offline.js');
 vi.mock('./read-button.js');
 vi.mock('./toast.js');
+vi.mock('./nav-state.js');
 
 beforeEach(() => {
     vi.useFakeTimers();
@@ -127,7 +129,7 @@ describe('flushMarkReadQueue', () => {
 });
 
 describe('openArticle', () => {
-    it('marks the article as read, flushes queue, and navigates to /article/{id}', () => {
+    it('marks the article as read, flushes queue with keepalive, and navigates to /article/{id}', () => {
         vi.spyOn(console, 'debug').mockImplementation(() => {});
         Object.defineProperty(window, 'location', {
             value: { pathname: '/', hostname: 'localhost' },
@@ -137,17 +139,19 @@ describe('openArticle', () => {
         document.getElementById('articles-list').innerHTML =
             '<div class="article-card" data-id="5"></div>';
         openArticle(5);
-        // flushMarkReadQueue was called — article 5 should be in the batch POST
+        // flushMarkReadQueue was called with keepalive so the request survives navigation.
         expect(globalThis.fetch).toHaveBeenCalledWith(
             '/api/articles/batch-read',
             expect.objectContaining({
                 method: 'POST',
                 body: expect.stringContaining('"ids":[5]'),
+                keepalive: true,
             })
         );
         expect(console.debug).toHaveBeenCalledWith(
             expect.stringContaining('flushing batch of 1'), expect.arrayContaining([5])
         );
+        expect(markReturningFromArticleList).toHaveBeenCalled();
         // Assert navigation target
         expect(window.location).toBe('/article/5');
     });
