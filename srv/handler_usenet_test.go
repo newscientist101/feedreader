@@ -111,9 +111,6 @@ func TestAPIGetUsenetCredentials_Configured(t *testing.T) {
 	if body["enabled"] != true {
 		t.Errorf("expected enabled=true")
 	}
-	if body["configured"] != false && body["configured"] != true {
-		t.Errorf("configured has unexpected value: %v", body["configured"])
-	}
 	if body["configured"] != true {
 		t.Errorf("expected configured=true, got %v", body["configured"])
 	}
@@ -393,6 +390,10 @@ func TestAPIGetUsenetGroups_ReturnsSubscribed(t *testing.T) {
 	}
 	if items[0]["group_name"] != "comp.lang.go" {
 		t.Errorf("expected group_name=comp.lang.go, got %v", items[0]["group_name"])
+	}
+	// high_water_article_number is always present (0 until first fetch).
+	if _, ok := items[0]["high_water_article_number"]; !ok {
+		t.Error("expected high_water_article_number in group item")
 	}
 }
 

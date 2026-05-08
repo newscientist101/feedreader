@@ -3799,7 +3799,7 @@ func (s *Server) apiDeleteUsenetCredentials(w http.ResponseWriter, r *http.Reque
 
 // apiGetUsenetGroups returns the list of newsgroups the current user is
 // subscribed to. Each entry includes the feed ID, name, group name, provider,
-// and fetch state metadata.
+// and high_water_article_number (the highest article number fetched so far).
 func (s *Server) apiGetUsenetGroups(w http.ResponseWriter, r *http.Request) {
 	if !s.UsenetConfig.Enabled {
 		jsonError(w, "Usenet is not enabled on this server", 503)
@@ -3817,19 +3817,21 @@ func (s *Server) apiGetUsenetGroups(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type groupItem struct {
-		FeedID    int64  `json:"feed_id"`
-		Name      string `json:"name"`
-		GroupName string `json:"group_name"`
-		Provider  string `json:"provider"`
+		FeedID                 int64  `json:"feed_id"`
+		Name                   string `json:"name"`
+		GroupName              string `json:"group_name"`
+		Provider               string `json:"provider"`
+		HighWaterArticleNumber int64  `json:"high_water_article_number"`
 	}
 	items := make([]groupItem, 0, len(usenetFeeds))
 	for i := range usenetFeeds {
 		f := &usenetFeeds[i]
 		items = append(items, groupItem{
-			FeedID:    f.ID,
-			Name:      f.Name,
-			GroupName: f.GroupName,
-			Provider:  f.Provider,
+			FeedID:                 f.ID,
+			Name:                   f.Name,
+			GroupName:              f.GroupName,
+			Provider:               f.Provider,
+			HighWaterArticleNumber: f.HighWaterArticleNumber,
 		})
 	}
 	jsonResponse(w, items)
