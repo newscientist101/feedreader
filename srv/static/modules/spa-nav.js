@@ -8,6 +8,7 @@ import { setSidebarActive } from './sidebar.js';
 import { applyDefaultViewForScope } from './views.js';
 import { removeFeedErrorBanner } from './feed-errors.js';
 import { updateCounts } from './counts.js';
+import { consumeReturningFromArticleList } from './nav-state.js';
 
 // Pages that use the article-list layout (index.html template).
 // SPA navigation works between these pages without a full reload.
@@ -187,14 +188,24 @@ export function initSpaNav() {
         restoreFromState(e.state, path);
     }, { signal });
 
-    // Refresh counts and scroll to top when restored from back/forward cache.
-    // The bfcache preserves stale sidebar badge values from before navigation,
-    // so we must re-fetch counts immediately to reflect any changes made on
-    // the article page (e.g. marking an article as read).
+    // Refresh counts whenever a page is shown. Browser Back from an article
+    // page can restore stale sidebar badge DOM from bfcache, but some browsers
+    // report pageshow.persisted=false for cache/memory restores. Re-fetching on
+    // every pageshow keeps counts correct after article views mark items read.
+    //
+    // If the user is returning from an article opened from the list, the list
+    // DOM itself may also be stale: it can still contain the just-read card,
+    // with auto-mark-read and pagination state restored from bfcache. Re-fetch
+    // the current route in that case so unread/article-list state is rebuilt
+    // from the database instead of letting stale cards appear/disappear after
+    // delayed count or pagination updates.
     window.addEventListener('pageshow', (e) => {
         if (e.persisted) {
             window.scrollTo(0, 0);
-            updateCounts();
+        }
+        updateCounts();
+        if (isArticleListPage() && consumeReturningFromArticleList()) {
+            restoreFromState(history.state, window.location.pathname);
         }
     }, { signal });
 

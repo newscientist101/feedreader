@@ -9,6 +9,7 @@ import {
 import { updateCounts } from './counts.js';
 import { updateQueueCacheIfStandalone } from './offline.js';
 import { updateReadButton } from './read-button.js';
+import { markReturningFromArticleList } from './nav-state.js';
 
 // --- Queue state ---
 export let queuedArticleIds = new Set();
@@ -157,13 +158,32 @@ export function observeNewArticles(container) {
     }
 }
 
-export function flushMarkReadQueue() {
+export function flushMarkReadQueue({ keepalive = false } = {}) {
     _markReadTimer = null;
     if (_markReadQueue.length === 0) return;
     const ids = _markReadQueue.slice();
     _markReadQueue = [];
     console.debug(`[auto-mark-read] flushing batch of ${ids.length} article(s):`, ids);
-    api('POST', '/api/articles/batch-read', { ids })
+
+    let sync;
+    if (keepalive) {
+        sync = fetch('/api/articles/batch-read', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({ ids }),
+            keepalive: true,
+        }).then(res => {
+            if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+            return res.json();
+        });
+    } else {
+        sync = api('POST', '/api/articles/batch-read', { ids });
+    }
+
+    sync
         .then(() => { updateCounts(); })
         .catch(e => { console.error('Failed to batch mark read:', e); showToast('Failed to sync read status'); });
 }
@@ -186,8 +206,9 @@ export function markReadSilent(id) {
 
 export function openArticle(id) {
     markReadSilent(id);
+    markReturningFromArticleList();
+    flushMarkReadQueue({ keepalive: true });
     window.location = `/article/${id}`;
-    flushMarkReadQueue();
 }
 
 export function openArticleExternal(event, id, url) {
@@ -325,6 +346,13 @@ export function findNextUnreadFolder(currentCategoryId) {
     return null;
 }
 
+function hideReadCardsForPageCache() {
+    if (getSetting('hideReadArticles') !== 'hide') return;
+    document.querySelectorAll('.article-card.read').forEach(card => {
+        card.style.display = 'none';
+    });
+}
+
 // Delegated listeners for article actions (replaces inline onclick handlers in
 // index.html and dynamically-built article HTML).
 export function initArticleActionListeners() {
@@ -363,6 +391,12 @@ export function initArticleActionListeners() {
         }
     }, { signal });
 
+    // Before a page enters the back/forward cache, make the cached DOM match
+    // the user's hide-read preference. Article navigation marks the clicked
+    // card read immediately, then the browser may restore this exact DOM on
+    // Back before pageshow/popstate refreshes finish.
+    window.addEventListener('pagehide', hideReadCardsForPageCache, { signal });
+
     // Article body click — open article (delegated on .article-body.clickable)
     document.addEventListener('click', (e) => {
         const body = e.target.closest('.article-body.clickable');
@@ -371,6 +405,7 @@ export function initArticleActionListeners() {
         if (e.target.closest('a, button, .article-actions')) return;
         const card = body.closest('.article-card');
         if (card) {
+            hideReadCardsForPageCache();
             openArticle(Number(card.dataset.id));
         }
     }, { signal });
@@ -417,6 +452,7 @@ export function initArticleActionListeners() {
             e.stopPropagation();
             const card = preview.closest('.article-card');
             if (card) {
+                hideReadCardsForPageCache();
                 openArticle(Number(card.dataset.id));
             }
         }
