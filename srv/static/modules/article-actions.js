@@ -9,6 +9,7 @@ import {
 import { updateCounts } from './counts.js';
 import { updateQueueCacheIfStandalone } from './offline.js';
 import { updateReadButton } from './read-button.js';
+import { markReturningFromArticleList } from './nav-state.js';
 
 // --- Queue state ---
 export let queuedArticleIds = new Set();
@@ -186,6 +187,7 @@ export function markReadSilent(id) {
 
 export function openArticle(id) {
     markReadSilent(id);
+    markReturningFromArticleList();
     window.location = `/article/${id}`;
     flushMarkReadQueue();
 }
