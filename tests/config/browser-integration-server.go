@@ -19,23 +19,28 @@ const (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Print(err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	if len(os.Args) != 2 {
-		log.Fatalf("usage: %s <db-path>", filepath.Base(os.Args[0]))
+		return fmt.Errorf("usage: %s <db-path>", filepath.Base(os.Args[0]))
 	}
 
 	s, err := srv.New(os.Args[1], "browser-integration.test")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer s.Close()
 
 	if err := seed(s); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	if err := s.Serve(":3200"); err != nil {
-		log.Fatal(err)
-	}
+	return s.Serve(":3200")
 }
 
 func seed(s *srv.Server) error {
