@@ -712,6 +712,153 @@ func TestAPIPostUsenetGroups_TwoUsersShareSameGroupURL(t *testing.T) {
 	}
 }
 
+// --- POST /api/usenet/groups category ownership ---
+
+func TestAPIPostUsenetGroups_ValidCategory(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+
+	// Save credentials.
+	w := serveAPI(t, s.apiPutUsenetCredentials, "PUT", "/api/usenet/credentials",
+		`{"username":"u","password":"p"}`, ctx)
+	if w.Code != 200 {
+		t.Fatalf("PUT creds: %d", w.Code)
+	}
+
+	// Create a category belonging to the user.
+	q := dbgen.New(s.DB)
+	cat, err := q.CreateCategory(context.Background(), dbgen.CreateCategoryParams{
+		Name:   "Tech",
+		UserID: &user.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// POST with a valid category_id should succeed.
+	body := `{"group_name":"comp.lang.go","category_id":` + strconv.FormatInt(cat.ID, 10) + `}`
+	w = serveAPI(t, s.apiPostUsenetGroups, "POST", "/api/usenet/groups", body, ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAPIPostUsenetGroups_NonexistentCategory(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, _ := testUser(t, s)
+
+	w := serveAPI(t, s.apiPutUsenetCredentials, "PUT", "/api/usenet/credentials",
+		`{"username":"u","password":"p"}`, ctx)
+	if w.Code != 200 {
+		t.Fatalf("PUT creds: %d", w.Code)
+	}
+
+	// category_id 99999 does not exist.
+	w = serveAPI(t, s.apiPostUsenetGroups, "POST", "/api/usenet/groups",
+		`{"group_name":"comp.lang.go","category_id":99999}`, ctx)
+	if w.Code != 400 {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAPIPostUsenetGroups_ForeignCategory(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx1, _ := testUser(t, s)
+	ctx2, user2 := testUser2(t, s)
+
+	// Both save credentials.
+	for _, ctx := range []context.Context{ctx1, ctx2} {
+		w := serveAPI(t, s.apiPutUsenetCredentials, "PUT", "/api/usenet/credentials",
+			`{"username":"u","password":"p"}`, ctx)
+		if w.Code != 200 {
+			t.Fatalf("PUT creds: %d", w.Code)
+		}
+	}
+
+	// Create a category belonging to user2.
+	q := dbgen.New(s.DB)
+	cat, err := q.CreateCategory(context.Background(), dbgen.CreateCategoryParams{
+		Name:   "User2Cat",
+		UserID: &user2.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// User1 tries to use user2's category — must be rejected.
+	body := `{"group_name":"comp.lang.go","category_id":` + strconv.FormatInt(cat.ID, 10) + `}`
+	w := serveAPI(t, s.apiPostUsenetGroups, "POST", "/api/usenet/groups", body, ctx1)
+	if w.Code != 400 {
+		t.Fatalf("expected 400 for foreign category, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAPIPostUsenetGroups_NoCategory(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, _ := testUser(t, s)
+
+	w := serveAPI(t, s.apiPutUsenetCredentials, "PUT", "/api/usenet/credentials",
+		`{"username":"u","password":"p"}`, ctx)
+	if w.Code != 200 {
+		t.Fatalf("PUT creds: %d", w.Code)
+	}
+
+	// category_id=0 (omitted) should succeed without any category check.
+	w = serveAPI(t, s.apiPostUsenetGroups, "POST", "/api/usenet/groups",
+		`{"group_name":"comp.lang.go"}`, ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// --- PUT /api/usenet/credentials input validation ---
+
+func TestAPIPutUsenetCredentials_ControlCharInUsername(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, _ := testUser(t, s)
+
+	// CR in username.
+	w := serveAPI(t, s.apiPutUsenetCredentials, "PUT", "/api/usenet/credentials",
+		"{\"username\":\"alice\\reve\",\"password\":\"pass\"}", ctx)
+	if w.Code != 400 {
+		t.Fatalf("expected 400 for CR in username, got %d", w.Code)
+	}
+}
+
+func TestAPIPutUsenetCredentials_ControlCharInPassword(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, _ := testUser(t, s)
+
+	// LF in password.
+	w := serveAPI(t, s.apiPutUsenetCredentials, "PUT", "/api/usenet/credentials",
+		"{\"username\":\"alice\",\"password\":\"pass\\nword\"}", ctx)
+	if w.Code != 400 {
+		t.Fatalf("expected 400 for LF in password, got %d", w.Code)
+	}
+}
+
+func TestAPIPutUsenetCredentials_TrimsUsername(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, _ := testUser(t, s)
+
+	w := serveAPI(t, s.apiPutUsenetCredentials, "PUT", "/api/usenet/credentials",
+		`{"username":"  alice  ","password":"secret"}`, ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	body := jsonBody(t, w)
+	if body["username"] != "alice" {
+		t.Errorf("expected trimmed username 'alice', got %v", body["username"])
+	}
+}
+
 // TestAPIGetUsenetCredentials_NotConfigured verifies that a user with no saved
 // credentials receives a 200 response with configured=false.
 func TestAPIGetUsenetCredentials_ErrNoRowsOK(t *testing.T) {

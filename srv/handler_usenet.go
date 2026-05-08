@@ -71,12 +71,9 @@ func (s *Server) apiPutUsenetCredentials(w http.ResponseWriter, r *http.Request)
 		jsonError(w, "Invalid request body", 400)
 		return
 	}
-	if body.Username == "" {
-		jsonError(w, "username is required", 400)
-		return
-	}
-	if body.Password == "" {
-		jsonError(w, "password is required", 400)
+	trimmedUsername, err := usenet.ValidateCredentials(body.Username, body.Password)
+	if err != nil {
+		jsonError(w, err.Error(), 400)
 		return
 	}
 
@@ -92,7 +89,7 @@ func (s *Server) apiPutUsenetCredentials(w http.ResponseWriter, r *http.Request)
 
 	cred, err := q.UpsertNNTPCredentials(r.Context(), dbgen.UpsertNNTPCredentialsParams{
 		UserID:      user.ID,
-		Username:    body.Username,
+		Username:    trimmedUsername,
 		PasswordEnc: encrypted,
 		KeyVersion:  "v1",
 	})
@@ -250,6 +247,16 @@ func (s *Server) apiPostUsenetGroups(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if body.CategoryID > 0 {
+		// Verify the category belongs to the current user before linking.
+		if _, err := q.GetCategory(ctx, dbgen.GetCategoryParams{
+			ID:     body.CategoryID,
+			UserID: &user.ID,
+		}); err != nil {
+			// Roll back the feed and state rows.
+			_ = q.DeleteFeed(ctx, dbgen.DeleteFeedParams{ID: feed.ID, UserID: &user.ID})
+			jsonError(w, "Invalid or inaccessible category_id", 400)
+			return
+		}
 		if err := q.AddFeedToCategory(ctx, dbgen.AddFeedToCategoryParams{
 			FeedID:     feed.ID,
 			CategoryID: body.CategoryID,
