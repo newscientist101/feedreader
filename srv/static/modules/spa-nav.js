@@ -8,7 +8,7 @@ import { setSidebarActive } from './sidebar.js';
 import { applyDefaultViewForScope } from './views.js';
 import { removeFeedErrorBanner } from './feed-errors.js';
 import { updateCounts } from './counts.js';
-import { consumeReturningFromArticleList, peekPendingReadIds, clearPendingReadIds } from './nav-state.js';
+import { markReturningFromArticleList, consumeReturningFromArticleList, peekPendingReadIds, clearPendingReadIds } from './nav-state.js';
 import { getSetting } from './settings.js';
 
 // Pages that use the article-list layout (index.html template).
@@ -234,10 +234,15 @@ export function initSpaNav() {
                     });
                     if (resp.ok) {
                         clearPendingReadIds();
+                    } else {
+                        console.error('Failed to replay pending read IDs: HTTP', resp.status);
+                        // Restore the return marker so a later pageshow can retry.
+                        markReturningFromArticleList();
                     }
                 } catch (e) {
                     console.error('Failed to replay pending read IDs:', e);
-                    // Leave pendingIds intact so a later pageshow can retry.
+                    // Restore the return marker so a later pageshow can retry.
+                    markReturningFromArticleList();
                 }
             }
             restoreFromState(history.state, window.location.pathname);

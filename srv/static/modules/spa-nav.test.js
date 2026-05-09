@@ -16,7 +16,7 @@ import { setSidebarActive } from './sidebar.js';
 import { applyDefaultViewForScope } from './views.js';
 import { removeFeedErrorBanner } from './feed-errors.js';
 import { updateCounts } from './counts.js';
-import { consumeReturningFromArticleList, peekPendingReadIds, clearPendingReadIds } from './nav-state.js';
+import { markReturningFromArticleList, consumeReturningFromArticleList, peekPendingReadIds, clearPendingReadIds } from './nav-state.js';
 import { getSetting } from './settings.js';
 
 /** Set up the standard article-list page DOM for SPA navigation tests. */
@@ -39,6 +39,7 @@ beforeEach(() => {
     document.body.innerHTML = '';
     vi.clearAllMocks();
     api.mockResolvedValue({ articles: [{ id: 1, title: 'Test' }] });
+    markReturningFromArticleList.mockReturnValue(true);
     consumeReturningFromArticleList.mockReturnValue(false);
     peekPendingReadIds.mockReturnValue(new Set());
     clearPendingReadIds.mockReturnValue(true);
@@ -448,6 +449,29 @@ describe('popstate (browser back/forward)', () => {
         expect(clearPendingReadIds).not.toHaveBeenCalled();
     });
 
+    it('re-sets the return marker when replay POST returns non-2xx so a later pageshow retries', async () => {
+        setupArticleListPage();
+        consumeReturningFromArticleList.mockReturnValue(true);
+        peekPendingReadIds.mockReturnValue(new Set([30]));
+        globalThis.fetch.mockResolvedValue({ ok: false, status: 500 });
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        initSpaNav();
+
+        const event = new Event('pageshow');
+        Object.defineProperty(event, 'persisted', { value: false });
+        window.dispatchEvent(event);
+
+        await vi.waitFor(() => {
+            expect(markReturningFromArticleList).toHaveBeenCalled();
+        }, { interval: 1 });
+
+        expect(clearPendingReadIds).not.toHaveBeenCalled();
+        expect(console.error).toHaveBeenCalledWith(
+            'Failed to replay pending read IDs: HTTP',
+            500,
+        );
+    });
+
     it('does not call batch-read when no pending IDs exist', async () => {
         setupArticleListPage();
         consumeReturningFromArticleList.mockReturnValue(true);
@@ -487,5 +511,24 @@ describe('popstate (browser back/forward)', () => {
             'Failed to replay pending read IDs:',
             expect.any(Error),
         );
+    });
+
+    it('re-sets the return marker when replay POST throws a network error so a later pageshow retries', async () => {
+        setupArticleListPage();
+        consumeReturningFromArticleList.mockReturnValue(true);
+        peekPendingReadIds.mockReturnValue(new Set([40]));
+        globalThis.fetch.mockRejectedValue(new Error('Network error'));
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        initSpaNav();
+
+        const event = new Event('pageshow');
+        Object.defineProperty(event, 'persisted', { value: false });
+        window.dispatchEvent(event);
+
+        await vi.waitFor(() => {
+            expect(markReturningFromArticleList).toHaveBeenCalled();
+        }, { interval: 1 });
+
+        expect(clearPendingReadIds).not.toHaveBeenCalled();
     });
 });
