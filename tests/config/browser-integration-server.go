@@ -26,8 +26,13 @@ func main() {
 }
 
 func run() error {
-	if len(os.Args) != 2 {
-		return fmt.Errorf("usage: %s <db-path>", filepath.Base(os.Args[0]))
+	if len(os.Args) < 2 || len(os.Args) > 3 {
+		return fmt.Errorf("usage: %s <db-path> [port]", filepath.Base(os.Args[0]))
+	}
+
+	port := "3200"
+	if len(os.Args) == 3 {
+		port = os.Args[2]
 	}
 
 	s, err := srv.New(os.Args[1], "browser-integration.test")
@@ -40,7 +45,7 @@ func run() error {
 		return err
 	}
 
-	return s.Serve(":3200")
+	return s.Serve(":" + port)
 }
 
 func seed(s *srv.Server) error {

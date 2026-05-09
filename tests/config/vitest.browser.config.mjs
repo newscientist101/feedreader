@@ -260,6 +260,205 @@ export default defineConfig({
         },
 
         /**
+         * Run the fast-Back pending-read replay regression scenario.
+         *
+         * Intercepts the navigation-time POST /api/articles/batch-read so it
+         * resolves only after the Back navigation has already completed. This
+         * reproduces the race where the user returns to the article-list page
+         * before the keepalive flush has persisted. The pageshow replay path
+         * must re-POST the pending IDs and exclude them from the unread list.
+         *
+         * @param {object} [options]
+         * @param {'body'|'title-link'} [options.clickMode='body'] - Which element
+         *   to click to open the article.
+         */
+        async runFastBackPendingReadReplayScenario(ctx, options = {}) {
+          const clickMode = options.clickMode || 'body';
+          const fs = await import('node:fs/promises');
+          const os = await import('node:os');
+          const path = await import('node:path');
+          const childProcess = await import('node:child_process');
+          const { promisify } = await import('node:util');
+          const execFile = promisify(childProcess.execFile);
+
+          const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'feedreader-fastback-'));
+          const dbPath = path.join(tmpDir, 'test.sqlite3');
+          let server;
+
+          const waitForServer = async (port) => {
+            const deadline = Date.now() + 15000;
+            let lastErr;
+            while (Date.now() < deadline) {
+              try {
+                const resp = await fetch(`http://localhost:${port}/api/counts`, {
+                  headers: {
+                    'X-Exedev-Userid': 'browser-integ-user',
+                    'X-Exedev-Email': 'browser-integ@example.com',
+                  },
+                });
+                if (resp.ok) return;
+                lastErr = new Error(`status ${resp.status}`);
+              } catch (err) {
+                lastErr = err;
+              }
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            throw lastErr || new Error('server did not start');
+          };
+
+          const cleanup = async () => {
+            if (server && !server.killed) {
+              server.kill('SIGTERM');
+              await new Promise(resolve => {
+                const timer = setTimeout(() => {
+                  if (!server.killed) server.kill('SIGKILL');
+                  resolve();
+                }, 3000);
+                server.once('exit', () => {
+                  clearTimeout(timer);
+                  resolve();
+                });
+              });
+            }
+            await fs.rm(tmpDir, { recursive: true, force: true });
+          };
+
+          // Port 3201 to avoid collision with the scenario on 3200
+          const serverPort = 3201;
+
+          try {
+            await execFile('go', [
+              'build',
+              '-o', path.join(tmpDir, 'browser-integ-fastback'),
+              './tests/config/browser-integration-server.go',
+            ], { cwd: root });
+
+            server = childProcess.spawn(
+              path.join(tmpDir, 'browser-integ-fastback'),
+              [dbPath, String(serverPort)],
+              {
+                cwd: root,
+                env: { ...process.env, DEV: '' },
+                stdio: ['ignore', 'pipe', 'pipe'],
+              },
+            );
+            server.stdout.on('data', chunk => process.stdout.write(chunk));
+            server.stderr.on('data', chunk => process.stderr.write(chunk));
+            await waitForServer(serverPort);
+
+            const page = await ctx.context.newPage();
+
+            // Track batch-read requests so we can control when they resolve.
+            // We want the first navigation-time keepalive POST (from openArticle)
+            // to be delayed past the Back navigation so the pageshow replay path
+            // has to re-POST it. Subsequent replay POSTs from pageshow must go
+            // through immediately.
+            let navigationBatchReadBlocked = false;
+            let unblockNavigationBatchRead = null;
+
+            // Intercept POST /api/articles/batch-read:
+            //   - The first call while navigationBatchReadBlocked is true gets
+            //     held until unblockNavigationBatchRead() is called.
+            //   - All other calls pass through immediately.
+            await page.route('**/api/articles/batch-read', async (route) => {
+              if (route.request().method() !== 'POST') {
+                await route.continue();
+                return;
+              }
+              if (navigationBatchReadBlocked) {
+                // Hold this request: wait for the explicit unblock signal, then
+                // let it pass through so the server actually persists the IDs.
+                await new Promise(resolve => { unblockNavigationBatchRead = resolve; });
+                navigationBatchReadBlocked = false;
+                unblockNavigationBatchRead = null;
+              }
+              await route.continue();
+            });
+
+            try {
+              await page.setExtraHTTPHeaders({
+                'X-Exedev-Userid': 'browser-integ-user',
+                'X-Exedev-Email': 'browser-integ@example.com',
+              });
+              await page.setViewportSize({ width: 900, height: 520 });
+              await page.goto(`http://localhost:${serverPort}/`, { waitUntil: 'domcontentloaded' });
+              await page.waitForSelector('.article-card');
+
+              const allIds = await page.$$eval('.article-card', cards => cards.map(card => card.dataset.id));
+              const allTitles = await page.$$eval('.article-card', cards => cards.map(card => card.querySelector('.article-title')?.textContent?.trim() || ''));
+
+              const visibleIds = async () => page.$$eval('.article-card', cards => cards
+                .filter(card => getComputedStyle(card).display !== 'none')
+                .map(card => card.dataset.id));
+              const readIds = async () => page.$$eval('.article-card.read', cards => cards.map(card => card.dataset.id));
+              const unreadApiIds = async () => page.evaluate(async () => {
+                const resp = await fetch('/api/articles/unread');
+                const data = await resp.json();
+                return (data.articles || []).map(article => String(article.id));
+              });
+              const flush = async () => page.waitForTimeout(700);
+
+              // Step 1: scroll to mark some articles read
+              await page.evaluate(() => window.scrollTo(0, 1450));
+              await flush();
+
+              const scrolledReadIds = await readIds();
+
+              // Step 2: block the next batch-read POST so it doesn't persist
+              // before Back navigation completes (simulates fast Back race).
+              navigationBatchReadBlocked = true;
+
+              // Click article to navigate away; this triggers openArticle() which
+              // calls mergePendingReadIds + flushMarkReadQueue({ keepalive: true }).
+              const clickTarget = allIds.find(id => !scrolledReadIds.includes(id));
+              const clickSelector = clickMode === 'title-link'
+                ? `.article-card[data-id="${clickTarget}"] .article-title a[href^="/article/"]`
+                : `.article-card[data-id="${clickTarget}"] .article-body.clickable`;
+              await page.locator(clickSelector).click();
+              await page.waitForURL(/\/article\/\d+$/);
+
+              // Step 3: go Back before the intercepted batch-read has resolved.
+              // The pageshow handler will then need to replay the pending IDs.
+              await page.goBack({ waitUntil: 'domcontentloaded' });
+              await page.waitForSelector('.article-card');
+
+              // Step 4: now unblock the held batch-read so the server persists.
+              // (Simulates the keepalive eventually completing after Back.)
+              if (unblockNavigationBatchRead) {
+                unblockNavigationBatchRead();
+              }
+
+              // Wait for the pageshow replay path to complete.
+              await flush();
+
+              const afterBackVisible = await visibleIds();
+              const afterBackApiIds = await unreadApiIds();
+
+              // The clicked article and all scroll-read articles must be absent
+              // from both the DOM view and the unread API response.
+              const allExpectedRead = [...scrolledReadIds, clickTarget];
+
+              return {
+                allIds,
+                allTitles,
+                clickedId: clickTarget,
+                scrolledReadIds,
+                afterBack: {
+                  visible: afterBackVisible,
+                  apiIds: afterBackApiIds,
+                  expectedRead: allExpectedRead,
+                  expectedVisible: allIds.filter(id => !allExpectedRead.includes(id)),
+                },
+              };
+            } finally {
+              await page.close();
+            }
+          } finally {
+            await cleanup();
+          }
+        },
+
+        /**
          * Get the current name of a feed via the API.
          */
         async getFeedName(ctx, feedId) {
