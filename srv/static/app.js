@@ -26,6 +26,10 @@ import { initQueuePage } from './modules/queue.js';
 import { initScraperPage, initScraperPageListeners } from './modules/scraper-page.js';
 import { initOfflineSupport } from './modules/offline.js';
 import { initAlertsPage, initAlertDetailPage } from './modules/alerts.js';
+import {
+    initUsenetCredentialsSection, initUsenetSettingsListeners,
+    initUsenetGroupsSection, initUsenetFeedsListeners,
+} from './modules/usenet.js';
 import { initSpaNav } from './modules/spa-nav.js';
 
 // Initialize click-outside listener and keyboard navigation for dropdowns
@@ -51,6 +55,10 @@ initOpmlListeners();
 
 // Initialize delegated listeners for settings.html page
 initSettingsPageListeners();
+
+// Initialize delegated listeners for usenet sections (settings + feeds pages)
+initUsenetSettingsListeners();
+initUsenetFeedsListeners();
 
 // Initialize delegated listeners for scrapers.html page
 initScraperPageListeners();
@@ -116,6 +124,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize settings page controls (no-op if not on settings page)
     initSettingsPage();
+
+    // Initialize Usenet credential section (settings page, no-op if absent)
+    initUsenetCredentialsSection();
+
+    // Initialize Usenet groups section (feeds page, no-op if absent)
+    initUsenetGroupsSection();
 
     // Initialize queue page (no-op if not on queue page)
     initQueuePage();

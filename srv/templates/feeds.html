@@ -251,6 +251,52 @@
     </div>
 </div>
 
+    {{if .UsenetEnabled}}
+    <div class="usenet-section" id="usenet-groups-section">
+        <div class="feeds-table-header">
+            <h2>Usenet Newsgroups</h2>
+        </div>
+
+        <div id="usenet-no-credentials" style="display:none">
+            <p class="empty-state">
+                Usenet credentials are not configured.
+                <a href="/settings#usenet-section">Go to Settings</a> to configure your Eternal September credentials.
+            </p>
+        </div>
+
+        <div id="usenet-groups-content" style="display:none">
+            <form id="usenet-add-group-form" class="add-feed-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="usenet-group-name">Newsgroup Name</label>
+                        <input type="text" id="usenet-group-name" name="group_name"
+                               placeholder="comp.lang.go" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="usenet-group-category">Folder</label>
+                        <select id="usenet-group-category" name="category_id">
+                            <option value="0">No folder</option>
+                            {{range .Categories}}
+                            {{if ne .Name "Uncategorized"}}
+                            <option value="{{.ID}}">{{.Name}}</option>
+                            {{end}}
+                            {{end}}
+                        </select>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Subscribe</button>
+                    <span class="form-status" id="usenet-add-status"></span>
+                </div>
+            </form>
+
+            <div id="usenet-groups-list" class="usenet-groups-list">
+                <span class="spinner" aria-label="Loading newsgroups"></span>
+            </div>
+        </div>
+    </div>
+    {{end}}
+
 <!-- Create Folder Modal -->
 <div id="create-folder-modal" class="modal" style="display:none">
     <div class="modal-backdrop" data-action="close-create-folder"></div>

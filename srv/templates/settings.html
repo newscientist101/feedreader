@@ -132,6 +132,44 @@
         </div>
     </section>
 
+    {{if .UsenetEnabled}}
+    <section class="settings-section" id="usenet-section">
+        <h2>Usenet Newsgroups</h2>
+        <p class="section-description">
+            Connect to Eternal September to read text newsgroups alongside your RSS feeds.
+        </p>
+
+        <div id="usenet-credentials-status" class="usenet-credentials-status">
+            <span class="spinner" id="usenet-creds-loading" aria-label="Loading"></span>
+        </div>
+
+        <div id="usenet-credentials-form" style="display:none">
+            <form id="usenet-cred-form" autocomplete="off">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="usenet-username">Eternal September Username</label>
+                        <input type="text" id="usenet-username" name="username"
+                               placeholder="your-username" autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label for="usenet-password">Password</label>
+                        <input type="password" id="usenet-password" name="password"
+                               placeholder="your-password" autocomplete="current-password">
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" id="usenet-save-btn">Save Credentials</button>
+                    <button type="button" class="btn btn-danger" id="usenet-delete-btn"
+                            data-action="usenet-delete-credentials" style="display:none">
+                        Remove Credentials
+                    </button>
+                    <span class="form-status" id="usenet-cred-status"></span>
+                </div>
+            </form>
+        </div>
+    </section>
+    {{end}}
+
     <section class="settings-section">
         <h2>YouTube</h2>
         <p class="section-description">

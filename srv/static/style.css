@@ -3301,3 +3301,66 @@ th {
         max-width: none;
     }
 }
+
+/* ===== Usenet newsgroup UI ===== */
+
+.usenet-section {
+    background: var(--bg-card);
+    border-radius: var(--card-radius);
+    padding: var(--card-padding);
+    margin-bottom: var(--card-gap);
+}
+
+.usenet-credentials-status {
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+.status-warn {
+    color: var(--accent-yellow, #f5a623);
+}
+
+.form-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.form-status {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.form-error {
+    color: var(--accent-red, var(--danger));
+    font-size: 0.85rem;
+}
+
+.usenet-groups-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.usenet-group-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-hover);
+    border-radius: var(--card-radius-sm, 4px);
+}
+
+.usenet-group-name {
+    flex: 1;
+    font-family: monospace;
+    font-size: 0.9rem;
+}
+
+.usenet-group-hwm {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}

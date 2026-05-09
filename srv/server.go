@@ -728,6 +728,7 @@ func (s *Server) getCommonData(ctx context.Context) map[string]any {
 		"AlertsCount":     counts.Alerts,
 		"User":            user,
 		"Settings":        settings,
+		"UsenetEnabled":   s.UsenetConfig != nil && s.UsenetConfig.Enabled,
 	}
 }
 
