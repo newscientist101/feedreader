@@ -421,13 +421,18 @@ export function initArticleActionListeners() {
         }
     }, { signal });
 
-    // Article title link without URL — mark read silently
+    // Article title link without external URL — open via openArticle so the
+    // return-from-list marker and keepalive flush are set correctly (same as
+    // body/preview click path).
     document.addEventListener('click', (e) => {
         const link = e.target.closest('.article-title a[data-action="mark-read-silent"]');
         if (link) {
+            e.preventDefault();
+            e.stopPropagation();
             const card = link.closest('.article-card');
             if (card) {
-                markReadSilent(Number(card.dataset.id));
+                hideReadCardsForPageCache();
+                openArticle(Number(card.dataset.id));
             }
         }
     }, { signal });

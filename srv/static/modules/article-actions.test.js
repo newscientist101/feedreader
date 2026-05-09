@@ -575,7 +575,11 @@ describe('initArticleActionListeners', () => {
         vi.unstubAllGlobals();
     });
 
-    it('handles mark-read-silent action on title links', () => {
+    it('internal title link calls openArticle (not just markReadSilent)', () => {
+        vi.spyOn(console, 'debug').mockImplementation(() => {});
+        const origLocation = window.location;
+        delete window.location;
+        window.location = '';
         document.body.innerHTML = `
             <article class="article-card" data-id="9">
                 <div class="article-body clickable">
@@ -588,11 +592,24 @@ describe('initArticleActionListeners', () => {
         initArticleActionListeners();
 
         document.querySelector('[data-action="mark-read-silent"]').click();
-        // markReadSilent queues the id for batch flushing and marks the card as read in the DOM
+
+        // Card is marked read
         const card = document.querySelector('.article-card[data-id="9"]');
         expect(card.classList.contains('read')).toBe(true);
-        // The id should be in the mark-read queue
-        expect(_getMarkReadQueue()).toContain(9);
+
+        // Return-from-list marker must be set (openArticle sets it)
+        expect(markReturningFromArticleList).toHaveBeenCalled();
+
+        // Keepalive flush must have been issued (openArticle flushes with keepalive)
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+            '/api/articles/batch-read',
+            expect.objectContaining({ keepalive: true }),
+        );
+
+        // Must navigate to the article
+        expect(window.location).toBe('/article/9');
+
+        window.location = origLocation;
     });
 
     it('opens article and marks read on content-preview click', async () => {
