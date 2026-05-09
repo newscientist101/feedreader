@@ -8,6 +8,7 @@ vi.mock('./views.js');
 vi.mock('./feed-errors.js');
 vi.mock('./counts.js');
 vi.mock('./nav-state.js');
+vi.mock('./settings.js');
 
 import { api } from './api.js';
 import { showArticlesLoading, renderArticles } from './articles.js';
@@ -15,7 +16,8 @@ import { setSidebarActive } from './sidebar.js';
 import { applyDefaultViewForScope } from './views.js';
 import { removeFeedErrorBanner } from './feed-errors.js';
 import { updateCounts } from './counts.js';
-import { consumeReturningFromArticleList } from './nav-state.js';
+import { consumeReturningFromArticleList, peekPendingReadIds, clearPendingReadIds } from './nav-state.js';
+import { getSetting } from './settings.js';
 
 /** Set up the standard article-list page DOM for SPA navigation tests. */
 function setupArticleListPage() {
@@ -38,6 +40,10 @@ beforeEach(() => {
     vi.clearAllMocks();
     api.mockResolvedValue({ articles: [{ id: 1, title: 'Test' }] });
     consumeReturningFromArticleList.mockReturnValue(false);
+    peekPendingReadIds.mockReturnValue(new Set());
+    clearPendingReadIds.mockReturnValue(true);
+    getSetting.mockReturnValue(null);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true });
     Object.defineProperty(window, 'location', {
         value: { ...window.location, pathname: '/', reload: vi.fn() },
         writable: true,
@@ -367,5 +373,119 @@ describe('popstate (browser back/forward)', () => {
         expect(api).not.toHaveBeenCalled();
         expect(updateCounts).toHaveBeenCalled();
         expect(consumeReturningFromArticleList).not.toHaveBeenCalled();
+    });
+
+    it('replays pending read IDs on Back: marks cards read and POSTs to batch-read', async () => {
+        setupArticleListPage();
+        document.getElementById('articles-list').innerHTML = `
+            <div class="article-card" data-id="10"></div>
+            <div class="article-card" data-id="11"></div>
+        `;
+        consumeReturningFromArticleList.mockReturnValue(true);
+        peekPendingReadIds.mockReturnValue(new Set([10, 11]));
+        globalThis.fetch.mockResolvedValue({ ok: true });
+        initSpaNav();
+
+        const event = new Event('pageshow');
+        Object.defineProperty(event, 'persisted', { value: false });
+        window.dispatchEvent(event);
+
+        await vi.waitFor(() => {
+            expect(globalThis.fetch).toHaveBeenCalledWith(
+                '/api/articles/batch-read',
+                expect.objectContaining({
+                    method: 'POST',
+                    body: expect.stringContaining('"ids"'),
+                }),
+            );
+        }, { interval: 1 });
+
+        // Cards must be marked read in the DOM
+        expect(document.querySelector('.article-card[data-id="10"]').classList.contains('read')).toBe(true);
+        expect(document.querySelector('.article-card[data-id="11"]').classList.contains('read')).toBe(true);
+
+        // Pending IDs cleared after successful POST
+        expect(clearPendingReadIds).toHaveBeenCalled();
+    });
+
+    it('hides pending read cards when hideReadArticles=hide', async () => {
+        setupArticleListPage();
+        document.getElementById('articles-list').innerHTML =
+            '<div class="article-card" data-id="20"></div>';
+        consumeReturningFromArticleList.mockReturnValue(true);
+        peekPendingReadIds.mockReturnValue(new Set([20]));
+        getSetting.mockReturnValue('hide');
+        globalThis.fetch.mockResolvedValue({ ok: true });
+        initSpaNav();
+
+        const event = new Event('pageshow');
+        Object.defineProperty(event, 'persisted', { value: false });
+        window.dispatchEvent(event);
+
+        await vi.waitFor(() => {
+            expect(clearPendingReadIds).toHaveBeenCalled();
+        }, { interval: 1 });
+
+        const card = document.querySelector('.article-card[data-id="20"]');
+        expect(card.style.display).toBe('none');
+    });
+
+    it('does not clear pending IDs when replay POST fails', async () => {
+        setupArticleListPage();
+        consumeReturningFromArticleList.mockReturnValue(true);
+        peekPendingReadIds.mockReturnValue(new Set([30]));
+        globalThis.fetch.mockResolvedValue({ ok: false, status: 500 });
+        initSpaNav();
+
+        const event = new Event('pageshow');
+        Object.defineProperty(event, 'persisted', { value: false });
+        window.dispatchEvent(event);
+
+        await vi.waitFor(() => {
+            expect(api).toHaveBeenCalledWith('GET', '/api/articles/unread');
+        }, { interval: 1 });
+
+        expect(clearPendingReadIds).not.toHaveBeenCalled();
+    });
+
+    it('does not call batch-read when no pending IDs exist', async () => {
+        setupArticleListPage();
+        consumeReturningFromArticleList.mockReturnValue(true);
+        peekPendingReadIds.mockReturnValue(new Set());
+        initSpaNav();
+
+        const event = new Event('pageshow');
+        Object.defineProperty(event, 'persisted', { value: false });
+        window.dispatchEvent(event);
+
+        await vi.waitFor(() => {
+            expect(api).toHaveBeenCalledWith('GET', '/api/articles/unread');
+        }, { interval: 1 });
+
+        expect(globalThis.fetch).not.toHaveBeenCalled();
+        expect(clearPendingReadIds).not.toHaveBeenCalled();
+    });
+
+    it('leaves pending IDs intact when replay POST throws a network error', async () => {
+        setupArticleListPage();
+        consumeReturningFromArticleList.mockReturnValue(true);
+        peekPendingReadIds.mockReturnValue(new Set([40]));
+        globalThis.fetch.mockRejectedValue(new Error('Network error'));
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        initSpaNav();
+
+        const event = new Event('pageshow');
+        Object.defineProperty(event, 'persisted', { value: false });
+        window.dispatchEvent(event);
+
+        await vi.waitFor(() => {
+            expect(api).toHaveBeenCalledWith('GET', '/api/articles/unread');
+        }, { interval: 1 });
+
+        expect(clearPendingReadIds).not.toHaveBeenCalled();
+        expect(console.error).toHaveBeenCalledWith(
+            'Failed to replay pending read IDs:',
+            expect.any(Error),
+        );
     });
 });

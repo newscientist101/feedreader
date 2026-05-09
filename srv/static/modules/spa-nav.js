@@ -8,7 +8,8 @@ import { setSidebarActive } from './sidebar.js';
 import { applyDefaultViewForScope } from './views.js';
 import { removeFeedErrorBanner } from './feed-errors.js';
 import { updateCounts } from './counts.js';
-import { consumeReturningFromArticleList } from './nav-state.js';
+import { consumeReturningFromArticleList, peekPendingReadIds, clearPendingReadIds } from './nav-state.js';
+import { getSetting } from './settings.js';
 
 // Pages that use the article-list layout (index.html template).
 // SPA navigation works between these pages without a full reload.
@@ -199,12 +200,46 @@ export function initSpaNav() {
     // the current route in that case so unread/article-list state is rebuilt
     // from the database instead of letting stale cards appear/disappear after
     // delayed count or pagination updates.
-    window.addEventListener('pageshow', (e) => {
+    window.addEventListener('pageshow', async (e) => {
         if (e.persisted) {
             window.scrollTo(0, 0);
         }
         updateCounts();
         if (isArticleListPage() && consumeReturningFromArticleList()) {
+            // Replay any pending read IDs that may not have persisted yet
+            // (e.g. fast Back where keepalive batch-read is still in flight).
+            // Immediately hide matching cached DOM cards so they don't flash
+            // visible, then POST to ensure the server has them, and only clear
+            // the pending set after a successful POST.
+            const pendingIds = peekPendingReadIds();
+            if (pendingIds.size > 0) {
+                const hideRead = getSetting('hideReadArticles') === 'hide';
+                for (const id of pendingIds) {
+                    const card = document.querySelector(`.article-card[data-id="${id}"]`);
+                    if (card) {
+                        card.classList.add('read');
+                        if (hideRead) {
+                            card.style.display = 'none';
+                        }
+                    }
+                }
+                try {
+                    const resp = await fetch('/api/articles/batch-read', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: JSON.stringify({ ids: [...pendingIds] }),
+                    });
+                    if (resp.ok) {
+                        clearPendingReadIds();
+                    }
+                } catch (e) {
+                    console.error('Failed to replay pending read IDs:', e);
+                    // Leave pendingIds intact so a later pageshow can retry.
+                }
+            }
             restoreFromState(history.state, window.location.pathname);
         }
     }, { signal });

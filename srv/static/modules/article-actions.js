@@ -9,7 +9,7 @@ import {
 import { updateCounts } from './counts.js';
 import { updateQueueCacheIfStandalone } from './offline.js';
 import { updateReadButton } from './read-button.js';
-import { markReturningFromArticleList } from './nav-state.js';
+import { markReturningFromArticleList, mergePendingReadIds } from './nav-state.js';
 
 // --- Queue state ---
 export let queuedArticleIds = new Set();
@@ -207,6 +207,10 @@ export function markReadSilent(id) {
 export function openArticle(id) {
     markReadSilent(id);
     markReturningFromArticleList();
+    // Persist all queued IDs (including id just enqueued) to sessionStorage so
+    // the pageshow handler can replay them if the keepalive batch-read has not
+    // persisted by the time the user presses Back.
+    mergePendingReadIds(_markReadQueue);
     flushMarkReadQueue({ keepalive: true });
     window.location = `/article/${id}`;
 }

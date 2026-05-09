@@ -16,7 +16,7 @@ import {
     SVG_STAR_FILLED, SVG_STAR_EMPTY, SVG_QUEUE_ADD, SVG_QUEUE_REMOVE
 } from './icons.js';
 import { makeFetchResponse } from './test-helpers.js';
-import { markReturningFromArticleList } from './nav-state.js';
+import { markReturningFromArticleList, mergePendingReadIds } from './nav-state.js';
 
 vi.mock('./pagination.js');
 vi.mock('./counts.js');
@@ -152,6 +152,8 @@ describe('openArticle', () => {
             expect.stringContaining('flushing batch of 1'), expect.arrayContaining([5])
         );
         expect(markReturningFromArticleList).toHaveBeenCalled();
+        // Pending read IDs must be persisted before navigation
+        expect(mergePendingReadIds).toHaveBeenCalledWith(expect.arrayContaining([5]));
         // Assert navigation target
         expect(window.location).toBe('/article/5');
     });

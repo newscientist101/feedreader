@@ -103,7 +103,12 @@ export default defineConfig({
          * Run the auto-mark-read navigation regression scenario against an
          * isolated feedreader server and DB fixture.
          */
-        async runAutoMarkReadBackNavigationScenario(ctx) {
+        /**
+         * @param {object} [options]
+         * @param {'body'|'title-link'} [options.clickMode='body'] - Which element to click to open the article.
+         */
+        async runAutoMarkReadBackNavigationScenario(ctx, options = {}) {
+          const clickMode = options.clickMode || 'body';
           const fs = await import('node:fs/promises');
           const os = await import('node:os');
           const path = await import('node:path');
@@ -220,7 +225,10 @@ export default defineConfig({
               const afterFirstScroll = await assertPageState('after first scroll');
 
               const clickId = state.expectedVisible[1] || state.expectedVisible[0];
-              await page.locator(`.article-card[data-id="${clickId}"] .article-body.clickable`).click();
+              const clickSelector = clickMode === 'title-link'
+                ? `.article-card[data-id="${clickId}"] .article-title a[href^="/article/"]`
+                : `.article-card[data-id="${clickId}"] .article-body.clickable`;
+              await page.locator(clickSelector).click();
               await page.waitForURL(/\/article\/\d+$/);
               if (!state.expectedRead.includes(clickId)) state.expectedRead.push(clickId);
               state.expectedVisible = state.allIds.filter(id => !state.expectedRead.includes(id));

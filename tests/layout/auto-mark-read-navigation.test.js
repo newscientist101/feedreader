@@ -39,8 +39,39 @@ function expectState(checkpoint) {
 }
 
 describe('auto-mark-read scroll and article Back navigation', () => {
-  test('keeps scrolled-read articles hidden after opening an article and going back', async () => {
+  test('keeps scrolled-read articles hidden after opening an article body and going back', async () => {
     const result = await commands.runAutoMarkReadBackNavigationScenario();
+
+    expect(result.allIds.length).toBe(12);
+    expect(result.allTitles[0]).toBe('Browser Integration Article 01');
+
+    expectState(result.afterFirstScroll);
+
+    expect(
+      result.afterBack.expectedRead,
+      'after back: clicked article should be tracked as read',
+    ).toContain(result.clickedId);
+    expect(
+      result.afterBack.apiIds,
+      'after back: clicked article should not be returned by /api/articles/unread',
+    ).not.toContain(result.clickedId);
+
+    const afterBackScrolledOnly = {
+      ...result.afterBack,
+      expectedRead: result.afterFirstScroll.expectedRead,
+      expectedVisible: result.afterBack.expectedVisible.filter(id => id !== result.clickedId),
+    };
+    expectState(afterBackScrolledOnly);
+
+    expect(
+      result.afterSecondScroll.expectedRead.length,
+      'second scroll should mark more articles read or keep the existing read set',
+    ).toBeGreaterThanOrEqual(result.afterBack.expectedRead.length);
+    expectState(result.afterSecondScroll);
+  }, 30000);
+
+  test('keeps scrolled-read articles hidden after clicking article title link and going back', async () => {
+    const result = await commands.runAutoMarkReadBackNavigationScenario({ clickMode: 'title-link' });
 
     expect(result.allIds.length).toBe(12);
     expect(result.allTitles[0]).toBe('Browser Integration Article 01');
