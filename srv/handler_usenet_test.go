@@ -3,8 +3,11 @@ package srv
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/newscientist101/feedreader/db/dbgen"
 	"github.com/newscientist101/feedreader/srv/usenet"
@@ -873,5 +876,135 @@ func TestAPIGetUsenetCredentials_ErrNoRowsOK(t *testing.T) {
 	body := jsonBody(t, w)
 	if body["configured"] != false {
 		t.Errorf("expected configured=false, got %v", body["configured"])
+	}
+}
+
+// --- Feed status endpoint for NNTP feeds (feedreader-6g2.19) ---
+
+// createNNTPFeed inserts a feed with feed_type='nntp' and a usenet_feed_state
+// row for testing the status endpoint.
+func createNNTPFeed(t *testing.T, s *Server, userID int64, groupName string) dbgen.Feed {
+	t.Helper()
+	q := dbgen.New(s.DB)
+	interval := int64(60)
+	url := fmt.Sprintf("nntp://news.eternal-september.org/%s", groupName)
+	feed, err := q.CreateFeed(context.Background(), dbgen.CreateFeedParams{
+		Name: groupName, Url: url, FeedType: "nntp",
+		FetchIntervalMinutes: &interval, UserID: &userID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Insert usenet_feed_state row.
+	_, err = s.DB.ExecContext(context.Background(),
+		`INSERT INTO usenet_feed_state (feed_id, provider, group_name, high_water_article_number, created_at, updated_at)
+		VALUES (?, 'eternal-september', ?, 0, ?, ?)`,
+		feed.ID, groupName, time.Now().UTC(), time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return feed
+}
+
+// setNNTPFeedError directly writes a last_error on a feed row.
+func setNNTPFeedError(t *testing.T, s *Server, feedID int64, msg string) {
+	t.Helper()
+	now := time.Now().UTC()
+	q := dbgen.New(s.DB)
+	err := q.IncrementFeedErrors(context.Background(), dbgen.IncrementFeedErrorsParams{
+		LastError:     &msg,
+		LastFetchedAt: &now,
+		ID:            feedID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestNNTPFeedStatusErrorVisible verifies that a fetch error recorded on an
+// NNTP feed is returned by GET /api/feeds/{id}/status.
+func TestNNTPFeedStatusErrorVisible(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+
+	feed := createNNTPFeed(t, s, user.ID, "comp.lang.go")
+	errMsg := "nntp: connection failed: dial tcp: connection refused"
+	setNNTPFeedError(t, s, feed.ID, errMsg)
+
+	w := serveMux(t, "GET /api/feeds/{id}/status", s.apiGetFeedStatus,
+		"GET", fmt.Sprintf("/api/feeds/%d/status", feed.ID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	body := jsonBody(t, w)
+	if body["lastError"] != errMsg {
+		t.Errorf("expected lastError=%q, got %v", errMsg, body["lastError"])
+	}
+}
+
+// TestNNTPFeedStatusNoLeakPassword verifies that NNTP credential error
+// messages stored in last_error never contain the plaintext password or
+// the encrypted credential blob.
+func TestNNTPFeedStatusNoLeakPassword(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+
+	feed := createNNTPFeed(t, s, user.ID, "sci.physics")
+
+	// Simulate the error messages that the fetcher writes for credential failures.
+	// None of these should contain the plaintext password ("hunter2") or
+	// the encrypted blob (a hex string beginning with the key prefix).
+	sensitive := []string{"hunter2", "hexencryptedblob"}
+	errMsgs := []string{
+		"nntp: credentials not configured for this user",
+		"nntp: failed to decrypt stored credentials",
+		"nntp: connection failed: authentication rejected",
+	}
+
+	for _, errMsg := range errMsgs {
+		for _, secret := range sensitive {
+			if strings.Contains(errMsg, secret) {
+				t.Errorf("error message %q must not contain sensitive value %q", errMsg, secret)
+			}
+		}
+	}
+
+	// Write one of those errors to the feed and verify it comes back via the API.
+	setNNTPFeedError(t, s, feed.ID, errMsgs[1])
+	w := serveMux(t, "GET /api/feeds/{id}/status", s.apiGetFeedStatus,
+		"GET", fmt.Sprintf("/api/feeds/%d/status", feed.ID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	body := jsonBody(t, w)
+	if body["lastError"] != errMsgs[1] {
+		t.Errorf("expected lastError=%q, got %v", errMsgs[1], body["lastError"])
+	}
+	for _, secret := range sensitive {
+		if strings.Contains(fmt.Sprintf("%v", body["lastError"]), secret) {
+			t.Errorf("API response lastError must not contain sensitive value %q", secret)
+		}
+	}
+}
+
+// TestNNTPFeedStatusUserIsolation verifies that a user cannot retrieve the
+// status of another user's NNTP feed.
+func TestNNTPFeedStatusUserIsolation(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	_, user1 := testUser(t, s)
+	ctx2, _ := testUser2(t, s)
+
+	// user1's NNTP feed.
+	feed := createNNTPFeed(t, s, user1.ID, "comp.lang.go")
+	setNNTPFeedError(t, s, feed.ID, "nntp: connection failed")
+
+	// user2 must not be able to retrieve user1's feed status.
+	w := serveMux(t, "GET /api/feeds/{id}/status", s.apiGetFeedStatus,
+		"GET", fmt.Sprintf("/api/feeds/%d/status", feed.ID), "", ctx2)
+	if w.Code != 404 {
+		t.Fatalf("expected 404 for cross-user feed status, got %d: %s", w.Code, w.Body.String())
 	}
 }
