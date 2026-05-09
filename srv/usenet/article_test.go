@@ -373,3 +373,84 @@ func TestMapArticle_InvalidReferencesIgnored(t *testing.T) {
 		t.Errorf("RootMessageID = %q, want %q", rec.Meta.RootMessageID, "<x@h>")
 	}
 }
+
+func TestMapArticle_ThreadDeepChain(t *testing.T) {
+	// Deep thread: 4 references means root=first, parent=last.
+	refs := "<r1@host> <r2@host> <r3@host> <r4@host>"
+	overview := makeOverview(7, "Re^4: S", "f@h", "", "<r5@host>", refs)
+	article := makeArticle(nil, "deep reply body")
+
+	rec := usenet.MapArticle(1, "misc.test", 7, &overview, article)
+
+	if rec.Meta.ParentMessageID == nil {
+		t.Fatal("ParentMessageID is nil, want <r4@host>")
+	}
+	if *rec.Meta.ParentMessageID != "<r4@host>" {
+		t.Errorf("ParentMessageID = %q, want %q", *rec.Meta.ParentMessageID, "<r4@host>")
+	}
+	if rec.Meta.RootMessageID != "<r1@host>" {
+		t.Errorf("RootMessageID = %q, want %q", rec.Meta.RootMessageID, "<r1@host>")
+	}
+}
+
+func TestMapArticle_ThreadDuplicateWhitespace(t *testing.T) {
+	// References with extra/duplicate whitespace between IDs should parse correctly.
+	refs := "  <root@host>   <mid@host>  "
+	overview := makeOverview(3, "Re: S", "f@h", "", "<reply@host>", refs)
+	article := makeArticle(nil, "body")
+
+	rec := usenet.MapArticle(1, "misc.test", 3, &overview, article)
+
+	if rec.Meta.ParentMessageID == nil {
+		t.Fatal("ParentMessageID is nil, want <mid@host>")
+	}
+	if *rec.Meta.ParentMessageID != "<mid@host>" {
+		t.Errorf("ParentMessageID = %q, want %q", *rec.Meta.ParentMessageID, "<mid@host>")
+	}
+	if rec.Meta.RootMessageID != "<root@host>" {
+		t.Errorf("RootMessageID = %q, want %q", rec.Meta.RootMessageID, "<root@host>")
+	}
+}
+
+func TestMapArticle_ThreadMissingParentInDB(t *testing.T) {
+	// References point to an article that doesn't exist in the database.
+	// parseThreading is a pure function — it still records the referenced parent
+	// and root IDs as given; DB lookup is the caller's responsibility.
+	refs := "<ghost@host>"
+	overview := makeOverview(4, "Re: S", "f@h", "", "<reply@host>", refs)
+	article := makeArticle(nil, "body")
+
+	rec := usenet.MapArticle(1, "misc.test", 4, &overview, article)
+
+	// Parent should be set even though <ghost@host> may not exist in the DB.
+	if rec.Meta.ParentMessageID == nil {
+		t.Fatal("ParentMessageID is nil, want <ghost@host>")
+	}
+	if *rec.Meta.ParentMessageID != "<ghost@host>" {
+		t.Errorf("ParentMessageID = %q, want %q", *rec.Meta.ParentMessageID, "<ghost@host>")
+	}
+	if rec.Meta.RootMessageID != "<ghost@host>" {
+		t.Errorf("RootMessageID = %q, want %q", rec.Meta.RootMessageID, "<ghost@host>")
+	}
+}
+
+func TestMapArticle_ThreadMixedValidAndInvalidRefs(t *testing.T) {
+	// References header mixing valid angle-bracket IDs with malformed tokens.
+	// Only valid IDs are used; malformed ones are skipped.
+	refs := "not-valid <good@host> also-bad"
+	overview := makeOverview(5, "Re: S", "f@h", "", "<reply@host>", refs)
+	article := makeArticle(nil, "body")
+
+	rec := usenet.MapArticle(1, "misc.test", 5, &overview, article)
+
+	// Only one valid ref: <good@host> is both root and parent.
+	if rec.Meta.ParentMessageID == nil {
+		t.Fatal("ParentMessageID is nil, want <good@host>")
+	}
+	if *rec.Meta.ParentMessageID != "<good@host>" {
+		t.Errorf("ParentMessageID = %q, want %q", *rec.Meta.ParentMessageID, "<good@host>")
+	}
+	if rec.Meta.RootMessageID != "<good@host>" {
+		t.Errorf("RootMessageID = %q, want %q", rec.Meta.RootMessageID, "<good@host>")
+	}
+}
