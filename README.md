@@ -21,6 +21,7 @@ custom web scrapers for sites without feeds, and AI-powered scraper generation.
 - **Multi-user** — each user gets their own feeds, folders, and settings
 - **Responsive UI** — works on desktop, tablet, and mobile
 - **Offline support** — service worker for offline reading
+- **Usenet newsgroups** — read-only text newsgroup access via Eternal September (optional, operator-enabled)
 
 ## Quick Start
 
@@ -105,6 +106,9 @@ srv/
   huggingface/             Hugging Face model feed source
   opml/                    OPML import/export
   email/                   Newsletter SMTP receiver
+  nntp/                    NNTP protocol client (no DB dependency)
+  usenet/                  Usenet helpers: crypto, group/credential validation, article mapping
+  handler_usenet.go        Usenet API handler methods
   templates/               Server-rendered HTML templates
   static/                  CSS, JS, icons
     app.js                 JS entry point
@@ -112,7 +116,7 @@ srv/
     style.css              Styles
 db/
   db.go                    Database setup, migrations, pragmas
-  migrations/              Numbered SQL migrations (001–015)
+  migrations/              Numbered SQL migrations (001–024)
   queries/                 SQL queries for sqlc
   dbgen/                   Generated Go code (do not edit)
 ```
@@ -251,6 +255,15 @@ All endpoints require authentication headers.
 - `GET /api/retention/stats` — retention statistics
 - `POST /api/retention/cleanup` — run cleanup
 
+### Usenet (requires `USENET_ENABLED=true`)
+- `GET /api/usenet/credentials` — credential status (never returns password)
+- `PUT /api/usenet/credentials` — save username/password
+- `DELETE /api/usenet/credentials` — remove credentials
+- `GET /api/usenet/groups` — list subscribed newsgroups
+- `POST /api/usenet/groups` — subscribe to a newsgroup
+- `DELETE /api/usenet/groups/{feed_id}` — unsubscribe
+- `GET /api/usenet/articles/{article_id}/thread` — thread context for a Usenet article
+
 </details>
 
 ## Deployment
@@ -278,7 +291,65 @@ FeedReader optionally supports read-only Usenet newsgroup access via
 [Eternal September](https://www.eternal-september.org/). Per-user NNTP
 credentials are encrypted at rest using an operator-managed key.
 
-### Enabling Usenet
+### Features and Limitations
+
+- **Read-only** — articles can only be read, not posted or replied to.
+- **Text-only** — only `text/plain` articles are ingested. Binary posts,
+  multipart posts, attachments, yEnc-encoded content, and base64-encoded
+  bodies are rejected automatically at ingestion time.
+- **No binary groups** — newsgroups with `binary` or `binaries` in any
+  segment, and all `alt.binaries.*` groups, are rejected at subscription time.
+- **Manual subscription** — groups are added by exact lowercase name
+  (e.g. `comp.lang.go`). There is no group browser or search.
+- **Fixed provider** — [Eternal September](https://www.eternal-september.org/)
+  is the only supported provider (`news.eternal-september.org:563`, TLS).
+- **First-fetch limit** — the first fetch for a new group imports at most the
+  latest 100 articles. Subsequent fetches pick up from where the previous
+  one left off, capped at 500 articles per run.
+- **Thread context** — Message-ID / References headers are parsed to build
+  parent/root relationships. The article page shows all other messages in
+  the same thread. Article lists show a reply indicator for non-root messages.
+- **Integrated experience** — Usenet newsgroups appear alongside RSS feeds
+  in folders, the sidebar, and article lists. Read/unread, star, queue,
+  history, search, exclusion filters, and retention all work for Usenet
+  articles without any extra setup.
+
+### Using Usenet (as a user)
+
+1. **Configure credentials** — go to **Settings** and find the
+   *Usenet (Eternal September)* section. Enter your Eternal September
+   username and password and click **Save**. Credentials are stored
+   encrypted; the password is never returned by the API.
+
+2. **Subscribe to a newsgroup** — go to **Feeds** and find the
+   *Usenet Newsgroups* section. Enter an exact group name (e.g.
+   `comp.lang.go`), optionally choose a folder, and click **Subscribe**.
+   The background worker will import recent articles on the next scheduled
+   run (or immediately if the feed is manually refreshed).
+
+3. **Read articles** — subscribed newsgroups appear in the sidebar and
+   article list alongside your RSS feeds. Usenet articles display their
+   content inside a `<pre>` block to preserve plain-text formatting.
+   Threading context (other messages in the same thread) is shown on the
+   individual article page.
+
+4. **Remove a newsgroup** — click the **×** next to a group in the
+   *Usenet Newsgroups* section on the Feeds page, or use the standard
+   feed delete flow.
+
+### Troubleshooting
+
+| Symptom | Likely cause |
+|---|---|
+| Usenet sections not visible in Settings or Feeds | `USENET_ENABLED` is not set to `true`, or the server was not restarted after the change. |
+| "Usenet is not enabled on this server" (503) | Same as above — check the service environment. |
+| "Usenet credentials not configured" on group subscription | Save your Eternal September credentials in Settings first. |
+| No articles appear after subscribing | The background fetch may not have run yet. Use the manual **Refresh** action on the feed. Also check the feed's error status via the feed list. |
+| Authentication error on fetch | Your Eternal September username or password is incorrect, or the account is not activated. Verify credentials at eternal-september.org. |
+| Group rejected with "binary groups are not allowed" | The group name contains `binary`/`binaries` or matches `alt.binaries.*`. FeedReader does not support binary groups. |
+| Articles not appearing despite successful fetch | The articles may have been rejected as binary content (binary subjects, non-text MIME types, yEnc markers). Check the server logs for ingestion details. |
+
+### Enabling Usenet (operator)
 
 Set `USENET_ENABLED=true` in the service environment. The application will
 **refuse to start** unless `USENET_CREDENTIAL_KEY` is also set to a valid
