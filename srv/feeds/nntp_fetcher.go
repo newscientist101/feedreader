@@ -116,27 +116,46 @@ func planArticleRange(serverLow, serverHigh, highWater int64) (start, end int64)
 	return start, end
 }
 
+// setFeedError is a convenience helper that records a fetch error on a feed
+// via IncrementFeedErrors and logs a warning if the DB call itself fails.
+func (f *Fetcher) setFeedError(ctx context.Context, q *dbgen.Queries, feedID int64, now time.Time, msg string) {
+	if err := q.IncrementFeedErrors(ctx, dbgen.IncrementFeedErrorsParams{
+		LastError:     &msg,
+		LastFetchedAt: &now,
+		ID:            feedID,
+	}); err != nil {
+		slog.Warn("increment feed errors", "feed_id", feedID, "error", err)
+	}
+}
+
 // fetchNNTPFeed is the top-level NNTP handler called from FetchFeed for
 // feed_type='nntp' rows. It handles feed status updates directly (unlike
 // RSS/scraper paths that use the generic FeedItem loop).
 //
-// The full fetch implementation is added in feedreader-6g2.18.2 through
-// feedreader-6g2.18.5. This stub ensures the dispatch compiles and updates
-// feed status correctly.
+// Phase 1 (feedreader-6g2.18.2): load and decrypt credentials, dial NNTP.
+// Phase 2 (feedreader-6g2.18.3 – 18.5): group select, overview fetch,
+// article import, high-water and feed-status updates.
 func (f *Fetcher) fetchNNTPFeed(ctx context.Context, q *dbgen.Queries, now time.Time, feed *dbgen.Feed) error {
 	slog.Debug("starting nntp feed fetch", "feed_id", feed.ID, "url", feed.Url)
 
 	if f.NNTPDialer == nil {
-		errMsg := fmt.Sprintf("%s: set Fetcher.NNTPDialer to enable Usenet support", ErrNNTPNotConfigured.Error())
-		if err := q.IncrementFeedErrors(ctx, dbgen.IncrementFeedErrorsParams{
-			LastError:     &errMsg,
-			LastFetchedAt: &now,
-			ID:            feed.ID,
-		}); err != nil {
-			slog.Warn("increment feed errors", "error", err)
-		}
+		msg := fmt.Sprintf("%s: set Fetcher.NNTPDialer to enable Usenet support", ErrNNTPNotConfigured.Error())
+		f.setFeedError(ctx, q, feed.ID, now, msg)
 		return fmt.Errorf("%w: set Fetcher.NNTPDialer to enable Usenet support", ErrNNTPNotConfigured)
 	}
+	if f.CredentialDecryptor == nil {
+		msg := fmt.Sprintf("%s: set Fetcher.CredentialDecryptor to enable Usenet support", ErrNNTPNotConfigured.Error())
+		f.setFeedError(ctx, q, feed.ID, now, msg)
+		return fmt.Errorf("%w: set Fetcher.CredentialDecryptor to enable Usenet support", ErrNNTPNotConfigured)
+	}
+
+	// Require a user_id on the feed so we can look up per-user credentials.
+	if feed.UserID == nil {
+		msg := "nntp: feed has no user_id"
+		f.setFeedError(ctx, q, feed.ID, now, msg)
+		return fmt.Errorf("%s", msg)
+	}
+	userID := *feed.UserID
 
 	// Look up the NNTP-specific state for this feed.
 	state, err := q.GetUsenetFeedState(ctx, dbgen.GetUsenetFeedStateParams{
@@ -144,27 +163,48 @@ func (f *Fetcher) fetchNNTPFeed(ctx context.Context, q *dbgen.Queries, now time.
 		UserID: feed.UserID,
 	})
 	if err != nil {
-		errMsg := fmt.Sprintf("nntp feed state lookup failed: %v", err)
-		if dbErr := q.IncrementFeedErrors(ctx, dbgen.IncrementFeedErrorsParams{
-			LastError:     &errMsg,
-			LastFetchedAt: &now,
-			ID:            feed.ID,
-		}); dbErr != nil {
-			slog.Warn("increment feed errors", "error", dbErr)
-		}
+		msg := fmt.Sprintf("nntp: feed state lookup failed: %v", err)
+		f.setFeedError(ctx, q, feed.ID, now, msg)
 		return fmt.Errorf("nntp feed state lookup: %w", err)
 	}
 
-	// Full implementation (credential lookup, group select, overview fetch,
-	// article import, high-water update) added in feedreader-6g2.18.2 through
-	// feedreader-6g2.18.5.
-	errMsg := fmt.Sprintf("%s: implementation pending", ErrNNTPNotConfigured.Error())
-	if dbErr := q.IncrementFeedErrors(ctx, dbgen.IncrementFeedErrorsParams{
-		LastError:     &errMsg,
-		LastFetchedAt: &now,
-		ID:            feed.ID,
-	}); dbErr != nil {
-		slog.Warn("increment feed errors", "error", dbErr)
+	// Load per-user credentials.
+	cred, err := q.GetNNTPCredentials(ctx, userID)
+	if err != nil {
+		// No credentials configured: record as a feed error (not a transient
+		// connection issue) and return without updating high-water mark.
+		msg := "nntp: credentials not configured for this user"
+		f.setFeedError(ctx, q, feed.ID, now, msg)
+		return fmt.Errorf("nntp credentials: %w", err)
 	}
-	return fmt.Errorf("%w: implementation pending (group=%s)", ErrNNTPNotConfigured, state.GroupName)
+
+	// Decrypt the stored password blob.
+	password, err := f.CredentialDecryptor.Decrypt(cred.PasswordEnc)
+	if err != nil {
+		// Corrupt or tampered credential blob. Do not include the blob value
+		// in the error message to avoid leaking it in logs or feed error UI.
+		msg := "nntp: failed to decrypt stored credentials"
+		f.setFeedError(ctx, q, feed.ID, now, msg)
+		return fmt.Errorf("nntp credential decrypt: %w", err)
+	}
+
+	// Establish an authenticated NNTP connection.
+	conn, err := f.NNTPDialer.Dial(ctx, cred.Username, password)
+	if err != nil {
+		// Record the error on the feed but do not advance the high-water mark.
+		// Redact the password from the dial error if it were somehow present.
+		msg := fmt.Sprintf("nntp: connection failed: %v", err)
+		f.setFeedError(ctx, q, feed.ID, now, msg)
+		return fmt.Errorf("nntp dial: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	// Phase 2 (feedreader-6g2.18.3 – 18.5): group select, overview fetch,
+	// article import, high-water and feed-status updates.
+	//
+	// Stub: record a soft error until the remaining subtasks are implemented.
+	_ = state
+	msg := fmt.Sprintf("%s: overview/import implementation pending (group=%s)", ErrNNTPNotConfigured.Error(), state.GroupName)
+	f.setFeedError(ctx, q, feed.ID, now, msg)
+	return fmt.Errorf("%w: overview/import pending (group=%s)", ErrNNTPNotConfigured, state.GroupName)
 }
