@@ -146,6 +146,13 @@ export function showArticlesLoading() {
     }
 }
 
+// Build a small reply/thread badge for Usenet reply articles.
+// Returns an empty string for non-NNTP articles and NNTP root posts.
+export function buildUsenetReplyBadge(a) {
+    if (a.feed_type !== 'nntp' || !a.usenet_parent_message_id) return '';
+    return '<span class="usenet-reply-badge" title="Reply in thread">&#8629; reply</span>';
+}
+
 export function buildArticleCardHtml(a) {
     a.is_queued = queuedArticleIds.has(a.id);
     const safeTitle = escapeHtml(a.title);
@@ -155,6 +162,7 @@ export function buildArticleCardHtml(a) {
     const safeImageUrl = escapeHtml(a.image_url);
     const safeSummary = escapeHtml(truncateText(stripHtml(a.summary), PREVIEW_TEXT_LIMIT));
     const safeContent = escapeHtml(truncateText(stripHtml(a.content), PREVIEW_TEXT_LIMIT));
+    const replyBadge = buildUsenetReplyBadge(a);
     return `
         <article class="article-card ${a.is_read ? 'read' : ''}${a.image_url ? ' has-image' : ''}" data-id="${a.id}" data-sort-time="${escapeHtml(a.published_at || a.fetched_at)}">
             ${a.image_url ? `<div class="article-image magazine-expanded-only"><img src="${safeImageUrl}" alt="" loading="lazy"></div>` : `<div class="article-image-placeholder magazine-only">
@@ -167,6 +175,7 @@ export function buildArticleCardHtml(a) {
                     <a class="feed-name" href="/feed/${a.feed_id}">${safeFeedName}</a>
                     ${a.author ? `<span class="article-author">${safeAuthor}</span>` : ''}
                     <span class="article-date">${formatTimeAgo(a.published_at)}</span>
+                    ${replyBadge}
                 </div>
                 <h2 class="article-title">
                     ${a.url ? `<a href="${safeUrl}" target="_blank" data-action="open-external">${safeTitle}</a>` : `<a href="/article/${a.id}" data-action="mark-read-silent">${safeTitle}</a>`}

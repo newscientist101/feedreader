@@ -10,6 +10,7 @@ export const showHiddenArticles = vi.fn();
 export const getIncludeReadUrl = vi.fn(() => '');
 export const showArticlesLoading = vi.fn();
 export const buildArticleCardHtml = vi.fn(() => '<div class="article-card"></div>');
+export const buildUsenetReplyBadge = vi.fn(() => '');
 export const renderArticles = vi.fn();
 export const processEmbeds = vi.fn();
 export const extractYouTubeId = vi.fn();

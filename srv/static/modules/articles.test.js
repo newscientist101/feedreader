@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-    renderArticleActions, buildArticleCardHtml, updateReadButton,
+    renderArticleActions, buildArticleCardHtml, buildUsenetReplyBadge,
+    updateReadButton,
     showArticlesLoading, updateAllReadMessage, showReadArticles,
     processEmbeds, extractYouTubeId, applyUserPreferences,
     getIncludeReadUrl, setShowingHiddenArticles, getShowingHiddenArticles,
@@ -322,6 +323,56 @@ describe('buildArticleCardHtml', () => {
             title: 'T', published_at: undefined, fetched_at: '2025-06-15T12:00:00Z',
         }));
         expect(html).toContain('data-sort-time="2025-06-15T12:00:00Z"');
+    });
+
+    it('shows no reply badge for non-NNTP articles', () => {
+        const html = buildArticleCardHtml(makeArticle({
+            title: 'RSS Article', feed_type: 'rss',
+        }));
+        expect(html).not.toContain('usenet-reply-badge');
+    });
+
+    it('shows no reply badge for NNTP root posts (no parent)', () => {
+        const html = buildArticleCardHtml(makeArticle({
+            title: 'Root Post', feed_type: 'nntp', usenet_parent_message_id: null,
+        }));
+        expect(html).not.toContain('usenet-reply-badge');
+    });
+
+    it('shows reply badge for NNTP reply articles', () => {
+        const html = buildArticleCardHtml(makeArticle({
+            title: 'Re: Root Post', feed_type: 'nntp',
+            usenet_parent_message_id: '<root@host>',
+        }));
+        expect(html).toContain('usenet-reply-badge');
+        expect(html).toContain('reply');
+    });
+
+    it('shows no reply badge when feed_type is absent (legacy RSS)', () => {
+        const html = buildArticleCardHtml(makeArticle({ title: 'T' }));
+        expect(html).not.toContain('usenet-reply-badge');
+    });
+});
+
+describe('buildUsenetReplyBadge', () => {
+    it('returns empty string for non-NNTP articles', () => {
+        expect(buildUsenetReplyBadge({ feed_type: 'rss', usenet_parent_message_id: null })).toBe('');
+    });
+
+    it('returns empty string for NNTP root posts', () => {
+        expect(buildUsenetReplyBadge({ feed_type: 'nntp', usenet_parent_message_id: null })).toBe('');
+    });
+
+    it('returns empty string when feed_type is absent', () => {
+        expect(buildUsenetReplyBadge({ usenet_parent_message_id: '<root@host>' })).toBe('');
+    });
+
+    it('returns badge HTML for NNTP reply', () => {
+        const badge = buildUsenetReplyBadge({
+            feed_type: 'nntp', usenet_parent_message_id: '<root@host>',
+        });
+        expect(badge).toContain('usenet-reply-badge');
+        expect(badge).toContain('reply');
     });
 });
 

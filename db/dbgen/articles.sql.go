@@ -320,8 +320,9 @@ func (q *Queries) IsGuidSeen(ctx context.Context, arg IsGuidSeenParams) (int64, 
 }
 
 const listArticles = `-- name: ListArticles :many
-SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?
@@ -334,20 +335,22 @@ type ListArticlesParams struct {
 }
 
 type ListArticlesRow struct {
-	ID          int64      `json:"id"`
-	FeedID      int64      `json:"feed_id"`
-	Guid        string     `json:"guid"`
-	Title       string     `json:"title"`
-	Url         *string    `json:"url"`
-	Author      *string    `json:"author"`
-	Content     *string    `json:"content"`
-	Summary     *string    `json:"summary"`
-	ImageUrl    *string    `json:"image_url"`
-	PublishedAt *time.Time `json:"published_at"`
-	FetchedAt   time.Time  `json:"fetched_at"`
-	IsRead      *int64     `json:"is_read"`
-	IsStarred   *int64     `json:"is_starred"`
-	FeedName    string     `json:"feed_name"`
+	ID                    int64      `json:"id"`
+	FeedID                int64      `json:"feed_id"`
+	Guid                  string     `json:"guid"`
+	Title                 string     `json:"title"`
+	Url                   *string    `json:"url"`
+	Author                *string    `json:"author"`
+	Content               *string    `json:"content"`
+	Summary               *string    `json:"summary"`
+	ImageUrl              *string    `json:"image_url"`
+	PublishedAt           *time.Time `json:"published_at"`
+	FetchedAt             time.Time  `json:"fetched_at"`
+	IsRead                *int64     `json:"is_read"`
+	IsStarred             *int64     `json:"is_starred"`
+	FeedName              string     `json:"feed_name"`
+	FeedType              string     `json:"feed_type"`
+	UsenetParentMessageID *string    `json:"usenet_parent_message_id"`
 }
 
 func (q *Queries) ListArticles(ctx context.Context, arg ListArticlesParams) ([]ListArticlesRow, error) {
@@ -374,6 +377,8 @@ func (q *Queries) ListArticles(ctx context.Context, arg ListArticlesParams) ([]L
 			&i.IsRead,
 			&i.IsStarred,
 			&i.FeedName,
+			&i.FeedType,
+			&i.UsenetParentMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -389,9 +394,10 @@ func (q *Queries) ListArticles(ctx context.Context, arg ListArticlesParams) ([]L
 }
 
 const listArticlesByCategory = `-- name: ListArticlesByCategory :many
-SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
 JOIN feed_categories fc ON f.id = fc.feed_id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE fc.category_id = ? AND f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?
@@ -405,20 +411,22 @@ type ListArticlesByCategoryParams struct {
 }
 
 type ListArticlesByCategoryRow struct {
-	ID          int64      `json:"id"`
-	FeedID      int64      `json:"feed_id"`
-	Guid        string     `json:"guid"`
-	Title       string     `json:"title"`
-	Url         *string    `json:"url"`
-	Author      *string    `json:"author"`
-	Content     *string    `json:"content"`
-	Summary     *string    `json:"summary"`
-	ImageUrl    *string    `json:"image_url"`
-	PublishedAt *time.Time `json:"published_at"`
-	FetchedAt   time.Time  `json:"fetched_at"`
-	IsRead      *int64     `json:"is_read"`
-	IsStarred   *int64     `json:"is_starred"`
-	FeedName    string     `json:"feed_name"`
+	ID                    int64      `json:"id"`
+	FeedID                int64      `json:"feed_id"`
+	Guid                  string     `json:"guid"`
+	Title                 string     `json:"title"`
+	Url                   *string    `json:"url"`
+	Author                *string    `json:"author"`
+	Content               *string    `json:"content"`
+	Summary               *string    `json:"summary"`
+	ImageUrl              *string    `json:"image_url"`
+	PublishedAt           *time.Time `json:"published_at"`
+	FetchedAt             time.Time  `json:"fetched_at"`
+	IsRead                *int64     `json:"is_read"`
+	IsStarred             *int64     `json:"is_starred"`
+	FeedName              string     `json:"feed_name"`
+	FeedType              string     `json:"feed_type"`
+	UsenetParentMessageID *string    `json:"usenet_parent_message_id"`
 }
 
 func (q *Queries) ListArticlesByCategory(ctx context.Context, arg ListArticlesByCategoryParams) ([]ListArticlesByCategoryRow, error) {
@@ -450,6 +458,8 @@ func (q *Queries) ListArticlesByCategory(ctx context.Context, arg ListArticlesBy
 			&i.IsRead,
 			&i.IsStarred,
 			&i.FeedName,
+			&i.FeedType,
+			&i.UsenetParentMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -465,9 +475,10 @@ func (q *Queries) ListArticlesByCategory(ctx context.Context, arg ListArticlesBy
 }
 
 const listArticlesByCategoryCursor = `-- name: ListArticlesByCategoryCursor :many
-SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
 JOIN feed_categories fc ON f.id = fc.feed_id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE fc.category_id = ? AND f.user_id = ?
   AND (COALESCE(a.published_at, a.fetched_at) < ?
        OR (COALESCE(a.published_at, a.fetched_at) = ? AND a.id < ?))
@@ -485,20 +496,22 @@ type ListArticlesByCategoryCursorParams struct {
 }
 
 type ListArticlesByCategoryCursorRow struct {
-	ID          int64      `json:"id"`
-	FeedID      int64      `json:"feed_id"`
-	Guid        string     `json:"guid"`
-	Title       string     `json:"title"`
-	Url         *string    `json:"url"`
-	Author      *string    `json:"author"`
-	Content     *string    `json:"content"`
-	Summary     *string    `json:"summary"`
-	ImageUrl    *string    `json:"image_url"`
-	PublishedAt *time.Time `json:"published_at"`
-	FetchedAt   time.Time  `json:"fetched_at"`
-	IsRead      *int64     `json:"is_read"`
-	IsStarred   *int64     `json:"is_starred"`
-	FeedName    string     `json:"feed_name"`
+	ID                    int64      `json:"id"`
+	FeedID                int64      `json:"feed_id"`
+	Guid                  string     `json:"guid"`
+	Title                 string     `json:"title"`
+	Url                   *string    `json:"url"`
+	Author                *string    `json:"author"`
+	Content               *string    `json:"content"`
+	Summary               *string    `json:"summary"`
+	ImageUrl              *string    `json:"image_url"`
+	PublishedAt           *time.Time `json:"published_at"`
+	FetchedAt             time.Time  `json:"fetched_at"`
+	IsRead                *int64     `json:"is_read"`
+	IsStarred             *int64     `json:"is_starred"`
+	FeedName              string     `json:"feed_name"`
+	FeedType              string     `json:"feed_type"`
+	UsenetParentMessageID *string    `json:"usenet_parent_message_id"`
 }
 
 func (q *Queries) ListArticlesByCategoryCursor(ctx context.Context, arg ListArticlesByCategoryCursorParams) ([]ListArticlesByCategoryCursorRow, error) {
@@ -532,6 +545,8 @@ func (q *Queries) ListArticlesByCategoryCursor(ctx context.Context, arg ListArti
 			&i.IsRead,
 			&i.IsStarred,
 			&i.FeedName,
+			&i.FeedType,
+			&i.UsenetParentMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -547,8 +562,9 @@ func (q *Queries) ListArticlesByCategoryCursor(ctx context.Context, arg ListArti
 }
 
 const listArticlesByFeed = `-- name: ListArticlesByFeed :many
-SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE a.feed_id = ? AND f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?
@@ -562,20 +578,22 @@ type ListArticlesByFeedParams struct {
 }
 
 type ListArticlesByFeedRow struct {
-	ID          int64      `json:"id"`
-	FeedID      int64      `json:"feed_id"`
-	Guid        string     `json:"guid"`
-	Title       string     `json:"title"`
-	Url         *string    `json:"url"`
-	Author      *string    `json:"author"`
-	Content     *string    `json:"content"`
-	Summary     *string    `json:"summary"`
-	ImageUrl    *string    `json:"image_url"`
-	PublishedAt *time.Time `json:"published_at"`
-	FetchedAt   time.Time  `json:"fetched_at"`
-	IsRead      *int64     `json:"is_read"`
-	IsStarred   *int64     `json:"is_starred"`
-	FeedName    string     `json:"feed_name"`
+	ID                    int64      `json:"id"`
+	FeedID                int64      `json:"feed_id"`
+	Guid                  string     `json:"guid"`
+	Title                 string     `json:"title"`
+	Url                   *string    `json:"url"`
+	Author                *string    `json:"author"`
+	Content               *string    `json:"content"`
+	Summary               *string    `json:"summary"`
+	ImageUrl              *string    `json:"image_url"`
+	PublishedAt           *time.Time `json:"published_at"`
+	FetchedAt             time.Time  `json:"fetched_at"`
+	IsRead                *int64     `json:"is_read"`
+	IsStarred             *int64     `json:"is_starred"`
+	FeedName              string     `json:"feed_name"`
+	FeedType              string     `json:"feed_type"`
+	UsenetParentMessageID *string    `json:"usenet_parent_message_id"`
 }
 
 func (q *Queries) ListArticlesByFeed(ctx context.Context, arg ListArticlesByFeedParams) ([]ListArticlesByFeedRow, error) {
@@ -607,6 +625,8 @@ func (q *Queries) ListArticlesByFeed(ctx context.Context, arg ListArticlesByFeed
 			&i.IsRead,
 			&i.IsStarred,
 			&i.FeedName,
+			&i.FeedType,
+			&i.UsenetParentMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -622,8 +642,9 @@ func (q *Queries) ListArticlesByFeed(ctx context.Context, arg ListArticlesByFeed
 }
 
 const listArticlesByFeedCursor = `-- name: ListArticlesByFeedCursor :many
-SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE a.feed_id = ? AND f.user_id = ?
   AND (COALESCE(a.published_at, a.fetched_at) < ?
        OR (COALESCE(a.published_at, a.fetched_at) = ? AND a.id < ?))
@@ -641,20 +662,22 @@ type ListArticlesByFeedCursorParams struct {
 }
 
 type ListArticlesByFeedCursorRow struct {
-	ID          int64      `json:"id"`
-	FeedID      int64      `json:"feed_id"`
-	Guid        string     `json:"guid"`
-	Title       string     `json:"title"`
-	Url         *string    `json:"url"`
-	Author      *string    `json:"author"`
-	Content     *string    `json:"content"`
-	Summary     *string    `json:"summary"`
-	ImageUrl    *string    `json:"image_url"`
-	PublishedAt *time.Time `json:"published_at"`
-	FetchedAt   time.Time  `json:"fetched_at"`
-	IsRead      *int64     `json:"is_read"`
-	IsStarred   *int64     `json:"is_starred"`
-	FeedName    string     `json:"feed_name"`
+	ID                    int64      `json:"id"`
+	FeedID                int64      `json:"feed_id"`
+	Guid                  string     `json:"guid"`
+	Title                 string     `json:"title"`
+	Url                   *string    `json:"url"`
+	Author                *string    `json:"author"`
+	Content               *string    `json:"content"`
+	Summary               *string    `json:"summary"`
+	ImageUrl              *string    `json:"image_url"`
+	PublishedAt           *time.Time `json:"published_at"`
+	FetchedAt             time.Time  `json:"fetched_at"`
+	IsRead                *int64     `json:"is_read"`
+	IsStarred             *int64     `json:"is_starred"`
+	FeedName              string     `json:"feed_name"`
+	FeedType              string     `json:"feed_type"`
+	UsenetParentMessageID *string    `json:"usenet_parent_message_id"`
 }
 
 func (q *Queries) ListArticlesByFeedCursor(ctx context.Context, arg ListArticlesByFeedCursorParams) ([]ListArticlesByFeedCursorRow, error) {
@@ -688,6 +711,8 @@ func (q *Queries) ListArticlesByFeedCursor(ctx context.Context, arg ListArticles
 			&i.IsRead,
 			&i.IsStarred,
 			&i.FeedName,
+			&i.FeedType,
+			&i.UsenetParentMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -703,8 +728,9 @@ func (q *Queries) ListArticlesByFeedCursor(ctx context.Context, arg ListArticles
 }
 
 const listArticlesCursor = `-- name: ListArticlesCursor :many
-SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE f.user_id = ?
   AND (COALESCE(a.published_at, a.fetched_at) < ?
        OR (COALESCE(a.published_at, a.fetched_at) = ? AND a.id < ?))
@@ -721,20 +747,22 @@ type ListArticlesCursorParams struct {
 }
 
 type ListArticlesCursorRow struct {
-	ID          int64      `json:"id"`
-	FeedID      int64      `json:"feed_id"`
-	Guid        string     `json:"guid"`
-	Title       string     `json:"title"`
-	Url         *string    `json:"url"`
-	Author      *string    `json:"author"`
-	Content     *string    `json:"content"`
-	Summary     *string    `json:"summary"`
-	ImageUrl    *string    `json:"image_url"`
-	PublishedAt *time.Time `json:"published_at"`
-	FetchedAt   time.Time  `json:"fetched_at"`
-	IsRead      *int64     `json:"is_read"`
-	IsStarred   *int64     `json:"is_starred"`
-	FeedName    string     `json:"feed_name"`
+	ID                    int64      `json:"id"`
+	FeedID                int64      `json:"feed_id"`
+	Guid                  string     `json:"guid"`
+	Title                 string     `json:"title"`
+	Url                   *string    `json:"url"`
+	Author                *string    `json:"author"`
+	Content               *string    `json:"content"`
+	Summary               *string    `json:"summary"`
+	ImageUrl              *string    `json:"image_url"`
+	PublishedAt           *time.Time `json:"published_at"`
+	FetchedAt             time.Time  `json:"fetched_at"`
+	IsRead                *int64     `json:"is_read"`
+	IsStarred             *int64     `json:"is_starred"`
+	FeedName              string     `json:"feed_name"`
+	FeedType              string     `json:"feed_type"`
+	UsenetParentMessageID *string    `json:"usenet_parent_message_id"`
 }
 
 func (q *Queries) ListArticlesCursor(ctx context.Context, arg ListArticlesCursorParams) ([]ListArticlesCursorRow, error) {
@@ -767,6 +795,8 @@ func (q *Queries) ListArticlesCursor(ctx context.Context, arg ListArticlesCursor
 			&i.IsRead,
 			&i.IsStarred,
 			&i.FeedName,
+			&i.FeedType,
+			&i.UsenetParentMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -782,8 +812,9 @@ func (q *Queries) ListArticlesCursor(ctx context.Context, arg ListArticlesCursor
 }
 
 const listStarredArticles = `-- name: ListStarredArticles :many
-SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE a.is_starred = 1 AND f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?
@@ -796,20 +827,22 @@ type ListStarredArticlesParams struct {
 }
 
 type ListStarredArticlesRow struct {
-	ID          int64      `json:"id"`
-	FeedID      int64      `json:"feed_id"`
-	Guid        string     `json:"guid"`
-	Title       string     `json:"title"`
-	Url         *string    `json:"url"`
-	Author      *string    `json:"author"`
-	Content     *string    `json:"content"`
-	Summary     *string    `json:"summary"`
-	ImageUrl    *string    `json:"image_url"`
-	PublishedAt *time.Time `json:"published_at"`
-	FetchedAt   time.Time  `json:"fetched_at"`
-	IsRead      *int64     `json:"is_read"`
-	IsStarred   *int64     `json:"is_starred"`
-	FeedName    string     `json:"feed_name"`
+	ID                    int64      `json:"id"`
+	FeedID                int64      `json:"feed_id"`
+	Guid                  string     `json:"guid"`
+	Title                 string     `json:"title"`
+	Url                   *string    `json:"url"`
+	Author                *string    `json:"author"`
+	Content               *string    `json:"content"`
+	Summary               *string    `json:"summary"`
+	ImageUrl              *string    `json:"image_url"`
+	PublishedAt           *time.Time `json:"published_at"`
+	FetchedAt             time.Time  `json:"fetched_at"`
+	IsRead                *int64     `json:"is_read"`
+	IsStarred             *int64     `json:"is_starred"`
+	FeedName              string     `json:"feed_name"`
+	FeedType              string     `json:"feed_type"`
+	UsenetParentMessageID *string    `json:"usenet_parent_message_id"`
 }
 
 func (q *Queries) ListStarredArticles(ctx context.Context, arg ListStarredArticlesParams) ([]ListStarredArticlesRow, error) {
@@ -836,6 +869,8 @@ func (q *Queries) ListStarredArticles(ctx context.Context, arg ListStarredArticl
 			&i.IsRead,
 			&i.IsStarred,
 			&i.FeedName,
+			&i.FeedType,
+			&i.UsenetParentMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -851,8 +886,9 @@ func (q *Queries) ListStarredArticles(ctx context.Context, arg ListStarredArticl
 }
 
 const listStarredArticlesCursor = `-- name: ListStarredArticlesCursor :many
-SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE a.is_starred = 1 AND f.user_id = ?
   AND (COALESCE(a.published_at, a.fetched_at) < ?
        OR (COALESCE(a.published_at, a.fetched_at) = ? AND a.id < ?))
@@ -869,20 +905,22 @@ type ListStarredArticlesCursorParams struct {
 }
 
 type ListStarredArticlesCursorRow struct {
-	ID          int64      `json:"id"`
-	FeedID      int64      `json:"feed_id"`
-	Guid        string     `json:"guid"`
-	Title       string     `json:"title"`
-	Url         *string    `json:"url"`
-	Author      *string    `json:"author"`
-	Content     *string    `json:"content"`
-	Summary     *string    `json:"summary"`
-	ImageUrl    *string    `json:"image_url"`
-	PublishedAt *time.Time `json:"published_at"`
-	FetchedAt   time.Time  `json:"fetched_at"`
-	IsRead      *int64     `json:"is_read"`
-	IsStarred   *int64     `json:"is_starred"`
-	FeedName    string     `json:"feed_name"`
+	ID                    int64      `json:"id"`
+	FeedID                int64      `json:"feed_id"`
+	Guid                  string     `json:"guid"`
+	Title                 string     `json:"title"`
+	Url                   *string    `json:"url"`
+	Author                *string    `json:"author"`
+	Content               *string    `json:"content"`
+	Summary               *string    `json:"summary"`
+	ImageUrl              *string    `json:"image_url"`
+	PublishedAt           *time.Time `json:"published_at"`
+	FetchedAt             time.Time  `json:"fetched_at"`
+	IsRead                *int64     `json:"is_read"`
+	IsStarred             *int64     `json:"is_starred"`
+	FeedName              string     `json:"feed_name"`
+	FeedType              string     `json:"feed_type"`
+	UsenetParentMessageID *string    `json:"usenet_parent_message_id"`
 }
 
 func (q *Queries) ListStarredArticlesCursor(ctx context.Context, arg ListStarredArticlesCursorParams) ([]ListStarredArticlesCursorRow, error) {
@@ -915,6 +953,8 @@ func (q *Queries) ListStarredArticlesCursor(ctx context.Context, arg ListStarred
 			&i.IsRead,
 			&i.IsStarred,
 			&i.FeedName,
+			&i.FeedType,
+			&i.UsenetParentMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -930,8 +970,9 @@ func (q *Queries) ListStarredArticlesCursor(ctx context.Context, arg ListStarred
 }
 
 const listUnreadArticles = `-- name: ListUnreadArticles :many
-SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE a.is_read = 0 AND f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?
@@ -944,20 +985,22 @@ type ListUnreadArticlesParams struct {
 }
 
 type ListUnreadArticlesRow struct {
-	ID          int64      `json:"id"`
-	FeedID      int64      `json:"feed_id"`
-	Guid        string     `json:"guid"`
-	Title       string     `json:"title"`
-	Url         *string    `json:"url"`
-	Author      *string    `json:"author"`
-	Content     *string    `json:"content"`
-	Summary     *string    `json:"summary"`
-	ImageUrl    *string    `json:"image_url"`
-	PublishedAt *time.Time `json:"published_at"`
-	FetchedAt   time.Time  `json:"fetched_at"`
-	IsRead      *int64     `json:"is_read"`
-	IsStarred   *int64     `json:"is_starred"`
-	FeedName    string     `json:"feed_name"`
+	ID                    int64      `json:"id"`
+	FeedID                int64      `json:"feed_id"`
+	Guid                  string     `json:"guid"`
+	Title                 string     `json:"title"`
+	Url                   *string    `json:"url"`
+	Author                *string    `json:"author"`
+	Content               *string    `json:"content"`
+	Summary               *string    `json:"summary"`
+	ImageUrl              *string    `json:"image_url"`
+	PublishedAt           *time.Time `json:"published_at"`
+	FetchedAt             time.Time  `json:"fetched_at"`
+	IsRead                *int64     `json:"is_read"`
+	IsStarred             *int64     `json:"is_starred"`
+	FeedName              string     `json:"feed_name"`
+	FeedType              string     `json:"feed_type"`
+	UsenetParentMessageID *string    `json:"usenet_parent_message_id"`
 }
 
 func (q *Queries) ListUnreadArticles(ctx context.Context, arg ListUnreadArticlesParams) ([]ListUnreadArticlesRow, error) {
@@ -984,6 +1027,8 @@ func (q *Queries) ListUnreadArticles(ctx context.Context, arg ListUnreadArticles
 			&i.IsRead,
 			&i.IsStarred,
 			&i.FeedName,
+			&i.FeedType,
+			&i.UsenetParentMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -999,9 +1044,10 @@ func (q *Queries) ListUnreadArticles(ctx context.Context, arg ListUnreadArticles
 }
 
 const listUnreadArticlesByCategory = `-- name: ListUnreadArticlesByCategory :many
-SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
 JOIN feed_categories fc ON f.id = fc.feed_id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE fc.category_id = ? AND a.is_read = 0 AND f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?
@@ -1015,20 +1061,22 @@ type ListUnreadArticlesByCategoryParams struct {
 }
 
 type ListUnreadArticlesByCategoryRow struct {
-	ID          int64      `json:"id"`
-	FeedID      int64      `json:"feed_id"`
-	Guid        string     `json:"guid"`
-	Title       string     `json:"title"`
-	Url         *string    `json:"url"`
-	Author      *string    `json:"author"`
-	Content     *string    `json:"content"`
-	Summary     *string    `json:"summary"`
-	ImageUrl    *string    `json:"image_url"`
-	PublishedAt *time.Time `json:"published_at"`
-	FetchedAt   time.Time  `json:"fetched_at"`
-	IsRead      *int64     `json:"is_read"`
-	IsStarred   *int64     `json:"is_starred"`
-	FeedName    string     `json:"feed_name"`
+	ID                    int64      `json:"id"`
+	FeedID                int64      `json:"feed_id"`
+	Guid                  string     `json:"guid"`
+	Title                 string     `json:"title"`
+	Url                   *string    `json:"url"`
+	Author                *string    `json:"author"`
+	Content               *string    `json:"content"`
+	Summary               *string    `json:"summary"`
+	ImageUrl              *string    `json:"image_url"`
+	PublishedAt           *time.Time `json:"published_at"`
+	FetchedAt             time.Time  `json:"fetched_at"`
+	IsRead                *int64     `json:"is_read"`
+	IsStarred             *int64     `json:"is_starred"`
+	FeedName              string     `json:"feed_name"`
+	FeedType              string     `json:"feed_type"`
+	UsenetParentMessageID *string    `json:"usenet_parent_message_id"`
 }
 
 func (q *Queries) ListUnreadArticlesByCategory(ctx context.Context, arg ListUnreadArticlesByCategoryParams) ([]ListUnreadArticlesByCategoryRow, error) {
@@ -1060,6 +1108,8 @@ func (q *Queries) ListUnreadArticlesByCategory(ctx context.Context, arg ListUnre
 			&i.IsRead,
 			&i.IsStarred,
 			&i.FeedName,
+			&i.FeedType,
+			&i.UsenetParentMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -1075,9 +1125,10 @@ func (q *Queries) ListUnreadArticlesByCategory(ctx context.Context, arg ListUnre
 }
 
 const listUnreadArticlesByCategoryCursor = `-- name: ListUnreadArticlesByCategoryCursor :many
-SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
 JOIN feed_categories fc ON f.id = fc.feed_id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE fc.category_id = ? AND a.is_read = 0 AND f.user_id = ?
   AND (COALESCE(a.published_at, a.fetched_at) < ?
        OR (COALESCE(a.published_at, a.fetched_at) = ? AND a.id < ?))
@@ -1095,20 +1146,22 @@ type ListUnreadArticlesByCategoryCursorParams struct {
 }
 
 type ListUnreadArticlesByCategoryCursorRow struct {
-	ID          int64      `json:"id"`
-	FeedID      int64      `json:"feed_id"`
-	Guid        string     `json:"guid"`
-	Title       string     `json:"title"`
-	Url         *string    `json:"url"`
-	Author      *string    `json:"author"`
-	Content     *string    `json:"content"`
-	Summary     *string    `json:"summary"`
-	ImageUrl    *string    `json:"image_url"`
-	PublishedAt *time.Time `json:"published_at"`
-	FetchedAt   time.Time  `json:"fetched_at"`
-	IsRead      *int64     `json:"is_read"`
-	IsStarred   *int64     `json:"is_starred"`
-	FeedName    string     `json:"feed_name"`
+	ID                    int64      `json:"id"`
+	FeedID                int64      `json:"feed_id"`
+	Guid                  string     `json:"guid"`
+	Title                 string     `json:"title"`
+	Url                   *string    `json:"url"`
+	Author                *string    `json:"author"`
+	Content               *string    `json:"content"`
+	Summary               *string    `json:"summary"`
+	ImageUrl              *string    `json:"image_url"`
+	PublishedAt           *time.Time `json:"published_at"`
+	FetchedAt             time.Time  `json:"fetched_at"`
+	IsRead                *int64     `json:"is_read"`
+	IsStarred             *int64     `json:"is_starred"`
+	FeedName              string     `json:"feed_name"`
+	FeedType              string     `json:"feed_type"`
+	UsenetParentMessageID *string    `json:"usenet_parent_message_id"`
 }
 
 func (q *Queries) ListUnreadArticlesByCategoryCursor(ctx context.Context, arg ListUnreadArticlesByCategoryCursorParams) ([]ListUnreadArticlesByCategoryCursorRow, error) {
@@ -1142,6 +1195,8 @@ func (q *Queries) ListUnreadArticlesByCategoryCursor(ctx context.Context, arg Li
 			&i.IsRead,
 			&i.IsStarred,
 			&i.FeedName,
+			&i.FeedType,
+			&i.UsenetParentMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -1240,8 +1295,9 @@ func (q *Queries) ListUnreadArticlesByFeedInternal(ctx context.Context, feedID i
 }
 
 const listUnreadArticlesCursor = `-- name: ListUnreadArticlesCursor :many
-SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE a.is_read = 0 AND f.user_id = ?
   AND (COALESCE(a.published_at, a.fetched_at) < ?
        OR (COALESCE(a.published_at, a.fetched_at) = ? AND a.id < ?))
@@ -1258,20 +1314,22 @@ type ListUnreadArticlesCursorParams struct {
 }
 
 type ListUnreadArticlesCursorRow struct {
-	ID          int64      `json:"id"`
-	FeedID      int64      `json:"feed_id"`
-	Guid        string     `json:"guid"`
-	Title       string     `json:"title"`
-	Url         *string    `json:"url"`
-	Author      *string    `json:"author"`
-	Content     *string    `json:"content"`
-	Summary     *string    `json:"summary"`
-	ImageUrl    *string    `json:"image_url"`
-	PublishedAt *time.Time `json:"published_at"`
-	FetchedAt   time.Time  `json:"fetched_at"`
-	IsRead      *int64     `json:"is_read"`
-	IsStarred   *int64     `json:"is_starred"`
-	FeedName    string     `json:"feed_name"`
+	ID                    int64      `json:"id"`
+	FeedID                int64      `json:"feed_id"`
+	Guid                  string     `json:"guid"`
+	Title                 string     `json:"title"`
+	Url                   *string    `json:"url"`
+	Author                *string    `json:"author"`
+	Content               *string    `json:"content"`
+	Summary               *string    `json:"summary"`
+	ImageUrl              *string    `json:"image_url"`
+	PublishedAt           *time.Time `json:"published_at"`
+	FetchedAt             time.Time  `json:"fetched_at"`
+	IsRead                *int64     `json:"is_read"`
+	IsStarred             *int64     `json:"is_starred"`
+	FeedName              string     `json:"feed_name"`
+	FeedType              string     `json:"feed_type"`
+	UsenetParentMessageID *string    `json:"usenet_parent_message_id"`
 }
 
 func (q *Queries) ListUnreadArticlesCursor(ctx context.Context, arg ListUnreadArticlesCursorParams) ([]ListUnreadArticlesCursorRow, error) {
@@ -1304,6 +1362,8 @@ func (q *Queries) ListUnreadArticlesCursor(ctx context.Context, arg ListUnreadAr
 			&i.IsRead,
 			&i.IsStarred,
 			&i.FeedName,
+			&i.FeedType,
+			&i.UsenetParentMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -1480,8 +1540,9 @@ func (q *Queries) PruneSeenGuids(ctx context.Context, dollar_1 *string) error {
 }
 
 const searchArticles = `-- name: SearchArticles :many
-SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE f.user_id = ? AND (a.title LIKE '%' || ? || '%' OR a.content LIKE '%' || ? || '%')
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?
@@ -1496,20 +1557,22 @@ type SearchArticlesParams struct {
 }
 
 type SearchArticlesRow struct {
-	ID          int64      `json:"id"`
-	FeedID      int64      `json:"feed_id"`
-	Guid        string     `json:"guid"`
-	Title       string     `json:"title"`
-	Url         *string    `json:"url"`
-	Author      *string    `json:"author"`
-	Content     *string    `json:"content"`
-	Summary     *string    `json:"summary"`
-	ImageUrl    *string    `json:"image_url"`
-	PublishedAt *time.Time `json:"published_at"`
-	FetchedAt   time.Time  `json:"fetched_at"`
-	IsRead      *int64     `json:"is_read"`
-	IsStarred   *int64     `json:"is_starred"`
-	FeedName    string     `json:"feed_name"`
+	ID                    int64      `json:"id"`
+	FeedID                int64      `json:"feed_id"`
+	Guid                  string     `json:"guid"`
+	Title                 string     `json:"title"`
+	Url                   *string    `json:"url"`
+	Author                *string    `json:"author"`
+	Content               *string    `json:"content"`
+	Summary               *string    `json:"summary"`
+	ImageUrl              *string    `json:"image_url"`
+	PublishedAt           *time.Time `json:"published_at"`
+	FetchedAt             time.Time  `json:"fetched_at"`
+	IsRead                *int64     `json:"is_read"`
+	IsStarred             *int64     `json:"is_starred"`
+	FeedName              string     `json:"feed_name"`
+	FeedType              string     `json:"feed_type"`
+	UsenetParentMessageID *string    `json:"usenet_parent_message_id"`
 }
 
 func (q *Queries) SearchArticles(ctx context.Context, arg SearchArticlesParams) ([]SearchArticlesRow, error) {
@@ -1542,6 +1605,8 @@ func (q *Queries) SearchArticles(ctx context.Context, arg SearchArticlesParams) 
 			&i.IsRead,
 			&i.IsStarred,
 			&i.FeedName,
+			&i.FeedType,
+			&i.UsenetParentMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -1557,9 +1622,10 @@ func (q *Queries) SearchArticles(ctx context.Context, arg SearchArticlesParams) 
 }
 
 const searchArticlesByCategory = `-- name: SearchArticlesByCategory :many
-SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
 JOIN feed_categories fc ON f.id = fc.feed_id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE fc.category_id = ? AND f.user_id = ? AND (a.title LIKE '%' || ? || '%' OR a.content LIKE '%' || ? || '%')
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?
@@ -1575,20 +1641,22 @@ type SearchArticlesByCategoryParams struct {
 }
 
 type SearchArticlesByCategoryRow struct {
-	ID          int64      `json:"id"`
-	FeedID      int64      `json:"feed_id"`
-	Guid        string     `json:"guid"`
-	Title       string     `json:"title"`
-	Url         *string    `json:"url"`
-	Author      *string    `json:"author"`
-	Content     *string    `json:"content"`
-	Summary     *string    `json:"summary"`
-	ImageUrl    *string    `json:"image_url"`
-	PublishedAt *time.Time `json:"published_at"`
-	FetchedAt   time.Time  `json:"fetched_at"`
-	IsRead      *int64     `json:"is_read"`
-	IsStarred   *int64     `json:"is_starred"`
-	FeedName    string     `json:"feed_name"`
+	ID                    int64      `json:"id"`
+	FeedID                int64      `json:"feed_id"`
+	Guid                  string     `json:"guid"`
+	Title                 string     `json:"title"`
+	Url                   *string    `json:"url"`
+	Author                *string    `json:"author"`
+	Content               *string    `json:"content"`
+	Summary               *string    `json:"summary"`
+	ImageUrl              *string    `json:"image_url"`
+	PublishedAt           *time.Time `json:"published_at"`
+	FetchedAt             time.Time  `json:"fetched_at"`
+	IsRead                *int64     `json:"is_read"`
+	IsStarred             *int64     `json:"is_starred"`
+	FeedName              string     `json:"feed_name"`
+	FeedType              string     `json:"feed_type"`
+	UsenetParentMessageID *string    `json:"usenet_parent_message_id"`
 }
 
 func (q *Queries) SearchArticlesByCategory(ctx context.Context, arg SearchArticlesByCategoryParams) ([]SearchArticlesByCategoryRow, error) {
@@ -1622,6 +1690,8 @@ func (q *Queries) SearchArticlesByCategory(ctx context.Context, arg SearchArticl
 			&i.IsRead,
 			&i.IsStarred,
 			&i.FeedName,
+			&i.FeedType,
+			&i.UsenetParentMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -1637,8 +1707,9 @@ func (q *Queries) SearchArticlesByCategory(ctx context.Context, arg SearchArticl
 }
 
 const searchArticlesByFeed = `-- name: SearchArticlesByFeed :many
-SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
+SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE a.feed_id = ? AND f.user_id = ? AND (a.title LIKE '%' || ? || '%' OR a.content LIKE '%' || ? || '%')
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?
@@ -1654,20 +1725,22 @@ type SearchArticlesByFeedParams struct {
 }
 
 type SearchArticlesByFeedRow struct {
-	ID          int64      `json:"id"`
-	FeedID      int64      `json:"feed_id"`
-	Guid        string     `json:"guid"`
-	Title       string     `json:"title"`
-	Url         *string    `json:"url"`
-	Author      *string    `json:"author"`
-	Content     *string    `json:"content"`
-	Summary     *string    `json:"summary"`
-	ImageUrl    *string    `json:"image_url"`
-	PublishedAt *time.Time `json:"published_at"`
-	FetchedAt   time.Time  `json:"fetched_at"`
-	IsRead      *int64     `json:"is_read"`
-	IsStarred   *int64     `json:"is_starred"`
-	FeedName    string     `json:"feed_name"`
+	ID                    int64      `json:"id"`
+	FeedID                int64      `json:"feed_id"`
+	Guid                  string     `json:"guid"`
+	Title                 string     `json:"title"`
+	Url                   *string    `json:"url"`
+	Author                *string    `json:"author"`
+	Content               *string    `json:"content"`
+	Summary               *string    `json:"summary"`
+	ImageUrl              *string    `json:"image_url"`
+	PublishedAt           *time.Time `json:"published_at"`
+	FetchedAt             time.Time  `json:"fetched_at"`
+	IsRead                *int64     `json:"is_read"`
+	IsStarred             *int64     `json:"is_starred"`
+	FeedName              string     `json:"feed_name"`
+	FeedType              string     `json:"feed_type"`
+	UsenetParentMessageID *string    `json:"usenet_parent_message_id"`
 }
 
 func (q *Queries) SearchArticlesByFeed(ctx context.Context, arg SearchArticlesByFeedParams) ([]SearchArticlesByFeedRow, error) {
@@ -1701,6 +1774,8 @@ func (q *Queries) SearchArticlesByFeed(ctx context.Context, arg SearchArticlesBy
 			&i.IsRead,
 			&i.IsStarred,
 			&i.FeedName,
+			&i.FeedType,
+			&i.UsenetParentMessageID,
 		); err != nil {
 			return nil, err
 		}

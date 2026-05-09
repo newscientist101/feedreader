@@ -3444,3 +3444,15 @@ th {
     color: var(--text-muted, var(--text-secondary));
     white-space: nowrap;
 }
+
+.usenet-reply-badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    background: var(--bg-tertiary, var(--bg-secondary));
+    border-radius: 3px;
+    padding: 1px 5px;
+    margin-left: 4px;
+    vertical-align: middle;
+    white-space: nowrap;
+}

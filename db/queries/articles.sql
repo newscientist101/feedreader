@@ -22,36 +22,41 @@ JOIN feeds f ON a.feed_id = f.id
 WHERE a.id = ? AND f.user_id = ?;
 
 -- name: ListArticles :many
-SELECT a.*, f.name as feed_name FROM articles a
+SELECT a.*, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?;
 
 -- name: ListArticlesByFeed :many
-SELECT a.*, f.name as feed_name FROM articles a
+SELECT a.*, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE a.feed_id = ? AND f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?;
 
 -- name: ListUnreadArticles :many
-SELECT a.*, f.name as feed_name FROM articles a
+SELECT a.*, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE a.is_read = 0 AND f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?;
 
 -- name: ListStarredArticles :many
-SELECT a.*, f.name as feed_name FROM articles a
+SELECT a.*, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE a.is_starred = 1 AND f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?;
 
 -- name: ListStarredArticlesCursor :many
-SELECT a.*, f.name as feed_name FROM articles a
+SELECT a.*, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE a.is_starred = 1 AND f.user_id = ?
   AND (COALESCE(a.published_at, a.fetched_at) < @before_time
        OR (COALESCE(a.published_at, a.fetched_at) = @before_time_eq AND a.id < @before_id))
@@ -59,8 +64,9 @@ ORDER BY COALESCE(a.published_at, a.fetched_at) DESC, a.id DESC
 LIMIT ?;
 
 -- name: ListArticlesCursor :many
-SELECT a.*, f.name as feed_name FROM articles a
+SELECT a.*, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE f.user_id = ?
   AND (COALESCE(a.published_at, a.fetched_at) < @before_time
        OR (COALESCE(a.published_at, a.fetched_at) = @before_time_eq AND a.id < @before_id))
@@ -68,8 +74,9 @@ ORDER BY COALESCE(a.published_at, a.fetched_at) DESC, a.id DESC
 LIMIT ?;
 
 -- name: ListArticlesByFeedCursor :many
-SELECT a.*, f.name as feed_name FROM articles a
+SELECT a.*, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE a.feed_id = ? AND f.user_id = ?
   AND (COALESCE(a.published_at, a.fetched_at) < @before_time
        OR (COALESCE(a.published_at, a.fetched_at) = @before_time_eq AND a.id < @before_id))
@@ -77,8 +84,9 @@ ORDER BY COALESCE(a.published_at, a.fetched_at) DESC, a.id DESC
 LIMIT ?;
 
 -- name: ListUnreadArticlesCursor :many
-SELECT a.*, f.name as feed_name FROM articles a
+SELECT a.*, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE a.is_read = 0 AND f.user_id = ?
   AND (COALESCE(a.published_at, a.fetched_at) < @before_time
        OR (COALESCE(a.published_at, a.fetched_at) = @before_time_eq AND a.id < @before_id))
@@ -86,9 +94,10 @@ ORDER BY COALESCE(a.published_at, a.fetched_at) DESC, a.id DESC
 LIMIT ?;
 
 -- name: ListArticlesByCategoryCursor :many
-SELECT a.*, f.name as feed_name FROM articles a
+SELECT a.*, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
 JOIN feed_categories fc ON f.id = fc.feed_id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE fc.category_id = ? AND f.user_id = ?
   AND (COALESCE(a.published_at, a.fetched_at) < @before_time
        OR (COALESCE(a.published_at, a.fetched_at) = @before_time_eq AND a.id < @before_id))
@@ -96,9 +105,10 @@ ORDER BY COALESCE(a.published_at, a.fetched_at) DESC, a.id DESC
 LIMIT ?;
 
 -- name: ListUnreadArticlesByCategoryCursor :many
-SELECT a.*, f.name as feed_name FROM articles a
+SELECT a.*, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
 JOIN feed_categories fc ON f.id = fc.feed_id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE fc.category_id = ? AND a.is_read = 0 AND f.user_id = ?
   AND (COALESCE(a.published_at, a.fetched_at) < @before_time
        OR (COALESCE(a.published_at, a.fetched_at) = @before_time_eq AND a.id < @before_id))
@@ -136,39 +146,44 @@ JOIN feeds f ON a.feed_id = f.id
 WHERE a.is_starred = 1 AND f.user_id = ?;
 
 -- name: SearchArticles :many
-SELECT a.*, f.name as feed_name FROM articles a
+SELECT a.*, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE f.user_id = ? AND (a.title LIKE '%' || ? || '%' OR a.content LIKE '%' || ? || '%')
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?;
 
 -- name: SearchArticlesByFeed :many
-SELECT a.*, f.name as feed_name FROM articles a
+SELECT a.*, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE a.feed_id = ? AND f.user_id = ? AND (a.title LIKE '%' || ? || '%' OR a.content LIKE '%' || ? || '%')
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?;
 
 -- name: SearchArticlesByCategory :many
-SELECT a.*, f.name as feed_name FROM articles a
+SELECT a.*, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
 JOIN feed_categories fc ON f.id = fc.feed_id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE fc.category_id = ? AND f.user_id = ? AND (a.title LIKE '%' || ? || '%' OR a.content LIKE '%' || ? || '%')
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?;
 
 -- name: ListArticlesByCategory :many
-SELECT a.*, f.name as feed_name FROM articles a
+SELECT a.*, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
 JOIN feed_categories fc ON f.id = fc.feed_id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE fc.category_id = ? AND f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?;
 
 -- name: ListUnreadArticlesByCategory :many
-SELECT a.*, f.name as feed_name FROM articles a
+SELECT a.*, f.name as feed_name, f.feed_type, m.parent_message_id as usenet_parent_message_id FROM articles a
 JOIN feeds f ON a.feed_id = f.id
 JOIN feed_categories fc ON f.id = fc.feed_id
+LEFT JOIN usenet_article_meta m ON m.article_id = a.id
 WHERE fc.category_id = ? AND a.is_read = 0 AND f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?;
