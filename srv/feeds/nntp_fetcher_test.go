@@ -319,15 +319,15 @@ func TestFetchNNTPFeed_AuthFailure(t *testing.T) {
 }
 
 // TestFetchNNTPFeed_DialSuccess verifies that a successful dial proceeds past
-// the credential phase. The current stub returns ErrNNTPNotConfigured
-// (implementation pending) but the connection must have been established
-// (conn.Close called) and no credential error recorded at that point.
+// the credential phase. The connection must be closed regardless of outcome.
 func TestFetchNNTPFeed_DialSuccess(t *testing.T) {
 	t.Parallel()
 	sqlDB, q := setupTestDB(t)
 	_, feed := setupNNTPTestFeed(t, q, true)
 
-	conn := &fakeNNTPConn{}
+	// An empty group (groupHigh=0, groupLow=0) is treated as a successful
+	// no-op fetch once we are past the credential phase.
+	conn := &fakeNNTPConn{groupCount: 0, groupLow: 0, groupHigh: 0}
 	fetcher := &Fetcher{
 		DB:                  sqlDB,
 		NNTPDialer:          &fakeDialer{conn: conn},
@@ -335,13 +335,238 @@ func TestFetchNNTPFeed_DialSuccess(t *testing.T) {
 	}
 	err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed)
 
-	// The stub returns an error (impl pending), but the connection was closed.
-	if err == nil {
-		t.Fatal("expected stub error for pending implementation")
+	// Empty group is a successful fetch — no error.
+	if err != nil {
+		t.Errorf("unexpected error after successful dial with empty group: %v", err)
 	}
+	// Conn.Close must always be called (via defer) once the dial succeeds.
 	if !conn.closed {
 		t.Error("expected conn.Close() to be called after dial succeeded")
 	}
+}
+
+// --- Group select and overview tests (feedreader-6g2.18.3) ---
+
+// TestFetchNNTPFeed_NoSuchGroup verifies that a SelectGroup no-such-group
+// error records a per-feed error and does not advance the high-water mark.
+func TestFetchNNTPFeed_NoSuchGroup(t *testing.T) {
+	t.Parallel()
+	sqlDB, q := setupTestDB(t)
+	_, feed := setupNNTPTestFeed(t, q, true)
+
+	conn := &fakeNNTPConn{groupErr: errors.New("411 no such group")}
+	fetcher := &Fetcher{
+		DB:                  sqlDB,
+		NNTPDialer:          &fakeDialer{conn: conn},
+		CredentialDecryptor: &fakeDecryptor{result: "pass"},
+	}
+	err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed)
+
+	if err == nil {
+		t.Fatal("expected error for no-such-group")
+	}
+	assertFeedHasError(t, sqlDB, feed.ID)
+	assertHighWaterUnchanged(t, sqlDB, feed.ID, 0)
+}
+
+// TestFetchNNTPFeed_OverviewError verifies that an Overview server error
+// records a per-feed error and does not advance the high-water mark.
+func TestFetchNNTPFeed_OverviewError(t *testing.T) {
+	t.Parallel()
+	sqlDB, q := setupTestDB(t)
+	_, feed := setupNNTPTestFeed(t, q, true)
+
+	conn := &fakeNNTPConn{
+		groupCount: 500, groupLow: 1, groupHigh: 500,
+		overviewErr: errors.New("500 command failed"),
+	}
+	fetcher := &Fetcher{
+		DB:                  sqlDB,
+		NNTPDialer:          &fakeDialer{conn: conn},
+		CredentialDecryptor: &fakeDecryptor{result: "pass"},
+	}
+	err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed)
+
+	if err == nil {
+		t.Fatal("expected error for overview failure")
+	}
+	assertFeedHasError(t, sqlDB, feed.ID)
+	assertHighWaterUnchanged(t, sqlDB, feed.ID, 0)
+}
+
+// TestFetchNNTPFeed_EmptyGroup verifies that an empty/no-new-articles group
+// is treated as a successful fetch (clears feed errors, does not update
+// high-water).
+func TestFetchNNTPFeed_EmptyGroup(t *testing.T) {
+	t.Parallel()
+	sqlDB, q := setupTestDB(t)
+	_, feed := setupNNTPTestFeed(t, q, true)
+
+	// Group reports 0 articles (serverHigh < serverLow → empty).
+	conn := &fakeNNTPConn{groupCount: 0, groupLow: 0, groupHigh: 0}
+	fetcher := &Fetcher{
+		DB:                  sqlDB,
+		NNTPDialer:          &fakeDialer{conn: conn},
+		CredentialDecryptor: &fakeDecryptor{result: "pass"},
+	}
+	err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed)
+
+	// Empty group is a success (no error).
+	if err != nil {
+		t.Errorf("expected success for empty group, got %v", err)
+	}
+	assertHighWaterUnchanged(t, sqlDB, feed.ID, 0)
+}
+
+// TestFetchNNTPFeed_NoNewArticles verifies that when high_water >= serverHigh
+// the fetch succeeds without updating high-water.
+func TestFetchNNTPFeed_NoNewArticles(t *testing.T) {
+	t.Parallel()
+	sqlDB, q := setupTestDB(t)
+	_, feed := setupNNTPTestFeed(t, q, true)
+
+	// Set high-water to the current server high.
+	if err := q.UpdateUsenetHighWater(context.Background(), dbgen.UpdateUsenetHighWaterParams{
+		HighWaterArticleNumber: 200,
+		FeedID:                 feed.ID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Server still reports high=200 → no new articles.
+	conn := &fakeNNTPConn{groupCount: 200, groupLow: 1, groupHigh: 200}
+	fetcher := &Fetcher{
+		DB:                  sqlDB,
+		NNTPDialer:          &fakeDialer{conn: conn},
+		CredentialDecryptor: &fakeDecryptor{result: "pass"},
+	}
+	err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed)
+
+	if err != nil {
+		t.Errorf("expected success for no-new-articles, got %v", err)
+	}
+	// High-water must remain at 200.
+	assertHighWaterUnchanged(t, sqlDB, feed.ID, 200)
+}
+
+// TestFetchNNTPFeed_FirstFetchLatest100 verifies that the first fetch requests
+// the latest firstFetchCount articles (start = high - 99 for high > 100).
+func TestFetchNNTPFeed_FirstFetchLatest100(t *testing.T) {
+	t.Parallel()
+	sqlDB, q := setupTestDB(t)
+	_, feed := setupNNTPTestFeed(t, q, true)
+
+	var capturedLow, capturedHigh int64
+	conn := &fakeNNTPConn{
+		groupCount: 5000, groupLow: 1, groupHigh: 5000,
+		overviewRows: []NNTPOverviewRow{}, // empty is fine for this test
+	}
+	// Capture the Overview call's arguments via a custom fake.
+	captureConn := &captureOverviewConn{NNTPConn: conn, capturedLow: &capturedLow, capturedHigh: &capturedHigh}
+
+	fetcher := &Fetcher{
+		DB:                  sqlDB,
+		NNTPDialer:          &fakeDialer{conn: captureConn},
+		CredentialDecryptor: &fakeDecryptor{result: "pass"},
+	}
+	err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed)
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	wantStart := int64(5000 - firstFetchCount + 1)
+	wantEnd := int64(5000)
+	if capturedLow != wantStart || capturedHigh != wantEnd {
+		t.Errorf("Overview called with [%d,%d], want [%d,%d]",
+			capturedLow, capturedHigh, wantStart, wantEnd)
+	}
+}
+
+// TestFetchNNTPFeed_SubsequentFetchFromHighWater verifies that subsequent
+// fetches start at high_water + 1.
+func TestFetchNNTPFeed_SubsequentFetchFromHighWater(t *testing.T) {
+	t.Parallel()
+	sqlDB, q := setupTestDB(t)
+	_, feed := setupNNTPTestFeed(t, q, true)
+
+	if err := q.UpdateUsenetHighWater(context.Background(), dbgen.UpdateUsenetHighWaterParams{
+		HighWaterArticleNumber: 300,
+		FeedID:                 feed.ID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var capturedLow, capturedHigh int64
+	conn := &fakeNNTPConn{
+		groupCount: 400, groupLow: 1, groupHigh: 400,
+		overviewRows: []NNTPOverviewRow{},
+	}
+	captureConn := &captureOverviewConn{NNTPConn: conn, capturedLow: &capturedLow, capturedHigh: &capturedHigh}
+
+	fetcher := &Fetcher{
+		DB:                  sqlDB,
+		NNTPDialer:          &fakeDialer{conn: captureConn},
+		CredentialDecryptor: &fakeDecryptor{result: "pass"},
+	}
+	err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed)
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if capturedLow != 301 || capturedHigh != 400 {
+		t.Errorf("Overview called with [%d,%d], want [301,400]", capturedLow, capturedHigh)
+	}
+}
+
+// TestFetchNNTPFeed_RunCap verifies that the per-run cap of fetchRunCap is
+// applied when the range would otherwise exceed it.
+func TestFetchNNTPFeed_RunCap(t *testing.T) {
+	t.Parallel()
+	sqlDB, q := setupTestDB(t)
+	_, feed := setupNNTPTestFeed(t, q, true)
+
+	if err := q.UpdateUsenetHighWater(context.Background(), dbgen.UpdateUsenetHighWaterParams{
+		HighWaterArticleNumber: 100,
+		FeedID:                 feed.ID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var capturedLow, capturedHigh int64
+	conn := &fakeNNTPConn{
+		groupCount: 100000, groupLow: 1, groupHigh: 100000,
+		overviewRows: []NNTPOverviewRow{},
+	}
+	captureConn := &captureOverviewConn{NNTPConn: conn, capturedLow: &capturedLow, capturedHigh: &capturedHigh}
+
+	fetcher := &Fetcher{
+		DB:                  sqlDB,
+		NNTPDialer:          &fakeDialer{conn: captureConn},
+		CredentialDecryptor: &fakeDecryptor{result: "pass"},
+	}
+	err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed)
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	// start=101, cap=500 → end=600
+	wantEnd := int64(100 + fetchRunCap)
+	if capturedLow != 101 || capturedHigh != wantEnd {
+		t.Errorf("Overview called with [%d,%d], want [101,%d]", capturedLow, capturedHigh, wantEnd)
+	}
+}
+
+// captureOverviewConn wraps an NNTPConn and records the Overview range.
+type captureOverviewConn struct {
+	NNTPConn
+	capturedLow  *int64
+	capturedHigh *int64
+}
+
+func (c *captureOverviewConn) Overview(low, high int64) ([]NNTPOverviewRow, error) {
+	*c.capturedLow = low
+	*c.capturedHigh = high
+	return c.NNTPConn.Overview(low, high)
 }
 
 // assertFeedHasError checks that the feed's last_error is non-nil.

@@ -199,12 +199,84 @@ func (f *Fetcher) fetchNNTPFeed(ctx context.Context, q *dbgen.Queries, now time.
 	}
 	defer func() { _ = conn.Close() }()
 
-	// Phase 2 (feedreader-6g2.18.3 – 18.5): group select, overview fetch,
-	// article import, high-water and feed-status updates.
+	// Phase 2: group select and bounded overview fetch (feedreader-6g2.18.3).
+	overview, attemptedStart, attemptedEnd, fetchErr := f.fetchNNTPOverview(ctx, q, now, conn, feed, &state)
+	if fetchErr != nil {
+		// fetchNNTPOverview already recorded the feed error.
+		return fetchErr
+	}
+
+	// Phase 3 (feedreader-6g2.18.4 – 18.5): article import, high-water, and
+	// feed-status updates.
 	//
-	// Stub: record a soft error until the remaining subtasks are implemented.
-	_ = state
-	msg := fmt.Sprintf("%s: overview/import implementation pending (group=%s)", ErrNNTPNotConfigured.Error(), state.GroupName)
-	f.setFeedError(ctx, q, feed.ID, now, msg)
-	return fmt.Errorf("%w: overview/import pending (group=%s)", ErrNNTPNotConfigured, state.GroupName)
+	// Stub until feedreader-6g2.18.4 is implemented.
+	_ = overview
+	_ = attemptedStart
+	_ = attemptedEnd
+	return nil
+}
+
+// fetchNNTPOverview performs the group-select and overview-fetch phase for a
+// single NNTP feed. It:
+//
+//  1. Selects the group with SelectGroup to obtain the server's low/high range.
+//  2. Computes the bounded article range using planArticleRange.
+//  3. Returns immediately with success when the range is empty (no new articles).
+//  4. Calls Overview to fetch the header summaries for the range.
+//
+// On success it returns the overview rows and the [attemptedStart, attemptedEnd]
+// range that should be used to advance the high-water mark after import.
+//
+// On error it records a feed error via setFeedError and returns the same error
+// so the caller can propagate it. It does NOT advance the high-water mark on
+// error.
+func (f *Fetcher) fetchNNTPOverview(
+	ctx context.Context,
+	q *dbgen.Queries,
+	now time.Time,
+	conn NNTPConn,
+	feed *dbgen.Feed,
+	state *dbgen.UsenetFeedState,
+) (rows []NNTPOverviewRow, attemptedStart, attemptedEnd int64, err error) {
+	groupName := state.GroupName
+
+	// Select the group to obtain the server's current article range.
+	_, serverLow, serverHigh, _, groupErr := conn.SelectGroup(groupName)
+	if groupErr != nil {
+		// no-such-group is a permanent configuration error; other errors are
+		// transient. Both are recorded as feed errors and do not advance
+		// the high-water mark.
+		msg := fmt.Sprintf("nntp: group select failed (%s): %v", groupName, groupErr)
+		f.setFeedError(ctx, q, feed.ID, now, msg)
+		return nil, 0, 0, fmt.Errorf("nntp select group %s: %w", groupName, groupErr)
+	}
+
+	// Compute the bounded article range according to the D5 fetch policy.
+	attemptedStart, attemptedEnd = planArticleRange(serverLow, serverHigh, state.HighWaterArticleNumber)
+
+	if attemptedStart > attemptedEnd {
+		// No new articles available. This is a successful fetch.
+		slog.Debug("nntp: no new articles", "feed_id", feed.ID, "group", groupName,
+			"server_high", serverHigh, "high_water", state.HighWaterArticleNumber)
+		if resetErr := q.ResetFeedErrors(ctx, dbgen.ResetFeedErrorsParams{
+			LastFetchedAt: &now,
+			ID:            feed.ID,
+		}); resetErr != nil {
+			slog.Warn("nntp: reset feed errors", "feed_id", feed.ID, "error", resetErr)
+		}
+		return nil, 0, 0, nil
+	}
+
+	// Fetch overview rows for the computed range.
+	ovRows, ovErr := conn.Overview(attemptedStart, attemptedEnd)
+	if ovErr != nil {
+		msg := fmt.Sprintf("nntp: overview fetch failed (%s): %v", groupName, ovErr)
+		f.setFeedError(ctx, q, feed.ID, now, msg)
+		return nil, 0, 0, fmt.Errorf("nntp overview %s [%d,%d]: %w", groupName, attemptedStart, attemptedEnd, ovErr)
+	}
+
+	slog.Debug("nntp: fetched overview", "feed_id", feed.ID, "group", groupName,
+		"range_start", attemptedStart, "range_end", attemptedEnd, "rows", len(ovRows))
+
+	return ovRows, attemptedStart, attemptedEnd, nil
 }
