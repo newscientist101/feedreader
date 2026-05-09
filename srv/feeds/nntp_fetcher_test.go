@@ -597,3 +597,283 @@ func assertHighWaterUnchanged(t *testing.T, sqlDB *sql.DB, feedID, wantHW int64)
 		t.Errorf("high_water = %d, want %d", hw, wantHW)
 	}
 }
+
+// --- Article import tests (feedreader-6g2.18.4) ---
+
+// makeOverviewRow is a test helper that returns a minimal valid overview row.
+func makeOverviewRow(number int64, msgID string) NNTPOverviewRow {
+	return NNTPOverviewRow{
+		ArticleNumber: number,
+		Subject:       "Test article",
+		From:          "test@example.com",
+		Date:          "Mon, 1 Jan 2024 12:00:00 +0000",
+		MessageID:     msgID,
+		References:    "",
+		Bytes:         100,
+		Lines:         10,
+	}
+}
+
+// makeTextArticle returns a minimal plain-text NNTPArticle.
+func makeTextArticle(body string) *NNTPArticle {
+	return &NNTPArticle{
+		Headers: map[string]string{
+			"Content-Type": "text/plain; charset=utf-8",
+		},
+		Body: body,
+	}
+}
+
+// setupNNTPFetcher creates a fetcher with a fake conn returning the given
+// overview rows and article, over a real in-memory test DB.
+func setupNNTPFetcher(t *testing.T, conn NNTPConn) (*Fetcher, *dbgen.Queries, *sql.DB, dbgen.Feed) {
+	t.Helper()
+	sqlDB, q := setupTestDB(t)
+	_, feed := setupNNTPTestFeed(t, q, true)
+	fetcher := &Fetcher{
+		DB:                  sqlDB,
+		NNTPDialer:          &fakeDialer{conn: conn},
+		CredentialDecryptor: &fakeDecryptor{result: "pass"},
+	}
+	return fetcher, q, sqlDB, feed
+}
+
+// assertArticleCount checks the number of articles for a feed.
+func assertArticleCount(t *testing.T, sqlDB *sql.DB, feedID int64, want int) {
+	t.Helper()
+	var count int
+	err := sqlDB.QueryRowContext(context.Background(),
+		"SELECT COUNT(*) FROM articles WHERE feed_id = ?", feedID).Scan(&count)
+	if err != nil {
+		t.Fatalf("count articles: %v", err)
+	}
+	if count != want {
+		t.Errorf("article count = %d, want %d", count, want)
+	}
+}
+
+// assertMetaCount checks the number of usenet_article_meta rows for a feed.
+func assertMetaCount(t *testing.T, sqlDB *sql.DB, feedID int64, want int) {
+	t.Helper()
+	var count int
+	err := sqlDB.QueryRowContext(context.Background(),
+		"SELECT COUNT(*) FROM usenet_article_meta WHERE feed_id = ?", feedID).Scan(&count)
+	if err != nil {
+		t.Fatalf("count meta: %v", err)
+	}
+	if count != want {
+		t.Errorf("meta count = %d, want %d", count, want)
+	}
+}
+
+// TestImportNNTPArticles_ValidTextArticle verifies that a plain-text article is
+// imported with matching Article and Usenet meta fields.
+func TestImportNNTPArticles_ValidTextArticle(t *testing.T) {
+	t.Parallel()
+
+	row := makeOverviewRow(42, "<msg42@example.com>")
+	conn := &fakeNNTPConn{
+		groupCount: 100, groupLow: 1, groupHigh: 100,
+		overviewRows: []NNTPOverviewRow{row},
+		article:      makeTextArticle("Hello, Usenet!"),
+	}
+	fetcher, q, sqlDB, feed := setupNNTPFetcher(t, conn)
+
+	err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed)
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+	assertArticleCount(t, sqlDB, feed.ID, 1)
+	assertMetaCount(t, sqlDB, feed.ID, 1)
+
+	// Verify the meta row has the expected fields.
+	meta, err := q.GetUsenetArticleMetaByMessageID(context.Background(), dbgen.GetUsenetArticleMetaByMessageIDParams{
+		FeedID:    feed.ID,
+		MessageID: "<msg42@example.com>",
+	})
+	if err != nil {
+		t.Fatalf("get meta: %v", err)
+	}
+	if meta.ArticleNumber != 42 {
+		t.Errorf("meta.ArticleNumber = %d, want 42", meta.ArticleNumber)
+	}
+	if meta.GroupName != "comp.lang.go" {
+		t.Errorf("meta.GroupName = %q, want comp.lang.go", meta.GroupName)
+	}
+}
+
+// TestImportNNTPArticles_SkipBinaryPost verifies that a binary post is skipped
+// (no article or meta row inserted) without returning an error.
+func TestImportNNTPArticles_SkipBinaryPost(t *testing.T) {
+	t.Parallel()
+
+	row := makeOverviewRow(10, "<binary10@example.com>")
+	binaryArticle := &NNTPArticle{
+		Headers: map[string]string{
+			"Content-Type": "application/octet-stream",
+		},
+		Body: "\x00\x01\x02",
+	}
+	conn := &fakeNNTPConn{
+		groupCount: 10, groupLow: 1, groupHigh: 10,
+		overviewRows: []NNTPOverviewRow{row},
+		article:      binaryArticle,
+	}
+	fetcher, q, sqlDB, feed := setupNNTPFetcher(t, conn)
+
+	err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed)
+	if err != nil {
+		t.Fatalf("expected success (binary posts are skipped), got %v", err)
+	}
+	assertArticleCount(t, sqlDB, feed.ID, 0)
+	assertMetaCount(t, sqlDB, feed.ID, 0)
+}
+
+// TestImportNNTPArticles_SkipDeletedArticle verifies that an article-not-found
+// error (ErrNNTPArticleNotFound) is treated as an intentional skip.
+func TestImportNNTPArticles_SkipDeletedArticle(t *testing.T) {
+	t.Parallel()
+
+	row := makeOverviewRow(7, "<deleted7@example.com>")
+	conn := &fakeNNTPConn{
+		groupCount: 10, groupLow: 1, groupHigh: 10,
+		overviewRows: []NNTPOverviewRow{row},
+		articleErr:   ErrNNTPArticleNotFound,
+	}
+	fetcher, q, sqlDB, feed := setupNNTPFetcher(t, conn)
+
+	err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed)
+	if err != nil {
+		t.Fatalf("expected success (deleted articles are skipped), got %v", err)
+	}
+	assertArticleCount(t, sqlDB, feed.ID, 0)
+	assertMetaCount(t, sqlDB, feed.ID, 0)
+}
+
+// TestImportNNTPArticles_SkipDuplicateMessageID verifies that an overview row
+// with a message_id that already exists in usenet_article_meta is skipped
+// without fetching the article body or inserting a duplicate.
+func TestImportNNTPArticles_SkipDuplicateMessageID(t *testing.T) {
+	t.Parallel()
+
+	row := makeOverviewRow(5, "<dup-msg@example.com>")
+	conn := &fakeNNTPConn{
+		groupCount: 5, groupLow: 1, groupHigh: 5,
+		overviewRows: []NNTPOverviewRow{row},
+		article:      makeTextArticle("First body"),
+	}
+	fetcher, q, sqlDB, feed := setupNNTPFetcher(t, conn)
+
+	// Import once to establish the existing record.
+	if err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed); err != nil {
+		t.Fatalf("first import: %v", err)
+	}
+	assertArticleCount(t, sqlDB, feed.ID, 1)
+
+	// Import the same row again — should be a no-op.
+	if err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed); err != nil {
+		t.Fatalf("second import: %v", err)
+	}
+	assertArticleCount(t, sqlDB, feed.ID, 1) // still 1
+	assertMetaCount(t, sqlDB, feed.ID, 1)    // still 1
+}
+
+// TestImportNNTPArticles_SkipDuplicateArticleNumber verifies that an overview
+// row for an article_number that is already in usenet_article_meta is skipped
+// even when the message_id differs (e.g. empty message_id in overview).
+func TestImportNNTPArticles_SkipDuplicateArticleNumber(t *testing.T) {
+	t.Parallel()
+
+	row := makeOverviewRow(3, "<original@example.com>")
+	conn := &fakeNNTPConn{
+		groupCount: 3, groupLow: 1, groupHigh: 3,
+		overviewRows: []NNTPOverviewRow{row},
+		article:      makeTextArticle("Original body"),
+	}
+	fetcher, q, sqlDB, feed := setupNNTPFetcher(t, conn)
+
+	if err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed); err != nil {
+		t.Fatalf("first import: %v", err)
+	}
+	assertArticleCount(t, sqlDB, feed.ID, 1)
+
+	// Try importing again with the same article_number but an empty message_id
+	// so the message_id check is bypassed.
+	rowNoMsgID := NNTPOverviewRow{
+		ArticleNumber: 3, // same number
+		Subject:       "Repost",
+		From:          "test@example.com",
+		Date:          "Tue, 2 Jan 2024 12:00:00 +0000",
+		MessageID:     "", // empty, so message_id check is skipped
+	}
+	conn2 := &fakeNNTPConn{
+		groupCount: 3, groupLow: 1, groupHigh: 3,
+		overviewRows: []NNTPOverviewRow{rowNoMsgID},
+		article:      makeTextArticle("Repost body"),
+	}
+	fetcher2, q2, _, _ := setupNNTPFetcher(t, conn2)
+	// Point fetcher2 at the same DB as fetcher.
+	fetcher2.DB = sqlDB
+	fetcher2.NNTPDialer = &fakeDialer{conn: conn2}
+
+	if err := fetcher2.fetchNNTPFeed(context.Background(), q2, time.Now(), &feed); err != nil {
+		t.Fatalf("second import: %v", err)
+	}
+	assertArticleCount(t, sqlDB, feed.ID, 1) // still 1
+	assertMetaCount(t, sqlDB, feed.ID, 1)    // still 1
+}
+
+// TestImportNNTPArticles_HardArticleFetchError verifies that an unexpected
+// body-fetch error (not ErrNNTPArticleNotFound) causes a hard failure with a
+// feed error recorded.
+func TestImportNNTPArticles_HardArticleFetchError(t *testing.T) {
+	t.Parallel()
+
+	row := makeOverviewRow(99, "<hard@example.com>")
+	conn := &fakeNNTPConn{
+		groupCount: 100, groupLow: 1, groupHigh: 100,
+		overviewRows: []NNTPOverviewRow{row},
+		articleErr:   errors.New("connection reset by peer"),
+	}
+	fetcher, q, sqlDB, feed := setupNNTPFetcher(t, conn)
+
+	err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed)
+	if err == nil {
+		t.Fatal("expected hard error for unexpected fetch failure")
+	}
+	assertFeedHasError(t, sqlDB, feed.ID)
+	assertArticleCount(t, sqlDB, feed.ID, 0)
+}
+
+// TestImportNNTPArticles_DuplicateInsertRace verifies that a UNIQUE constraint
+// violation on the usenet_article_meta insert is treated as an idempotent skip.
+func TestImportNNTPArticles_DuplicateInsertRace(t *testing.T) {
+	t.Parallel()
+
+	// Two rows with the same message_id but different article_numbers. The
+	// first import succeeds; the second should hit the message_id UNIQUE
+	// constraint on the meta table and be treated as an idempotent skip
+	// (the article was already inserted by the first row).
+	row1 := makeOverviewRow(11, "<race@example.com>")
+	row2 := NNTPOverviewRow{
+		ArticleNumber: 12, // different number so article_number pre-check passes
+		Subject:       "Race",
+		From:          "test@example.com",
+		Date:          "Mon, 1 Jan 2024 12:00:00 +0000",
+		MessageID:     "<race@example.com>", // same message_id as row1
+	}
+	article := makeTextArticle("Race body")
+	conn := &fakeNNTPConn{
+		groupCount: 12, groupLow: 1, groupHigh: 12,
+		overviewRows: []NNTPOverviewRow{row1, row2},
+		article:      article,
+	}
+	fetcher, q, sqlDB, feed := setupNNTPFetcher(t, conn)
+
+	err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed)
+	if err != nil {
+		t.Fatalf("expected success (duplicate meta insert is idempotent), got %v", err)
+	}
+	// First article inserted, second is an idempotent skip.
+	assertMetaCount(t, sqlDB, feed.ID, 1)
+}

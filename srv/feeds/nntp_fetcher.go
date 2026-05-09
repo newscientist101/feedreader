@@ -2,12 +2,16 @@ package feeds
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/newscientist101/feedreader/db/dbgen"
+	"github.com/newscientist101/feedreader/srv/nntp"
+	"github.com/newscientist101/feedreader/srv/usenet"
 )
 
 // firstFetchCount is the number of latest article numbers imported on the
@@ -75,6 +79,12 @@ type CredentialDecryptor interface {
 // ErrNNTPNotConfigured is returned by the NNTP dispatch path when the Fetcher
 // has no NNTPDialer configured.
 var ErrNNTPNotConfigured = errors.New("feeds: NNTP fetcher is not configured")
+
+// ErrNNTPArticleNotFound is returned by NNTPConn.FetchArticle when the
+// article has been deleted or expired on the server. The injected real dialer
+// wraps nntp.ErrArticleNotFound into this sentinel; test fakes return it
+// directly. It is treated as an intentional skip, not a hard error.
+var ErrNNTPArticleNotFound = errors.New("feeds: nntp article not found or expired")
 
 // planArticleRange computes the inclusive [start, end] article number range
 // to request for a single fetch run, given the server-reported low/high
@@ -206,11 +216,14 @@ func (f *Fetcher) fetchNNTPFeed(ctx context.Context, q *dbgen.Queries, now time.
 		return fetchErr
 	}
 
-	// Phase 3 (feedreader-6g2.18.4 – 18.5): article import, high-water, and
-	// feed-status updates.
-	//
-	// Stub until feedreader-6g2.18.4 is implemented.
-	_ = overview
+	// Phase 3: per-article body fetch and import (feedreader-6g2.18.4).
+	if err := f.importNNTPArticles(ctx, q, conn, feed, &state, overview, attemptedEnd); err != nil {
+		// importNNTPArticles already recorded the feed error on hard failure.
+		return err
+	}
+
+	// Phase 4 (feedreader-6g2.18.5): high-water, feed-status, cancellation.
+	// Stub until feedreader-6g2.18.5 is implemented.
 	_ = attemptedStart
 	_ = attemptedEnd
 	return nil
@@ -279,4 +292,188 @@ func (f *Fetcher) fetchNNTPOverview(
 		"range_start", attemptedStart, "range_end", attemptedEnd, "rows", len(ovRows))
 
 	return ovRows, attemptedStart, attemptedEnd, nil
+}
+
+// importNNTPArticles fetches and imports each article in the overview slice.
+// For each row it:
+//
+//  1. Skips duplicates (by message_id or article_number) before the body fetch.
+//  2. Fetches the article body via NNTPConn.FetchArticle.
+//  3. Skips deleted/expired articles (ErrNNTPArticleNotFound) and binary posts
+//     (usenet.ErrBinaryPost) as intentional skips.
+//  4. Maps accepted articles with usenet.MapArticle.
+//  5. Inserts article and meta inside a DB transaction; UNIQUE-constraint
+//     violations on the meta insert are treated as idempotent duplicates.
+//
+// Returns nil when all rows have been processed (possibly with intentional
+// skips). Returns a non-nil error only for hard failures (unexpected body fetch
+// errors or DB errors that make the range unreliable), after recording a feed
+// error. Does NOT update the high-water mark — that is handled by phase 4.
+func (f *Fetcher) importNNTPArticles(
+	ctx context.Context,
+	q *dbgen.Queries,
+	conn NNTPConn,
+	feed *dbgen.Feed,
+	state *dbgen.UsenetFeedState,
+	rows []NNTPOverviewRow,
+	attemptedEnd int64,
+) error {
+	groupName := state.GroupName
+
+	for i := range rows {
+		row := &rows[i]
+
+		// 1. Pre-fetch duplicate check by message_id.
+		if row.MessageID != "" {
+			_, err := q.GetUsenetArticleMetaByMessageID(ctx, dbgen.GetUsenetArticleMetaByMessageIDParams{
+				FeedID:    feed.ID,
+				MessageID: row.MessageID,
+			})
+			if err == nil {
+				// Already imported.
+				slog.Debug("nntp: skipping duplicate message_id",
+					"feed_id", feed.ID, "message_id", row.MessageID)
+				continue
+			}
+			if !errors.Is(err, sql.ErrNoRows) {
+				// Unexpected DB error — hard failure.
+				msg := fmt.Sprintf("nntp: duplicate check (message_id) failed (%s): %v", groupName, err)
+				f.setFeedError(ctx, q, feed.ID, time.Now(), msg)
+				return fmt.Errorf("nntp import %s: message_id check: %w", groupName, err)
+			}
+		}
+
+		// 1b. Pre-fetch duplicate check by article_number.
+		_, err := q.GetUsenetArticleMetaByArticleNumber(ctx, dbgen.GetUsenetArticleMetaByArticleNumberParams{
+			FeedID:        feed.ID,
+			ArticleNumber: row.ArticleNumber,
+		})
+		if err == nil {
+			slog.Debug("nntp: skipping duplicate article_number",
+				"feed_id", feed.ID, "article_number", row.ArticleNumber)
+			continue
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			msg := fmt.Sprintf("nntp: duplicate check (article_number) failed (%s): %v", groupName, err)
+			f.setFeedError(ctx, q, feed.ID, time.Now(), msg)
+			return fmt.Errorf("nntp import %s: article_number check: %w", groupName, err)
+		}
+
+		// 2. Fetch the full article (headers + body).
+		article, fetchErr := conn.FetchArticle(row.ArticleNumber)
+		if fetchErr != nil {
+			if errors.Is(fetchErr, ErrNNTPArticleNotFound) {
+				// Article deleted or expired: intentional skip.
+				slog.Debug("nntp: article not found, skipping",
+					"feed_id", feed.ID, "article_number", row.ArticleNumber)
+				continue
+			}
+			// Unexpected server/connection error: hard failure.
+			msg := fmt.Sprintf("nntp: article fetch failed (%s #%d): %v", groupName, row.ArticleNumber, fetchErr)
+			f.setFeedError(ctx, q, feed.ID, time.Now(), msg)
+			return fmt.Errorf("nntp fetch article %s #%d: %w", groupName, row.ArticleNumber, fetchErr)
+		}
+
+		// 3. Binary / content-type rejection.
+		nntpArticle := &nntp.Article{
+			Headers: article.Headers,
+			Body:    article.Body,
+		}
+		if binErr := usenet.CheckArticleBinary(nntpArticle.Headers, row.Subject, nntpArticle.Body); binErr != nil {
+			slog.Debug("nntp: skipping binary post",
+				"feed_id", feed.ID, "article_number", row.ArticleNumber, "reason", binErr)
+			continue
+		}
+
+		// 4. Map to article record.
+		nntpOverview := &nntp.OverviewRow{
+			ArticleNumber: row.ArticleNumber,
+			Subject:       row.Subject,
+			From:          row.From,
+			Date:          row.Date,
+			MessageID:     row.MessageID,
+			References:    row.References,
+			Bytes:         row.Bytes,
+			Lines:         row.Lines,
+		}
+		rec := usenet.MapArticle(feed.ID, groupName, row.ArticleNumber, nntpOverview, nntpArticle)
+
+		// 5. Insert article and meta in a transaction.
+		if insertErr := f.insertArticleWithMeta(ctx, &rec); insertErr != nil {
+			if errors.Is(insertErr, errDuplicateArticleMeta) {
+				// Race: another concurrent fetch inserted the same article.
+				// Idempotent skip.
+				slog.Debug("nntp: duplicate insert race, skipping",
+					"feed_id", feed.ID, "article_number", row.ArticleNumber)
+				continue
+			}
+			// Hard DB error.
+			msg := fmt.Sprintf("nntp: insert failed (%s #%d): %v", groupName, row.ArticleNumber, insertErr)
+			f.setFeedError(ctx, q, feed.ID, time.Now(), msg)
+			return fmt.Errorf("nntp insert article %s #%d: %w", groupName, row.ArticleNumber, insertErr)
+		}
+
+		slog.Debug("nntp: imported article",
+			"feed_id", feed.ID, "group", groupName, "article_number", row.ArticleNumber)
+	}
+
+	// All rows processed; high-water update is handled by the caller (phase 4).
+	_ = attemptedEnd
+	return nil
+}
+
+// errDuplicateArticleMeta is a package-private sentinel returned by
+// insertArticleWithMeta when a UNIQUE constraint violation is detected on the
+// usenet_article_meta insert. This indicates a concurrent duplicate insert and
+// should be treated as an idempotent skip.
+var errDuplicateArticleMeta = errors.New("feeds: duplicate usenet article meta")
+
+// insertArticleWithMeta inserts a new article and its Usenet metadata inside a
+// single DB transaction. If the meta insert fails with a UNIQUE constraint
+// violation, it returns errDuplicateArticleMeta. Any other error is returned
+// directly.
+func (f *Fetcher) insertArticleWithMeta(ctx context.Context, rec *usenet.ArticleRecord) error {
+	tx, err := f.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	qtx := dbgen.New(tx)
+
+	// Insert (or upsert) the article.
+	article, err := qtx.CreateArticle(ctx, rec.Article)
+	if err != nil {
+		return fmt.Errorf("create article: %w", err)
+	}
+
+	// Wire in the real article ID before inserting the meta row.
+	metaParams := rec.Meta
+	metaParams.ArticleID = article.ID
+
+	_, err = qtx.InsertUsenetArticleMeta(ctx, metaParams)
+	if err != nil {
+		// UNIQUE(feed_id, message_id) or UNIQUE(feed_id, article_number)
+		// violation = concurrent duplicate: signal idempotent skip.
+		if isUniqueConstraintErr(err) {
+			_ = tx.Rollback()
+			return errDuplicateArticleMeta
+		}
+		return fmt.Errorf("insert usenet article meta: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	return nil
+}
+
+// isUniqueConstraintErr reports whether err is a SQLite UNIQUE constraint
+// violation. modernc.org/sqlite surfaces these as errors whose message
+// contains "UNIQUE constraint failed".
+func isUniqueConstraintErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "UNIQUE constraint failed")
 }
