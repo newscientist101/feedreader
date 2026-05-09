@@ -263,3 +263,130 @@ func TestHandleCategoryArticles_SubcategoryRendersDataID(t *testing.T) {
 		t.Error("rendered page missing articles-list container")
 	}
 }
+
+// testServerWithTemplatesAndUsenet returns a test server with real templates
+// and Usenet enabled.
+func testServerWithTemplatesAndUsenet(t *testing.T) *Server {
+	t.Helper()
+	s := testServerWithUsenet(t)
+	_, thisFile, _, _ := runtime.Caller(0)
+	s.TemplatesDir = filepath.Join(filepath.Dir(thisFile), "templates")
+	return s
+}
+
+// TestHandleArticle_NoUsenetThreadForRSS verifies that the thread context
+// section does not appear for a regular RSS article.
+func TestHandleArticle_NoUsenetThreadForRSS(t *testing.T) {
+	t.Parallel()
+	s := testServerWithTemplates(t)
+	ctx, user := testUser(t, s)
+
+	feed := createFeed(t, s, user.ID, "RSS Feed", "http://rss.example.com")
+	art := createArticle(t, s, feed.ID, "Plain RSS Article", "rss-g1")
+
+	w := serveMux(t, "GET /articles/{id}", s.handleArticle,
+		"GET", fmt.Sprintf("/articles/%d", art.ID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("got %d: %s", w.Code, w.Body.String())
+	}
+
+	body := w.Body.String()
+	if strings.Contains(body, "usenet-thread-context") {
+		t.Error("RSS article page must not contain usenet-thread-context section")
+	}
+}
+
+// TestHandleArticle_UsenetThreadContext verifies that the thread context
+// section appears for a Usenet article that has multiple thread members.
+func TestHandleArticle_UsenetThreadContext(t *testing.T) {
+	t.Parallel()
+	s := testServerWithTemplatesAndUsenet(t)
+	ctx, user := testUser(t, s)
+
+	feed := createNNTPFeed(t, s, user.ID, "comp.lang.go")
+
+	// Root article and one reply share the same root_message_id.
+	root := "<root@test>"
+	reply := "<reply@test>"
+	q := dbgen.New(s.DB)
+
+	// Insert root article.
+	rootURL := "nntp://news.eternal-september.org/comp.lang.go/1"
+	rootArt, err := q.CreateArticle(ctx, dbgen.CreateArticleParams{
+		FeedID: feed.ID, Title: "Root question", Guid: root, Url: &rootURL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.DB.ExecContext(ctx,
+		`INSERT INTO usenet_article_meta
+			(article_id, feed_id, message_id, root_message_id, group_name, article_number, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		rootArt.ID, feed.ID, root, root, "comp.lang.go", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert reply article (same root_message_id).
+	replyURL := "nntp://news.eternal-september.org/comp.lang.go/2"
+	replyArt, err := q.CreateArticle(ctx, dbgen.CreateArticleParams{
+		FeedID: feed.ID, Title: "Re: Root question", Guid: reply, Url: &replyURL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.DB.ExecContext(ctx,
+		`INSERT INTO usenet_article_meta
+			(article_id, feed_id, message_id, root_message_id, group_name, article_number, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		replyArt.ID, feed.ID, reply, root, "comp.lang.go", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Request the root article's page.
+	w := serveMux(t, "GET /articles/{id}", s.handleArticle,
+		"GET", fmt.Sprintf("/articles/%d", rootArt.ID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("got %d: %s", w.Code, w.Body.String())
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "usenet-thread-context") {
+		t.Error("Usenet article page must contain usenet-thread-context section")
+	}
+	if !strings.Contains(body, "2 messages") {
+		t.Errorf("expected '2 messages' in thread heading; body excerpt: %q",
+			body[max(0, strings.Index(body, "usenet-thread")-50):])
+	}
+	if !strings.Contains(body, "Re: Root question") {
+		t.Error("thread context must include the reply article title")
+	}
+	// The current article should be marked with the 'usenet-thread-current' class.
+	if !strings.Contains(body, "usenet-thread-current") {
+		t.Error("current article must have usenet-thread-current class")
+	}
+}
+
+// TestHandleArticle_UsenetSingleArticleNoThread verifies that the thread
+// context section is absent when the Usenet article has no thread siblings.
+func TestHandleArticle_UsenetSingleArticleNoThread(t *testing.T) {
+	t.Parallel()
+	s := testServerWithTemplatesAndUsenet(t)
+	ctx, user := testUser(t, s)
+
+	feed := createNNTPFeed(t, s, user.ID, "comp.misc")
+	art := createNNTPArticleWithMeta(t, s, &feed, "<solo@test>", 1)
+
+	w := serveMux(t, "GET /articles/{id}", s.handleArticle,
+		"GET", fmt.Sprintf("/articles/%d", art.ID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("got %d: %s", w.Code, w.Body.String())
+	}
+
+	body := w.Body.String()
+	// Single-article thread should not show thread context.
+	if strings.Contains(body, "usenet-thread-context") {
+		t.Error("single-article Usenet post must not show thread context")
+	}
+}

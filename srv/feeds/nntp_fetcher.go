@@ -271,6 +271,11 @@ func (f *Fetcher) fetchNNTPFeed(ctx context.Context, q *dbgen.Queries, now time.
 		// cancelled ctx internally.
 		msg := fmt.Sprintf("nntp: fetch cancelled after processing up to article %d", lastProcessed)
 		f.setFeedError(ctx, q, feed.ID, now, msg)
+		// Run post-fetch callbacks even on partial progress — some articles
+		// may have been imported and exclusion filters should apply to them.
+		if newHighWater > state.HighWaterArticleNumber && f.OnFeedFetched != nil {
+			f.OnFeedFetched(context.Background(), feed.ID)
+		}
 		return importErr
 	}
 
@@ -288,6 +293,12 @@ func (f *Fetcher) fetchNNTPFeed(ctx context.Context, q *dbgen.Queries, now time.
 		"attempted_end", attemptedEnd,
 		"last_processed", lastProcessed,
 		"new_high_water", newHighWater)
+
+	// Run post-fetch callbacks (exclusion filters, alert evaluation, counts
+	// cache invalidation) when any articles may have been imported.
+	if newHighWater > state.HighWaterArticleNumber && f.OnFeedFetched != nil {
+		f.OnFeedFetched(ctx, feed.ID)
+	}
 
 	return nil
 }

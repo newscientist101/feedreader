@@ -34,5 +34,30 @@
             {{end}}
         </div>
     </article>
+
+    {{if .UsenetThread}}
+    <section class="usenet-thread-context">
+        <h2 class="usenet-thread-heading">Thread ({{len .UsenetThread}} messages)</h2>
+        <ol class="usenet-thread-list">
+            {{range .UsenetThread}}
+            {{if eq .ID $.UsenetCurrentArticleID}}
+            <li class="usenet-thread-item usenet-thread-current">
+                <span class="usenet-thread-title">{{.Title}}</span>
+                {{if .Author}}<span class="usenet-thread-author">{{deref .Author}}</span>{{end}}
+                <span class="usenet-thread-date" data-timestamp="{{formatDate .PublishedAt}}">{{timeAgo .PublishedAt}}</span>
+            </li>
+            {{else}}
+            <li class="usenet-thread-item">
+                <a href="/article/{{.ID}}" class="usenet-thread-link">
+                    <span class="usenet-thread-title">{{.Title}}</span>
+                    {{if .Author}}<span class="usenet-thread-author">{{deref .Author}}</span>{{end}}
+                    <span class="usenet-thread-date" data-timestamp="{{formatDate .PublishedAt}}">{{timeAgo .PublishedAt}}</span>
+                </a>
+            </li>
+            {{end}}
+            {{end}}
+        </ol>
+    </section>
+    {{end}}
 </div>
 {{end}}

@@ -469,3 +469,129 @@ func TestMarkExcludedArticlesReadForCategory_NoExclusions(t *testing.T) {
 		t.Error("article should still be unread with no exclusions")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Usenet (NNTP) exclusion filter integration
+// ---------------------------------------------------------------------------
+
+// TestMarkExcludedArticlesReadForFeed_NNTPKeyword verifies that keyword
+// exclusion rules apply to NNTP articles the same way they do for RSS.
+func TestMarkExcludedArticlesReadForFeed_NNTPKeyword(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+	q := dbgen.New(s.DB)
+
+	feed := createNNTPFeed(t, s, user.ID, "comp.lang.go")
+	cat, _ := q.CreateCategory(ctx, dbgen.CreateCategoryParams{Name: "Tech", UserID: &user.ID})
+	q.AddFeedToCategory(ctx, dbgen.AddFeedToCategoryParams{FeedID: feed.ID, CategoryID: cat.ID})
+
+	var zero int64
+	q.CreateExclusion(ctx, dbgen.CreateExclusionParams{
+		CategoryID: cat.ID, ExclusionType: "keyword", Pattern: "spam", IsRegex: &zero,
+	})
+
+	good := createNNTPArticleWithMeta(t, s, &feed, "<good@example>", 1)
+	// Override title to include keyword so it matches.
+	_, err := s.DB.ExecContext(ctx, `UPDATE articles SET title = 'spam post' WHERE id = ?`, good.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clean := createNNTPArticleWithMeta(t, s, &feed, "<clean@example>", 2)
+	// clean article title is set by createNNTPArticleWithMeta: "Subject: <clean@example>"
+
+	s.MarkExcludedArticlesReadForFeed(ctx, feed.ID)
+
+	spamArt, _ := q.GetArticle(ctx, dbgen.GetArticleParams{ID: good.ID, UserID: &user.ID})
+	cleanArt, _ := q.GetArticle(ctx, dbgen.GetArticleParams{ID: clean.ID, UserID: &user.ID})
+
+	if isRead(spamArt.IsRead) != 1 {
+		t.Error("NNTP article matching keyword exclusion should be marked read")
+	}
+	if isRead(cleanArt.IsRead) != 0 {
+		t.Error("NNTP article not matching exclusion should still be unread")
+	}
+}
+
+// TestMarkExcludedArticlesReadForFeed_NNTPAuthor verifies that author
+// exclusion rules apply to NNTP articles using the From header.
+func TestMarkExcludedArticlesReadForFeed_NNTPAuthor(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+	q := dbgen.New(s.DB)
+
+	feed := createNNTPFeed(t, s, user.ID, "news.admin.net-abuse")
+	cat, _ := q.CreateCategory(ctx, dbgen.CreateCategoryParams{Name: "News", UserID: &user.ID})
+	q.AddFeedToCategory(ctx, dbgen.AddFeedToCategoryParams{FeedID: feed.ID, CategoryID: cat.ID})
+
+	var zero int64
+	q.CreateExclusion(ctx, dbgen.CreateExclusionParams{
+		CategoryID: cat.ID, ExclusionType: "author", Pattern: "spambot", IsRegex: &zero,
+	})
+
+	// Insert NNTP articles with explicit author fields.
+	spamAuthor := "SpamBot <spam@example.net>"
+	goodAuthor := "Real Person <real@example.net>"
+	url1 := "nntp://news.eternal-september.org/news.admin.net-abuse/1"
+	url2 := "nntp://news.eternal-september.org/news.admin.net-abuse/2"
+	spamArt, err := q.CreateArticle(ctx, dbgen.CreateArticleParams{
+		FeedID: feed.ID, Title: "Usenet post", Guid: "<spam-msg@example>",
+		Author: &spamAuthor, Url: &url1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	goodArt, err := q.CreateArticle(ctx, dbgen.CreateArticleParams{
+		FeedID: feed.ID, Title: "Normal post", Guid: "<good-msg@example>",
+		Author: &goodAuthor, Url: &url2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s.MarkExcludedArticlesReadForFeed(ctx, feed.ID)
+
+	spam, _ := q.GetArticle(ctx, dbgen.GetArticleParams{ID: spamArt.ID, UserID: &user.ID})
+	good, _ := q.GetArticle(ctx, dbgen.GetArticleParams{ID: goodArt.ID, UserID: &user.ID})
+
+	if isRead(spam.IsRead) != 1 {
+		t.Error("NNTP article from excluded author should be marked read")
+	}
+	if isRead(good.IsRead) != 0 {
+		t.Error("NNTP article from non-excluded author should still be unread")
+	}
+}
+
+// TestMarkExcludedArticlesReadForFeed_RSSStillWorks confirms that the
+// existing RSS exclusion filter behaviour is not broken by Usenet changes.
+func TestMarkExcludedArticlesReadForFeed_RSSStillWorks(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	ctx, user := testUser(t, s)
+	q := dbgen.New(s.DB)
+
+	rss := createFeed(t, s, user.ID, "RSS Feed", "https://rss.example.com/feed")
+	cat, _ := q.CreateCategory(ctx, dbgen.CreateCategoryParams{Name: "RSS Cat", UserID: &user.ID})
+	q.AddFeedToCategory(ctx, dbgen.AddFeedToCategoryParams{FeedID: rss.ID, CategoryID: cat.ID})
+
+	var zero int64
+	q.CreateExclusion(ctx, dbgen.CreateExclusionParams{
+		CategoryID: cat.ID, ExclusionType: "keyword", Pattern: "advertisement", IsRegex: &zero,
+	})
+
+	good := createArticle(t, s, rss.ID, "Real news article", "rss-good-1")
+	bad := createArticle(t, s, rss.ID, "Advertisement: buy now", "rss-bad-1")
+
+	s.MarkExcludedArticlesReadForFeed(ctx, rss.ID)
+
+	artGood, _ := q.GetArticle(ctx, dbgen.GetArticleParams{ID: good.ID, UserID: &user.ID})
+	artBad, _ := q.GetArticle(ctx, dbgen.GetArticleParams{ID: bad.ID, UserID: &user.ID})
+
+	if isRead(artGood.IsRead) != 0 {
+		t.Error("RSS article not matching exclusion should still be unread")
+	}
+	if isRead(artBad.IsRead) != 1 {
+		t.Error("RSS article matching keyword exclusion should be marked read")
+	}
+}

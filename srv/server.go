@@ -1032,6 +1032,25 @@ func (s *Server) handleArticle(w http.ResponseWriter, r *http.Request) {
 	data["Article"] = article
 	data["Feed"] = feed
 
+	// For Usenet articles, fetch thread context if metadata is available.
+	if feed.FeedType == "nntp" {
+		if meta, err := q.GetUsenetArticleMeta(ctx, articleID); err == nil {
+			threadArticles, err := q.GetThreadArticles(ctx, dbgen.GetThreadArticlesParams{
+				RootMessageID: meta.RootMessageID,
+				FeedID:        meta.FeedID,
+				UserID:        &user.ID,
+			})
+			if err != nil {
+				slog.Warn("failed to fetch thread context", "error", err, "article_id", articleID)
+			} else if len(threadArticles) > 1 {
+				// Only show thread context when there are multiple articles
+				// (a single-article thread provides no context).
+				data["UsenetThread"] = threadArticles
+				data["UsenetCurrentArticleID"] = articleID
+			}
+		}
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.renderTemplate(w, r, "article.html", data); err != nil {
 		slog.Warn("render template", "error", err)
