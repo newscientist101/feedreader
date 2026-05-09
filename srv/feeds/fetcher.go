@@ -34,9 +34,14 @@ type Fetcher struct {
 	Client        *http.Client
 	ScraperRunner *scrapers.Runner
 	OnFeedFetched func(ctx context.Context, feedID int64) // called after articles are inserted
-	mu            sync.Mutex
-	running       bool
-	stopCh        chan struct{}
+	// NNTPDialer and CredentialDecryptor are optional; set them to enable
+	// Usenet newsgroup fetching. When nil, feed_type='nntp' feeds fail with
+	// ErrNNTPNotConfigured.
+	NNTPDialer          NNTPDialer
+	CredentialDecryptor CredentialDecryptor
+	mu                  sync.Mutex
+	running             bool
+	stopCh              chan struct{}
 }
 
 // NewFetcher creates a new feed fetcher
@@ -140,6 +145,10 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed *dbgen.Feed) error {
 		items, fetchErr = f.fetchHuggingFace(ctx, feed)
 	case "youtube-playlist":
 		items, fetchErr = f.fetchYouTubePlaylist(ctx, feed)
+	case "nntp":
+		// NNTP feeds bypass the generic FeedItem path; fetchNNTP writes
+		// articles directly to the DB and handles feed status itself.
+		return f.fetchNNTPFeed(ctx, q, now, feed)
 	default:
 		fetchErr = fmt.Errorf("unknown feed type: %s", feed.FeedType)
 	}
