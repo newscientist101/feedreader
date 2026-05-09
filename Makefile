@@ -1,3 +1,5 @@
+export GOTOOLCHAIN=auto
+
 .PHONY: build clean stop start restart test lint lint-go lint-js lint-css lint-templates lint-html lint-modules fmt fmt-check fix-check vulncheck check layout-test browser-unit-test
 
 build:
