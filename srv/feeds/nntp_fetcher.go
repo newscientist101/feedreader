@@ -128,8 +128,15 @@ func planArticleRange(serverLow, serverHigh, highWater int64) (start, end int64)
 
 // setFeedError is a convenience helper that records a fetch error on a feed
 // via IncrementFeedErrors and logs a warning if the DB call itself fails.
+//
+// If ctx is already cancelled (e.g. the fetch was interrupted) the error is
+// still recorded using context.Background() so cleanup writes succeed.
 func (f *Fetcher) setFeedError(ctx context.Context, q *dbgen.Queries, feedID int64, now time.Time, msg string) {
-	if err := q.IncrementFeedErrors(ctx, dbgen.IncrementFeedErrorsParams{
+	dbCtx := ctx
+	if ctx.Err() != nil {
+		dbCtx = context.Background()
+	}
+	if err := q.IncrementFeedErrors(dbCtx, dbgen.IncrementFeedErrorsParams{
 		LastError:     &msg,
 		LastFetchedAt: &now,
 		ID:            feedID,
@@ -217,15 +224,71 @@ func (f *Fetcher) fetchNNTPFeed(ctx context.Context, q *dbgen.Queries, now time.
 	}
 
 	// Phase 3: per-article body fetch and import (feedreader-6g2.18.4).
-	if err := f.importNNTPArticles(ctx, q, conn, feed, &state, overview, attemptedEnd); err != nil {
-		// importNNTPArticles already recorded the feed error on hard failure.
-		return err
+	// Phase 4 (feedreader-6g2.18.5): importNNTPArticles returns the last
+	// fully-processed article number. A context.Canceled error means partial
+	// progress; any other non-nil error is a hard failure.
+	lastProcessed, importErr := f.importNNTPArticles(ctx, q, conn, feed, &state, overview, attemptedEnd)
+
+	// Phase 4: advance high-water and update feed status.
+	//
+	// Rules:
+	//  - Hard failure (non-cancellation error): do not advance high-water;
+	//    error already recorded by importNNTPArticles.
+	//  - Context cancelled: advance to lastProcessed (partial progress),
+	//    record a cancellation feed error, and return the context error.
+	//  - Full success: advance to attemptedEnd and reset feed errors.
+	_ = attemptedStart
+
+	cancelled := errors.Is(importErr, context.Canceled) || errors.Is(importErr, context.DeadlineExceeded)
+	if importErr != nil && !cancelled {
+		// Hard failure: importNNTPArticles already called setFeedError.
+		return importErr
 	}
 
-	// Phase 4 (feedreader-6g2.18.5): high-water, feed-status, cancellation.
-	// Stub until feedreader-6g2.18.5 is implemented.
-	_ = attemptedStart
-	_ = attemptedEnd
+	// Determine the new high-water mark (partial or full progress).
+	newHighWater := max(lastProcessed, state.HighWaterArticleNumber)
+
+	if newHighWater > state.HighWaterArticleNumber {
+		// Use context.Background() when ctx is cancelled so the DB write
+		// succeeds regardless of the fetch context state.
+		hwCtx := ctx
+		if ctx.Err() != nil {
+			hwCtx = context.Background()
+		}
+		if hwErr := q.UpdateUsenetHighWater(hwCtx, dbgen.UpdateUsenetHighWaterParams{
+			HighWaterArticleNumber: newHighWater,
+			FeedID:                 feed.ID,
+		}); hwErr != nil {
+			slog.Warn("nntp: update high-water failed", "feed_id", feed.ID, "error", hwErr)
+			// Not a hard failure — the articles were inserted; we just can't
+			// advance the cursor. Log and continue.
+		}
+	}
+
+	if cancelled {
+		// Record cancellation as a feed error so the operator can see the
+		// partial run in the feed status UI. setFeedError handles
+		// cancelled ctx internally.
+		msg := fmt.Sprintf("nntp: fetch cancelled after processing up to article %d", lastProcessed)
+		f.setFeedError(ctx, q, feed.ID, now, msg)
+		return importErr
+	}
+
+	// Full success: clear any previous feed errors.
+	if resetErr := q.ResetFeedErrors(ctx, dbgen.ResetFeedErrorsParams{
+		LastFetchedAt: &now,
+		ID:            feed.ID,
+	}); resetErr != nil {
+		slog.Warn("nntp: reset feed errors", "feed_id", feed.ID, "error", resetErr)
+	}
+
+	slog.Debug("nntp: fetch complete",
+		"feed_id", feed.ID,
+		"group", state.GroupName,
+		"attempted_end", attemptedEnd,
+		"last_processed", lastProcessed,
+		"new_high_water", newHighWater)
+
 	return nil
 }
 
@@ -297,18 +360,23 @@ func (f *Fetcher) fetchNNTPOverview(
 // importNNTPArticles fetches and imports each article in the overview slice.
 // For each row it:
 //
-//  1. Skips duplicates (by message_id or article_number) before the body fetch.
-//  2. Fetches the article body via NNTPConn.FetchArticle.
-//  3. Skips deleted/expired articles (ErrNNTPArticleNotFound) and binary posts
+//  1. Checks for context cancellation before each article.
+//  2. Skips duplicates (by message_id or article_number) before the body fetch.
+//  3. Fetches the article body via NNTPConn.FetchArticle.
+//  4. Skips deleted/expired articles (ErrNNTPArticleNotFound) and binary posts
 //     (usenet.ErrBinaryPost) as intentional skips.
-//  4. Maps accepted articles with usenet.MapArticle.
-//  5. Inserts article and meta inside a DB transaction; UNIQUE-constraint
+//  5. Maps accepted articles with usenet.MapArticle.
+//  6. Inserts article and meta inside a DB transaction; UNIQUE-constraint
 //     violations on the meta insert are treated as idempotent duplicates.
 //
-// Returns nil when all rows have been processed (possibly with intentional
-// skips). Returns a non-nil error only for hard failures (unexpected body fetch
-// errors or DB errors that make the range unreliable), after recording a feed
-// error. Does NOT update the high-water mark — that is handled by phase 4.
+// Returns (lastProcessed, nil) when all rows have been processed (possibly
+// with intentional skips). lastProcessed is the highest article number that
+// was fully processed (imported, skipped, or intentionally rejected). On
+// context cancellation, returns (lastProcessed, nil) — the caller must check
+// ctx.Err() to detect partial progress. Returns a non-nil error only for hard
+// failures (unexpected body fetch errors or DB errors that make the range
+// unreliable), after recording a feed error. Does NOT update the high-water
+// mark — that is handled by phase 4.
 func (f *Fetcher) importNNTPArticles(
 	ctx context.Context,
 	q *dbgen.Queries,
@@ -317,11 +385,23 @@ func (f *Fetcher) importNNTPArticles(
 	state *dbgen.UsenetFeedState,
 	rows []NNTPOverviewRow,
 	attemptedEnd int64,
-) error {
+) (lastProcessed int64, _ error) {
 	groupName := state.GroupName
+	// lastProcessed tracks the highest article number fully processed so far.
+	// It starts at the current high-water mark so the caller can always use it
+	// as the new high-water without going backwards.
+	lastProcessed = state.HighWaterArticleNumber
 
 	for i := range rows {
 		row := &rows[i]
+
+		// 0. Check for context cancellation before each network/DB operation.
+		if ctx.Err() != nil {
+			// Return partial progress; the caller handles the ctx error
+			// separately from hard failures so it can still advance the
+			// high-water mark for what was processed so far.
+			return lastProcessed, ctx.Err()
+		}
 
 		// 1. Pre-fetch duplicate check by message_id.
 		if row.MessageID != "" {
@@ -330,16 +410,19 @@ func (f *Fetcher) importNNTPArticles(
 				MessageID: row.MessageID,
 			})
 			if err == nil {
-				// Already imported.
+				// Already imported: advance past this article.
 				slog.Debug("nntp: skipping duplicate message_id",
 					"feed_id", feed.ID, "message_id", row.MessageID)
+				if row.ArticleNumber > lastProcessed {
+					lastProcessed = row.ArticleNumber
+				}
 				continue
 			}
 			if !errors.Is(err, sql.ErrNoRows) {
-				// Unexpected DB error — hard failure.
+				// Unexpected DB error — hard failure; do not advance high-water.
 				msg := fmt.Sprintf("nntp: duplicate check (message_id) failed (%s): %v", groupName, err)
 				f.setFeedError(ctx, q, feed.ID, time.Now(), msg)
-				return fmt.Errorf("nntp import %s: message_id check: %w", groupName, err)
+				return lastProcessed, fmt.Errorf("nntp import %s: message_id check: %w", groupName, err)
 			}
 		}
 
@@ -349,32 +432,39 @@ func (f *Fetcher) importNNTPArticles(
 			ArticleNumber: row.ArticleNumber,
 		})
 		if err == nil {
+			// Already imported: advance past this article.
 			slog.Debug("nntp: skipping duplicate article_number",
 				"feed_id", feed.ID, "article_number", row.ArticleNumber)
+			if row.ArticleNumber > lastProcessed {
+				lastProcessed = row.ArticleNumber
+			}
 			continue
 		}
 		if !errors.Is(err, sql.ErrNoRows) {
 			msg := fmt.Sprintf("nntp: duplicate check (article_number) failed (%s): %v", groupName, err)
 			f.setFeedError(ctx, q, feed.ID, time.Now(), msg)
-			return fmt.Errorf("nntp import %s: article_number check: %w", groupName, err)
+			return lastProcessed, fmt.Errorf("nntp import %s: article_number check: %w", groupName, err)
 		}
 
 		// 2. Fetch the full article (headers + body).
 		article, fetchErr := conn.FetchArticle(row.ArticleNumber)
 		if fetchErr != nil {
 			if errors.Is(fetchErr, ErrNNTPArticleNotFound) {
-				// Article deleted or expired: intentional skip.
+				// Article deleted or expired: intentional skip; advance past it.
 				slog.Debug("nntp: article not found, skipping",
 					"feed_id", feed.ID, "article_number", row.ArticleNumber)
+				if row.ArticleNumber > lastProcessed {
+					lastProcessed = row.ArticleNumber
+				}
 				continue
 			}
-			// Unexpected server/connection error: hard failure.
+			// Unexpected server/connection error: hard failure; do not advance.
 			msg := fmt.Sprintf("nntp: article fetch failed (%s #%d): %v", groupName, row.ArticleNumber, fetchErr)
 			f.setFeedError(ctx, q, feed.ID, time.Now(), msg)
-			return fmt.Errorf("nntp fetch article %s #%d: %w", groupName, row.ArticleNumber, fetchErr)
+			return lastProcessed, fmt.Errorf("nntp fetch article %s #%d: %w", groupName, row.ArticleNumber, fetchErr)
 		}
 
-		// 3. Binary / content-type rejection.
+		// 3. Binary / content-type rejection: intentional skip; advance past it.
 		nntpArticle := &nntp.Article{
 			Headers: article.Headers,
 			Body:    article.Body,
@@ -382,6 +472,9 @@ func (f *Fetcher) importNNTPArticles(
 		if binErr := usenet.CheckArticleBinary(nntpArticle.Headers, row.Subject, nntpArticle.Body); binErr != nil {
 			slog.Debug("nntp: skipping binary post",
 				"feed_id", feed.ID, "article_number", row.ArticleNumber, "reason", binErr)
+			if row.ArticleNumber > lastProcessed {
+				lastProcessed = row.ArticleNumber
+			}
 			continue
 		}
 
@@ -402,24 +495,42 @@ func (f *Fetcher) importNNTPArticles(
 		if insertErr := f.insertArticleWithMeta(ctx, &rec); insertErr != nil {
 			if errors.Is(insertErr, errDuplicateArticleMeta) {
 				// Race: another concurrent fetch inserted the same article.
-				// Idempotent skip.
+				// Idempotent skip; advance past it.
 				slog.Debug("nntp: duplicate insert race, skipping",
 					"feed_id", feed.ID, "article_number", row.ArticleNumber)
+				if row.ArticleNumber > lastProcessed {
+					lastProcessed = row.ArticleNumber
+				}
 				continue
 			}
-			// Hard DB error.
+			// Hard DB error; do not advance past this article.
 			msg := fmt.Sprintf("nntp: insert failed (%s #%d): %v", groupName, row.ArticleNumber, insertErr)
 			f.setFeedError(ctx, q, feed.ID, time.Now(), msg)
-			return fmt.Errorf("nntp insert article %s #%d: %w", groupName, row.ArticleNumber, insertErr)
+			return lastProcessed, fmt.Errorf("nntp insert article %s #%d: %w", groupName, row.ArticleNumber, insertErr)
 		}
 
+		// Successfully imported: advance past this article.
+		if row.ArticleNumber > lastProcessed {
+			lastProcessed = row.ArticleNumber
+		}
 		slog.Debug("nntp: imported article",
 			"feed_id", feed.ID, "group", groupName, "article_number", row.ArticleNumber)
 	}
 
-	// All rows processed; high-water update is handled by the caller (phase 4).
-	_ = attemptedEnd
-	return nil
+	// All rows processed (or loop exhausted); high-water update is in phase 4.
+	// If no rows were processed, lastProcessed remains at highWater (no-op).
+	// If attemptedEnd > lastProcessed and no cancellation, the caller (phase 4)
+	// will advance to attemptedEnd after checking ctx.Err().
+	//
+	// When all rows are processed without cancellation, we advance to
+	// attemptedEnd to account for empty/skipped ranges within the planned
+	// window (articles that were in the planned range but not in the overview,
+	// e.g. cancelled posts the server already removed from OVER).
+	if ctx.Err() == nil && attemptedEnd > lastProcessed {
+		lastProcessed = attemptedEnd
+	}
+
+	return lastProcessed, nil
 }
 
 // errDuplicateArticleMeta is a package-private sentinel returned by

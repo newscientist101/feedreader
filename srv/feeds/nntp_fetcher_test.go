@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -877,3 +878,307 @@ func TestImportNNTPArticles_DuplicateInsertRace(t *testing.T) {
 	// First article inserted, second is an idempotent skip.
 	assertMetaCount(t, sqlDB, feed.ID, 1)
 }
+
+// --- High-water, feed status, and cancellation tests (feedreader-6g2.18.5) ---
+
+// assertHighWater checks that the high-water mark equals wantHW.
+func assertHighWater(t *testing.T, sqlDB *sql.DB, feedID, wantHW int64) {
+	t.Helper()
+	var hw int64
+	err := sqlDB.QueryRowContext(context.Background(),
+		"SELECT high_water_article_number FROM usenet_feed_state WHERE feed_id = ?", feedID).Scan(&hw)
+	if err != nil {
+		t.Fatalf("query high_water: %v", err)
+	}
+	if hw != wantHW {
+		t.Errorf("high_water = %d, want %d", hw, wantHW)
+	}
+}
+
+// assertFeedNoError checks that the feed's last_error is nil/empty.
+func assertFeedNoError(t *testing.T, sqlDB *sql.DB, feedID int64) {
+	t.Helper()
+	var lastError *string
+	err := sqlDB.QueryRowContext(context.Background(),
+		"SELECT last_error FROM feeds WHERE id = ?", feedID).Scan(&lastError)
+	if err != nil {
+		t.Fatalf("query feed last_error: %v", err)
+	}
+	if lastError != nil && *lastError != "" {
+		t.Errorf("expected feed.last_error to be nil/empty, got %q", *lastError)
+	}
+}
+
+// TestFetchNNTPFeed_HighWaterAdvancesOnSuccess verifies that high-water is
+// advanced to attemptedEnd after a fully successful fetch of imported articles.
+func TestFetchNNTPFeed_HighWaterAdvancesOnSuccess(t *testing.T) {
+	t.Parallel()
+
+	row := makeOverviewRow(42, "<hw-advance@example.com>")
+	conn := &fakeNNTPConn{
+		groupCount: 42, groupLow: 1, groupHigh: 42,
+		overviewRows: []NNTPOverviewRow{row},
+		article:      makeTextArticle("Hello world"),
+	}
+	fetcher, q, sqlDB, feed := setupNNTPFetcher(t, conn)
+
+	if err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// High-water should advance to serverHigh=42.
+	assertHighWater(t, sqlDB, feed.ID, 42)
+	assertFeedNoError(t, sqlDB, feed.ID)
+}
+
+// TestFetchNNTPFeed_HighWaterAdvancesMixedSkips verifies that high-water
+// advances past imported articles, intentional skips (binary, deleted), and
+// duplicate skips.
+func TestFetchNNTPFeed_HighWaterAdvancesMixedSkips(t *testing.T) {
+	t.Parallel()
+
+	// 3 rows: one text (imported), one binary (skipped), one deleted (skipped).
+	row1 := makeOverviewRow(1, "<mix1@example.com>")
+	row2 := makeOverviewRow(2, "<mix2@example.com>")
+	row3 := makeOverviewRow(3, "<mix3@example.com>")
+
+	// perArticleConn allows per-article control.
+	articleResults := map[int64]perArticleResult{
+		1: {article: makeTextArticle("Good article")},
+		2: {article: &NNTPArticle{
+			Headers: map[string]string{"Content-Type": "application/octet-stream"},
+			Body:    "binary",
+		}},
+		3: {err: ErrNNTPArticleNotFound},
+	}
+	conn := &perArticleConn{
+		groupCount: 3, groupLow: 1, groupHigh: 3,
+		overviewRows: []NNTPOverviewRow{row1, row2, row3},
+		articles:     articleResults,
+	}
+	fetcher, q, sqlDB, feed := setupNNTPFetcher(t, conn)
+
+	if err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Imported 1, skipped 2 (binary) and 3 (deleted): all three processed.
+	assertArticleCount(t, sqlDB, feed.ID, 1)
+	assertHighWater(t, sqlDB, feed.ID, 3)
+	assertFeedNoError(t, sqlDB, feed.ID)
+}
+
+// TestFetchNNTPFeed_HighWaterDoesNotAdvanceOnHardError verifies that high-water
+// does not advance when a hard connection/server error occurs mid-range.
+func TestFetchNNTPFeed_HighWaterDoesNotAdvanceOnHardError(t *testing.T) {
+	t.Parallel()
+
+	// Two rows; the second causes a hard fetch error.
+	row1 := makeOverviewRow(10, "<hard-err1@example.com>")
+	row2 := makeOverviewRow(11, "<hard-err2@example.com>")
+
+	articleResults := map[int64]perArticleResult{
+		10: {article: makeTextArticle("Good")},
+		11: {err: errors.New("connection reset by peer")},
+	}
+	conn := &perArticleConn{
+		groupCount: 11, groupLow: 1, groupHigh: 11,
+		overviewRows: []NNTPOverviewRow{row1, row2},
+		articles:     articleResults,
+	}
+	fetcher, q, sqlDB, feed := setupNNTPFetcher(t, conn)
+
+	err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed)
+	if err == nil {
+		t.Fatal("expected hard error")
+	}
+	// Article 10 was imported before the hard error, but high-water must not
+	// advance (the error path in importNNTPArticles returns lastProcessed=10
+	// but also returns a non-nil error, so phase 4 does not update high-water).
+	assertHighWater(t, sqlDB, feed.ID, 0)
+	assertFeedHasError(t, sqlDB, feed.ID)
+}
+
+// TestFetchNNTPFeed_FeedErrorsClearedOnSuccess verifies that pre-existing feed
+// errors are cleared after a fully successful fetch.
+func TestFetchNNTPFeed_FeedErrorsClearedOnSuccess(t *testing.T) {
+	t.Parallel()
+
+	sqlDB, q := setupTestDB(t)
+	_, feed := setupNNTPTestFeed(t, q, true)
+
+	// Inject a pre-existing feed error.
+	now := time.Now()
+	if err := q.IncrementFeedErrors(context.Background(), dbgen.IncrementFeedErrorsParams{
+		LastError:     strPtr("previous error"),
+		LastFetchedAt: &now,
+		ID:            feed.ID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	assertFeedHasError(t, sqlDB, feed.ID)
+
+	// Successful fetch: one article.
+	row := makeOverviewRow(5, "<clear-err@example.com>")
+	conn := &fakeNNTPConn{
+		groupCount: 5, groupLow: 1, groupHigh: 5,
+		overviewRows: []NNTPOverviewRow{row},
+		article:      makeTextArticle("Body"),
+	}
+	fetcher := &Fetcher{
+		DB:                  sqlDB,
+		NNTPDialer:          &fakeDialer{conn: conn},
+		CredentialDecryptor: &fakeDecryptor{result: "pass"},
+	}
+	if err := fetcher.fetchNNTPFeed(context.Background(), q, time.Now(), &feed); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertFeedNoError(t, sqlDB, feed.ID)
+}
+
+// TestFetchNNTPFeed_CancellationBeforeConnect verifies that cancelling the
+// context before the Dial call causes a prompt return with no high-water update.
+func TestFetchNNTPFeed_CancellationBeforeConnect(t *testing.T) {
+	t.Parallel()
+
+	sqlDB, q := setupTestDB(t)
+	_, feed := setupNNTPTestFeed(t, q, true)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+
+	conn := &fakeNNTPConn{
+		groupCount: 100, groupLow: 1, groupHigh: 100,
+	}
+	fetcher := &Fetcher{
+		DB: sqlDB,
+		// blockedDialer blocks until ctx is done, then returns ctx.Err().
+		NNTPDialer:          &ctxCheckDialer{conn: conn},
+		CredentialDecryptor: &fakeDecryptor{result: "pass"},
+	}
+	err := fetcher.fetchNNTPFeed(ctx, q, time.Now(), &feed)
+	if err == nil {
+		t.Fatal("expected error from cancelled context")
+	}
+	// No high-water advancement.
+	assertHighWaterUnchanged(t, sqlDB, feed.ID, 0)
+}
+
+// ctxCheckDialer checks context before dialing.
+type ctxCheckDialer struct{ conn NNTPConn }
+
+func (d *ctxCheckDialer) Dial(ctx context.Context, _, _ string) (NNTPConn, error) {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	return d.conn, nil
+}
+
+// TestFetchNNTPFeed_CancellationDuringRowProcessing verifies that cancelling
+// the context mid-loop stops processing, advances high-water only to the last
+// completed article, and records a cancellation feed error.
+//
+// The context is cancelled when FetchArticle is called for the second row.
+// This ensures row 1 is fully inserted before cancellation is detected at the
+// top of the next iteration.
+func TestFetchNNTPFeed_CancellationDuringRowProcessing(t *testing.T) {
+	t.Parallel()
+
+	sqlDB, q := setupTestDB(t)
+	_, feed := setupNNTPTestFeed(t, q, true)
+
+	// 3 rows: row 1 is fully processed, then ctx is cancelled during row 2
+	// FetchArticle (before the insert), which the loop detects at the
+	// ctx.Err() check at the top of the next iteration.
+	row1 := makeOverviewRow(1, "<cancel-r1@example.com>")
+	row2 := makeOverviewRow(2, "<cancel-r2@example.com>")
+	row3 := makeOverviewRow(3, "<cancel-r3@example.com>")
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// cancelOnSecondConn cancels the context when FetchArticle is called for
+	// the second time (row 2). Row 1 is returned successfully so it can be
+	// inserted before cancellation is detected.
+	conn := &cancelOnSecondFetchConn{
+		groupCount: 3, groupLow: 1, groupHigh: 3,
+		overviewRows: []NNTPOverviewRow{row1, row2, row3},
+		article:      makeTextArticle("Body"),
+		cancel:       cancel,
+	}
+	fetcher := &Fetcher{
+		DB:                  sqlDB,
+		NNTPDialer:          &fakeDialer{conn: conn},
+		CredentialDecryptor: &fakeDecryptor{result: "pass"},
+	}
+	err := fetcher.fetchNNTPFeed(ctx, q, time.Now(), &feed)
+	// Context cancellation propagates as an error.
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context.Canceled, got %v", err)
+	}
+	// Article 1 was imported; article 2 was skipped (not-found) but the
+	// cancel happened during its processing. The loop detects cancellation
+	// at the start of row 3's iteration. high-water must be 2 (articles 1
+	// and 2 were processed before the ctx.Err() check fired on row 3).
+	assertHighWater(t, sqlDB, feed.ID, 2)
+	// A cancellation feed error must be recorded.
+	assertFeedHasError(t, sqlDB, feed.ID)
+	// Exactly one article imported.
+	assertArticleCount(t, sqlDB, feed.ID, 1)
+}
+
+// cancelOnSecondFetchConn cancels the context when FetchArticle is called for
+// the second time, allowing the first article to be processed normally.
+type cancelOnSecondFetchConn struct {
+	groupCount, groupLow, groupHigh int64
+	overviewRows                    []NNTPOverviewRow
+	article                         *NNTPArticle
+	cancel                          context.CancelFunc
+	mu                              sync.Mutex
+	called                          int
+}
+
+func (c *cancelOnSecondFetchConn) SelectGroup(_ string) (count, low, high int64, name string, err error) {
+	return c.groupCount, c.groupLow, c.groupHigh, "", nil
+}
+func (c *cancelOnSecondFetchConn) Overview(_, _ int64) ([]NNTPOverviewRow, error) {
+	return c.overviewRows, nil
+}
+func (c *cancelOnSecondFetchConn) FetchArticle(_ int64) (*NNTPArticle, error) {
+	c.mu.Lock()
+	c.called++
+	n := c.called
+	c.mu.Unlock()
+	if n == 1 {
+		// First call: return article normally. The caller inserts it, then
+		// the loop checks ctx.Err() at the top of the next iteration.
+		return c.article, nil
+	}
+	// Second+ call: cancel the context and return not-found so the caller
+	// exits cleanly. The ctx.Err() check at the top of the NEXT iteration
+	// (after row 2's processing) will detect the cancellation.
+	c.cancel()
+	return nil, ErrNNTPArticleNotFound
+}
+func (c *cancelOnSecondFetchConn) Close() error { return nil }
+
+// perArticleConn allows per-article control of FetchArticle.
+type perArticleResult struct {
+	article *NNTPArticle
+	err     error
+}
+
+type perArticleConn struct {
+	groupCount, groupLow, groupHigh int64
+	overviewRows                    []NNTPOverviewRow
+	articles                        map[int64]perArticleResult
+}
+
+func (c *perArticleConn) SelectGroup(_ string) (count, low, high int64, name string, err error) {
+	return c.groupCount, c.groupLow, c.groupHigh, "", nil
+}
+func (c *perArticleConn) Overview(_, _ int64) ([]NNTPOverviewRow, error) {
+	return c.overviewRows, nil
+}
+func (c *perArticleConn) FetchArticle(n int64) (*NNTPArticle, error) {
+	r := c.articles[n]
+	return r.article, r.err
+}
+func (c *perArticleConn) Close() error { return nil }
