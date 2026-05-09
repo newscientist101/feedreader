@@ -111,6 +111,29 @@ func TestCheckArticleBinary(t *testing.T) {
 			wantErr: true,
 		},
 
+		// --- Rejected by malformed / unknown Content-Type ---
+		{
+			name:    "malformed content-type rejected",
+			headers: map[string]string{"Content-Type": "not/a/valid content type!!!"},
+			subject: "Test",
+			body:    "hello",
+			wantErr: true,
+		},
+		{
+			name:    "unknown mime type rejected",
+			headers: map[string]string{"Content-Type": "x-unknown/something"},
+			subject: "Test",
+			body:    "hello",
+			wantErr: true,
+		},
+		{
+			name:    "text/enriched (other text subtype) rejected",
+			headers: map[string]string{"Content-Type": "text/enriched"},
+			subject: "Test",
+			body:    "hello",
+			wantErr: true,
+		},
+
 		// --- Rejected by yEnc body marker ---
 		{
 			name:    "yenc body rejected",
@@ -118,6 +141,27 @@ func TestCheckArticleBinary(t *testing.T) {
 			subject: "Some file",
 			body:    "=ybegin part=1 line=128 size=12345 name=file.rar\n...",
 			wantErr: true,
+		},
+		{
+			name:    "yenc marker after blank lines rejected",
+			headers: map[string]string{},
+			subject: "Some file",
+			body:    "\n\n\n=ybegin part=1 line=128 size=12345 name=file.rar\n...",
+			wantErr: true,
+		},
+		{
+			name:    "yenc marker after short intro rejected",
+			headers: map[string]string{},
+			subject: "Some file",
+			body:    "Here is the file:\n=ybegin part=1 line=128 size=12345 name=file.rar\n...",
+			wantErr: true,
+		},
+		{
+			name:    "yenc marker beyond scan window not rejected by yenc check",
+			headers: map[string]string{},
+			subject: "Discussion thread",
+			body:    "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10\nline11\nline12\nline13\nline14\nline15\nline16\nline17\nline18\nline19\nline20\n=ybegin part=1\n",
+			wantErr: false,
 		},
 
 		// --- Rejected by binary subject patterns ---

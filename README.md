@@ -76,6 +76,8 @@ Optional environment variables (or `.env` file):
 | Variable | Description |
 |---|---|
 | `SHELLEY_URL` | Shelley API URL for AI scraper generation (default: `http://localhost:9999`) |
+| `USENET_ENABLED` | Set to `true` to enable the Usenet newsgroup reader. Requires `USENET_CREDENTIAL_KEY`. |
+| `USENET_CREDENTIAL_KEY` | Base64-encoded 32-byte key for encrypting per-user NNTP credentials (required when `USENET_ENABLED=true`). **Never commit this value to git.** See [Usenet Setup](#usenet-newsgroup-reader) for operator instructions. |
 
 ## Tech Stack
 
@@ -269,6 +271,87 @@ make build && sudo systemctl restart feedreader
 
 Put a reverse proxy (nginx, Caddy, etc.) in front to handle TLS and
 inject the authentication headers.
+
+## Usenet Newsgroup Reader
+
+FeedReader optionally supports read-only Usenet newsgroup access via
+[Eternal September](https://www.eternal-september.org/). Per-user NNTP
+credentials are encrypted at rest using an operator-managed key.
+
+### Enabling Usenet
+
+Set `USENET_ENABLED=true` in the service environment. The application will
+**refuse to start** unless `USENET_CREDENTIAL_KEY` is also set to a valid
+32-byte base64-encoded key.
+
+### Generating the Credential Encryption Key
+
+The key protects per-user Eternal September passwords stored in the database.
+It is an operator/server secret — different in nature from per-user secrets
+like the YouTube API key in user settings.
+
+**Generate a new key (do this once on the server):**
+
+```bash
+# Generate 32 random bytes and base64-encode them
+openssl rand -base64 32
+# or with Python:
+python3 -c "import secrets, base64; print(base64.b64encode(secrets.token_bytes(32)).decode())"
+```
+
+Example output (do not use this value — generate your own):
+```
+K7gNU3sdo+OL0wNhqoVWhr3g6s1xYv72ol/pe/Unols=
+```
+
+### Storing the Key Securely (systemd EnvironmentFile)
+
+Store the key in a root-readable file outside of the repository. **Do not
+add it to `.env` or any file committed to git.**
+
+```bash
+# Create the secrets file (readable only by root)
+sudo install -m 600 -o root -g root /dev/null /etc/feedreader/secrets
+
+# Add the key (replace the value with your generated key)
+echo 'USENET_CREDENTIAL_KEY=K7gNU3sdo+OL0wNhqoVWhr3g6s1xYv72ol/pe/Unols=' \
+  | sudo tee /etc/feedreader/secrets > /dev/null
+
+# Also add USENET_ENABLED
+echo 'USENET_ENABLED=true' | sudo tee -a /etc/feedreader/secrets > /dev/null
+```
+
+Reference the file from a systemd drop-in so the service reads it:
+
+```bash
+# Create a drop-in override for the feedreader service
+sudo mkdir -p /etc/systemd/system/feedreader.service.d
+sudo tee /etc/systemd/system/feedreader.service.d/usenet.conf > /dev/null <<'EOF'
+[Service]
+EnvironmentFile=/etc/feedreader/secrets
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl restart feedreader
+```
+
+> **Note:** The root `.env` file referenced in `srv.service` uses the `-` prefix
+> (`EnvironmentFile=-/home/exedev/feedreader/.env`) so a missing file is
+> non-fatal. The secrets drop-in omits `-` so a missing file causes a startup
+> failure — intentional, to avoid silently running without the key.
+
+### Key Version and Rotation
+
+The current credential schema uses `key_version = "v1"`. Key rotation is a
+manual process and is not yet automated:
+
+1. Generate a new key following the steps above.
+2. Re-encrypt all credentials in the database using the new key (no automated
+   tooling yet — a future task will add a migration helper).
+3. Replace the key in `/etc/feedreader/secrets` and restart the service.
+
+Until rotation tooling is available, treat the initial key as long-lived and
+store it durably (e.g. in a password manager).
 
 ## License
 

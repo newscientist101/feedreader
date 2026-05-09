@@ -41,11 +41,13 @@ func CheckArticleBinary(headers map[string]string, subject, body string) error {
 	// Evaluate Content-Type.
 	if ct := headers["Content-Type"]; ct != "" {
 		mediaType, _, err := mime.ParseMediaType(ct)
-		if err == nil {
-			mediaType = strings.ToLower(mediaType)
-			if err2 := checkMediaType(mediaType); err2 != nil {
-				return err2
-			}
+		if err != nil {
+			// Malformed or unparseable Content-Type is rejected conservatively.
+			return fmt.Errorf("%w: malformed content-type %q: %w", ErrBinaryPost, ct, err)
+		}
+		mediaType = strings.ToLower(mediaType)
+		if err2 := checkMediaType(mediaType); err2 != nil {
+			return err2
 		}
 	}
 
@@ -62,14 +64,22 @@ func CheckArticleBinary(headers map[string]string, subject, body string) error {
 	return nil
 }
 
+// safeTextTypes lists the text/* subtypes that are accepted for ingestion.
+// Only text/plain is allowed initially. Additional safe types (e.g.
+// text/x-patch) can be enabled here without rewriting other filter logic.
+var safeTextTypes = map[string]bool{
+	"text/plain": true,
+}
+
 // checkMediaType inspects a normalized media type string and returns
 // ErrBinaryPost if it identifies binary or non-text content.
 func checkMediaType(mediaType string) error {
 	switch {
-	case mediaType == "text/plain":
+	case safeTextTypes[mediaType]:
 		return nil
 	case strings.HasPrefix(mediaType, "text/"):
 		// text/html and other text/* subtypes are rejected.
+		// To enable a new text/* subtype, add it to safeTextTypes above.
 		return fmt.Errorf("%w: non-plain text content type %q", ErrBinaryPost, mediaType)
 	case strings.HasPrefix(mediaType, "multipart/"):
 		return fmt.Errorf("%w: multipart content type %q", ErrBinaryPost, mediaType)
@@ -86,17 +96,24 @@ func checkMediaType(mediaType string) error {
 	return fmt.Errorf("%w: unrecognised content type %q", ErrBinaryPost, mediaType)
 }
 
-// isYEnc reports whether the body contains yEnc markers.
+// yEncScanLines is the number of body lines scanned for yEnc markers.
+// yEnc headers always appear near the top of the post body, but may be
+// preceded by blank lines or a short plain-text intro, so we scan several
+// lines rather than stopping at the first non-empty line.
+const yEncScanLines = 20
+
+// isYEnc reports whether the body contains yEnc markers within the first
+// yEncScanLines lines. yEnc posts always begin with "=ybegin" near the
+// start of the body.
 func isYEnc(body string) bool {
-	// yEnc posts begin with a line starting with "=ybegin".
+	scanned := 0
 	for line := range strings.SplitSeq(body, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "=ybegin") {
 			return true
 		}
-		// Only scan the first few lines for performance.
-		if trimmed != "" {
-			// Break after seeing real content lines (not header blank lines).
+		scanned++
+		if scanned >= yEncScanLines {
 			break
 		}
 	}
