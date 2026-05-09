@@ -1211,3 +1211,293 @@ func TestRSSFeedCountsUnaffectedByNNTP(t *testing.T) {
 		t.Errorf("RSS feed unread count should still be 1, got %v", feeds[rssKey])
 	}
 }
+
+// --- Usenet article user actions (feedreader-6g2.21) ---
+
+// createNNTPArticleWithMeta inserts an article for an NNTP feed and adds a
+// companion usenet_article_meta row. Returns the inserted article.
+func createNNTPArticleWithMeta(t *testing.T, s *Server, feed *dbgen.Feed, msgID string, artNum int64) dbgen.Article {
+	t.Helper()
+	art := createArticle(t, s, feed.ID, "Subject: "+msgID, msgID)
+	_, err := s.DB.ExecContext(context.Background(),
+		`INSERT INTO usenet_article_meta
+			(article_id, feed_id, message_id, root_message_id, group_name, article_number, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		art.ID, feed.ID, msgID, msgID, feed.Name, artNum)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return art
+}
+
+// hasUsenetMeta checks whether a usenet_article_meta row exists for the given article.
+func hasUsenetMeta(t *testing.T, s *Server, articleID int64) bool {
+	t.Helper()
+	var n int
+	err := s.DB.QueryRowContext(context.Background(),
+		`SELECT COUNT(*) FROM usenet_article_meta WHERE article_id = ?`, articleID).Scan(&n)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n > 0
+}
+
+// TestNNTPArticleMarkRead verifies that a Usenet article can be marked read.
+func TestNNTPArticleMarkRead(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+
+	feed := createNNTPFeed(t, s, user.ID, "comp.lang.go")
+	art := createNNTPArticleWithMeta(t, s, &feed, "<msg1@example>", 1)
+
+	w := serveMux(t, "POST /api/articles/{id}/read", s.apiMarkRead,
+		"POST", fmt.Sprintf("/api/articles/%d/read", art.ID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify is_read = 1.
+	var isRead int
+	err := s.DB.QueryRowContext(context.Background(),
+		`SELECT is_read FROM articles WHERE id = ?`, art.ID).Scan(&isRead)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if isRead != 1 {
+		t.Errorf("expected is_read=1, got %d", isRead)
+	}
+}
+
+// TestNNTPArticleMarkUnread verifies that a Usenet article can be marked unread.
+func TestNNTPArticleMarkUnread(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+
+	feed := createNNTPFeed(t, s, user.ID, "comp.lang.go")
+	art := createNNTPArticleWithMeta(t, s, &feed, "<msg2@example>", 2)
+
+	// First mark read.
+	_ = serveMux(t, "POST /api/articles/{id}/read", s.apiMarkRead,
+		"POST", fmt.Sprintf("/api/articles/%d/read", art.ID), "", ctx)
+
+	// Now mark unread.
+	w := serveMux(t, "POST /api/articles/{id}/unread", s.apiMarkUnread,
+		"POST", fmt.Sprintf("/api/articles/%d/unread", art.ID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var isRead int
+	err := s.DB.QueryRowContext(context.Background(),
+		`SELECT is_read FROM articles WHERE id = ?`, art.ID).Scan(&isRead)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if isRead != 0 {
+		t.Errorf("expected is_read=0, got %d", isRead)
+	}
+}
+
+// TestNNTPArticleToggleStar verifies starring and unstarring a Usenet article.
+func TestNNTPArticleToggleStar(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+
+	feed := createNNTPFeed(t, s, user.ID, "comp.lang.go")
+	art := createNNTPArticleWithMeta(t, s, &feed, "<msg3@example>", 3)
+
+	// Toggle star on.
+	w := serveMux(t, "POST /api/articles/{id}/star", s.apiToggleStar,
+		"POST", fmt.Sprintf("/api/articles/%d/star", art.ID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var isStarred int
+	err := s.DB.QueryRowContext(context.Background(),
+		`SELECT is_starred FROM articles WHERE id = ?`, art.ID).Scan(&isStarred)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if isStarred != 1 {
+		t.Errorf("expected is_starred=1 after first toggle, got %d", isStarred)
+	}
+
+	// Toggle star off.
+	w = serveMux(t, "POST /api/articles/{id}/star", s.apiToggleStar,
+		"POST", fmt.Sprintf("/api/articles/%d/star", art.ID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200 on second toggle, got %d", w.Code)
+	}
+
+	err = s.DB.QueryRowContext(context.Background(),
+		`SELECT is_starred FROM articles WHERE id = ?`, art.ID).Scan(&isStarred)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if isStarred != 0 {
+		t.Errorf("expected is_starred=0 after second toggle, got %d", isStarred)
+	}
+}
+
+// TestNNTPArticleQueueAddRemove verifies queue add and remove for a Usenet article.
+func TestNNTPArticleQueueAddRemove(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+
+	feed := createNNTPFeed(t, s, user.ID, "comp.lang.go")
+	art := createNNTPArticleWithMeta(t, s, &feed, "<msg4@example>", 4)
+
+	// Add to queue.
+	w := serveMux(t, "POST /api/articles/{id}/queue", s.apiToggleQueue,
+		"POST", fmt.Sprintf("/api/articles/%d/queue", art.ID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	body := jsonBody(t, w)
+	if body["queued"] != true {
+		t.Errorf("expected queued=true, got %v", body["queued"])
+	}
+
+	// Remove from queue via DELETE.
+	w = serveMux(t, "DELETE /api/articles/{id}/queue", s.apiRemoveFromQueue,
+		"DELETE", fmt.Sprintf("/api/articles/%d/queue", art.ID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200 on delete queue, got %d", w.Code)
+	}
+
+	// Verify not in queue.
+	q := dbgen.New(s.DB)
+	count, err := q.IsArticleQueued(context.Background(), dbgen.IsArticleQueuedParams{
+		UserID: user.ID, ArticleID: art.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Errorf("expected article removed from queue, got count=%d", count)
+	}
+}
+
+// TestNNTPArticleHistory verifies that viewing a Usenet article adds it to history.
+func TestNNTPArticleHistory(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	_, user := testUser(t, s)
+
+	feed := createNNTPFeed(t, s, user.ID, "comp.lang.go")
+	art := createNNTPArticleWithMeta(t, s, &feed, "<msg5@example>", 5)
+
+	// Directly add to history (same call the article view handler makes).
+	q := dbgen.New(s.DB)
+	err := q.AddToHistory(context.Background(), dbgen.AddToHistoryParams{
+		UserID: user.ID, ArticleID: art.ID,
+	})
+	if err != nil {
+		t.Fatalf("AddToHistory: %v", err)
+	}
+
+	// Verify the article appears in history.
+	articles, err := q.ListHistoryArticles(context.Background(), dbgen.ListHistoryArticlesParams{
+		UserID: user.ID, Limit: 10, Offset: 0,
+	})
+	if err != nil {
+		t.Fatalf("ListHistoryArticles: %v", err)
+	}
+	found := false
+	for _, a := range articles {
+		if a.ID == art.ID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("NNTP article %d not found in history", art.ID)
+	}
+}
+
+// TestNNTPArticleUserIsolation verifies that user A cannot mark-read user B's
+// Usenet articles.
+func TestNNTPArticleUserIsolation(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctxA, _ := testUser(t, s)
+	_, userB := testUser2(t, s)
+
+	feedB := createNNTPFeed(t, s, userB.ID, "comp.lang.go")
+	artB := createNNTPArticleWithMeta(t, s, &feedB, "<msgB@example>", 1)
+
+	// User A attempts to mark user B's article read — should silently do nothing.
+	w := serveMux(t, "POST /api/articles/{id}/read", s.apiMarkRead,
+		"POST", fmt.Sprintf("/api/articles/%d/read", artB.ID), "", ctxA)
+	if w.Code != 200 {
+		t.Fatalf("expected 200 (no-op), got %d", w.Code)
+	}
+
+	// The article must still be unread.
+	var isRead int
+	err := s.DB.QueryRowContext(context.Background(),
+		`SELECT is_read FROM articles WHERE id = ?`, artB.ID).Scan(&isRead)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if isRead != 0 {
+		t.Errorf("cross-user mark-read should not have changed is_read; got %d", isRead)
+	}
+
+	// User A cannot star user B's article.
+	w = serveMux(t, "POST /api/articles/{id}/star", s.apiToggleStar,
+		"POST", fmt.Sprintf("/api/articles/%d/star", artB.ID), "", ctxA)
+	if w.Code != 200 {
+		t.Fatalf("expected 200 (no-op on star), got %d", w.Code)
+	}
+	var isStarred int
+	err = s.DB.QueryRowContext(context.Background(),
+		`SELECT is_starred FROM articles WHERE id = ?`, artB.ID).Scan(&isStarred)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if isStarred != 0 {
+		t.Errorf("cross-user toggle-star should not have changed is_starred; got %d", isStarred)
+	}
+}
+
+// TestNNTPArticleStarredList verifies that starred Usenet articles appear in the
+// starred articles API response.
+func TestNNTPArticleStarredList(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	_, user := testUser(t, s)
+
+	feed := createNNTPFeed(t, s, user.ID, "comp.lang.go")
+	art := createNNTPArticleWithMeta(t, s, &feed, "<msg6@example>", 6)
+
+	// Star it directly.
+	q := dbgen.New(s.DB)
+	if err := q.ToggleArticleStar(context.Background(), dbgen.ToggleArticleStarParams{
+		ID: art.ID, UserID: &user.ID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	starred, err := q.ListStarredArticles(context.Background(), dbgen.ListStarredArticlesParams{
+		UserID: &user.ID, Limit: 10, Offset: 0,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, a := range starred {
+		if a.ID == art.ID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("starred NNTP article %d not in starred list", art.ID)
+	}
+}
