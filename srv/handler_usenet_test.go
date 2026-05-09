@@ -1008,3 +1008,206 @@ func TestNNTPFeedStatusUserIsolation(t *testing.T) {
 		t.Fatalf("expected 404 for cross-user feed status, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
+// --- Newsgroup integration: folders and sidebar counts (feedreader-6g2.20) ---
+
+// TestNNTPFeedIncludedInUnreadCounts verifies that articles from NNTP feeds
+// are counted in the total unread count and per-feed counts returned by
+// GET /api/counts.
+func TestNNTPFeedIncludedInUnreadCounts(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+
+	// Create an NNTP feed and an RSS feed.
+	nntpFeed := createNNTPFeed(t, s, user.ID, "comp.lang.go")
+	rssFeed := createFeed(t, s, user.ID, "rss-feed", "http://rss.example.com")
+
+	// Create articles in both feeds.
+	nntpArticle := createArticle(t, s, nntpFeed.ID, "Usenet post", "<msgid@test>")
+	rssArticle := createArticle(t, s, rssFeed.ID, "RSS post", "rss-guid-1")
+	_ = nntpArticle
+	_ = rssArticle
+
+	// Both articles are unread by default.
+	w := serveAPI(t, s.apiGetCounts, "GET", "/api/counts", "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	body := jsonBody(t, w)
+
+	// Total unread should be 2 (one from each feed).
+	unread, ok := body["unread"].(float64)
+	if !ok {
+		t.Fatalf("unread count not numeric: %v", body["unread"])
+	}
+	if unread != 2 {
+		t.Errorf("expected unread=2 (1 NNTP + 1 RSS), got %v", unread)
+	}
+
+	// Per-feed counts should include the NNTP feed.
+	feeds, ok := body["feeds"].(map[string]any)
+	if !ok {
+		t.Fatalf("feeds counts not a map: %v", body["feeds"])
+	}
+	nntpKey := fmt.Sprintf("%d", nntpFeed.ID)
+	if feeds[nntpKey] != float64(1) {
+		t.Errorf("expected NNTP feed unread count = 1, got %v", feeds[nntpKey])
+	}
+}
+
+// TestNNTPFeedAssignableToCategory verifies that an NNTP feed can be assigned
+// to an existing folder using the same API as RSS feeds.
+func TestNNTPFeedAssignableToCategory(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+
+	nntpFeed := createNNTPFeed(t, s, user.ID, "sci.physics")
+
+	// Create a category.
+	q := dbgen.New(s.DB)
+	cat, err := q.CreateCategory(context.Background(), dbgen.CreateCategoryParams{
+		Name: "Science", UserID: &user.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Assign the NNTP feed to the category.
+	payload := fmt.Sprintf(`{"categoryId":%d}`, cat.ID)
+	w := serveMux(t, "POST /api/feeds/{id}/category", s.apiSetFeedCategory,
+		"POST", fmt.Sprintf("/api/feeds/%d/category", nntpFeed.ID), payload, ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// The feed should now appear in the category.
+	mappings, err := q.ListFeedCategoryMappings(context.Background(), &user.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, m := range mappings {
+		if m.FeedID == nntpFeed.ID && m.CategoryID == cat.ID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("NNTP feed not found in category after assignment")
+	}
+}
+
+// TestNNTPFeedCategoryUnreadCount verifies that articles from an NNTP feed
+// assigned to a category contribute to that category's unread count.
+func TestNNTPFeedCategoryUnreadCount(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+
+	nntpFeed := createNNTPFeed(t, s, user.ID, "comp.lang.go")
+	createArticle(t, s, nntpFeed.ID, "Usenet post", "<msgid2@test>")
+
+	// Assign to a category.
+	q := dbgen.New(s.DB)
+	cat, err := q.CreateCategory(context.Background(), dbgen.CreateCategoryParams{
+		Name: "Programming", UserID: &user.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = q.AddFeedToCategory(context.Background(), dbgen.AddFeedToCategoryParams{
+		FeedID: nntpFeed.ID, CategoryID: cat.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Category count should include the unread NNTP article.
+	w := serveAPI(t, s.apiGetCounts, "GET", "/api/counts", "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := jsonBody(t, w)
+	categories, ok := body["categories"].(map[string]any)
+	if !ok {
+		t.Fatalf("categories counts not a map: %v", body["categories"])
+	}
+	catKey := fmt.Sprintf("%d", cat.ID)
+	if categories[catKey] != float64(1) {
+		t.Errorf("expected category unread count = 1, got %v", categories[catKey])
+	}
+}
+
+// TestNNTPFeedInListFeeds verifies that NNTP feeds appear in the ListFeeds
+// query result, which is the data source for the sidebar.
+func TestNNTPFeedInListFeeds(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	_, user := testUser(t, s)
+
+	nntpFeed := createNNTPFeed(t, s, user.ID, "comp.lang.go")
+	rssFeed := createFeed(t, s, user.ID, "rss-blog", "http://rss.example.com")
+
+	q := dbgen.New(s.DB)
+	feeds, err := q.ListFeeds(context.Background(), &user.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ids := map[int64]bool{}
+	for _, f := range feeds {
+		ids[f.ID] = true
+	}
+	if !ids[nntpFeed.ID] {
+		t.Errorf("NNTP feed %d not found in ListFeeds result", nntpFeed.ID)
+	}
+	if !ids[rssFeed.ID] {
+		t.Errorf("RSS feed %d not found in ListFeeds result", rssFeed.ID)
+	}
+
+	// Verify the NNTP feed has the correct feed_type.
+	for _, f := range feeds {
+		if f.ID == nntpFeed.ID && f.FeedType != "nntp" {
+			t.Errorf("expected feed_type='nntp', got %q", f.FeedType)
+		}
+	}
+}
+
+// TestRSSFeedCountsUnaffectedByNNTP verifies that adding an NNTP feed and its
+// articles does not distort existing RSS feed unread counts.
+func TestRSSFeedCountsUnaffectedByNNTP(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+
+	rssFeed := createFeed(t, s, user.ID, "rss-only", "http://rss.example.com")
+	createArticle(t, s, rssFeed.ID, "RSS Article", "rss-only-guid-1")
+
+	// Check RSS-only count.
+	w := serveAPI(t, s.apiGetCounts, "GET", "/api/counts", "", ctx)
+	body := jsonBody(t, w)
+	unread1 := body["unread"].(float64)
+
+	// Now add an NNTP feed with an article.
+	nntpFeed := createNNTPFeed(t, s, user.ID, "alt.test")
+	createArticle(t, s, nntpFeed.ID, "NNTP Article", "<nntp@test>")
+
+	// Invalidate counts cache.
+	s.CountsCache.Invalidate(user.ID)
+
+	w = serveAPI(t, s.apiGetCounts, "GET", "/api/counts", "", ctx)
+	body = jsonBody(t, w)
+	unread2 := body["unread"].(float64)
+
+	if unread2 != unread1+1 {
+		t.Errorf("expected total unread to increase by 1 after NNTP article, got %v -> %v", unread1, unread2)
+	}
+	// RSS feed count should be unchanged.
+	feeds := body["feeds"].(map[string]any)
+	rssKey := fmt.Sprintf("%d", rssFeed.ID)
+	if feeds[rssKey] != float64(1) {
+		t.Errorf("RSS feed unread count should still be 1, got %v", feeds[rssKey])
+	}
+}
