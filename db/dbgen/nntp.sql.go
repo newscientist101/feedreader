@@ -81,6 +81,99 @@ func (q *Queries) GetNNTPCredentials(ctx context.Context, userID int64) (NntpCre
 	return i, err
 }
 
+const getThreadArticles = `-- name: GetThreadArticles :many
+SELECT
+  a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary,
+  a.image_url, a.is_read, a.is_starred, a.published_at, a.fetched_at,
+  f.name AS feed_name,
+  m.message_id, m.references_header, m.parent_message_id, m.root_message_id,
+  m.group_name, m.article_number
+FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+JOIN usenet_article_meta m ON m.article_id = a.id
+WHERE m.root_message_id = ?1
+  AND a.feed_id = ?2
+  AND f.user_id = ?3
+ORDER BY m.article_number ASC
+`
+
+type GetThreadArticlesParams struct {
+	RootMessageID string `json:"root_message_id"`
+	FeedID        int64  `json:"feed_id"`
+	UserID        *int64 `json:"user_id"`
+}
+
+type GetThreadArticlesRow struct {
+	ID               int64      `json:"id"`
+	FeedID           int64      `json:"feed_id"`
+	Guid             string     `json:"guid"`
+	Title            string     `json:"title"`
+	Url              *string    `json:"url"`
+	Author           *string    `json:"author"`
+	Content          *string    `json:"content"`
+	Summary          *string    `json:"summary"`
+	ImageUrl         *string    `json:"image_url"`
+	IsRead           *int64     `json:"is_read"`
+	IsStarred        *int64     `json:"is_starred"`
+	PublishedAt      *time.Time `json:"published_at"`
+	FetchedAt        time.Time  `json:"fetched_at"`
+	FeedName         string     `json:"feed_name"`
+	MessageID        string     `json:"message_id"`
+	ReferencesHeader *string    `json:"references_header"`
+	ParentMessageID  *string    `json:"parent_message_id"`
+	RootMessageID    string     `json:"root_message_id"`
+	GroupName        string     `json:"group_name"`
+	ArticleNumber    int64      `json:"article_number"`
+}
+
+// Returns all articles (with Usenet meta) belonging to a thread identified by
+// root_message_id, scoped to a specific feed and user. Used to render thread
+// context on article pages and thread grouping in article lists.
+// Ordered by article_number ASC for chronological / tree-preorder display.
+func (q *Queries) GetThreadArticles(ctx context.Context, arg GetThreadArticlesParams) ([]GetThreadArticlesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getThreadArticles, arg.RootMessageID, arg.FeedID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetThreadArticlesRow{}
+	for rows.Next() {
+		var i GetThreadArticlesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FeedID,
+			&i.Guid,
+			&i.Title,
+			&i.Url,
+			&i.Author,
+			&i.Content,
+			&i.Summary,
+			&i.ImageUrl,
+			&i.IsRead,
+			&i.IsStarred,
+			&i.PublishedAt,
+			&i.FetchedAt,
+			&i.FeedName,
+			&i.MessageID,
+			&i.ReferencesHeader,
+			&i.ParentMessageID,
+			&i.RootMessageID,
+			&i.GroupName,
+			&i.ArticleNumber,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUsenetArticleMeta = `-- name: GetUsenetArticleMeta :one
 SELECT article_id, feed_id, message_id, references_header, parent_message_id, root_message_id, group_name, article_number, created_at, updated_at FROM usenet_article_meta WHERE article_id = ?
 `

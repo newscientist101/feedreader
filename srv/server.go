@@ -268,6 +268,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/usenet/groups", s.apiGetUsenetGroups)
 	mux.HandleFunc("POST /api/usenet/groups", s.apiPostUsenetGroups)
 	mux.HandleFunc("DELETE /api/usenet/groups/{feed_id}", s.apiDeleteUsenetGroup)
+	mux.HandleFunc("GET /api/usenet/articles/{article_id}/thread", s.apiGetUsenetThread)
 
 	// AI scraper generation
 	mux.HandleFunc("GET /api/ai/status", s.apiAIStatus)

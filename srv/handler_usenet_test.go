@@ -1501,3 +1501,416 @@ func TestNNTPArticleStarredList(t *testing.T) {
 		t.Errorf("starred NNTP article %d not in starred list", art.ID)
 	}
 }
+
+// --- Usenet search integration (feedreader-6g2.22) ---
+
+// createNNTPArticleWithContent creates an NNTP article with both a title and
+// body content, and inserts a companion usenet_article_meta row.
+func createNNTPArticleWithContent(t *testing.T, s *Server, feed *dbgen.Feed, subject, msgID string, artNum int64, bodyText string) dbgen.Article {
+	t.Helper()
+	q := dbgen.New(s.DB)
+	url := "nntp://news.eternal-september.org/" + feed.Name + "/" + strconv.FormatInt(artNum, 10)
+	art, err := q.CreateArticle(context.Background(), dbgen.CreateArticleParams{
+		FeedID:  feed.ID,
+		Title:   subject,
+		Guid:    msgID,
+		Url:     &url,
+		Content: &bodyText,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.DB.ExecContext(context.Background(),
+		`INSERT INTO usenet_article_meta
+			(article_id, feed_id, message_id, root_message_id, group_name, article_number, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		art.ID, feed.ID, msgID, msgID, feed.Name, artNum)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return art
+}
+
+// TestNNTPArticleSearchByTitle verifies that Usenet articles are found when
+// searching by their Subject (title) field.
+func TestNNTPArticleSearchByTitle(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+
+	feed := createNNTPFeed(t, s, user.ID, "comp.lang.go")
+	createNNTPArticleWithContent(t, s, &feed, "Quantum computing in Go", "<qc1@example>", 100, "Some body text.")
+
+	w := serveAPI(t, s.apiSearch, "GET", "/api/search?q=Quantum", "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var results []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &results); err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 search result for Usenet subject, got %d", len(results))
+	}
+	if results[0]["title"] != "Quantum computing in Go" {
+		t.Errorf("unexpected title: %v", results[0]["title"])
+	}
+}
+
+// TestNNTPArticleSearchByContent verifies that Usenet articles are found when
+// searching by their body content.
+func TestNNTPArticleSearchByContent(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+
+	feed := createNNTPFeed(t, s, user.ID, "sci.physics")
+	createNNTPArticleWithContent(t, s, &feed, "Re: General Relativity", "<gr1@example>", 200,
+		"<pre class=\"usenet-body\">Einstein proposed that spacetime curvature causes gravity.</pre>")
+
+	w := serveAPI(t, s.apiSearch, "GET", "/api/search?q=spacetime", "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var results []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &results); err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for body-content search, got %d", len(results))
+	}
+	if results[0]["title"] != "Re: General Relativity" {
+		t.Errorf("unexpected title: %v", results[0]["title"])
+	}
+}
+
+// TestNNTPAndRSSSearchCoexist verifies that a global search returns articles
+// from both NNTP and RSS feeds.
+func TestNNTPAndRSSSearchCoexist(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+
+	nntpFeed := createNNTPFeed(t, s, user.ID, "comp.lang.go")
+	rssFeed := createFeed(t, s, user.ID, "Go Blog", "https://go.dev/blog/feed.atom")
+
+	createNNTPArticleWithContent(t, s, &nntpFeed, "goroutine scheduling internals", "<sched1@nntp>", 10,
+		"A discussion about goroutine scheduling.")
+	createArticle(t, s, rssFeed.ID, "goroutine leak detection", "rss-goroutine-1")
+
+	w := serveAPI(t, s.apiSearch, "GET", "/api/search?q=goroutine", "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var results []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &results); err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results (1 NNTP + 1 RSS), got %d", len(results))
+	}
+}
+
+// TestNNTPArticleSearchAuthorNotMatched verifies that the author/From field
+// alone does not produce a search match (search is title+content only).
+func TestNNTPArticleSearchAuthorNotMatched(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+
+	feed := createNNTPFeed(t, s, user.ID, "comp.lang.go")
+	q := dbgen.New(s.DB)
+	artNum := int64(300)
+	artURL := "nntp://news.eternal-september.org/comp.lang.go/300"
+	author := "uniqueauthorname@example.com"
+	// Article whose title and content don't mention the author's name.
+	art, err := q.CreateArticle(context.Background(), dbgen.CreateArticleParams{
+		FeedID:  feed.ID,
+		Title:   "Unrelated Subject",
+		Guid:    "<author-only@test>",
+		Url:     &artURL,
+		Author:  &author,
+		Content: new("This body does not mention the author name."),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.DB.ExecContext(context.Background(),
+		`INSERT INTO usenet_article_meta
+			(article_id, feed_id, message_id, root_message_id, group_name, article_number, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		art.ID, feed.ID, "<author-only@test>", "<author-only@test>", feed.Name, artNum)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Searching by the author name should return no results.
+	w := serveAPI(t, s.apiSearch, "GET", "/api/search?q=uniqueauthorname", "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var results []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &results); err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 0 {
+		t.Errorf("author-only search should return 0 results, got %d", len(results))
+	}
+}
+
+// TestNNTPArticleSearchUserIsolation verifies that a search result for user A's
+// Usenet article is not visible to user B.
+func TestNNTPArticleSearchUserIsolation(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctxA, userA := testUser(t, s)
+	ctxB, _ := testUser2(t, s)
+
+	feedA := createNNTPFeed(t, s, userA.ID, "comp.lang.go")
+	createNNTPArticleWithContent(t, s, &feedA, "User A private post", "<privA@test>", 1, "Content only user A can see.")
+
+	// User A should see the article.
+	w := serveAPI(t, s.apiSearch, "GET", "/api/search?q=private", "", ctxA)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resultsA []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resultsA); err != nil {
+		t.Fatal(err)
+	}
+	if len(resultsA) != 1 {
+		t.Fatalf("user A should see 1 result, got %d", len(resultsA))
+	}
+
+	// User B should see no results.
+	w = serveAPI(t, s.apiSearch, "GET", "/api/search?q=private", "", ctxB)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resultsB []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resultsB); err != nil {
+		t.Fatal(err)
+	}
+	if len(resultsB) != 0 {
+		t.Errorf("user B should see 0 results, got %d", len(resultsB))
+	}
+}
+
+// --- Thread query and API (feedreader-6g2.25) ---
+
+// TestAPIGetUsenetThread_Disabled verifies the thread endpoint returns 503
+// when Usenet is disabled.
+func TestAPIGetUsenetThread_Disabled(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	s.UsenetConfig = &usenet.Config{Enabled: false}
+	ctx, _ := testUser(t, s)
+
+	w := serveMux(t, "GET /api/usenet/articles/{article_id}/thread",
+		s.apiGetUsenetThread, "GET", "/api/usenet/articles/1/thread", "", ctx)
+	if w.Code != 503 {
+		t.Fatalf("expected 503, got %d", w.Code)
+	}
+}
+
+// TestAPIGetUsenetThread_NotFound verifies 404 when no Usenet meta exists for
+// the requested article ID.
+func TestAPIGetUsenetThread_NotFound(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, _ := testUser(t, s)
+
+	w := serveMux(t, "GET /api/usenet/articles/{article_id}/thread",
+		s.apiGetUsenetThread, "GET", "/api/usenet/articles/9999/thread", "", ctx)
+	if w.Code != 404 {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestAPIGetUsenetThread_RootOnly verifies that a single-article thread
+// (root post, no replies) returns a list with one entry.
+func TestAPIGetUsenetThread_RootOnly(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+
+	feed := createNNTPFeed(t, s, user.ID, "comp.lang.go")
+	art := createNNTPArticleWithMeta(t, s, &feed, "<root-only@test>", 1)
+
+	artIDStr := strconv.FormatInt(art.ID, 10)
+	w := serveMux(t, "GET /api/usenet/articles/{article_id}/thread",
+		s.apiGetUsenetThread, "GET", "/api/usenet/articles/"+artIDStr+"/thread", "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var results []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &results); err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 article in root-only thread, got %d", len(results))
+	}
+	if results[0]["message_id"] != "<root-only@test>" {
+		t.Errorf("unexpected message_id: %v", results[0]["message_id"])
+	}
+}
+
+// TestAPIGetUsenetThread_NestedReplies verifies that a thread with nested
+// replies returns all articles in article_number order.
+func TestAPIGetUsenetThread_NestedReplies(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+
+	feed := createNNTPFeed(t, s, user.ID, "comp.lang.go")
+
+	root := "<root-nested@test>"
+	reply1 := "<reply1-nested@test>"
+	reply2 := "<reply2-nested@test>"
+
+	// Root article.
+	artRoot := createNNTPArticleWithMeta(t, s, &feed, root, 10)
+
+	// Reply 1: parent=root.
+	artReply1 := createNNTPArticleWithMeta(t, s, &feed, reply1, 11)
+	// Update meta to set parent_message_id to root.
+	_, err := s.DB.ExecContext(context.Background(),
+		`UPDATE usenet_article_meta
+		   SET parent_message_id = ?, root_message_id = ?
+		 WHERE article_id = ?`,
+		root, root, artReply1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Reply 2: parent=reply1, root=root.
+	artReply2 := createNNTPArticleWithMeta(t, s, &feed, reply2, 12)
+	_, err = s.DB.ExecContext(context.Background(),
+		`UPDATE usenet_article_meta
+		   SET parent_message_id = ?, root_message_id = ?
+		 WHERE article_id = ?`,
+		reply1, root, artReply2.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	artIDStr := strconv.FormatInt(artRoot.ID, 10)
+	w := serveMux(t, "GET /api/usenet/articles/{article_id}/thread",
+		s.apiGetUsenetThread, "GET", "/api/usenet/articles/"+artIDStr+"/thread", "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var results []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &results); err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 3 {
+		t.Fatalf("expected 3 articles in thread, got %d", len(results))
+	}
+	// Ordered by article_number ASC.
+	if results[0]["message_id"] != root {
+		t.Errorf("results[0] should be root, got %v", results[0]["message_id"])
+	}
+	if results[1]["message_id"] != reply1 {
+		t.Errorf("results[1] should be reply1, got %v", results[1]["message_id"])
+	}
+	if results[2]["message_id"] != reply2 {
+		t.Errorf("results[2] should be reply2, got %v", results[2]["message_id"])
+	}
+}
+
+// TestAPIGetUsenetThread_AccessFromReply verifies that the thread can be
+// retrieved using any article in the thread as the entry point, not just root.
+func TestAPIGetUsenetThread_AccessFromReply(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+
+	feed := createNNTPFeed(t, s, user.ID, "sci.physics")
+
+	root := "<root-access@test>"
+	reply := "<reply-access@test>"
+
+	createNNTPArticleWithMeta(t, s, &feed, root, 20)
+	artReply := createNNTPArticleWithMeta(t, s, &feed, reply, 21)
+	// Set reply's root_message_id to root.
+	_, err := s.DB.ExecContext(context.Background(),
+		`UPDATE usenet_article_meta
+		   SET parent_message_id = ?, root_message_id = ?
+		 WHERE article_id = ?`,
+		root, root, artReply.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Access thread via reply article ID — should still return full 2-article thread.
+	artIDStr := strconv.FormatInt(artReply.ID, 10)
+	w := serveMux(t, "GET /api/usenet/articles/{article_id}/thread",
+		s.apiGetUsenetThread, "GET", "/api/usenet/articles/"+artIDStr+"/thread", "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var results []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &results); err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 articles in thread (via reply), got %d", len(results))
+	}
+}
+
+// TestAPIGetUsenetThread_UserIsolation verifies that user B cannot access
+// user A's thread.
+func TestAPIGetUsenetThread_UserIsolation(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	_, userA := testUser(t, s)
+	ctxB, _ := testUser2(t, s)
+
+	feedA := createNNTPFeed(t, s, userA.ID, "comp.lang.go")
+	artA := createNNTPArticleWithMeta(t, s, &feedA, "<iso-root@test>", 1)
+
+	artIDStr := strconv.FormatInt(artA.ID, 10)
+	// User B requests user A's article thread — should get 404.
+	w := serveMux(t, "GET /api/usenet/articles/{article_id}/thread",
+		s.apiGetUsenetThread, "GET", "/api/usenet/articles/"+artIDStr+"/thread", "", ctxB)
+	if w.Code != 404 {
+		t.Fatalf("expected 404 for cross-user thread access, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestAPIGetUsenetThread_ThreadMetadataPresent verifies that the response
+// includes Usenet-specific thread metadata fields.
+func TestAPIGetUsenetThread_ThreadMetadataPresent(t *testing.T) {
+	t.Parallel()
+	s := testServerWithUsenet(t)
+	ctx, user := testUser(t, s)
+
+	feed := createNNTPFeed(t, s, user.ID, "comp.lang.go")
+	art := createNNTPArticleWithMeta(t, s, &feed, "<meta-root@test>", 50)
+
+	artIDStr := strconv.FormatInt(art.ID, 10)
+	w := serveMux(t, "GET /api/usenet/articles/{article_id}/thread",
+		s.apiGetUsenetThread, "GET", "/api/usenet/articles/"+artIDStr+"/thread", "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var results []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &results); err != nil {
+		t.Fatal(err)
+	}
+	if len(results) == 0 {
+		t.Fatal("expected at least one article")
+	}
+	row := results[0]
+	for _, field := range []string{"message_id", "root_message_id", "group_name", "article_number", "title", "feed_name"} {
+		if _, ok := row[field]; !ok {
+			t.Errorf("expected field %q in thread response item", field)
+		}
+	}
+}
+
+// strPtr is a helper to create a *string from a literal.
+//
+//go:fix inline
+func strPtr(s string) *string { return new(s) }

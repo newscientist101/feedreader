@@ -312,3 +312,61 @@ func (s *Server) apiDeleteUsenetGroup(w http.ResponseWriter, r *http.Request) {
 	slog.Info("usenet group removed", "user_id", user.ID, "feed_id", feedID)
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
+
+// apiGetUsenetThread returns the full thread context for a Usenet article.
+// The article is identified by its ID. The response is an ordered list of all
+// articles sharing the same root_message_id within the same feed, sorted by
+// article_number ASC (chronological / tree-preorder order).
+//
+// Route: GET /api/usenet/articles/{article_id}/thread
+func (s *Server) apiGetUsenetThread(w http.ResponseWriter, r *http.Request) {
+	if !s.UsenetConfig.Enabled {
+		jsonError(w, usenet.ErrUsenetDisabled.Error(), 503)
+		return
+	}
+
+	articleID, err := strconv.ParseInt(r.PathValue("article_id"), 10, 64)
+	if err != nil {
+		jsonError(w, "Invalid article ID", 400)
+		return
+	}
+
+	ctx := r.Context()
+	user := GetUser(ctx)
+	q := dbgen.New(s.DB)
+
+	// Look up the article's Usenet meta to get root_message_id and feed_id.
+	// GetUsenetArticleMeta is keyed by article_id only; we verify user ownership
+	// below via GetThreadArticles which joins feeds.user_id.
+	meta, err := q.GetUsenetArticleMeta(ctx, articleID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			jsonError(w, "Article not found", 404)
+			return
+		}
+		slog.Error("usenet get article meta failed", "error", err, "article_id", articleID)
+		jsonError(w, "Failed to retrieve article", 500)
+		return
+	}
+
+	// Fetch all thread articles scoped to the same feed and user.
+	articles, err := q.GetThreadArticles(ctx, dbgen.GetThreadArticlesParams{
+		RootMessageID: meta.RootMessageID,
+		FeedID:        meta.FeedID,
+		UserID:        &user.ID,
+	})
+	if err != nil {
+		slog.Error("usenet get thread articles failed", "error", err, "article_id", articleID)
+		jsonError(w, "Failed to retrieve thread", 500)
+		return
+	}
+
+	// If the result is empty the article either doesn't exist in meta or belongs
+	// to a different user — treat as not found.
+	if len(articles) == 0 {
+		jsonError(w, "Article not found", 404)
+		return
+	}
+
+	jsonResponse(w, articles)
+}
