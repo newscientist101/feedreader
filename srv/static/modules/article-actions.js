@@ -395,11 +395,25 @@ export function initArticleActionListeners() {
         }
     }, { signal });
 
-    // Before a page enters the back/forward cache, make the cached DOM match
-    // the user's hide-read preference. Article navigation marks the clicked
-    // card read immediately, then the browser may restore this exact DOM on
-    // Back before pageshow/popstate refreshes finish.
-    window.addEventListener('pagehide', hideReadCardsForPageCache, { signal });
+    // Before a page enters the back/forward cache:
+    // 1. Persist any queued read IDs to sessionStorage so they survive navigation.
+    // 2. Flush the queue with keepalive so the POST outlives the unload.
+    // 3. Make the cached DOM match the user's hide-read preference.
+    // All three steps share this single pagehide handler (do not register a second one).
+    window.addEventListener('pagehide', () => {
+        mergePendingReadIds(_markReadQueue);
+        flushMarkReadQueue({ keepalive: true });
+        hideReadCardsForPageCache();
+    }, { signal });
+
+    // Also flush on tab hide so that IDs queued while the tab is backgrounded
+    // survive if the process is later killed by the OS.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            mergePendingReadIds(_markReadQueue);
+            flushMarkReadQueue({ keepalive: true });
+        }
+    }, { signal });
 
     // Article body click — open article (delegated on .article-body.clickable)
     document.addEventListener('click', (e) => {

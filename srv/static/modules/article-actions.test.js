@@ -23,7 +23,12 @@ vi.mock('./counts.js');
 vi.mock('./offline.js');
 vi.mock('./read-button.js');
 vi.mock('./toast.js');
-vi.mock('./nav-state.js');
+vi.mock('./nav-state.js', () => ({
+    markReturningFromArticleList: vi.fn(),
+    mergePendingReadIds: vi.fn(),
+    consumeReturningFromArticleList: vi.fn(),
+    clearPendingReadIds: vi.fn(),
+}));
 
 beforeEach(() => {
     vi.useFakeTimers();
@@ -802,5 +807,82 @@ describe('initQueueState', () => {
 
         // Should not throw, renderFn should not be called since the catch swallows the error
         expect(renderFn).not.toHaveBeenCalled();
+    });
+});
+
+describe('pagehide flush', () => {
+    it('flushes queued IDs with keepalive:true on pagehide', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse({ status: 'ok' }));
+        document.body.innerHTML = '<div id="articles-list"><div class="article-card" data-id="55"></div></div>';
+
+        initArticleActionListeners();
+        markReadSilent(55);
+
+        window.dispatchEvent(new Event('pagehide'));
+        await vi.advanceTimersByTimeAsync(0);
+
+        // mergePendingReadIds should have been called with the queued ids
+        expect(mergePendingReadIds).toHaveBeenCalledWith(expect.arrayContaining([55]));
+        // fetch should have been called with keepalive: true
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+            '/api/articles/batch-read',
+            expect.objectContaining({ keepalive: true }),
+        );
+    });
+
+    it('does not POST on pagehide when queue is empty', () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse({ status: 'ok' }));
+        initArticleActionListeners();
+
+        window.dispatchEvent(new Event('pagehide'));
+
+        // No IDs queued, so no fetch
+        expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+});
+
+describe('visibilitychange flush', () => {
+    it('flushes queued IDs with keepalive:true when tab becomes hidden', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse({ status: 'ok' }));
+        document.body.innerHTML = '<div id="articles-list"><div class="article-card" data-id="66"></div></div>';
+
+        initArticleActionListeners();
+        markReadSilent(66);
+
+        Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+        document.dispatchEvent(new Event('visibilitychange'));
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(mergePendingReadIds).toHaveBeenCalledWith(expect.arrayContaining([66]));
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+            '/api/articles/batch-read',
+            expect.objectContaining({ keepalive: true }),
+        );
+    });
+
+    it('does not flush when tab becomes visible', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse({ status: 'ok' }));
+        document.body.innerHTML = '<div id="articles-list"><div class="article-card" data-id="77"></div></div>';
+
+        initArticleActionListeners();
+        markReadSilent(77);
+
+        // visibilityState = 'visible' should NOT trigger a flush
+        Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+        document.dispatchEvent(new Event('visibilitychange'));
+        await vi.advanceTimersByTimeAsync(0);
+
+        // fetch should not have been called (only the 250ms debounce timer is pending)
+        expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+
+    it('does not POST on visibilitychange hidden when queue is empty', () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse({ status: 'ok' }));
+        initArticleActionListeners();
+
+        Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+        document.dispatchEvent(new Event('visibilitychange'));
+
+        expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 });
