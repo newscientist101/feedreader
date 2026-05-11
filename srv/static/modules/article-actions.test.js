@@ -6,7 +6,6 @@ import {
     findNextUnreadFolder, initArticleActionListeners, initQueueState,
     queuedArticleIds,
     _resetArticleActionsState,
-    _getMarkReadQueue,
     _getAutoMarkReadObserver, _setAutoMarkReadObserver,
 } from './article-actions.js';
 import { updateCounts } from './counts.js';
@@ -17,7 +16,8 @@ import {
     SVG_STAR_FILLED, SVG_STAR_EMPTY, SVG_QUEUE_ADD, SVG_QUEUE_REMOVE
 } from './icons.js';
 import { makeFetchResponse } from './test-helpers.js';
-import { markReturningFromArticleList, mergePendingReadIds } from './nav-state.js';
+import { markReturningFromArticleList } from './nav-state.js';
+import { peekIds, _resetReadQueueState } from './read-queue.js';
 
 vi.mock('./pagination.js');
 vi.mock('./counts.js');
@@ -26,13 +26,13 @@ vi.mock('./read-button.js');
 vi.mock('./toast.js');
 vi.mock('./nav-state.js', () => ({
     markReturningFromArticleList: vi.fn(),
-    mergePendingReadIds: vi.fn(),
     consumeReturningFromArticleList: vi.fn(),
     clearPendingReadIds: vi.fn(),
 }));
 
 beforeEach(() => {
     vi.useFakeTimers();
+    _resetReadQueueState();
     _resetArticleActionsState();
     window.__settings = {};
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse());
@@ -69,7 +69,7 @@ describe('markReadSilent', () => {
         document.getElementById('articles-list').innerHTML =
             '<div class="article-card" data-id="42"></div>';
         markReadSilent(42);
-        expect(_getMarkReadQueue()).toContain(42);
+        expect([...peekIds()]).toContain(42);
     });
 
     it('flushes the queue after a timeout', () => {
@@ -158,8 +158,9 @@ describe('openArticle', () => {
             expect.stringContaining('flushing batch of 1'), expect.arrayContaining([5])
         );
         expect(markReturningFromArticleList).toHaveBeenCalled();
-        // Pending read IDs must be persisted before navigation
-        expect(mergePendingReadIds).toHaveBeenCalledWith(expect.arrayContaining([5]));
+        // IDs are persisted by enqueueRead (via read-queue module) at push time;
+        // openArticle no longer calls mergePendingReadIds.
+        expect([...peekIds()]).toContain(5);
         // Assert navigation target
         expect(window.location).toBe('/article/5');
     });
@@ -819,15 +820,19 @@ describe('pagehide flush', () => {
         initArticleActionListeners();
         markReadSilent(55);
 
+        // ID is persisted by enqueueRead at push time (before any flush)
+        expect([...peekIds()]).toContain(55);
+
         window.dispatchEvent(new Event('pagehide'));
         await vi.advanceTimersByTimeAsync(0);
 
-        // mergePendingReadIds should have been called with the queued ids
-        expect(mergePendingReadIds).toHaveBeenCalledWith(expect.arrayContaining([55]));
-        // fetch should have been called with keepalive: true
+        // fetch should have been called with keepalive: true and the ID in body
         expect(globalThis.fetch).toHaveBeenCalledWith(
             '/api/articles/batch-read',
-            expect.objectContaining({ keepalive: true }),
+            expect.objectContaining({
+                keepalive: true,
+                body: expect.stringContaining('55'),
+            }),
         );
     });
 
@@ -874,10 +879,13 @@ describe('visibilitychange flush', () => {
         document.dispatchEvent(new Event('visibilitychange'));
         await vi.advanceTimersByTimeAsync(0);
 
-        expect(mergePendingReadIds).toHaveBeenCalledWith(expect.arrayContaining([66]));
+        // ID is persisted by enqueueRead before flush; fetch is called with it
         expect(globalThis.fetch).toHaveBeenCalledWith(
             '/api/articles/batch-read',
-            expect.objectContaining({ keepalive: true }),
+            expect.objectContaining({
+                keepalive: true,
+                body: expect.stringContaining('66'),
+            }),
         );
     });
 

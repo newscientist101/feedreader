@@ -106,6 +106,7 @@ export function flush({ keepalive = false } = {}) {
     if (snapshot.size === 0) return Promise.resolve(true);
 
     const ids = [...snapshot];
+    console.debug(`[auto-mark-read] flushing batch of ${ids.length} article(s):`, ids);
     const fetchOptions = {
         method: 'POST',
         headers: {

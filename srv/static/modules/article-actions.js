@@ -9,7 +9,8 @@ import {
 import { updateCounts } from './counts.js';
 import { updateQueueCacheIfStandalone } from './offline.js';
 import { updateReadButton } from './read-button.js';
-import { markReturningFromArticleList, mergePendingReadIds } from './nav-state.js';
+import { markReturningFromArticleList } from './nav-state.js';
+import { enqueueRead, flush as readQueueFlush, clear as readQueueClear } from './read-queue.js';
 
 // --- Queue state ---
 export let queuedArticleIds = new Set();
@@ -26,18 +27,16 @@ export function setQueuedIdsReady(promise) {
 // --- Auto-mark-read state ---
 let autoMarkReadObserver = null;
 let _autoMarkReadAC = null;
-let _markReadQueue = [];
 let _markReadTimer = null;
 let _actionListenerAC = null;
 
 // Test-only accessors for internal state (used by app.test.js during migration)
 export function _getAutoMarkReadObserver() { return autoMarkReadObserver; }
 export function _setAutoMarkReadObserver(v) { autoMarkReadObserver = v; }
-export function _getMarkReadQueue() { return _markReadQueue; }
 export function _resetArticleActionsState() {
     if (autoMarkReadObserver) { autoMarkReadObserver.disconnect(); autoMarkReadObserver = null; }
     if (_autoMarkReadAC) { _autoMarkReadAC.abort(); _autoMarkReadAC = null; }
-    _markReadQueue = [];
+    readQueueClear();
     if (_markReadTimer) { clearTimeout(_markReadTimer); _markReadTimer = null; }
     queuedArticleIds = new Set();
     queuedIdsReady = Promise.resolve();
@@ -160,31 +159,15 @@ export function observeNewArticles(container) {
 
 export function flushMarkReadQueue({ keepalive = false } = {}) {
     _markReadTimer = null;
-    if (_markReadQueue.length === 0) return;
-    const ids = _markReadQueue.slice();
-    _markReadQueue = [];
-    console.debug(`[auto-mark-read] flushing batch of ${ids.length} article(s):`, ids);
-
-    let sync;
-    if (keepalive) {
-        sync = fetch('/api/articles/batch-read', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-            body: JSON.stringify({ ids }),
-            keepalive: true,
-        }).then(res => {
-            if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-            return res.json();
-        });
-    } else {
-        sync = api('POST', '/api/articles/batch-read', { ids });
-    }
-
-    sync
-        .then(() => { updateCounts(); })
+    const pending = readQueueFlush({ keepalive });
+    pending
+        .then(success => {
+            if (success) {
+                updateCounts();
+            } else {
+                showToast('Failed to sync read status');
+            }
+        })
         .catch(e => { console.error('Failed to batch mark read:', e); showToast('Failed to sync read status'); });
 }
 
@@ -199,7 +182,7 @@ export function markCardAsRead(id) {
 
 export function markReadSilent(id) {
     markCardAsRead(id);
-    _markReadQueue.push(Number(id));
+    enqueueRead(Number(id));
     if (_markReadTimer) clearTimeout(_markReadTimer);
     _markReadTimer = setTimeout(flushMarkReadQueue, 250);
 }
@@ -207,10 +190,8 @@ export function markReadSilent(id) {
 export function openArticle(id) {
     markReadSilent(id);
     markReturningFromArticleList();
-    // Persist all queued IDs (including id just enqueued) to sessionStorage so
-    // the pageshow handler can replay them if the keepalive batch-read has not
-    // persisted by the time the user presses Back.
-    mergePendingReadIds(_markReadQueue);
+    // IDs are already persisted by enqueueRead() at push time (via read-queue
+    // module), so no separate mergePendingReadIds call is needed here.
     flushMarkReadQueue({ keepalive: true });
     window.location = `/article/${id}`;
 }
@@ -403,7 +384,6 @@ export function initArticleActionListeners() {
     // 4. Make the cached DOM match the user's hide-read preference.
     // All four steps share this single pagehide handler (do not register a second one).
     window.addEventListener('pagehide', () => {
-        mergePendingReadIds(_markReadQueue);
         flushMarkReadQueue({ keepalive: true });
         if (autoMarkReadObserver) {
             autoMarkReadObserver.disconnect();
@@ -416,7 +396,6 @@ export function initArticleActionListeners() {
     // survive if the process is later killed by the OS.
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') {
-            mergePendingReadIds(_markReadQueue);
             flushMarkReadQueue({ keepalive: true });
         }
     }, { signal });

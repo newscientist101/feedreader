@@ -57,3 +57,8 @@ SELECT cs.* FROM category_settings cs
 JOIN categories c ON cs.category_id = c.id
 WHERE c.user_id = ?
 ORDER BY c.name, cs.setting_key;
+
+-- name: HasExclusionRules :one
+SELECT COUNT(*) > 0 AS has_rules FROM category_exclusions e
+JOIN categories c ON e.category_id = c.id
+WHERE c.user_id = ?;

@@ -619,12 +619,59 @@ type articleCounts struct {
 
 // getArticleCounts fetches all count data for a user in batch.
 // Results are cached per-user and invalidated by state-changing operations.
+// Fast path: users with no exclusion rules use direct SQL counts.
+// Users with rules are routed through getFilteredArticleCounts (T9b).
 func (s *Server) getArticleCounts(ctx context.Context, userID int64) articleCounts {
 	if cached, ok := s.CountsCache.Get(userID); ok {
 		return cached
 	}
 
 	q := dbgen.New(s.DB)
+
+	// Check whether this user has any folder exclusion rules.
+	// If so, delegate to getFilteredArticleCounts which will apply them.
+	hasRules, _ := q.HasExclusionRules(ctx, &userID)
+	if hasRules {
+		return s.getFilteredArticleCounts(ctx, userID)
+	}
+
+	unreadCount, _ := q.GetUnreadCount(ctx, &userID)
+	starredCount, _ := q.GetStarredCount(ctx, &userID)
+	queueCount, _ := q.GetQueueCount(ctx, userID)
+	alertsCount, _ := q.CountUndismissedAlerts(ctx, userID)
+
+	feedCounts := make(map[int64]int64)
+	feedCountRows, _ := q.GetAllFeedUnreadCounts(ctx, &userID)
+	for _, row := range feedCountRows {
+		feedCounts[row.FeedID] = row.Count
+	}
+
+	catCounts := make(map[int64]int64)
+	catCountRows, _ := q.GetAllCategoryUnreadCounts(ctx, &userID)
+	for _, row := range catCountRows {
+		catCounts[row.CategoryID] = row.Count
+	}
+
+	counts := articleCounts{
+		Unread:     unreadCount,
+		Starred:    starredCount,
+		Queue:      queueCount,
+		Alerts:     alertsCount,
+		FeedCounts: feedCounts,
+		CatCounts:  catCounts,
+	}
+	s.CountsCache.Set(userID, counts)
+	return counts
+}
+
+// getFilteredArticleCounts is the filtered-count path for users with exclusion
+// rules. T9b will replace this placeholder with a correct implementation that
+// applies FilterAllUnreadArticles semantics. For now it falls back to the same
+// SQL counts as the fast path so the branch is exercised but behaviour is
+// unchanged until T9b ships.
+func (s *Server) getFilteredArticleCounts(ctx context.Context, userID int64) articleCounts {
+	q := dbgen.New(s.DB)
+
 	unreadCount, _ := q.GetUnreadCount(ctx, &userID)
 	starredCount, _ := q.GetStarredCount(ctx, &userID)
 	queueCount, _ := q.GetQueueCount(ctx, userID)

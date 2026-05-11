@@ -134,6 +134,19 @@ func (q *Queries) GetExclusion(ctx context.Context, arg GetExclusionParams) (Cat
 	return i, err
 }
 
+const hasExclusionRules = `-- name: HasExclusionRules :one
+SELECT COUNT(*) > 0 AS has_rules FROM category_exclusions e
+JOIN categories c ON e.category_id = c.id
+WHERE c.user_id = ?
+`
+
+func (q *Queries) HasExclusionRules(ctx context.Context, userID *int64) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasExclusionRules, userID)
+	var has_rules bool
+	err := row.Scan(&has_rules)
+	return has_rules, err
+}
+
 const listAllCategorySettings = `-- name: ListAllCategorySettings :many
 SELECT cs.id, cs.category_id, cs.setting_key, cs.setting_value, cs.created_at, cs.user_id FROM category_settings cs
 JOIN categories c ON cs.category_id = c.id
