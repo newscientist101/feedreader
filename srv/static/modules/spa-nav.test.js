@@ -345,6 +345,50 @@ describe('popstate (browser back/forward)', () => {
         expect(updateCounts).toHaveBeenCalled();
     });
 
+    it('calls updateCounts exactly once on pageshow: article-list page, no return marker', () => {
+        setupArticleListPage();
+        consumeReturningFromArticleList.mockReturnValue(false);
+        initSpaNav();
+
+        const event = new Event('pageshow');
+        Object.defineProperty(event, 'persisted', { value: false });
+        window.dispatchEvent(event);
+
+        // updateCounts called in the else branch — exactly once, no duplicate
+        expect(updateCounts).toHaveBeenCalledTimes(1);
+    });
+
+    it('calls updateCounts exactly once on pageshow: article-list page, with return marker (via restoreFromState)', async () => {
+        setupArticleListPage();
+        consumeReturningFromArticleList.mockReturnValue(true);
+        initSpaNav();
+
+        const event = new Event('pageshow');
+        Object.defineProperty(event, 'persisted', { value: false });
+        window.dispatchEvent(event);
+
+        await vi.waitFor(() => {
+            expect(api).toHaveBeenCalledWith('GET', '/api/articles/unread');
+        }, { interval: 1 });
+
+        // updateCounts called once by restoreFromState — not also by pageshow handler
+        expect(updateCounts).toHaveBeenCalledTimes(1);
+    });
+
+    it('calls updateCounts exactly once on pageshow: non-article-list page', () => {
+        document.body.innerHTML = '<div class="settings-page"></div>';
+        initSpaNav();
+
+        const event = new Event('pageshow');
+        Object.defineProperty(event, 'persisted', { value: false });
+        window.dispatchEvent(event);
+
+        // updateCounts called in the else branch — exactly once
+        expect(updateCounts).toHaveBeenCalledTimes(1);
+        // consumeReturningFromArticleList is not called for non-list pages
+        expect(consumeReturningFromArticleList).not.toHaveBeenCalled();
+    });
+
     it('re-fetches the current article list after returning from an article page', async () => {
         setupArticleListPage();
         consumeReturningFromArticleList.mockReturnValue(true);

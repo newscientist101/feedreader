@@ -204,7 +204,6 @@ export function initSpaNav() {
         if (e.persisted) {
             window.scrollTo(0, 0);
         }
-        updateCounts();
         if (isArticleListPage() && consumeReturningFromArticleList()) {
             // Replay any pending read IDs that may not have persisted yet
             // (e.g. fast Back where keepalive batch-read is still in flight).
@@ -246,6 +245,8 @@ export function initSpaNav() {
                 }
             }
             restoreFromState(history.state, window.location.pathname);
+        } else {
+            updateCounts();
         }
     }, { signal });
 

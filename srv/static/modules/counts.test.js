@@ -213,6 +213,63 @@ describe('updateCounts', () => {
         expect(document.querySelector('[data-count="starred"]').textContent).toBe('');
         expect(document.querySelector('[data-count="queue"]').textContent).toBe('');
     });
+
+    it('does not blank badges when response has missing fields (empty object)', async () => {
+        document.body.innerHTML = `
+            <span data-count="unread">7</span>
+            <span data-count="starred">3</span>
+            <span data-count="queue">2</span>
+            <span data-count="alerts">1</span>
+        `;
+        // Return empty object — no unread/starred/queue/alerts fields
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            makeFetchResponse({}),
+        );
+
+        await updateCounts();
+
+        // Badges must be unchanged because values are not finite numbers
+        expect(document.querySelector('[data-count="unread"]').textContent).toBe('7');
+        expect(document.querySelector('[data-count="starred"]').textContent).toBe('3');
+        expect(document.querySelector('[data-count="queue"]').textContent).toBe('2');
+        expect(document.querySelector('[data-count="alerts"]').textContent).toBe('1');
+    });
+
+    it('does not blank unread badge when server returns non-numeric string', async () => {
+        document.body.innerHTML = '<span data-count="unread">5</span>';
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            makeFetchResponse({ unread: 'not a number', starred: 0, queue: 0, alerts: 0 }),
+        );
+
+        await updateCounts();
+
+        // 'not a number' is not a finite number — badge must remain unchanged
+        expect(document.querySelector('[data-count="unread"]').textContent).toBe('5');
+    });
+
+    it('skips category iteration when categories is not a plain object', async () => {
+        document.body.innerHTML = '<span data-count="category-1">4</span>';
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            makeFetchResponse({ categories: 'bad' }),
+        );
+
+        await updateCounts();
+
+        // The zero-all pass runs regardless; category-1 is zeroed because no valid entries populate it
+        expect(document.querySelector('[data-count="category-1"]').textContent).toBe('');
+    });
+
+    it('skips feed iteration when feeds is not a plain object', async () => {
+        document.body.innerHTML = '<span data-count="feed-10">6</span>';
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            makeFetchResponse({ feeds: 42 }),
+        );
+
+        await updateCounts();
+
+        // The zero-all pass runs regardless; feed-10 is zeroed because no valid entries populate it
+        expect(document.querySelector('[data-count="feed-10"]').textContent).toBe('');
+    });
 });
 
 describe('updateFeedStatusCell', () => {

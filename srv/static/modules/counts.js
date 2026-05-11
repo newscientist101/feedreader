@@ -10,27 +10,27 @@ export async function updateCounts() {
 
         // Update unread count
         const unreadBadge = document.querySelector('[data-count="unread"]');
-        if (unreadBadge) {
+        if (unreadBadge && Number.isFinite(counts.unread)) {
             unreadBadge.textContent = counts.unread || '';
             unreadBadge.setAttribute('aria-label', counts.unread ? `${counts.unread} unread articles` : '');
         }
 
         // Update starred count
         const starredBadge = document.querySelector('[data-count="starred"]');
-        if (starredBadge) {
+        if (starredBadge && Number.isFinite(counts.starred)) {
             starredBadge.textContent = counts.starred || '';
         }
 
         // Update queue count
         const queueBadge = document.querySelector('[data-count="queue"]');
-        if (queueBadge) {
+        if (queueBadge && Number.isFinite(counts.queue)) {
             queueBadge.textContent = counts.queue || '';
             queueBadge.setAttribute('aria-label', counts.queue ? `${counts.queue} queued articles` : '');
         }
 
         // Update alerts count
         const alertsBadge = document.querySelector('[data-count="alerts"]');
-        if (alertsBadge) {
+        if (alertsBadge && Number.isFinite(counts.alerts)) {
             alertsBadge.textContent = counts.alerts || '';
             alertsBadge.setAttribute('aria-label', counts.alerts ? `${counts.alerts} alerts` : '');
         }
@@ -41,7 +41,7 @@ export async function updateCounts() {
             badge.textContent = '';
             badge.setAttribute('aria-label', '');
         });
-        if (counts.categories) {
+        if (counts.categories && typeof counts.categories === 'object' && !Array.isArray(counts.categories)) {
             for (const [catId, count] of Object.entries(counts.categories)) {
                 const badge = document.querySelector(`[data-count="category-${catId}"]`);
                 if (badge) {
@@ -58,7 +58,7 @@ export async function updateCounts() {
                 badge.textContent = '';
             }
         });
-        if (counts.feeds) {
+        if (counts.feeds && typeof counts.feeds === 'object' && !Array.isArray(counts.feeds)) {
             for (const [feedId, count] of Object.entries(counts.feeds)) {
                 const badges = document.querySelectorAll(`[data-count="feed-${feedId}"]`);
                 badges.forEach(badge => {
