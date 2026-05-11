@@ -7,6 +7,7 @@ import {
     queuedArticleIds,
     _resetArticleActionsState,
     _getMarkReadQueue,
+    _getAutoMarkReadObserver, _setAutoMarkReadObserver,
 } from './article-actions.js';
 import { updateCounts } from './counts.js';
 import { updateQueueCacheIfStandalone } from './offline.js';
@@ -838,6 +839,26 @@ describe('pagehide flush', () => {
 
         // No IDs queued, so no fetch
         expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+
+    it('disconnects the IntersectionObserver on pagehide and sets it to null', () => {
+        initArticleActionListeners();
+
+        // Install a mock observer so we can assert disconnect() is called.
+        const mockDisconnect = vi.fn();
+        _setAutoMarkReadObserver({ disconnect: mockDisconnect });
+
+        window.dispatchEvent(new Event('pagehide'));
+
+        expect(mockDisconnect).toHaveBeenCalledTimes(1);
+        expect(_getAutoMarkReadObserver()).toBeNull();
+    });
+
+    it('does not throw on pagehide when no observer is set', () => {
+        initArticleActionListeners();
+        // autoMarkReadObserver is null by default after _resetArticleActionsState
+        expect(_getAutoMarkReadObserver()).toBeNull();
+        expect(() => window.dispatchEvent(new Event('pagehide'))).not.toThrow();
     });
 });
 

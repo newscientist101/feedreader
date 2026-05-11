@@ -25,6 +25,25 @@ export function consumeReturningFromArticleList() {
     }
 }
 
+// Returns true iff the marker is set, WITHOUT removing it.
+export function peekReturningFromArticleList() {
+    try {
+        return sessionStorage.getItem(RETURNING_FROM_ARTICLE_LIST_KEY) === '1';
+    } catch {
+        return false;
+    }
+}
+
+// Removes the returning-from-article-list marker. Returns true on success.
+export function clearReturningFromArticleList() {
+    try {
+        sessionStorage.removeItem(RETURNING_FROM_ARTICLE_LIST_KEY);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 // --- Pending read IDs: survive full-page article navigation ---
 
 // Merge additional IDs into the stored pending-read set. Duplicates are ignored.

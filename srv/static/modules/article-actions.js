@@ -398,11 +398,17 @@ export function initArticleActionListeners() {
     // Before a page enters the back/forward cache:
     // 1. Persist any queued read IDs to sessionStorage so they survive navigation.
     // 2. Flush the queue with keepalive so the POST outlives the unload.
-    // 3. Make the cached DOM match the user's hide-read preference.
-    // All three steps share this single pagehide handler (do not register a second one).
+    // 3. Disconnect the IntersectionObserver so bfcache restore can't fire stale
+    //    observations on cards that restoreFromState is about to replace.
+    // 4. Make the cached DOM match the user's hide-read preference.
+    // All four steps share this single pagehide handler (do not register a second one).
     window.addEventListener('pagehide', () => {
         mergePendingReadIds(_markReadQueue);
         flushMarkReadQueue({ keepalive: true });
+        if (autoMarkReadObserver) {
+            autoMarkReadObserver.disconnect();
+            autoMarkReadObserver = null;
+        }
         hideReadCardsForPageCache();
     }, { signal });
 
