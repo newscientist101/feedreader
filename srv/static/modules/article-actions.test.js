@@ -26,7 +26,6 @@ vi.mock('./toast.js');
 vi.mock('./nav-state.js', () => ({
     markReturningFromArticleList: vi.fn(),
     consumeReturningFromArticleList: vi.fn(),
-    clearPendingReadIds: vi.fn(),
 }));
 
 beforeEach(() => {
