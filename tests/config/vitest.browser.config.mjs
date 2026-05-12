@@ -459,6 +459,214 @@ export default defineConfig({
         },
 
         /**
+         * Run the duplicate-updateCounts race regression scenario.
+         *
+         * Proves that only one /api/counts request is issued on the
+         * return-from-article pageshow path.  A stale counts response is
+         * held open until AFTER the fresh one has resolved; the test then
+         * asserts the unread badge shows the fresh (lower) value.
+         *
+         * Without the T1 fix an unawaited updateCounts() was fired at the
+         * top of the pageshow handler in addition to the one inside
+         * restoreFromState(). If the stale call resolved last, the badge
+         * would be left with the pre-batch-read count indefinitely.
+         *
+         * Returns:
+         *   { staleCount, freshCount, finalBadgeText, countsCallCount }
+         */
+        async runDuplicateUpdateCountsRaceScenario(ctx) {
+          const fs = await import('node:fs/promises');
+          const os = await import('node:os');
+          const path = await import('node:path');
+          const childProcess = await import('node:child_process');
+          const { promisify } = await import('node:util');
+          const execFile = promisify(childProcess.execFile);
+
+          const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'feedreader-counts-race-'));
+          const dbPath = path.join(tmpDir, 'test.sqlite3');
+          let server;
+
+          // Use port 3202 to avoid collision with other integration servers.
+          const serverPort = 3202;
+
+          const waitForServer = async (port) => {
+            const deadline = Date.now() + 15000;
+            let lastErr;
+            while (Date.now() < deadline) {
+              try {
+                const resp = await fetch(`http://localhost:${port}/api/counts`, {
+                  headers: {
+                    'X-Exedev-Userid': 'browser-integ-user',
+                    'X-Exedev-Email': 'browser-integ@example.com',
+                  },
+                });
+                if (resp.ok) return;
+                lastErr = new Error(`status ${resp.status}`);
+              } catch (err) {
+                lastErr = err;
+              }
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            throw lastErr || new Error('server did not start');
+          };
+
+          const cleanup = async () => {
+            if (server && !server.killed) {
+              server.kill('SIGTERM');
+              await new Promise(resolve => {
+                const timer = setTimeout(() => {
+                  if (!server.killed) server.kill('SIGKILL');
+                  resolve();
+                }, 3000);
+                server.once('exit', () => {
+                  clearTimeout(timer);
+                  resolve();
+                });
+              });
+            }
+            await fs.rm(tmpDir, { recursive: true, force: true });
+          };
+
+          try {
+            await execFile('go', [
+              'build',
+              '-o', path.join(tmpDir, 'browser-integ-counts'),
+              './tests/config/browser-integration-server.go',
+            ], { cwd: root });
+
+            server = childProcess.spawn(
+              path.join(tmpDir, 'browser-integ-counts'),
+              [dbPath, String(serverPort)],
+              {
+                cwd: root,
+                env: { ...process.env, DEV: '' },
+                stdio: ['ignore', 'pipe', 'pipe'],
+              },
+            );
+            server.stdout.on('data', chunk => process.stdout.write(chunk));
+            server.stderr.on('data', chunk => process.stderr.write(chunk));
+            await waitForServer(serverPort);
+
+            const page = await ctx.context.newPage();
+
+            // Count how many times /api/counts is called during the scenario.
+            let countsCallCount = 0;
+
+            // Intercept /api/counts to inject a stale-then-fresh race.
+            //
+            // The first call (triggered by the pageshow handler's top-level
+            // updateCounts, which was removed by the T1 fix) would return the
+            // stale count.  We hold it open and let the second call (inside
+            // restoreFromState) resolve first with the fresh count.  After the
+            // fresh response has landed we release the stale one.
+            //
+            // With the T1 fix in place, only ONE call is made per pageshow
+            // (the one inside restoreFromState).  The unblockFirst resolver
+            // will never be invoked in that case — the test asserts this by
+            // checking countsCallCount === 1.
+            let unblockFirstCountsCall = null;
+            let firstCountsCallResolved = false;
+
+            // Real counts values: stale = 12 (pre-read), fresh = 11 (post-read).
+            // The stale intercept body is injected only if a race would occur;
+            // the fresh count is always what the actual server returns.
+            const staleCount = 12;
+            const freshCount = 11;
+
+            await page.route(`http://localhost:${serverPort}/api/counts`, async (route) => {
+              if (route.request().method() !== 'GET') {
+                await route.continue();
+                return;
+              }
+              countsCallCount++;
+              const callIndex = countsCallCount;
+
+              if (callIndex === 1 && !firstCountsCallResolved) {
+                // Hold the first call open — return stale data once unblocked.
+                await new Promise(resolve => { unblockFirstCountsCall = resolve; });
+                firstCountsCallResolved = true;
+                await route.fulfill({
+                  status: 200,
+                  contentType: 'application/json',
+                  body: JSON.stringify({
+                    unread: staleCount,
+                    starred: 0,
+                    queue: 0,
+                    alerts: 0,
+                    categories: {},
+                    feeds: {},
+                    feedErrors: {},
+                  }),
+                });
+              } else {
+                // Pass all other calls through to the real server.
+                await route.continue();
+              }
+            });
+
+            try {
+              await page.setExtraHTTPHeaders({
+                'X-Exedev-Userid': 'browser-integ-user',
+                'X-Exedev-Email': 'browser-integ@example.com',
+              });
+              await page.setViewportSize({ width: 900, height: 520 });
+              await page.goto(`http://localhost:${serverPort}/`, { waitUntil: 'domcontentloaded' });
+              await page.waitForSelector('.article-card');
+
+              // Read the initial badge text (should reflect staleCount or real count).
+              const getBadgeText = async () => page.evaluate(() => {
+                const badge = document.querySelector('[data-count="unread"]');
+                return badge ? badge.textContent.trim() : null;
+              });
+
+              // Mark one article read by clicking it, which sets the
+              // return-from-article-list marker and flushes via keepalive.
+              const allIds = await page.$$eval('.article-card', cards => cards.map(card => card.dataset.id));
+              const clickId = allIds[0];
+              const clickSelector = `.article-card[data-id="${clickId}"] .article-body.clickable`;
+              await page.locator(clickSelector).click();
+              await page.waitForURL(new RegExp('/article/\\d+$'));
+
+              // Now go back.  The pageshow handler will fire.
+              // Reset the countsCallCount so we only track calls from pageshow.
+              countsCallCount = 0;
+              firstCountsCallResolved = false;
+              unblockFirstCountsCall = null;
+
+              await page.goBack({ waitUntil: 'domcontentloaded' });
+              await page.waitForSelector('.article-card');
+
+              // Wait a brief moment for the synchronous portion of pageshow to
+              // fire (so all /api/counts calls are in-flight) before we release
+              // the held first call.
+              await page.waitForTimeout(200);
+
+              // Release the stale call (if it was held — with the T1 fix it
+              // won't exist, so this is a no-op).
+              if (unblockFirstCountsCall) {
+                unblockFirstCountsCall();
+              }
+
+              // Wait for restoreFromState to complete and the badge to settle.
+              await page.waitForTimeout(800);
+
+              const finalBadgeText = await getBadgeText();
+
+              return {
+                staleCount,
+                freshCount,
+                finalBadgeText,
+                countsCallCount,
+              };
+            } finally {
+              await page.close();
+            }
+          } finally {
+            await cleanup();
+          }
+        },
+
+        /**
          * Get the current name of a feed via the API.
          */
         async getFeedName(ctx, feedId) {

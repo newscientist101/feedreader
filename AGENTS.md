@@ -121,6 +121,18 @@ db/
   event wiring uses `data-action` attributes with delegated `addEventListener`.
   Circular dependencies are resolved via late-bound setters (e.g.,
   `setArticleActionDeps()`). Each module has a companion `.test.js` file.
+- **Read-state pipeline**: `db/articles.is_read` is the authoritative source
+  of truth. `srv.CountsCache` (per-user, 30-second TTL) caches `/api/counts`
+  results and is invalidated on every mutating handler. The client-side
+  `read-queue` module (`srv/static/modules/read-queue.js`) owns transient
+  unsent read events with sessionStorage durability and keepalive flush
+  (flushed on `pagehide`, `visibilitychange→hidden`, and before article
+  navigation). The `returnFromArticleList` sessionStorage marker drives
+  Back-navigation replay via a peek-then-consume-on-success pattern in
+  `spa-nav.js`. `/api/counts` applies the same folder-exclusion filter as
+  the listing endpoints so the unread badge always matches visible cards.
+  The counts poll loop in `counts.js` refreshes every 60 seconds while the
+  tab is visible and pauses when hidden.
 - **Build & validation**: See the Build Workflow section below.
 - **Service**: Managed via systemd (`srv.service`). Restart after changes
   with `make build && sudo systemctl restart feedreader`.
