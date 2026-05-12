@@ -8,8 +8,9 @@ import { setSidebarActive } from './sidebar.js';
 import { applyDefaultViewForScope } from './views.js';
 import { removeFeedErrorBanner } from './feed-errors.js';
 import { updateCounts } from './counts.js';
-import { markReturningFromArticleList, consumeReturningFromArticleList, peekPendingReadIds, clearPendingReadIds } from './nav-state.js';
+import { peekReturningFromArticleList, clearReturningFromArticleList } from './nav-state.js';
 import { getSetting } from './settings.js';
+import { peekIds, replay } from './read-queue.js';
 
 // Pages that use the article-list layout (index.html template).
 // SPA navigation works between these pages without a full reload.
@@ -200,54 +201,46 @@ export function initSpaNav() {
     // the current route in that case so unread/article-list state is rebuilt
     // from the database instead of letting stale cards appear/disappear after
     // delayed count or pagination updates.
+    //
+    // Peek-then-consume-on-success: the return marker is only cleared after
+    // read-queue.replay() succeeds. On failure the marker is left so the next
+    // pageshow retries.
     window.addEventListener('pageshow', async (e) => {
         if (e.persisted) {
             window.scrollTo(0, 0);
         }
-        if (isArticleListPage() && consumeReturningFromArticleList()) {
-            // Replay any pending read IDs that may not have persisted yet
-            // (e.g. fast Back where keepalive batch-read is still in flight).
-            // Immediately hide matching cached DOM cards so they don't flash
-            // visible, then POST to ensure the server has them, and only clear
-            // the pending set after a successful POST.
-            const pendingIds = peekPendingReadIds();
-            if (pendingIds.size > 0) {
-                const hideRead = getSetting('hideReadArticles') === 'hide';
-                for (const id of pendingIds) {
-                    const card = document.querySelector(`.article-card[data-id="${id}"]`);
-                    if (card) {
-                        card.classList.add('read');
-                        if (hideRead) {
-                            card.style.display = 'none';
-                        }
+        if (!isArticleListPage() || !peekReturningFromArticleList()) {
+            updateCounts();
+            return;
+        }
+        // Immediately hide cached DOM cards for pending read IDs so they don't
+        // flash visible before restoreFromState replaces the list.
+        const pendingIds = peekIds();
+        if (pendingIds.size > 0) {
+            const hideRead = getSetting('hideReadArticles') === 'hide';
+            for (const id of pendingIds) {
+                const card = document.querySelector(`.article-card[data-id="${id}"]`);
+                if (card) {
+                    card.classList.add('read');
+                    if (hideRead) {
+                        card.style.display = 'none';
                     }
-                }
-                try {
-                    const resp = await fetch('/api/articles/batch-read', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                        },
-                        body: JSON.stringify({ ids: [...pendingIds] }),
-                    });
-                    if (resp.ok) {
-                        clearPendingReadIds();
-                    } else {
-                        console.error('Failed to replay pending read IDs: HTTP', resp.status);
-                        // Restore the return marker so a later pageshow can retry.
-                        markReturningFromArticleList();
-                    }
-                } catch (e) {
-                    console.error('Failed to replay pending read IDs:', e);
-                    // Restore the return marker so a later pageshow can retry.
-                    markReturningFromArticleList();
                 }
             }
-            restoreFromState(history.state, window.location.pathname);
-        } else {
-            updateCounts();
         }
+        // replay() POSTs any pending IDs; on success we consume the marker so
+        // a subsequent pageshow does not retry unnecessarily.
+        const ok = await replay();
+        if (ok) {
+            clearReturningFromArticleList();
+        } else {
+            console.error('Failed to replay pending read IDs; will retry on next pageshow');
+            // Leave the marker so the next pageshow retries.
+        }
+        // Always restore from state so the article list is refreshed from the
+        // server regardless of replay outcome. restoreFromState calls
+        // updateCounts() at its end — do not add another call here.
+        await restoreFromState(history.state, window.location.pathname);
     }, { signal });
 
     // Replace the current history entry with SPA state so popstate works

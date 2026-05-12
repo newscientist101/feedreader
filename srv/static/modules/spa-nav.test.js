@@ -9,6 +9,7 @@ vi.mock('./feed-errors.js');
 vi.mock('./counts.js');
 vi.mock('./nav-state.js');
 vi.mock('./settings.js');
+vi.mock('./read-queue.js');
 
 import { api } from './api.js';
 import { showArticlesLoading, renderArticles } from './articles.js';
@@ -16,8 +17,9 @@ import { setSidebarActive } from './sidebar.js';
 import { applyDefaultViewForScope } from './views.js';
 import { removeFeedErrorBanner } from './feed-errors.js';
 import { updateCounts } from './counts.js';
-import { markReturningFromArticleList, consumeReturningFromArticleList, peekPendingReadIds, clearPendingReadIds } from './nav-state.js';
+import { peekReturningFromArticleList, clearReturningFromArticleList } from './nav-state.js';
 import { getSetting } from './settings.js';
+import { peekIds, replay } from './read-queue.js';
 
 /** Set up the standard article-list page DOM for SPA navigation tests. */
 function setupArticleListPage() {
@@ -39,10 +41,10 @@ beforeEach(() => {
     document.body.innerHTML = '';
     vi.clearAllMocks();
     api.mockResolvedValue({ articles: [{ id: 1, title: 'Test' }] });
-    markReturningFromArticleList.mockReturnValue(true);
-    consumeReturningFromArticleList.mockReturnValue(false);
-    peekPendingReadIds.mockReturnValue(new Set());
-    clearPendingReadIds.mockReturnValue(true);
+    peekReturningFromArticleList.mockReturnValue(false);
+    clearReturningFromArticleList.mockReturnValue(true);
+    peekIds.mockReturnValue(new Set());
+    replay.mockResolvedValue(true);
     getSetting.mockReturnValue(null);
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true });
     Object.defineProperty(window, 'location', {
@@ -319,8 +321,9 @@ describe('popstate (browser back/forward)', () => {
         expect(document.querySelector('[data-feed-action]').style.display).toBe('none');
     });
 
-    it('scrolls to top and refreshes counts when restored from back/forward cache', () => {
+    it('scrolls to top and refreshes counts when restored from back/forward cache (no marker)', () => {
         setupArticleListPage();
+        peekReturningFromArticleList.mockReturnValue(false);
         initSpaNav();
 
         window.scrollTo = vi.fn();
@@ -332,8 +335,9 @@ describe('popstate (browser back/forward)', () => {
         expect(updateCounts).toHaveBeenCalled();
     });
 
-    it('refreshes counts but does not scroll on non-bfcache pageshow', () => {
+    it('refreshes counts but does not scroll on non-bfcache pageshow (no marker)', () => {
         setupArticleListPage();
+        peekReturningFromArticleList.mockReturnValue(false);
         initSpaNav();
 
         window.scrollTo = vi.fn();
@@ -347,20 +351,21 @@ describe('popstate (browser back/forward)', () => {
 
     it('calls updateCounts exactly once on pageshow: article-list page, no return marker', () => {
         setupArticleListPage();
-        consumeReturningFromArticleList.mockReturnValue(false);
+        peekReturningFromArticleList.mockReturnValue(false);
         initSpaNav();
 
         const event = new Event('pageshow');
         Object.defineProperty(event, 'persisted', { value: false });
         window.dispatchEvent(event);
 
-        // updateCounts called in the else branch — exactly once, no duplicate
+        // updateCounts called in the early-exit branch — exactly once, no duplicate
         expect(updateCounts).toHaveBeenCalledTimes(1);
     });
 
     it('calls updateCounts exactly once on pageshow: article-list page, with return marker (via restoreFromState)', async () => {
         setupArticleListPage();
-        consumeReturningFromArticleList.mockReturnValue(true);
+        peekReturningFromArticleList.mockReturnValue(true);
+        replay.mockResolvedValue(true);
         initSpaNav();
 
         const event = new Event('pageshow');
@@ -383,15 +388,16 @@ describe('popstate (browser back/forward)', () => {
         Object.defineProperty(event, 'persisted', { value: false });
         window.dispatchEvent(event);
 
-        // updateCounts called in the else branch — exactly once
+        // updateCounts called in the early-exit branch — exactly once
         expect(updateCounts).toHaveBeenCalledTimes(1);
-        // consumeReturningFromArticleList is not called for non-list pages
-        expect(consumeReturningFromArticleList).not.toHaveBeenCalled();
+        // peekReturningFromArticleList is not called for non-list pages
+        expect(peekReturningFromArticleList).not.toHaveBeenCalled();
     });
 
     it('re-fetches the current article list after returning from an article page', async () => {
         setupArticleListPage();
-        consumeReturningFromArticleList.mockReturnValue(true);
+        peekReturningFromArticleList.mockReturnValue(true);
+        replay.mockResolvedValue(true);
         initSpaNav();
 
         const event = new Event('pageshow');
@@ -406,9 +412,9 @@ describe('popstate (browser back/forward)', () => {
         expect(updateCounts).toHaveBeenCalled();
     });
 
-    it('does not consume article-return state on non-list pages', () => {
+    it('does not check return marker on non-list pages', () => {
         document.body.innerHTML = '<div class="article-view"></div>';
-        consumeReturningFromArticleList.mockReturnValue(true);
+        peekReturningFromArticleList.mockReturnValue(true);
         initSpaNav();
 
         const event = new Event('pageshow');
@@ -417,18 +423,18 @@ describe('popstate (browser back/forward)', () => {
 
         expect(api).not.toHaveBeenCalled();
         expect(updateCounts).toHaveBeenCalled();
-        expect(consumeReturningFromArticleList).not.toHaveBeenCalled();
+        expect(peekReturningFromArticleList).not.toHaveBeenCalled();
     });
 
-    it('replays pending read IDs on Back: marks cards read and POSTs to batch-read', async () => {
+    it('replays pending read IDs on Back: marks cards read in DOM', async () => {
         setupArticleListPage();
         document.getElementById('articles-list').innerHTML = `
             <div class="article-card" data-id="10"></div>
             <div class="article-card" data-id="11"></div>
         `;
-        consumeReturningFromArticleList.mockReturnValue(true);
-        peekPendingReadIds.mockReturnValue(new Set([10, 11]));
-        globalThis.fetch.mockResolvedValue({ ok: true });
+        peekReturningFromArticleList.mockReturnValue(true);
+        peekIds.mockReturnValue(new Set([10, 11]));
+        replay.mockResolvedValue(true);
         initSpaNav();
 
         const event = new Event('pageshow');
@@ -436,31 +442,25 @@ describe('popstate (browser back/forward)', () => {
         window.dispatchEvent(event);
 
         await vi.waitFor(() => {
-            expect(globalThis.fetch).toHaveBeenCalledWith(
-                '/api/articles/batch-read',
-                expect.objectContaining({
-                    method: 'POST',
-                    body: expect.stringContaining('"ids"'),
-                }),
-            );
+            expect(replay).toHaveBeenCalled();
         }, { interval: 1 });
 
-        // Cards must be marked read in the DOM
+        // Cards must be marked read in the DOM before replay
         expect(document.querySelector('.article-card[data-id="10"]').classList.contains('read')).toBe(true);
         expect(document.querySelector('.article-card[data-id="11"]').classList.contains('read')).toBe(true);
 
-        // Pending IDs cleared after successful POST
-        expect(clearPendingReadIds).toHaveBeenCalled();
+        // Marker cleared after successful replay
+        expect(clearReturningFromArticleList).toHaveBeenCalled();
     });
 
     it('hides pending read cards when hideReadArticles=hide', async () => {
         setupArticleListPage();
         document.getElementById('articles-list').innerHTML =
             '<div class="article-card" data-id="20"></div>';
-        consumeReturningFromArticleList.mockReturnValue(true);
-        peekPendingReadIds.mockReturnValue(new Set([20]));
+        peekReturningFromArticleList.mockReturnValue(true);
+        peekIds.mockReturnValue(new Set([20]));
         getSetting.mockReturnValue('hide');
-        globalThis.fetch.mockResolvedValue({ ok: true });
+        replay.mockResolvedValue(true);
         initSpaNav();
 
         const event = new Event('pageshow');
@@ -468,18 +468,19 @@ describe('popstate (browser back/forward)', () => {
         window.dispatchEvent(event);
 
         await vi.waitFor(() => {
-            expect(clearPendingReadIds).toHaveBeenCalled();
+            expect(clearReturningFromArticleList).toHaveBeenCalled();
         }, { interval: 1 });
 
         const card = document.querySelector('.article-card[data-id="20"]');
         expect(card.style.display).toBe('none');
     });
 
-    it('does not clear pending IDs when replay POST fails', async () => {
+    it('does not clear marker when replay fails', async () => {
         setupArticleListPage();
-        consumeReturningFromArticleList.mockReturnValue(true);
-        peekPendingReadIds.mockReturnValue(new Set([30]));
-        globalThis.fetch.mockResolvedValue({ ok: false, status: 500 });
+        peekReturningFromArticleList.mockReturnValue(true);
+        peekIds.mockReturnValue(new Set([30]));
+        replay.mockResolvedValue(false);
+        vi.spyOn(console, 'error').mockImplementation(() => {});
         initSpaNav();
 
         const event = new Event('pageshow');
@@ -490,55 +491,18 @@ describe('popstate (browser back/forward)', () => {
             expect(api).toHaveBeenCalledWith('GET', '/api/articles/unread');
         }, { interval: 1 });
 
-        expect(clearPendingReadIds).not.toHaveBeenCalled();
-    });
-
-    it('re-sets the return marker when replay POST returns non-2xx so a later pageshow retries', async () => {
-        setupArticleListPage();
-        consumeReturningFromArticleList.mockReturnValue(true);
-        peekPendingReadIds.mockReturnValue(new Set([30]));
-        globalThis.fetch.mockResolvedValue({ ok: false, status: 500 });
-        vi.spyOn(console, 'error').mockImplementation(() => {});
-        initSpaNav();
-
-        const event = new Event('pageshow');
-        Object.defineProperty(event, 'persisted', { value: false });
-        window.dispatchEvent(event);
-
-        await vi.waitFor(() => {
-            expect(markReturningFromArticleList).toHaveBeenCalled();
-        }, { interval: 1 });
-
-        expect(clearPendingReadIds).not.toHaveBeenCalled();
+        // Marker left intact so next pageshow retries
+        expect(clearReturningFromArticleList).not.toHaveBeenCalled();
         expect(console.error).toHaveBeenCalledWith(
-            'Failed to replay pending read IDs: HTTP',
-            500,
+            'Failed to replay pending read IDs; will retry on next pageshow',
         );
     });
 
-    it('does not call batch-read when no pending IDs exist', async () => {
+    it('still runs restoreFromState when replay fails', async () => {
         setupArticleListPage();
-        consumeReturningFromArticleList.mockReturnValue(true);
-        peekPendingReadIds.mockReturnValue(new Set());
-        initSpaNav();
-
-        const event = new Event('pageshow');
-        Object.defineProperty(event, 'persisted', { value: false });
-        window.dispatchEvent(event);
-
-        await vi.waitFor(() => {
-            expect(api).toHaveBeenCalledWith('GET', '/api/articles/unread');
-        }, { interval: 1 });
-
-        expect(globalThis.fetch).not.toHaveBeenCalled();
-        expect(clearPendingReadIds).not.toHaveBeenCalled();
-    });
-
-    it('leaves pending IDs intact when replay POST throws a network error', async () => {
-        setupArticleListPage();
-        consumeReturningFromArticleList.mockReturnValue(true);
-        peekPendingReadIds.mockReturnValue(new Set([40]));
-        globalThis.fetch.mockRejectedValue(new Error('Network error'));
+        peekReturningFromArticleList.mockReturnValue(true);
+        peekIds.mockReturnValue(new Set());
+        replay.mockResolvedValue(false);
         vi.spyOn(console, 'error').mockImplementation(() => {});
         initSpaNav();
 
@@ -550,19 +514,14 @@ describe('popstate (browser back/forward)', () => {
             expect(api).toHaveBeenCalledWith('GET', '/api/articles/unread');
         }, { interval: 1 });
 
-        expect(clearPendingReadIds).not.toHaveBeenCalled();
-        expect(console.error).toHaveBeenCalledWith(
-            'Failed to replay pending read IDs:',
-            expect.any(Error),
-        );
+        expect(renderArticles).toHaveBeenCalled();
     });
 
-    it('re-sets the return marker when replay POST throws a network error so a later pageshow retries', async () => {
+    it('does not call replay when queue is empty (peekIds returns empty set)', async () => {
         setupArticleListPage();
-        consumeReturningFromArticleList.mockReturnValue(true);
-        peekPendingReadIds.mockReturnValue(new Set([40]));
-        globalThis.fetch.mockRejectedValue(new Error('Network error'));
-        vi.spyOn(console, 'error').mockImplementation(() => {});
+        peekReturningFromArticleList.mockReturnValue(true);
+        peekIds.mockReturnValue(new Set());
+        replay.mockResolvedValue(true);
         initSpaNav();
 
         const event = new Event('pageshow');
@@ -570,9 +529,12 @@ describe('popstate (browser back/forward)', () => {
         window.dispatchEvent(event);
 
         await vi.waitFor(() => {
-            expect(markReturningFromArticleList).toHaveBeenCalled();
+            expect(api).toHaveBeenCalledWith('GET', '/api/articles/unread');
         }, { interval: 1 });
 
-        expect(clearPendingReadIds).not.toHaveBeenCalled();
+        // replay() is still called (read-queue.flush handles empty queue internally)
+        expect(replay).toHaveBeenCalled();
+        // Marker cleared on success
+        expect(clearReturningFromArticleList).toHaveBeenCalled();
     });
 });

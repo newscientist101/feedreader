@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-    flushMarkReadQueue,
     markCardAsRead, markReadSilent, openArticle, openArticleExternal,
     markRead, markUnread, toggleStar, toggleQueue, markAsRead,
     findNextUnreadFolder, initArticleActionListeners, initQueueState,
@@ -110,12 +109,14 @@ describe('markReadSilent', () => {
     });
 });
 
-describe('flushMarkReadQueue', () => {
-    it('posts queued ids as a batch', () => {
+describe('markReadSilent flush (via timer)', () => {
+    it('posts queued ids as a batch after timer fires', () => {
         vi.spyOn(console, 'debug').mockImplementation(() => {});
         markReadSilent(1);
         markReadSilent(2);
-        flushMarkReadQueue();
+        // Flush has NOT happened yet (timer is pending)
+        expect(globalThis.fetch).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(250);
         expect(globalThis.fetch).toHaveBeenCalledWith(
             '/api/articles/batch-read',
             expect.objectContaining({
@@ -128,8 +129,8 @@ describe('flushMarkReadQueue', () => {
         );
     });
 
-    it('does nothing when queue is empty', () => {
-        flushMarkReadQueue();
+    it('does not POST when queue is empty and timer fires', () => {
+        vi.advanceTimersByTime(250);
         expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 });
@@ -145,7 +146,7 @@ describe('openArticle', () => {
         document.getElementById('articles-list').innerHTML =
             '<div class="article-card" data-id="5"></div>';
         openArticle(5);
-        // flushMarkReadQueue was called with keepalive so the request survives navigation.
+        // flush was called with keepalive so the request survives navigation.
         expect(globalThis.fetch).toHaveBeenCalledWith(
             '/api/articles/batch-read',
             expect.objectContaining({

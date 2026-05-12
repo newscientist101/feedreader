@@ -157,10 +157,9 @@ export function observeNewArticles(container) {
     }
 }
 
-export function flushMarkReadQueue({ keepalive = false } = {}) {
+function _doFlush({ keepalive = false } = {}) {
     _markReadTimer = null;
-    const pending = readQueueFlush({ keepalive });
-    pending
+    readQueueFlush({ keepalive })
         .then(success => {
             if (success) {
                 updateCounts();
@@ -184,7 +183,7 @@ export function markReadSilent(id) {
     markCardAsRead(id);
     enqueueRead(Number(id));
     if (_markReadTimer) clearTimeout(_markReadTimer);
-    _markReadTimer = setTimeout(flushMarkReadQueue, 250);
+    _markReadTimer = setTimeout(_doFlush, 250);
 }
 
 export function openArticle(id) {
@@ -192,7 +191,7 @@ export function openArticle(id) {
     markReturningFromArticleList();
     // IDs are already persisted by enqueueRead() at push time (via read-queue
     // module), so no separate mergePendingReadIds call is needed here.
-    flushMarkReadQueue({ keepalive: true });
+    _doFlush({ keepalive: true });
     window.location = `/article/${id}`;
 }
 
@@ -384,7 +383,7 @@ export function initArticleActionListeners() {
     // 4. Make the cached DOM match the user's hide-read preference.
     // All four steps share this single pagehide handler (do not register a second one).
     window.addEventListener('pagehide', () => {
-        flushMarkReadQueue({ keepalive: true });
+        _doFlush({ keepalive: true });
         if (autoMarkReadObserver) {
             autoMarkReadObserver.disconnect();
             autoMarkReadObserver = null;
@@ -396,7 +395,7 @@ export function initArticleActionListeners() {
     // survive if the process is later killed by the OS.
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') {
-            flushMarkReadQueue({ keepalive: true });
+            _doFlush({ keepalive: true });
         }
     }, { signal });
 
