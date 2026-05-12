@@ -99,6 +99,9 @@ func seedPerfData(t *testing.T, s *Server, userID int64) (articleID, categoryID 
 }
 
 func TestPerformance(t *testing.T) {
+	if raceEnabled {
+		t.Skip("perf thresholds are not meaningful under -race (instrumentation slows requests ~10x)")
+	}
 	ts, s := integrationServer(t)
 	s.Fetcher = feeds.NewFetcher(s.DB, s.ScraperRunner)
 
