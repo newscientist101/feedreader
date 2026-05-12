@@ -4,6 +4,10 @@ import { escapeHtml } from './utils.js';
 import { applyUserPreferences } from './articles.js';
 import { showFeedErrorBanner, removeFeedErrorBanner } from './feed-errors.js';
 
+// Module-scope state for the visibility-aware poll loop.
+let _countsPollAC = null;
+let _countsPollTimer = null;
+
 export async function updateCounts() {
     try {
         const counts = await api('GET', '/api/counts');
@@ -135,5 +139,56 @@ export function updateFeedErrors(feedErrors) {
         } else {
             removeFeedErrorBanner();
         }
+    }
+}
+
+// Initialize a visibility-aware background poll that calls updateCounts()
+// every 60 seconds while the tab is visible and online. The interval is
+// paused when the tab is hidden and resumed (with an immediate call) when
+// the tab becomes visible again. The navigator.onLine guard prevents toast
+// spam when the connection is flaky — only the poll path applies this guard;
+// other callers of updateCounts are not changed.
+export function initCountsPolling() {
+    if (_countsPollAC) {
+        _countsPollAC.abort();
+        if (_countsPollTimer) {
+            clearInterval(_countsPollTimer);
+            _countsPollTimer = null;
+        }
+    }
+    _countsPollAC = new AbortController();
+    const signal = _countsPollAC.signal;
+
+    const tick = () => {
+        if (document.visibilityState !== 'visible') return;
+        if (!navigator.onLine) return;
+        updateCounts();
+    };
+
+    const startInterval = () => {
+        _countsPollTimer = setInterval(tick, 60000);
+    };
+
+    const stopInterval = () => {
+        if (_countsPollTimer) {
+            clearInterval(_countsPollTimer);
+            _countsPollTimer = null;
+        }
+    };
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            stopInterval();
+        } else {
+            tick();
+            stopInterval();
+            startInterval();
+        }
+    }, { signal });
+
+    signal.addEventListener('abort', stopInterval);
+
+    if (document.visibilityState === 'visible') {
+        startInterval();
     }
 }

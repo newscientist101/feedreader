@@ -12,7 +12,7 @@ import {
     initArticleActionListeners,
 } from './modules/article-actions.js';
 import { initPagination } from './modules/pagination.js';
-import { updateCounts } from './modules/counts.js';
+import { initCountsPolling } from './modules/counts.js';
 import {
     loadCategoryArticles, initFeedActionListeners,
     initAddFeedForm, initFeedItemClickListeners,
@@ -93,8 +93,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize cursor-based pagination from server-rendered articles
     initPagination();
     
-    // Poll for count updates every 60 seconds (catches new articles from background fetches)
-    setInterval(updateCounts, 60000);
+    // Poll for count updates every 60 seconds while visible and online.
+    // Pauses while hidden; resumes with an immediate call when visible again.
+    initCountsPolling();
     
     // Close sidebar on mobile when a link is clicked
     initSidebarMobileClose();

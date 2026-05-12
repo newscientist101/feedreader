@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { updateCounts, updateFeedStatusCell, updateFeedErrors } from './counts.js';
+import { updateCounts, updateFeedStatusCell, updateFeedErrors, initCountsPolling } from './counts.js';
 import { makeFetchResponse, makeCountsResponse } from './test-helpers.js';
 
 vi.mock('./articles.js');
@@ -402,5 +402,119 @@ describe('updateFeedErrors', () => {
 
         expect(showFeedErrorBanner).not.toHaveBeenCalled();
         expect(removeFeedErrorBanner).not.toHaveBeenCalled();
+    });
+});
+
+describe('initCountsPolling', () => {
+    let originalVisibility;
+    let originalOnLine;
+
+    beforeEach(() => {
+        vi.useFakeTimers();
+        // Default: visible and online
+        originalVisibility = Object.getOwnPropertyDescriptor(document, 'visibilityState');
+        originalOnLine = Object.getOwnPropertyDescriptor(navigator, 'onLine');
+        Object.defineProperty(document, 'visibilityState', {
+            configurable: true,
+            get: () => 'visible',
+        });
+        Object.defineProperty(navigator, 'onLine', {
+            configurable: true,
+            get: () => true,
+        });
+        mockCountsFetch();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        if (originalVisibility) {
+            Object.defineProperty(document, 'visibilityState', originalVisibility);
+        } else {
+            // If there was no original descriptor, delete the property to restore default.
+            delete document.visibilityState;
+        }
+        if (originalOnLine) {
+            Object.defineProperty(navigator, 'onLine', originalOnLine);
+        }
+        vi.clearAllMocks();
+    });
+
+    it('calls updateCounts after 60s when visible and online', async () => {
+        const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            makeFetchResponse(makeCountsResponse()),
+        );
+
+        initCountsPolling();
+        await vi.advanceTimersByTimeAsync(60000);
+
+        expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it('does NOT call updateCounts when offline', async () => {
+        Object.defineProperty(navigator, 'onLine', {
+            configurable: true,
+            get: () => false,
+        });
+        const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            makeFetchResponse(makeCountsResponse()),
+        );
+
+        initCountsPolling();
+        await vi.advanceTimersByTimeAsync(60000);
+
+        expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('does NOT call updateCounts when hidden', async () => {
+        Object.defineProperty(document, 'visibilityState', {
+            configurable: true,
+            get: () => 'hidden',
+        });
+        const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            makeFetchResponse(makeCountsResponse()),
+        );
+
+        initCountsPolling();
+        await vi.advanceTimersByTimeAsync(60000);
+
+        expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('calls updateCounts immediately on hidden->visible transition', async () => {
+        // Start hidden
+        Object.defineProperty(document, 'visibilityState', {
+            configurable: true,
+            get: () => 'hidden',
+        });
+        const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            makeFetchResponse(makeCountsResponse()),
+        );
+
+        initCountsPolling();
+        await vi.advanceTimersByTimeAsync(60000);
+        expect(spy).not.toHaveBeenCalled();
+
+        // Become visible
+        Object.defineProperty(document, 'visibilityState', {
+            configurable: true,
+            get: () => 'visible',
+        });
+        document.dispatchEvent(new Event('visibilitychange'));
+        await Promise.resolve();
+
+        expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not double-poll on re-init (first AC aborted)', async () => {
+        const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            makeFetchResponse(makeCountsResponse()),
+        );
+
+        initCountsPolling();
+        initCountsPolling(); // second call aborts the first
+        await vi.advanceTimersByTimeAsync(60000);
+
+        // Only one interval running, so only one tick
+        expect(spy).toHaveBeenCalledTimes(1);
     });
 });
