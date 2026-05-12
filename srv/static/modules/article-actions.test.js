@@ -865,6 +865,26 @@ describe('pagehide flush', () => {
         expect(_getAutoMarkReadObserver()).toBeNull();
         expect(() => window.dispatchEvent(new Event('pagehide'))).not.toThrow();
     });
+
+    it('retains IDs in read-queue after pagehide flush failure', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse(null, { ok: false, status: 500 }));
+        document.body.innerHTML = '<div id="articles-list"><div class="article-card" data-id="88"></div></div>';
+
+        initArticleActionListeners();
+        markReadSilent(88);
+        expect([...peekIds()]).toContain(88);
+
+        window.dispatchEvent(new Event('pagehide'));
+        await vi.advanceTimersByTimeAsync(0);
+
+        // fetch was called with keepalive:true
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+            '/api/articles/batch-read',
+            expect.objectContaining({ keepalive: true }),
+        );
+        // ID still present because flush failed
+        expect([...peekIds()]).toContain(88);
+    });
 });
 
 describe('visibilitychange flush', () => {
@@ -913,5 +933,26 @@ describe('visibilitychange flush', () => {
         document.dispatchEvent(new Event('visibilitychange'));
 
         expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+
+    it('retains IDs in read-queue after visibilitychange flush failure', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse(null, { ok: false, status: 500 }));
+        document.body.innerHTML = '<div id="articles-list"><div class="article-card" data-id="99"></div></div>';
+
+        initArticleActionListeners();
+        markReadSilent(99);
+        expect([...peekIds()]).toContain(99);
+
+        Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+        document.dispatchEvent(new Event('visibilitychange'));
+        await vi.advanceTimersByTimeAsync(0);
+
+        // fetch was called with keepalive:true
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+            '/api/articles/batch-read',
+            expect.objectContaining({ keepalive: true }),
+        );
+        // ID still present because flush failed
+        expect([...peekIds()]).toContain(99);
     });
 });

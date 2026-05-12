@@ -929,6 +929,51 @@ func (q *Queries) ListStarredArticlesCursor(ctx context.Context, arg ListStarred
 	return items, nil
 }
 
+const listUnreadArticleFilterInputs = `-- name: ListUnreadArticleFilterInputs :many
+SELECT a.id, a.feed_id, a.title, a.author, a.summary FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+WHERE a.is_read = 0 AND f.user_id = ?
+`
+
+type ListUnreadArticleFilterInputsRow struct {
+	ID      int64   `json:"id"`
+	FeedID  int64   `json:"feed_id"`
+	Title   string  `json:"title"`
+	Author  *string `json:"author"`
+	Summary *string `json:"summary"`
+}
+
+// Narrow query for getFilteredArticleCounts: only fetches the fields needed
+// by FilterAllUnreadArticleFilterInputs (shouldExclude). No LIMIT/OFFSET.
+func (q *Queries) ListUnreadArticleFilterInputs(ctx context.Context, userID *int64) ([]ListUnreadArticleFilterInputsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUnreadArticleFilterInputs, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUnreadArticleFilterInputsRow{}
+	for rows.Next() {
+		var i ListUnreadArticleFilterInputsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FeedID,
+			&i.Title,
+			&i.Author,
+			&i.Summary,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUnreadArticles = `-- name: ListUnreadArticles :many
 SELECT a.id, a.feed_id, a.guid, a.title, a.url, a.author, a.content, a.summary, a.image_url, a.published_at, a.fetched_at, a.is_read, a.is_starred, f.name as feed_name FROM articles a
 JOIN feeds f ON a.feed_id = f.id

@@ -665,32 +665,48 @@ func (s *Server) getArticleCounts(ctx context.Context, userID int64) articleCoun
 }
 
 // getFilteredArticleCounts is the filtered-count path for users with exclusion
-// rules. T9b will replace this placeholder with a correct implementation that
-// applies FilterAllUnreadArticles semantics. For now it falls back to the same
-// SQL counts as the fast path so the branch is exercised but behaviour is
-// unchanged until T9b ships.
+// rules. It scans all unread rows for the user to apply per-folder exclusion
+// rules. The 30 s CountsCache absorbs the cost. Users with zero exclusion rules
+// take the fast SQL path (see getArticleCounts).
 func (s *Server) getFilteredArticleCounts(ctx context.Context, userID int64) articleCounts {
 	q := dbgen.New(s.DB)
 
-	unreadCount, _ := q.GetUnreadCount(ctx, &userID)
+	// a. Fast SQL paths for starred / queue / alerts (no filter treatment).
 	starredCount, _ := q.GetStarredCount(ctx, &userID)
 	queueCount, _ := q.GetQueueCount(ctx, userID)
 	alertsCount, _ := q.CountUndismissedAlerts(ctx, userID)
 
-	feedCounts := make(map[int64]int64)
-	feedCountRows, _ := q.GetAllFeedUnreadCounts(ctx, &userID)
-	for _, row := range feedCountRows {
-		feedCounts[row.FeedID] = row.Count
+	// b. Fetch feed_id -> category_id mapping ONCE.
+	mappings, err := q.ListFeedCategoryMappings(ctx, &userID)
+	feedToCat := make(map[int64]int64)
+	if err == nil {
+		for _, m := range mappings {
+			// Use first category for each feed (feeds may be in multiple categories;
+			// later mappings overwrite but category attribution is best-effort here).
+			if _, already := feedToCat[m.FeedID]; !already {
+				feedToCat[m.FeedID] = m.CategoryID
+			}
+		}
 	}
 
+	// c. Fetch narrow unread filter-input rows (no LIMIT).
+	rows, _ := q.ListUnreadArticleFilterInputs(ctx, &userID)
+
+	// d. Apply exclusion filter.
+	filtered := s.FilterAllUnreadArticleFilterInputs(ctx, rows, userID)
+
+	// e. Aggregate.
+	feedCounts := make(map[int64]int64)
 	catCounts := make(map[int64]int64)
-	catCountRows, _ := q.GetAllCategoryUnreadCounts(ctx, &userID)
-	for _, row := range catCountRows {
-		catCounts[row.CategoryID] = row.Count
+	for _, row := range filtered {
+		feedCounts[row.FeedID]++
+		if catID, ok := feedToCat[row.FeedID]; ok {
+			catCounts[catID]++
+		}
 	}
 
 	counts := articleCounts{
-		Unread:     unreadCount,
+		Unread:     int64(len(filtered)),
 		Starred:    starredCount,
 		Queue:      queueCount,
 		Alerts:     alertsCount,

@@ -42,6 +42,13 @@ WHERE a.is_read = 0 AND f.user_id = ?
 ORDER BY COALESCE(a.published_at, a.fetched_at) DESC
 LIMIT ? OFFSET ?;
 
+-- name: ListUnreadArticleFilterInputs :many
+-- Narrow query for getFilteredArticleCounts: only fetches the fields needed
+-- by FilterAllUnreadArticleFilterInputs (shouldExclude). No LIMIT/OFFSET.
+SELECT a.id, a.feed_id, a.title, a.author, a.summary FROM articles a
+JOIN feeds f ON a.feed_id = f.id
+WHERE a.is_read = 0 AND f.user_id = ?;
+
 -- name: ListStarredArticles :many
 SELECT a.*, f.name as feed_name FROM articles a
 JOIN feeds f ON a.feed_id = f.id

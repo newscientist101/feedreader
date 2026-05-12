@@ -33,6 +33,65 @@ func (s *Server) FilterArticles(ctx context.Context, articles []dbgen.ListUnread
 	return filtered
 }
 
+// FilterAllUnreadArticleFilterInputs applies all folder exclusion rules across
+// all categories to the narrow filter-input rows returned by
+// ListUnreadArticleFilterInputs. It mirrors FilterAllUnreadArticles but
+// operates on the smaller row type used by getFilteredArticleCounts.
+// NOTE: both functions must stay in sync — if shouldExclude logic changes,
+// update both.
+func (s *Server) FilterAllUnreadArticleFilterInputs(
+	ctx context.Context,
+	articles []dbgen.ListUnreadArticleFilterInputsRow,
+	userID int64,
+) []dbgen.ListUnreadArticleFilterInputsRow {
+	q := dbgen.New(s.DB)
+
+	allExclusions, err := q.ListAllExclusions(ctx, &userID)
+	if err != nil || len(allExclusions) == 0 {
+		return articles
+	}
+
+	// Group exclusions by category_id
+	exclusionsByCategory := make(map[int64][]dbgen.CategoryExclusion)
+	for _, e := range allExclusions {
+		exclusionsByCategory[e.CategoryID] = append(exclusionsByCategory[e.CategoryID], dbgen.CategoryExclusion{
+			ID:            e.ID,
+			CategoryID:    e.CategoryID,
+			ExclusionType: e.ExclusionType,
+			Pattern:       e.Pattern,
+			IsRegex:       e.IsRegex,
+			CreatedAt:     e.CreatedAt,
+		})
+	}
+
+	// Build feed_id → category_ids map
+	mappings, err := q.ListFeedCategoryMappings(ctx, &userID)
+	if err != nil {
+		return articles
+	}
+	feedCategories := make(map[int64][]int64)
+	for _, m := range mappings {
+		feedCategories[m.FeedID] = append(feedCategories[m.FeedID], m.CategoryID)
+	}
+
+	var filtered []dbgen.ListUnreadArticleFilterInputsRow
+	for i := range articles {
+		excluded := false
+		for _, catID := range feedCategories[articles[i].FeedID] {
+			if excls, ok := exclusionsByCategory[catID]; ok {
+				if s.shouldExclude(articles[i].Title, ptrToStr(articles[i].Summary), ptrToStr(articles[i].Author), excls) {
+					excluded = true
+					break
+				}
+			}
+		}
+		if !excluded {
+			filtered = append(filtered, articles[i])
+		}
+	}
+	return filtered
+}
+
 // FilterAllUnreadArticles applies all folder exclusion rules across all categories
 // to a global list of unread articles.
 func (s *Server) FilterAllUnreadArticles(ctx context.Context, articles []dbgen.ListUnreadArticlesRow, userID int64) []dbgen.ListUnreadArticlesRow {
