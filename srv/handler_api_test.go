@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/newscientist101/feedreader/db/dbgen"
 )
@@ -737,6 +738,40 @@ func TestHandlerExclusions(t *testing.T) {
 		"GET", "/api/categories/bad/exclusions", "", ctx)
 	if w.Code != 400 {
 		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandlerDeleteExclusion_InvalidatesCountsCache(t *testing.T) {
+	t.Parallel()
+	s := testServer(t)
+	s.CountsCache = NewCountsCache(30 * time.Second)
+	ctx, user := testUser(t, s)
+
+	// Create category + exclusion via API.
+	w := serveAPI(t, s.apiCreateCategory, "POST", "/api/categories",
+		`{"name":"Cat"}`, ctx)
+	catID := int64(jsonBody(t, w)["id"].(float64))
+	w = serveMux(t, "POST /api/categories/{id}/exclusions", s.apiCreateExclusion,
+		"POST", fmt.Sprintf("/api/categories/%d/exclusions", catID),
+		`{"type":"keyword","pattern":"spam","isRegex":false}`, ctx)
+	if w.Code != 200 {
+		t.Fatalf("create exclusion got %d", w.Code)
+	}
+	exclID := int64(jsonBody(t, w)["id"].(float64))
+
+	// Seed a non-zero value into CountsCache to simulate a cached hit.
+	s.CountsCache.Set(user.ID, articleCounts{Unread: 99})
+
+	// Delete the exclusion — must invalidate the cache.
+	w = serveMux(t, "DELETE /api/exclusions/{id}", s.apiDeleteExclusion,
+		"DELETE", fmt.Sprintf("/api/exclusions/%d", exclID), "", ctx)
+	if w.Code != 200 {
+		t.Fatalf("delete got %d", w.Code)
+	}
+
+	// Cache entry must be gone so the next /api/counts re-computes fresh counts.
+	if _, ok := s.CountsCache.Get(user.ID); ok {
+		t.Fatal("CountsCache should be invalidated after apiDeleteExclusion")
 	}
 }
 

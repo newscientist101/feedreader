@@ -3224,6 +3224,7 @@ func (s *Server) apiDeleteExclusion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.CountsCache.Invalidate(user.ID) // mirror apiCreateExclusion; exclusion rules affect /api/counts
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
 
