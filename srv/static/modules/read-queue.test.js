@@ -176,16 +176,23 @@ describe('sessionStorage failure fallback', () => {
 
     it('falls back to memory when setItem throws: enqueue still works', () => {
         const restore = mockSetItemToThrow();
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
         try {
             enqueueRead(11);
             expect(peekIds()).toEqual(new Set([11]));
+            expect(warnSpy).toHaveBeenCalledWith(
+                expect.stringContaining('sessionStorage unavailable'),
+                expect.any(Error),
+            );
         } finally {
+            warnSpy.mockRestore();
             restore();
         }
     });
 
     it('flush still POSTs when using memory fallback', async () => {
         const restore = mockSetItemToThrow();
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
         try {
             vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeFetchResponse({}));
             enqueueRead(12);
@@ -197,18 +204,21 @@ describe('sessionStorage failure fallback', () => {
             const body = JSON.parse(fetch.mock.calls[0][1].body);
             expect(body.ids).toContain(12);
         } finally {
+            warnSpy.mockRestore();
             restore();
         }
     });
 
     it('peekIds reflects state after memory-mode enqueue', () => {
         const restore = mockSetItemToThrow();
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
         try {
             enqueueRead(13);
             enqueueRead(14);
             enqueueRead(13); // duplicate
             expect(peekIds()).toEqual(new Set([13, 14]));
         } finally {
+            warnSpy.mockRestore();
             restore();
         }
     });
