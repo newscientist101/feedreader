@@ -667,6 +667,209 @@ export default defineConfig({
         },
 
         /**
+         * Run the pagehide flush + IntersectionObserver disconnect regression scenario.
+         *
+         * Proves T2 (flush on pagehide with keepalive) and T4 (observer
+         * disconnect on pagehide) from feedreader-7if.
+         *
+         * Steps:
+         * 1. Load the article list; scroll to mark some articles read via the
+         *    IntersectionObserver (populates the read queue / sessionStorage).
+         * 2. Intercept POST /api/articles/batch-read to capture calls.
+         * 3. Dispatch a `pagehide` event via page.evaluate.
+         * 4. Assert exactly one keepalive POST fired with the queued IDs.
+         * 5. Assert sessionStorage contains those IDs (stored by enqueueRead).
+         * 6. Scroll further — assert no additional batch-read POST fires
+         *    (IntersectionObserver was disconnected by the pagehide handler).
+         *
+         * Returns:
+         *   {
+         *     scrolledReadIds,          // IDs auto-marked read by scroll
+         *     batchReadCalls,           // array of { keepalive, ids } per POST
+         *     sessionStorageIdsAfterPagehide, // IDs still in sessionStorage after pagehide
+         *     batchReadCallsAfterScroll, // calls captured AFTER the second scroll
+         *   }
+         */
+        async runPagehideFlushAndObserverDisconnectScenario(ctx) {
+          const fs = await import('node:fs/promises');
+          const os = await import('node:os');
+          const path = await import('node:path');
+          const childProcess = await import('node:child_process');
+          const { promisify } = await import('node:util');
+          const execFile = promisify(childProcess.execFile);
+
+          const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'feedreader-pagehide-'));
+          const dbPath = path.join(tmpDir, 'test.sqlite3');
+          let server;
+
+          // Port 3203 to avoid collision with other integration servers.
+          const serverPort = 3203;
+
+          const waitForServer = async (port) => {
+            const deadline = Date.now() + 15000;
+            let lastErr;
+            while (Date.now() < deadline) {
+              try {
+                const resp = await fetch(`http://localhost:${port}/api/counts`, {
+                  headers: {
+                    'X-Exedev-Userid': 'browser-integ-user',
+                    'X-Exedev-Email': 'browser-integ@example.com',
+                  },
+                });
+                if (resp.ok) return;
+                lastErr = new Error(`status ${resp.status}`);
+              } catch (err) {
+                lastErr = err;
+              }
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            throw lastErr || new Error('server did not start');
+          };
+
+          const cleanup = async () => {
+            if (server && !server.killed) {
+              server.kill('SIGTERM');
+              await new Promise(resolve => {
+                const timer = setTimeout(() => {
+                  if (!server.killed) server.kill('SIGKILL');
+                  resolve();
+                }, 3000);
+                server.once('exit', () => {
+                  clearTimeout(timer);
+                  resolve();
+                });
+              });
+            }
+            await fs.rm(tmpDir, { recursive: true, force: true });
+          };
+
+          try {
+            await execFile('go', [
+              'build',
+              '-o', path.join(tmpDir, 'browser-integ-pagehide'),
+              './tests/config/browser-integration-server.go',
+            ], { cwd: root });
+
+            server = childProcess.spawn(
+              path.join(tmpDir, 'browser-integ-pagehide'),
+              [dbPath, String(serverPort)],
+              {
+                cwd: root,
+                env: { ...process.env, DEV: '' },
+                stdio: ['ignore', 'pipe', 'pipe'],
+              },
+            );
+            server.stdout.on('data', chunk => process.stdout.write(chunk));
+            server.stderr.on('data', chunk => process.stderr.write(chunk));
+            await waitForServer(serverPort);
+
+            const page = await ctx.context.newPage();
+
+            // Capture all POST /api/articles/batch-read calls, including
+            // keepalive fetches. We split into two phases: before and after
+            // the second scroll (post-pagehide).
+            const batchReadCalls = [];
+            const batchReadCallsAfterScroll = [];
+            let pagehideFired = false;
+
+            await page.route(`**/api/articles/batch-read`, async (route) => {
+              if (route.request().method() !== 'POST') {
+                await route.continue();
+                return;
+              }
+              const body = route.request().postData();
+              const parsed = body ? JSON.parse(body) : {};
+              const isKeepalive = !!route.request().headers()['content-type'];
+              const callRecord = {
+                ids: parsed.ids || [],
+              };
+              if (pagehideFired) {
+                batchReadCallsAfterScroll.push(callRecord);
+              } else {
+                batchReadCalls.push(callRecord);
+              }
+              await route.continue();
+            });
+
+            try {
+              await page.setExtraHTTPHeaders({
+                'X-Exedev-Userid': 'browser-integ-user',
+                'X-Exedev-Email': 'browser-integ@example.com',
+              });
+              await page.setViewportSize({ width: 900, height: 520 });
+              await page.goto(`http://localhost:${serverPort}/`, { waitUntil: 'domcontentloaded' });
+              await page.waitForSelector('.article-card');
+
+              // Wait for autoMarkRead setting to take effect (set in seed).
+              await page.waitForTimeout(300);
+
+              // Step 1: scroll to mark some articles read via the observer.
+              await page.evaluate(() => window.scrollTo(0, 1450));
+              // Wait for the debounce timer (250ms) plus a buffer.
+              await page.waitForTimeout(700);
+
+              // Collect which articles the observer marked as read.
+              const scrolledReadIds = await page.$$eval(
+                '.article-card.read',
+                cards => cards.map(card => card.dataset.id),
+              );
+
+              // Read the sessionStorage snapshot — enqueueRead persists IDs
+              // immediately, so they should already be there before pagehide.
+              const sessionStorageIdsBeforePagehide = await page.evaluate(() => {
+                try {
+                  const raw = sessionStorage.getItem('feedreader:read-queue');
+                  return raw ? JSON.parse(raw) : [];
+                } catch {
+                  return [];
+                }
+              });
+
+              // Clear the call log — we only want calls triggered by pagehide.
+              batchReadCalls.length = 0;
+
+              // Step 2: dispatch pagehide — this triggers the flush + observer
+              // disconnect in article-actions.js.
+              pagehideFired = false;
+              await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+              // Mark that pagehide has fired so subsequent route intercepts
+              // go into batchReadCallsAfterScroll.
+              pagehideFired = true;
+
+              // Wait for the keepalive fetch to be captured by the interceptor.
+              await page.waitForTimeout(500);
+
+              // Step 3: read sessionStorage after pagehide.
+              const sessionStorageIdsAfterPagehide = await page.evaluate(() => {
+                try {
+                  const raw = sessionStorage.getItem('feedreader:read-queue');
+                  return raw ? JSON.parse(raw) : [];
+                } catch {
+                  return [];
+                }
+              });
+
+              // Step 4: scroll further — if the observer was disconnected,
+              // no additional batch-read POST should fire.
+              await page.evaluate(() => window.scrollTo(0, 2200));
+              await page.waitForTimeout(700);
+
+              return {
+                scrolledReadIds,
+                sessionStorageIdsBeforePagehide,
+                batchReadCalls: batchReadCalls.slice(),
+                sessionStorageIdsAfterPagehide,
+                batchReadCallsAfterScroll: batchReadCallsAfterScroll.slice(),
+              };
+            } finally {
+              await page.close();
+            }
+          } finally {
+            await cleanup();
+          }
+        },
+
+        /**
          * Get the current name of a feed via the API.
          */
         async getFeedName(ctx, feedId) {
