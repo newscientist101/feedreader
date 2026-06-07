@@ -182,6 +182,11 @@ docker compose up -d
 
 Feedreader applies database migrations automatically on startup.
 
+> **Deploying on Google Compute Engine?** See
+> [`deploy/gce/`](deploy/gce/README.md) for scripts that provision
+> (`setup-vm.sh`) and update (`update-vm.sh`) a Container-Optimized OS VM
+> that pulls the image from Google Artifact Registry.
+
 ---
 
 ## 6. Backup and Restore

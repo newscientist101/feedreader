@@ -12,4 +12,5 @@ config.toml
 
 # Environment
 .env
+deploy/gce/config.env
 backups/

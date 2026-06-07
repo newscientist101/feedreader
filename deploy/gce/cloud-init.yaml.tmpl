@@ -1,0 +1,80 @@
+#cloud-config
+# Container-Optimized OS bootstrap for feedreader.
+#
+# Rendered by setup-vm.sh (placeholders @LIKE_THIS@ are substituted) and
+# passed as the instance's user-data. COS re-applies cloud-init on every
+# boot, so the systemd units below are recreated in /etc (a stateless
+# tmpfs) each time and the stack is brought back up from its persistent
+# config under /var/lib/feedreader.
+#
+# Why these specific paths (see COS filesystem docs):
+#   /var/lib/feedreader      writable + persistent (noexec) — config & docker auth
+#   /var/lib/docker/cli-plugins  writable + persistent + EXECUTABLE — compose binary
+#   /etc                     writable + EXECUTABLE but stateless tmpfs — systemd units
+# docker-credential-gcr is pre-installed on COS and authenticates to GAR
+# using the attached service account's metadata-server token (no keys).
+
+write_files:
+  # Oneshot bootstrap: install the compose plugin (COS has no package
+  # manager) and configure Docker to authenticate to Artifact Registry.
+  - path: /etc/systemd/system/feedreader-bootstrap.service
+    permissions: '0644'
+    owner: root
+    content: |
+      [Unit]
+      Description=Bootstrap feedreader prerequisites (compose + GAR auth)
+      Wants=network-online.target gcr-online.target
+      After=network-online.target gcr-online.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=true
+      Environment=HOME=/var/lib/feedreader
+      Environment=DOCKER_CONFIG=/var/lib/feedreader/.docker
+      Environment=COMPOSE_BIN=/var/lib/docker/cli-plugins/docker-compose
+      ExecStartPre=/bin/mkdir -p /var/lib/feedreader/deploy /var/lib/feedreader/.docker /var/lib/docker/cli-plugins
+      # Install the Docker Compose binary into an executable, persistent
+      # path if it is missing (idempotent across reboots/upgrades).
+      ExecStart=/bin/sh -c 'test -x "$COMPOSE_BIN" || (curl -fsSL -o "$COMPOSE_BIN" "https://github.com/docker/compose/releases/download/@COMPOSE_VERSION@/docker-compose-linux-x86_64" && chmod 0755 "$COMPOSE_BIN")'
+      # Point Docker at the GAR credential helper. Writes to
+      # $DOCKER_CONFIG/config.json (persistent, not /root which is RO).
+      ExecStart=/usr/bin/docker-credential-gcr configure-docker --registries=@GAR_HOST@
+
+      [Install]
+      WantedBy=multi-user.target
+
+  # The application stack itself.
+  - path: /etc/systemd/system/feedreader.service
+    permissions: '0644'
+    owner: root
+    content: |
+      [Unit]
+      Description=feedreader stack (Caddy + Authelia + feedreader)
+      Wants=network-online.target
+      After=network-online.target docker.service feedreader-bootstrap.service
+      Requires=docker.service feedreader-bootstrap.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=true
+      WorkingDirectory=/var/lib/feedreader/deploy
+      Environment=HOME=/var/lib/feedreader
+      Environment=DOCKER_CONFIG=/var/lib/feedreader/.docker
+      # Only start once the deployment config has been uploaded by
+      # setup-vm.sh; on a fresh first boot this guard prevents a noisy
+      # failure before the scp step has run.
+      ExecStartPre=/usr/bin/test -f /var/lib/feedreader/deploy/docker-compose.yml
+      ExecStart=/var/lib/docker/cli-plugins/docker-compose --project-directory /var/lib/feedreader/deploy up -d --remove-orphans
+      ExecStop=/var/lib/docker/cli-plugins/docker-compose --project-directory /var/lib/feedreader/deploy down
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - systemctl daemon-reload
+  - systemctl enable --now feedreader-bootstrap.service
+  # Starts the stack if config is already present (reboots); on the very
+  # first boot the ExecStartPre guard makes this a harmless no-op until
+  # setup-vm.sh uploads the config and starts the service explicitly.
+  - systemctl enable feedreader.service
+  - systemctl start feedreader.service || true

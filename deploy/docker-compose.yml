@@ -11,6 +11,11 @@
 #
 # Upgrade:
 #   docker compose pull && docker compose up -d
+#
+# Image: published to Google Artifact Registry by .github/workflows/google.yml.
+# The deployment tracks the moving :main tag by default. Override the registry
+# path or tag via the FEEDREADER_IMAGE / IMAGE_TAG variables in .env (see
+# .env.example) — useful for testing a branch image or a pinned SHA tag.
 
 services:
   caddy:
@@ -40,7 +45,7 @@ services:
     restart: unless-stopped
 
   feedreader:
-    image: ghcr.io/newscientist101/feedreader:latest
+    image: ${FEEDREADER_IMAGE:-us-central1-docker.pkg.dev/feedreader-489315/my-repo/feedreader}:${IMAGE_TAG:-main}
     volumes:
       - feedreader_data:/data
     environment:
