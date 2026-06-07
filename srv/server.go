@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -25,6 +26,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/newscientist101/feedreader/db"
@@ -166,8 +168,32 @@ func (s *Server) Serve(addr string) error {
 		IdleTimeout:       120 * time.Second,
 		MaxHeaderBytes:    1 << 20, // 1 MB
 	}
-	slog.Info("starting server", "addr", addr)
-	return srv.ListenAndServe()
+	// Trigger graceful shutdown on SIGINT/SIGTERM. systemd sends SIGTERM on
+	// stop/restart; without this the process is killed outright, dropping
+	// in-flight requests and skipping the deferred Stop()/Close() cleanup.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	serveErr := make(chan error, 1)
+	go func() {
+		slog.Info("starting server", "addr", addr)
+		serveErr <- srv.ListenAndServe()
+	}()
+
+	select {
+	case err := <-serveErr:
+		// ListenAndServe returned on its own (e.g. bind failure).
+		return err
+	case <-ctx.Done():
+		slog.Info("shutdown signal received, draining connections")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			slog.Warn("graceful shutdown timed out; forcing close", "error", err)
+			return srv.Close()
+		}
+		return nil
+	}
 }
 
 // Handler builds the full HTTP handler with routing, auth middleware, and gzip.
