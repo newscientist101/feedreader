@@ -114,6 +114,7 @@ func TestNewSafeClient(t *testing.T) {
 	client := NewSafeClient(5*time.Second, nil)
 	if client == nil {
 		t.Fatal("expected non-nil client")
+		return
 	}
 	if client.Timeout != 5*time.Second {
 		t.Errorf("timeout = %v, want 5s", client.Timeout)
