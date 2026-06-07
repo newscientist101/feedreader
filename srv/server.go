@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"database/sql"
 	_ "embed"
 	"encoding/hex"
@@ -46,13 +47,13 @@ type Server struct {
 	Fetcher          *feeds.Fetcher
 	ScraperRunner    *scrapers.Runner
 	RetentionManager *RetentionManager
-	ShelleyGenerator *ShelleyScraperGenerator
-	EmailWatcher     *email.Watcher
 	FaviconBaseURL   string       // upstream favicon service; default Google S2
 	FaviconClient    *http.Client // HTTP client for favicon fetches; defaults to safe client
 
-	CountsCache *CountsCache // per-user article count cache
-	Sources     *sources.Registry
+	CountsCache   *CountsCache // per-user article count cache
+	Sources       *sources.Registry
+	AuthProvider  AuthProvider // pluggable auth; defaults to ExeDevProvider
+	WebhookSecret string       // shared secret for newsletter webhook auth
 
 	// templateCache holds pre-parsed templates keyed by page name.
 	// Populated by initTemplates(); nil disables caching (re-parse each request).
@@ -75,6 +76,7 @@ func New(dbPath, hostname string) (*Server, error) {
 		ScraperRunner: scrapers.NewRunner(),
 		CountsCache:   NewCountsCache(30 * time.Second),
 		Sources:       sources.DefaultRegistry(),
+		AuthProvider:  ExeDevProvider{},
 		bgCtx:         ctx,
 		bgCancel:      cancel,
 	}
@@ -152,14 +154,6 @@ func (s *Server) Serve(addr string) error {
 	s.RetentionManager = NewRetentionManager(s)
 	s.RetentionManager.Start()
 	defer s.RetentionManager.Stop()
-
-	// Start email newsletter watcher
-	s.EmailWatcher = email.NewWatcher(s.DB, s.Hostname)
-	s.EmailWatcher.Start(10 * time.Second)
-	defer s.EmailWatcher.Stop()
-
-	// Initialize Shelley scraper generator
-	s.ShelleyGenerator = NewShelleyScraperGenerator()
 
 	handler := s.Handler()
 
@@ -248,11 +242,9 @@ func (s *Server) Handler() http.Handler {
 	// Newsletter email
 	mux.HandleFunc("POST /api/newsletter/generate-address", s.apiGenerateNewsletterAddress)
 	mux.HandleFunc("GET /api/newsletter/address", s.apiGetNewsletterAddress)
+	mux.HandleFunc("POST "+newsletterIngestPath, s.apiNewsletterIngest)
 
-	// AI scraper generation
-	mux.HandleFunc("GET /api/ai/status", s.apiAIStatus)
 	mux.HandleFunc("GET /api/favicon", s.apiFavicon)
-	mux.HandleFunc("POST /api/ai/generate-scraper", s.apiGenerateScraper)
 
 	// Exclusion rules endpoints
 	mux.HandleFunc("GET /api/categories/{id}/exclusions", s.apiListExclusions)
@@ -3417,45 +3409,46 @@ func (s *Server) apiGenerateNewsletterAddress(w http.ResponseWriter, r *http.Req
 	jsonResponse(w, map[string]any{"address": addr})
 }
 
-// AI Scraper API handlers
-func (s *Server) apiAIStatus(w http.ResponseWriter, r *http.Request) {
-	jsonResponse(w, map[string]any{
-		"available": s.ShelleyGenerator.IsAvailable(),
-	})
-}
+// newsletterIngestPath is the route for the newsletter webhook endpoint.
+// Used in both the route registration and the auth middleware bypass.
+const newsletterIngestPath = "/api/newsletter/ingest"
 
-func (s *Server) apiGenerateScraper(w http.ResponseWriter, r *http.Request) {
-	if !s.ShelleyGenerator.IsAvailable() {
-		jsonError(w, "Shelley is not available. Make sure the Shelley service is running.", 503)
+// newsletterIngestMaxBody is the maximum request body for newsletter emails (10 MB).
+const newsletterIngestMaxBody int64 = 10 << 20
+
+func (s *Server) apiNewsletterIngest(w http.ResponseWriter, r *http.Request) {
+	// Authenticate via Bearer token.
+	if s.WebhookSecret == "" {
+		http.Error(w, "newsletter webhook not configured", http.StatusNotFound)
 		return
 	}
 
-	var req GenerateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		jsonError(w, "Invalid request body", 400)
+	const bearerPrefix = "Bearer "
+	auth := r.Header.Get("Authorization")
+	if !strings.HasPrefix(auth, bearerPrefix) {
+		http.Error(w, "missing or invalid Authorization header", http.StatusUnauthorized)
+		return
+	}
+	token := strings.TrimPrefix(auth, bearerPrefix)
+	if subtle.ConstantTimeCompare([]byte(token), []byte(s.WebhookSecret)) != 1 {
+		http.Error(w, "invalid webhook secret", http.StatusForbidden)
 		return
 	}
 
-	if req.URL == "" {
-		jsonError(w, "URL is required", 400)
-		return
-	}
-	if req.Description == "" {
-		jsonError(w, "Description is required", 400)
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), aiScraperTimeout)
-	defer cancel()
-
-	resp, err := s.ShelleyGenerator.Generate(ctx, req)
-	if err != nil {
-		slog.Error("generate scraper failed", "error", err)
-		jsonError(w, err.Error(), 500)
+	// Expect raw RFC 822 email in the request body.
+	ct := r.Header.Get("Content-Type")
+	if ct != "" && !strings.HasPrefix(ct, "message/rfc822") && !strings.HasPrefix(ct, "application/octet-stream") {
+		http.Error(w, "expected Content-Type: message/rfc822", http.StatusUnsupportedMediaType)
 		return
 	}
 
-	jsonResponse(w, resp)
+	if err := email.ProcessMessage(r.Context(), s.DB, r.Body); err != nil {
+		slog.Warn("newsletter webhook: processing failed", "error", err)
+		http.Error(w, "failed to process email: "+err.Error(), http.StatusUnprocessableEntity)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // ---------------------------------------------------------------------------

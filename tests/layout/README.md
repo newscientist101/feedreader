@@ -1,5 +1,10 @@
 # Layout Tests
 
+> **Agents: do NOT run these (or any build/test) on this VM.** Per the
+> root `AGENTS.md` ("Do NOT build, run, or test on this VM"), builds and
+> tests are executed by GitHub Actions CI only. The commands below are
+> reference documentation, not instructions to run locally.
+
 Automated layout regression tests using **Vitest browser mode** with
 **Playwright** (Chromium, headless). Tests measure real bounding rects in a
 real browser to detect element overlap, crushed controls, and broken layouts

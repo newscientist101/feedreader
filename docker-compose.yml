@@ -1,0 +1,51 @@
+# Example: feedreader behind OAuth2 Proxy with Google as the identity provider.
+# Copy this file and adjust values marked with <CHANGE_ME>.
+#
+# Usage:
+#   docker compose up -d
+#
+# Access the app at http://localhost:4180 (OAuth2 Proxy handles login).
+
+services:
+  feedreader:
+    build: .
+    # Or use a pre-built image:
+    # image: ghcr.io/newscientist101/feedreader:latest
+    volumes:
+      - feedreader-data:/data
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.9.0
+    ports:
+      - "4180:4180"
+    environment:
+      # Provider config — see https://oauth2-proxy.github.io/oauth2-proxy/
+      OAUTH2_PROXY_PROVIDER: google
+      OAUTH2_PROXY_CLIENT_ID: <CHANGE_ME>
+      OAUTH2_PROXY_CLIENT_SECRET: <CHANGE_ME>
+      OAUTH2_PROXY_COOKIE_SECRET: <CHANGE_ME>  # Generate with: python3 -c 'import os,base64; print(base64.urlsafe_b64encode(os.urandom(32)).decode())'
+
+      # Restrict access to specific email addresses
+      OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE: /dev/null
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"  # Or restrict: "example.com"
+
+      # Forward auth headers to feedreader
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_PASS_USER_HEADERS: "true"
+
+      # Upstream (feedreader)
+      OAUTH2_PROXY_UPSTREAMS: http://feedreader:8000
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+
+      # Redirect and cookie settings
+      OAUTH2_PROXY_REDIRECT_URL: http://localhost:4180/oauth2/callback  # <CHANGE_ME> to your domain
+      OAUTH2_PROXY_COOKIE_SECURE: "false"  # Set to true with HTTPS
+    depends_on:
+      - feedreader
+    restart: unless-stopped
+
+volumes:
+  feedreader-data:

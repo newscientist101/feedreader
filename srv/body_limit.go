@@ -14,7 +14,8 @@ const (
 
 // bodyLimitPaths maps path prefixes to larger body limits for upload endpoints.
 var bodyLimitPaths = map[string]int64{
-	"/api/opml/import": uploadBodyLimit,
+	"/api/opml/import":   uploadBodyLimit,
+	newsletterIngestPath: newsletterIngestMaxBody,
 }
 
 // bodyLimitMiddleware wraps request bodies with http.MaxBytesReader to

@@ -1,0 +1,21 @@
+# Authelia user database.
+# Docs: https://www.authelia.com/reference/guides/passwords/
+#
+# Each entry defines a user who can log in. After first login, the user
+# registers a passkey (WebAuthn credential) through the Authelia UI.
+#
+# To generate a password hash, run:
+#   docker run --rm authelia/authelia:latest \
+#     authelia crypto hash generate argon2 --password 'your-password'
+#
+# The password is only needed for the initial login before a passkey is
+# registered. After that, authentication is passwordless.
+
+users:
+  # <CHANGE_ME>: replace 'admin' with your desired username.
+  admin:
+    displayname: 'Admin User'
+    # <CHANGE_ME>: replace with a real password hash (see above).
+    password: '<CHANGE_ME_PASSWORD_HASH>'
+    email: '<CHANGE_ME_EMAIL>'  # e.g. admin@example.com
+    groups: []

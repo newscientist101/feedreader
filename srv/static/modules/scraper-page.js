@@ -11,8 +11,6 @@ let _scraperSubmitting = false;
 export function initScraperPage() {
     if (!document.querySelector('.scrapers-view')) return;
 
-    checkAiStatus();
-    initAiForm();
     initManualForm();
 }
 
@@ -31,9 +29,6 @@ export function initScraperPageListeners() {
         if (!action) return;
 
         switch (action.dataset.action) {
-            case 'switch-scraper-tab':
-                switchScraperTab(action.dataset.tab);
-                break;
             case 'toggle-schema-panel':
                 toggleSchemaPanel();
                 break;
@@ -75,55 +70,6 @@ export function initScraperPageListeners() {
     }
 }
 
-async function checkAiStatus() {
-    const statusEl = document.getElementById('ai-status');
-    if (!statusEl) return;
-    try {
-        const data = await api('GET', '/api/ai/status');
-        if (data.available) {
-            statusEl.className = 'ai-status available';
-            statusEl.querySelector('.status-text').textContent = 'Shelley is available';
-        } else {
-            statusEl.className = 'ai-status unavailable';
-            statusEl.querySelector('.status-text').textContent = 'Shelley is not running';
-            const form = document.getElementById('ai-generate-form');
-            if (form) form.classList.add('disabled');
-            const btn = document.getElementById('ai-generate-btn');
-            if (btn) btn.disabled = true;
-        }
-    } catch {
-        statusEl.className = 'ai-status error';
-        statusEl.querySelector('.status-text').textContent = 'Could not check AI status';
-    }
-}
-
-function initAiForm() {
-    const form = document.getElementById('ai-generate-form');
-    if (!form) return;
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const btn = document.getElementById('ai-generate-btn');
-        const url = document.getElementById('ai-url').value;
-        const description = document.getElementById('ai-description').value;
-
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner"></span> Shelley is analyzing the page...';
-
-        try {
-            const data = await api('POST', '/api/ai/generate-scraper', { url, description });
-            document.getElementById('scraper-name').value = data.name || 'Custom Scraper';
-            document.getElementById('scraper-script').value = data.config;
-            switchScraperTab('manual');
-        } catch (err) {
-            showToast('Failed to generate: ' + err.message);
-        } finally {
-            btn.disabled = false;
-            _scraperSubmitting = false;
-            btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 9l-7 7-7-7"/></svg> Generate Scraper Config';
-        }
-    });
-}
-
 function initManualForm() {
     const form = document.getElementById('add-scraper-form');
     if (!form) return;
@@ -153,11 +99,6 @@ function initManualForm() {
             _scraperSubmitting = false;
         }
     });
-}
-
-export function switchScraperTab(tab) {
-    document.querySelectorAll('.scraper-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-    document.querySelectorAll('.scraper-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === tab));
 }
 
 export async function editScraper(id) {

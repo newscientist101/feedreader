@@ -1,0 +1,33 @@
+# FeedReader systemd service template.
+# Copy to /etc/systemd/system/feedreader.service and customize paths.
+#
+# Install:
+#   sudo cp srv.service.example /etc/systemd/system/feedreader.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now feedreader
+#
+# Logs:
+#   journalctl -u feedreader -f
+
+[Unit]
+Description=FeedReader
+After=network.target
+
+[Service]
+Type=simple
+User=feedreader
+Group=feedreader
+WorkingDirectory=/opt/feedreader
+ExecStart=/opt/feedreader/feedreader --config /opt/feedreader/config.toml
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/feedreader
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

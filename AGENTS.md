@@ -1,6 +1,6 @@
 # Agent Instructions
 
-This is a Go web application — a multi-user feed reader — hosted on exe.dev.
+This is a Go web application — a multi-user feed reader — designed for standalone, self-hosted deployment.
 
 See README.md for user-facing docs (features, API endpoints, scraper config, etc.).
 See STYLE.md for coding conventions — **read it before writing code**.
@@ -10,18 +10,31 @@ See STYLE.md for coding conventions — **read it before writing code**.
 Do **not** use subagents to read all files and output all file contents in full.
 This will fail due to context/token limits and should not be attempted.
 
-**Always validate your changes.** After making code changes, run `make check`
-before committing. This runs formatting checks, linting, tests, and
-vulnerability scanning in one command.
+### Do NOT build, run, or test on this VM
+
+**This VM is no longer a build/validation environment.** Do **not** run any
+build, compile, run, or test commands locally, including (non-exhaustive):
+`make check`, `make build`, `make test`, `make lint`, `make vulncheck`,
+`make fmt-check`, `go build`, `go test`, `go run`, `npm ci`, `npm test`, or
+starting the server. Do not install or upgrade toolchains for the purpose of
+building.
+
+**GitHub Actions CI is the sole build and validation authority.** Validate
+changes by pushing to a branch and reading the CI workflow results, not by
+running anything locally. The `make check` steps documented below describe
+what CI runs — they are for reference, not for local execution.
+
+You may still use read-only tooling (reading files, `git` status/diff/log,
+ripgrep/grep, etc.). Make your edits, commit, push, and rely on CI.
 
 ## Tech Stack
 
-- **Go** (module `srv.exe.dev`) with the standard library `net/http` router
+- **Go** (module `github.com/newscientist101/feedreader`) with the standard library `net/http` router
 - **SQLite** via `modernc.org/sqlite` (pure-Go, no CGO)
 - **sqlc** for type-safe query generation (`db/queries/` → `db/dbgen/`)
 - **HTML templates** (`html/template`) served server-side
 - **Vanilla JS** frontend (no framework) in `srv/static/`
-- Runs on port **8000** behind the exe.dev HTTPS proxy
+- Runs on port **8000** (configurable via `--port` flag or `config.toml`)
 
 ## Code Layout
 
@@ -29,12 +42,11 @@ vulnerability scanning in one command.
 cmd/srv/main.go          Entry point — parses flags, opens DB, starts server
 srv/
   server.go              HTTP server, all route handlers (~2600 lines, the bulk of the app)
-  auth.go                exe.dev auth middleware (reads X-Exedev-* headers; DEV=1 bypass)
+  auth.go                Pluggable auth middleware (AuthProvider interface; DEV=1 bypass)
   filter.go              Exclusion-rule filtering (keyword/author per folder)
   content_filter.go      Per-feed content transform filters
   category_tree.go       Nested category/folder tree builder
   retention.go           Data retention / old-article cleanup
-  ai_scraper.go          Anthropic API integration for AI scraper config generation
   feeds/
     fetcher.go           RSS/Atom feed fetching with conditional GET support
     parser.go            RSS and Atom XML parser
@@ -105,9 +117,11 @@ db/
 
 ## Key Patterns
 
-- **Authentication**: All non-static routes go through auth middleware. The
-  exe.dev proxy injects `X-Exedev-Userid` and `X-Exedev-Email` headers.
-  Set `DEV=1` to skip auth for local development.
+- **Authentication**: All non-static routes go through auth middleware. Auth
+  is handled by pluggable providers configured in `config.toml`. See
+  `srv/auth.go` for the `AuthProvider` interface. Supported providers:
+  `proxy` (generic header-based), `tailscale`, `cloudflare`, `authelia`,
+  `oauth2_proxy`. Set `DEV=1` to skip auth for local development.
 - **Database migrations**: Auto-applied on startup in `db.Open()`. Add new
   migrations as sequentially numbered `.sql` files in `db/migrations/`.
 - **sqlc workflow**: Edit SQL in `db/queries/*.sql`, then run
@@ -133,13 +147,20 @@ db/
   the listing endpoints so the unread badge always matches visible cards.
   The counts poll loop in `counts.js` refreshes every 60 seconds while the
   tab is visible and pauses when hidden.
-- **Build & validation**: See the Build Workflow section below.
-- **Service**: Managed via systemd (`srv.service`). Restart after changes
-  with `make build && sudo systemctl restart feedreader`.
+- **Build & validation**: Performed by GitHub Actions CI, **not on this VM**.
+  See the "Do NOT build, run, or test on this VM" rule above and the Build
+  Workflow section below (reference only).
+- **Service**: Optionally managed via systemd using the provided
+  `srv.service.example` template.
 
 ## Build Workflow
 
-Run `make check` before committing. It runs all validation steps in order:
+> **Reference only — do not run these locally.** Builds and tests run in
+> GitHub Actions CI (see the "Do NOT build, run, or test on this VM" rule
+> above). The table below documents what CI executes. Validate your changes
+> by pushing and checking the CI results.
+
+CI runs all validation steps in order:
 
 | Command          | What it does                                       |
 |------------------|----------------------------------------------------|
@@ -183,15 +204,17 @@ Other useful targets:
 
 ### Fixing formatting
 
-If `make fmt-check` fails, run `make fmt` to auto-fix, then re-run
-`make check`.
+If CI's `fmt-check` step fails, fix the formatting in your editor (matching
+`goimports`) and push again. Do not run `make fmt`/`make check` locally.
 
 ## Viewing the App During Development
 
 See README.md for full details. Quick options:
 
-1. **With auth proxy**: Use `mitmdump` on port 3000 to inject auth headers,
-   then browse `http://localhost:3000/`.
+1. **No auth (dev mode)**: Run with `DEV=1 ./feedreader` to skip auth and
+   browse `http://localhost:8000/` directly.
+2. **With config**: Create a `config.toml` with an auth provider configured
+   and run `./feedreader --config config.toml`.
 
 ### Test Users
 
@@ -200,13 +223,6 @@ All testing and development should use **user 1** (`external_id: dev-user-1`,
 
 - **Do not** modify user 4 — this is the real production user.
 - **Do not** create additional users.
-
-For the auth proxy, inject these headers:
-```bash
-mitmdump -p 3000 --mode reverse:http://localhost:8000 \
-  --set modify_headers='/~q/X-Exedev-Userid/dev-user-1' \
-  --set modify_headers='/~q/X-Exedev-Email/test@example.com'
-```
 
 Look up user credentials with:
 ```bash
@@ -242,7 +258,7 @@ skips stale log lines from before the fix.
 bd ready                              # Show unblocked issues
 bd show <id>                          # Full details (description, design, notes, acceptance)
 bd update <id> --claim                # Claim a task (sets in_progress + assignee)
-# ... do the work, run make check ...
+# ... do the work, push, and confirm CI is green (do NOT build locally) ...
 bd close <id> -r "what was done"       # Complete it
 ```
 
@@ -317,7 +333,7 @@ bd update <id> --append-notes "..."   # Append to working memory
 - Track all work in bd — no markdown TODOs, no ad-hoc task lists
 - Check `bd ready` before starting work
 - Claim before working: `bd update <id> --claim`
-- Always run `make check` before closing a task
+- Validate via CI (push and check the workflow), **never by building locally**, before closing a task
 - Link discovered work with `--deps discovered-from:<id>`
 - Do NOT use `bd edit` without the stdin pipe pattern (it opens vim)
 <!-- END BEADS INTEGRATION -->
@@ -329,7 +345,7 @@ bd update <id> --append-notes "..."   # Append to working memory
 **MANDATORY WORKFLOW:**
 
 1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
+2. **Run quality gates via CI** (if code changed) - push and confirm the GitHub Actions CI workflow passes; **do not build/test on this VM**
 3. **Update issue status** - Close finished work, update in-progress items
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
