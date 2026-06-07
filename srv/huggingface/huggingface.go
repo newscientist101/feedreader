@@ -14,6 +14,10 @@ import (
 
 const baseURL = "https://huggingface.co"
 
+// maxAPIResponseBytes caps the size of a HuggingFace API response read into
+// memory, guarding against oversized or hostile responses.
+const maxAPIResponseBytes = 32 << 20
+
 // Client is a Hugging Face API client
 type Client struct {
 	httpClient *http.Client
@@ -152,7 +156,8 @@ func (c *Client) doRequest(ctx context.Context, rawURL string) ([]byte, error) {
 		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
 	}
 
-	return io.ReadAll(resp.Body)
+	// Cap the response to guard against oversized or hostile API responses.
+	return io.ReadAll(io.LimitReader(resp.Body, maxAPIResponseBytes))
 }
 
 // Model represents a HuggingFace model

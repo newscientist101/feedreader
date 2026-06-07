@@ -29,6 +29,12 @@ import (
 // and scraping to avoid bot detection on sites behind Cloudflare etc.
 const BrowserUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
+// maxFeedBodyBytes caps how many bytes we read (after any gzip decompression)
+// from a feed or scraper response. Without a cap, a hostile or buggy endpoint
+// — or a gzip bomb — could stream unbounded data into memory and OOM the
+// process. 32 MiB comfortably exceeds any legitimate RSS/Atom feed or HTML page.
+const maxFeedBodyBytes = 32 << 20
+
 // Fetcher handles fetching and updating feeds
 type Fetcher struct {
 	DB            *sql.DB
@@ -283,6 +289,8 @@ func (f *Fetcher) fetchRSSFeed(ctx context.Context, url string) ([]FeedItem, str
 		defer func() { _ = gzReader.Close() }()
 		reader = gzReader
 	}
+	// Cap decompressed bytes to guard against oversized feeds / gzip bombs.
+	reader = io.LimitReader(reader, maxFeedBodyBytes)
 
 	feed, err := Parse(reader)
 	if err != nil {
@@ -317,7 +325,7 @@ func (f *Fetcher) fetchWithScraper(ctx context.Context, feed *dbgen.Feed) ([]Fee
 	defer func() { _ = resp.Body.Close() }()
 
 	buf := new(bytes.Buffer)
-	if _, err := buf.ReadFrom(resp.Body); err != nil {
+	if _, err := buf.ReadFrom(io.LimitReader(resp.Body, maxFeedBodyBytes)); err != nil {
 		return nil, fmt.Errorf("reading response body: %w", err)
 	}
 	htmlContent := buf.String()
