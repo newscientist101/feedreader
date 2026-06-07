@@ -307,11 +307,11 @@ func (s *Server) Handler() http.Handler {
 		http.ServeFile(w, r, filepath.Join(s.StaticDir, "sw.js"))
 	})
 
-	// Wrap with auth middleware, security headers, gzip compression, logging,
-	// CSRF protection, and per-user rate limiting.
-	// Order (outermost first): gzip → logging → security → bodyLimit → auth → csrf → rateLimit → mux
+	// Wrap with panic recovery, auth middleware, security headers, gzip
+	// compression, logging, CSRF protection, and per-user rate limiting.
+	// Order (outermost first): recover → gzip → logging → security → bodyLimit → auth → csrf → rateLimit → mux
 	rl := newRateLimiter()
-	return gzipMiddleware(loggingMiddleware(securityHeaders(bodyLimitMiddleware(s.AuthMiddleware(csrfMiddleware(rateLimitMiddleware(rl)(mux)))))))
+	return recoverMiddleware(gzipMiddleware(loggingMiddleware(securityHeaders(bodyLimitMiddleware(s.AuthMiddleware(csrfMiddleware(rateLimitMiddleware(rl)(mux))))))))
 }
 
 // templateFuncMap returns the shared template function map.
