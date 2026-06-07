@@ -44,13 +44,53 @@ disk free. Two ways to handle it:
   stable. **Caveat:** an *unattached* reserved static IP costs more
   (~$7.30/mo), so if you delete the VM, also release the address (see
   *Tearing down* below).
-- **Go IPv4-free for $0.** External IPv6 on a VM is free. You'd create the
-  VM with an IPv6 (or dual-stack) NIC, publish an `AAAA` record instead of
-  `A`, and rely on IPv6-capable clients. This needs manual tweaks to the
-  scripts (NIC stack type + the DNS gate) and isn't wired up by default —
-  ask if you want it.
+- **Go IPv4-free for $0 (`IPV6_ONLY=1`).** External IPv6 on a VM is free.
+  Set `IPV6_ONLY=1` in `config.env` and the VM gets a public IPv6 and **no**
+  external IPv4 — truly $0/mo. See *IPv6-only mode* below for the trade-offs.
 
 Set a billing budget alert regardless, so a surprise can't run away.
+
+## IPv6-only mode (`IPV6_ONLY=1`)
+
+This makes the deployment cost **$0/mo** by dropping the billable external
+IPv4. It's not a literal `IPV6_ONLY` NIC, because two constraints rule that
+out for this stack:
+
+- Container-Optimized OS doesn't support literal IPv6-only NICs (only
+  Ubuntu/Debian/RHEL do), and
+- IAP SSH (used to upload config) connects to the VM's **internal IPv4**,
+  which a literal IPv6-only VM lacks.
+
+So `setup-vm.sh` instead provisions a **dual-stack NIC with
+`--no-address`**:
+
+| Address | Cost | Used for |
+|---|---|---|
+| Internal IPv4 | free | COS networking + IAP SSH (config upload) |
+| External IPv6 | **free** | public, internet-facing HTTPS |
+| External IPv4 | — | **none** (this is the part you'd otherwise pay for) |
+
+It also creates a custom-mode VPC with a dual-stack EXTERNAL subnet,
+opens IPv6 web ports (`::/0`) plus IAP SSH (`35.235.240.0/20`), enables
+**Private Google Access** so the VM can still pull from Artifact Registry
+for free, and publishes the VM's IPv6 as an **AAAA** record (the DNS gate
+waits on AAAA).
+
+**Docker Hub images.** Caddy and Authelia come from Docker Hub, which is
+IPv4-only — unreachable from a VM with no external IPv4 and no (paid) Cloud
+NAT. The script solves this the Google-native way: it creates an **Artifact
+Registry remote repository** (a Docker Hub pull-through cache). Artifact
+Registry fetches from Docker Hub on its side; the VM pulls the cached images
+from AR over Private Google Access. `CADDY_IMAGE`/`AUTHELIA_IMAGE` in the
+VM's `.env` are pointed at the cache automatically.
+
+**The catch:** the site is reachable **only over IPv6**. Clients on
+IPv4-only networks (some home ISPs, many corporate/mobile networks) will
+not be able to reach it. Only use this mode if you and your users have IPv6
+connectivity. Publish only the AAAA record — no A record.
+
+Tune the VPC/subnet names and the internal IPv4 range via the `IPV6_*`
+variables in `config.env`.
 
 ## Prerequisites (on your workstation)
 
@@ -121,8 +161,16 @@ To stop all charges (including the IPv4):
 ```bash
 source config.env
 gcloud --project "$PROJECT_ID" compute instances delete "$INSTANCE_NAME" --zone "$ZONE"
-# Release the static IP too — an unattached reserved IP bills at a HIGHER rate:
+
+# IPv4 mode: release the static IP — an unattached reserved IP bills at a
+# HIGHER rate than an in-use one.
 gcloud --project "$PROJECT_ID" compute addresses delete "${INSTANCE_NAME}-ip" --region "$REGION"
+
+# IPV6_ONLY mode: nothing extra is billed (no IPv4 to release), but you can
+# clean up the VPC scaffolding if you won't reuse it:
+gcloud --project "$PROJECT_ID" compute networks subnets delete "$IPV6_SUBNET" --region "$REGION"
+gcloud --project "$PROJECT_ID" compute networks delete "$IPV6_NETWORK"
+# (Artifact Registry remote repo "docker-hub-remote" is free to keep.)
 ```
 
 ## GCP-side IAM note

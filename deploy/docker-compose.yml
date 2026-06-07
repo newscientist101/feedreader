@@ -19,7 +19,10 @@
 
 services:
   caddy:
-    image: caddy:2-alpine
+    # Defaults to the public Docker Hub image. The GCE IPv6-only mode
+    # (deploy/gce, no external IPv4) overrides CADDY_IMAGE with a copy
+    # mirrored into Artifact Registry, reachable via Private Google Access.
+    image: ${CADDY_IMAGE:-caddy:2-alpine}
     ports:
       - "80:80"
       - "443:443"
@@ -36,7 +39,7 @@ services:
     restart: unless-stopped
 
   authelia:
-    image: authelia/authelia:latest
+    image: ${AUTHELIA_IMAGE:-authelia/authelia:latest}
     volumes:
       - ./authelia:/config:ro
       - authelia_data:/data
