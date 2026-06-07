@@ -1,6 +1,7 @@
 package srv
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -35,7 +36,9 @@ func TestRecoverMiddleware_ReraisesAbortHandler(t *testing.T) {
 		panic(http.ErrAbortHandler)
 	}))
 	defer func() {
-		if r := recover(); r != http.ErrAbortHandler {
+		r := recover()
+		err, ok := r.(error)
+		if !ok || !errors.Is(err, http.ErrAbortHandler) {
 			t.Errorf("expected ErrAbortHandler to propagate, got %v", r)
 		}
 	}()
