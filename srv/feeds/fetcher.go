@@ -201,7 +201,32 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed *dbgen.Feed) error {
 		}
 	}
 
-	// Store items
+	// Store items in a single transaction so a feed's inserts commit once
+	// rather than fsyncing per article — important under concurrent fetches
+	// against SQLite's single writer.
+	inserted := f.storeItems(ctx, feed, items)
+
+	slog.Info("fetched feed", "feed_id", feed.ID, "name", feed.Name, "items", len(items), "inserted", inserted)
+
+	if inserted > 0 && f.OnFeedFetched != nil {
+		f.OnFeedFetched(ctx, feed.ID)
+	}
+
+	return nil
+}
+
+// storeItems inserts a feed's items in a single transaction and returns the
+// number of newly inserted articles. On any setup/commit failure it logs and
+// returns 0; the next fetch cycle will retry.
+func (f *Fetcher) storeItems(ctx context.Context, feed *dbgen.Feed, items []FeedItem) int {
+	tx, err := f.DB.BeginTx(ctx, nil)
+	if err != nil {
+		slog.Warn("store items: begin tx", "error", err, "feed_id", feed.ID)
+		return 0
+	}
+	defer func() { _ = tx.Rollback() }() // no-op after a successful Commit
+	qtx := dbgen.New(tx)
+
 	inserted := 0
 	for i, item := range items {
 		if item.GUID == "" {
@@ -213,7 +238,7 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed *dbgen.Feed) error {
 		}
 		// Skip GUIDs that were already seen and hard-deleted by retention cleanup.
 		// This prevents re-insertion of articles that were intentionally removed.
-		seen, err := q.IsGuidSeen(ctx, dbgen.IsGuidSeenParams{FeedID: feed.ID, Guid: item.GUID})
+		seen, err := qtx.IsGuidSeen(ctx, dbgen.IsGuidSeenParams{FeedID: feed.ID, Guid: item.GUID})
 		if err != nil {
 			slog.Warn("seen_guids check failed", "error", err, "guid", item.GUID, "feed_id", feed.ID)
 		} else if seen > 0 {
@@ -225,7 +250,7 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed *dbgen.Feed) error {
 			utc := item.PublishedAt.UTC()
 			pubAt = &utc
 		}
-		_, err = q.CreateArticle(ctx, dbgen.CreateArticleParams{
+		_, err = qtx.CreateArticle(ctx, dbgen.CreateArticleParams{
 			FeedID:      feed.ID,
 			Guid:        item.GUID,
 			Title:       item.Title,
@@ -243,13 +268,11 @@ func (f *Fetcher) FetchFeed(ctx context.Context, feed *dbgen.Feed) error {
 		}
 	}
 
-	slog.Info("fetched feed", "feed_id", feed.ID, "name", feed.Name, "items", len(items), "inserted", inserted)
-
-	if inserted > 0 && f.OnFeedFetched != nil {
-		f.OnFeedFetched(ctx, feed.ID)
+	if err := tx.Commit(); err != nil {
+		slog.Warn("store items: commit", "error", err, "feed_id", feed.ID)
+		return 0
 	}
-
-	return nil
+	return inserted
 }
 
 func (f *Fetcher) fetchRSSFeed(ctx context.Context, url string) ([]FeedItem, string, error) {
