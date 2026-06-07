@@ -33,6 +33,16 @@ func Open(path string) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A plain ":memory:" SQLite database is private to each connection. The
+	// database/sql pool can open more than one connection under concurrency,
+	// and any extra connection would get its own empty database, leading to
+	// intermittent "no such table"/missing-row failures (notably under the
+	// race detector, whose timing makes the pool grow). Pin in-memory DBs to
+	// a single connection so every query shares the same database. This only
+	// affects in-memory use (tests); file-backed production DBs are unchanged.
+	if path == ":memory:" {
+		db.SetMaxOpenConns(1)
+	}
 	return db, nil
 }
 
