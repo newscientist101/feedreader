@@ -90,8 +90,8 @@ type userCache struct {
 	max     int
 }
 
-func newUserCache(max int) *userCache {
-	return &userCache{entries: make(map[string]*cachedUser), max: max}
+func newUserCache(maxSize int) *userCache {
+	return &userCache{entries: make(map[string]*cachedUser), max: maxSize}
 }
 
 func (c *userCache) get(key string) *cachedUser {
