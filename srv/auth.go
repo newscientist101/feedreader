@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/newscientist101/feedreader/db/dbgen"
@@ -62,8 +63,13 @@ func isDevelopment() bool {
 }
 
 type cachedUser struct {
-	user     User
-	lastSeen time.Time
+	user User
+	// lastSeenUnixNano is the last time we wrote last_seen_at to the DB,
+	// stored as Unix nanoseconds and accessed atomically. The cache entry is
+	// shared across concurrent requests for the same user and read under only
+	// an RLock, so this field must be updated without a write lock — hence the
+	// atomic, which also avoids a duplicate DB write when two requests race.
+	lastSeenUnixNano atomic.Int64
 }
 
 // AuthMiddleware extracts user identity via the configured AuthProvider
@@ -111,9 +117,12 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 		mu.RUnlock()
 		if cached != nil {
 			ctx := context.WithValue(r.Context(), userContextKey, &cached.user)
-			// Update last_seen_at in DB at most once per minute
-			if time.Since(cached.lastSeen) > time.Minute {
-				cached.lastSeen = time.Now()
+			// Update last_seen_at in DB at most once per minute. CompareAndSwap
+			// ensures exactly one racing request wins and performs the write.
+			prev := cached.lastSeenUnixNano.Load()
+			now := time.Now()
+			if now.Sub(time.Unix(0, prev)) > time.Minute &&
+				cached.lastSeenUnixNano.CompareAndSwap(prev, now.UnixNano()) {
 				go func() {
 					q := dbgen.New(s.DB)
 					_ = q.UpdateUserLastSeen(context.Background(), dbgen.UpdateUserLastSeenParams{
@@ -150,8 +159,10 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Cache for subsequent requests
+		entry := &cachedUser{user: *user}
+		entry.lastSeenUnixNano.Store(time.Now().UnixNano())
 		mu.Lock()
-		cache[identity.ExternalID] = &cachedUser{user: *user, lastSeen: time.Now()}
+		cache[identity.ExternalID] = entry
 		mu.Unlock()
 
 		// Add user to context
