@@ -28,13 +28,14 @@ on:
   push:
     branches:
       - main
+      - decouple-from-exedev
 
 env:
-  PROJECT_ID: 'my-project' # TODO: update to your Google Cloud project ID
-  GAR_LOCATION: 'us-central1' # TODO: update to your region
-  REPOSITORY: 'samples' # TODO: update to your Artifact Registry docker repository name
+  PROJECT_ID: 'feedreader-489315'
+  GAR_LOCATION: 'us-central1'
+  REPOSITORY: 'my-repo'
   IMAGE: 'feedreader'
-  WORKLOAD_IDENTITY_PROVIDER: 'projects/123456789/locations/global/workloadIdentityPools/my-pool/providers/my-provider' # TODO: update to your workload identity provider
+  WORKLOAD_IDENTITY_PROVIDER: 'projects/1072931973985/locations/global/workloadIdentityPools/github/providers/my-repo'
 
 jobs:
   build-and-publish:
