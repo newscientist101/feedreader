@@ -71,6 +71,12 @@ write_files:
       WantedBy=multi-user.target
 
 runcmd:
+  # e2-micro has only ~1 GB RAM. Add a 2 GB swapfile on the persistent
+  # stateful partition so the 3-container stack + Docker don't get
+  # OOM-killed. Idempotent: skipped if it already exists. (A swapfile
+  # does not need exec permission, so the noexec /var mount is fine.)
+  - /bin/sh -c 'test -f /var/swapfile || (fallocate -l 2G /var/swapfile && chmod 600 /var/swapfile && mkswap /var/swapfile)'
+  - /bin/sh -c 'swapon --show | grep -q /var/swapfile || swapon /var/swapfile'
   - systemctl daemon-reload
   - systemctl enable --now feedreader-bootstrap.service
   # Starts the stack if config is already present (reboots); on the very

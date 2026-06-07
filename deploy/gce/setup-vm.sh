@@ -140,6 +140,7 @@ log "Creating COS instance ${INSTANCE_NAME} in ${ZONE}…"
   --image-family "${IMAGE_FAMILY}" \
   --image-project "${IMAGE_PROJECT}" \
   --boot-disk-size "${BOOT_DISK_SIZE}" \
+  --boot-disk-type "${BOOT_DISK_TYPE:-pd-standard}" \
   --address "${STATIC_IP}" \
   --tags "${NETWORK_TAG}" \
   --service-account "${SA_EMAIL}" \

@@ -24,6 +24,34 @@ never `apt install` or `git clone` on the host. Instead:
   systemd units are recreated in `/etc` (a stateless tmpfs) on every boot
   by cloud-init, so the stack survives reboots and COS auto-updates.
 
+## Cost: what's free and what isn't
+
+The `config.env.example` defaults are chosen to land in the GCP **Always
+Free** tier:
+
+| Resource | Free? | Notes |
+|---|---|---|
+| `e2-micro` in `us-central1-a` | ✅ Free | 1 non-preemptible e2-micro/month in us-west1/us-central1/us-east1. Limit is by *hours equal to the month*, so one always-on instance qualifies. |
+| 30 GB `pd-standard` boot disk | ✅ Free | Free tier covers 30 GB-months of **standard** PD only — `pd-balanced`/`pd-ssd` are billed, so the config forces `pd-standard`. |
+| Egress / data transfer | Mostly free | Small free monthly egress allowance; a personal feed reader stays well under it. |
+| **External IPv4 address** | ❌ **~$3/mo** | This is the one unavoidable charge. Google bills ~$0.004/hr (≈$2.92/mo) for an in-use external IPv4 on a VM — *not* covered by the free tier. |
+
+So the realistic bill is **~$3/month for the public IPv4**, with compute and
+disk free. Two ways to handle it:
+
+- **Keep the static IPv4 (default).** While attached to the VM it bills at
+  the same in-use rate as an ephemeral IP, and it keeps your DNS A record
+  stable. **Caveat:** an *unattached* reserved static IP costs more
+  (~$7.30/mo), so if you delete the VM, also release the address (see
+  *Tearing down* below).
+- **Go IPv4-free for $0.** External IPv6 on a VM is free. You'd create the
+  VM with an IPv6 (or dual-stack) NIC, publish an `AAAA` record instead of
+  `A`, and rely on IPv6-capable clients. This needs manual tweaks to the
+  scripts (NIC stack type + the DNS gate) and isn't wired up by default —
+  ask if you want it.
+
+Set a billing budget alert regardless, so a surprise can't run away.
+
 ## Prerequisites (on your workstation)
 
 - `gcloud` CLI, authenticated (`gcloud auth login`) with rights to create
@@ -85,6 +113,17 @@ IMAGE_TAG=decouple-from-exedev ./update-vm.sh
 | `cloud-init.yaml.tmpl` | COS bootstrap (compose install, GAR auth, systemd units) |
 | `setup-vm.sh` | Provision a new VM end-to-end |
 | `update-vm.sh` | Pull the latest image onto an existing VM |
+
+## Tearing down
+
+To stop all charges (including the IPv4):
+
+```bash
+source config.env
+gcloud --project "$PROJECT_ID" compute instances delete "$INSTANCE_NAME" --zone "$ZONE"
+# Release the static IP too — an unattached reserved IP bills at a HIGHER rate:
+gcloud --project "$PROJECT_ID" compute addresses delete "${INSTANCE_NAME}-ip" --region "$REGION"
+```
 
 ## GCP-side IAM note
 
