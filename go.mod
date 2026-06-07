@@ -1,17 +1,19 @@
 module github.com/newscientist101/feedreader
 
 go 1.26.3
+
 toolchain go1.26.4
 
 require (
 	github.com/PuerkitoBio/goquery v1.11.0
+	github.com/emersion/go-smtp v0.24.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/net v0.55.0
 	golang.org/x/sync v0.20.0
-	golang.org/x/time v0.14.0
+	golang.org/x/time v0.15.0
 	modernc.org/sqlite v1.39.0
 )
 
@@ -25,7 +27,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6 // indirect
-	github.com/emersion/go-smtp v0.24.0 // indirect
 	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/google/cel-go v0.26.1 // indirect
