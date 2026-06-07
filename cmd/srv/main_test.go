@@ -20,6 +20,7 @@ func TestFlagDefault(t *testing.T) {
 	f := flag.Lookup("listen")
 	if f == nil {
 		t.Fatal(`flag "listen" not registered`)
+		return
 	}
 	if f.DefValue != want {
 		t.Errorf("flag DefValue = %q, want %q", f.DefValue, want)
@@ -30,6 +31,7 @@ func TestFlagConfig_Registered(t *testing.T) {
 	f := flag.Lookup("config")
 	if f == nil {
 		t.Fatal(`flag "config" not registered`)
+		return
 	}
 	if f.DefValue != "" {
 		t.Errorf("flag DefValue = %q, want empty", f.DefValue)
@@ -52,6 +54,7 @@ func TestInitServer_ValidDBPath(t *testing.T) {
 	}
 	if server == nil {
 		t.Fatal("returned nil server")
+		return
 	}
 	if server.DB != nil {
 		server.DB.Close()
