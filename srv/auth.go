@@ -72,13 +72,57 @@ type cachedUser struct {
 	lastSeenUnixNano atomic.Int64
 }
 
+// maxAuthCacheEntries bounds the in-memory auth cache. Identity is keyed by
+// the external ID supplied by the upstream auth provider; a misbehaving or
+// hostile proxy could otherwise present unboundedly many distinct IDs and
+// grow the map without limit. Real deployments have at most a handful of
+// users, so this cap is never reached in practice — it only prevents
+// pathological growth.
+const maxAuthCacheEntries = 4096
+
+// userCache is a concurrency-safe, size-bounded cache of authenticated users
+// keyed by external ID. When full, inserting a new key evicts one arbitrary
+// existing entry (Go map iteration order); evicted users simply take the slow
+// DB path on their next request, so eviction is always safe.
+type userCache struct {
+	mu      sync.RWMutex
+	entries map[string]*cachedUser
+	max     int
+}
+
+func newUserCache(max int) *userCache {
+	return &userCache{entries: make(map[string]*cachedUser), max: max}
+}
+
+func (c *userCache) get(key string) *cachedUser {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.entries[key]
+}
+
+func (c *userCache) set(key string, u *cachedUser) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	// Evict an arbitrary entry if at capacity and inserting a new key.
+	if _, exists := c.entries[key]; !exists && len(c.entries) >= c.max {
+		for k := range c.entries {
+			delete(c.entries, k)
+			break
+		}
+	}
+	c.entries[key] = u
+}
+
+func (c *userCache) len() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.entries)
+}
+
 // AuthMiddleware extracts user identity via the configured AuthProvider
 // and ensures authentication for non-static routes.
 func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
-	var (
-		mu    sync.RWMutex
-		cache = make(map[string]*cachedUser)
-	)
+	cache := newUserCache(maxAuthCacheEntries)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Allow static files, service worker, and newsletter webhook without auth.
 		// The webhook has its own Bearer-token authentication.
@@ -112,9 +156,7 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Fast path: serve from in-memory cache (no DB hit)
-		mu.RLock()
-		cached := cache[identity.ExternalID]
-		mu.RUnlock()
+		cached := cache.get(identity.ExternalID)
 		if cached != nil {
 			ctx := context.WithValue(r.Context(), userContextKey, &cached.user)
 			// Update last_seen_at in DB at most once per minute. CompareAndSwap
@@ -161,9 +203,7 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 		// Cache for subsequent requests
 		entry := &cachedUser{user: *user}
 		entry.lastSeenUnixNano.Store(time.Now().UnixNano())
-		mu.Lock()
-		cache[identity.ExternalID] = entry
-		mu.Unlock()
+		cache.set(identity.ExternalID, entry)
 
 		// Add user to context
 		ctx = context.WithValue(ctx, userContextKey, user)

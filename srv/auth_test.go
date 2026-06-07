@@ -647,3 +647,31 @@ func TestAuthMiddleware_WithAutheliaHeaders(t *testing.T) {
 		t.Errorf("email = %q, want carol@example.com", gotUser.Email)
 	}
 }
+
+func TestUserCache_BoundedEviction(t *testing.T) {
+	c := newUserCache(4)
+	for i := range 10 {
+		c.set(string(rune('a'+i)), &cachedUser{})
+	}
+	if got := c.len(); got > 4 {
+		t.Errorf("cache exceeded max: len=%d, want <=4", got)
+	}
+	// Most recently inserted key must still be present.
+	if c.get(string(rune('a'+9))) == nil {
+		t.Error("most recent entry was evicted")
+	}
+}
+
+func TestUserCache_UpdateExistingDoesNotEvict(t *testing.T) {
+	c := newUserCache(2)
+	c.set("x", &cachedUser{})
+	c.set("y", &cachedUser{})
+	// Re-setting an existing key must not trigger eviction.
+	c.set("x", &cachedUser{})
+	if c.len() != 2 {
+		t.Errorf("len=%d, want 2", c.len())
+	}
+	if c.get("x") == nil || c.get("y") == nil {
+		t.Error("existing entries should be retained when updating a key")
+	}
+}
