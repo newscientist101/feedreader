@@ -22,6 +22,7 @@ import (
 	"github.com/newscientist101/feedreader/srv/huggingface"
 	"github.com/newscientist101/feedreader/srv/safenet"
 	"github.com/newscientist101/feedreader/srv/scrapers"
+	"golang.org/x/sync/errgroup"
 )
 
 // BrowserUserAgent is a Chrome-like User-Agent string used for feed fetching
@@ -101,7 +102,15 @@ func (f *Fetcher) Stop() {
 	}
 }
 
-// FetchAll fetches all feeds that need updating
+// maxConcurrentFetches bounds how many feeds are fetched in parallel during a
+// FetchAll cycle. Fetches are network-bound, so serial fetching lets a few slow
+// feeds (each up to the 30s client timeout) stall the whole cycle and starve
+// fresh feeds. A small worker pool keeps the cycle bounded while avoiding
+// excessive concurrent SQLite writers (WAL allows one writer; busy_timeout
+// absorbs brief contention).
+const maxConcurrentFetches = 8
+
+// FetchAll fetches all feeds that need updating, using a bounded worker pool.
 func (f *Fetcher) FetchAll(ctx context.Context) {
 	q := dbgen.New(f.DB)
 	feeds, err := q.ListFeedsToFetch(ctx)
@@ -110,11 +119,23 @@ func (f *Fetcher) FetchAll(ctx context.Context) {
 		return
 	}
 
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(maxConcurrentFetches)
 	for i := range feeds {
-		if err := f.FetchFeed(ctx, &feeds[i]); err != nil {
-			slog.Warn("fetch feed", "feed_id", feeds[i].ID, "url", feeds[i].Url, "error", err)
-		}
+		feed := &feeds[i]
+		g.Go(func() error {
+			if gctx.Err() != nil {
+				return gctx.Err()
+			}
+			if err := f.FetchFeed(gctx, feed); err != nil {
+				slog.Warn("fetch feed", "feed_id", feed.ID, "url", feed.Url, "error", err)
+			}
+			// Never return a non-nil error: one feed's failure must not cancel
+			// sibling fetches via errgroup's shared context.
+			return nil
+		})
 	}
+	_ = g.Wait()
 }
 
 // FetchFeed fetches a single feed
